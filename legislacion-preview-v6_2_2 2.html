@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Legislación</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --bg: #000000;
+    --card: #141414;
+    --card-hi: #1C1C1C;
+    --line: #262626;
+    --line-soft: #1E1E1E;
+    --text: #F5F5F5;
+    --muted: #9BA0A6;
+    --muted-2: #6B7078;
+
+    --purple: #8C7DF5;
+    --coral: #F2665C;
+    --teal: #2FBFAE;
+    --blue: #4E9BF7;
+    --green: #34D399;
+    --orange: #FF7A3D;
+
+    --sans: 'Inter', sans-serif;
+    --serif: 'Source Serif 4', serif;
+    --mono: 'JetBrains Mono', monospace;
+    --title: 'Anton', 'Inter', sans-serif;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ background: var(--bg); height:100%; overflow:hidden; }
+  body{ background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing:antialiased; height:100%; overflow:hidden; }
+  #app{ position:fixed; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; background: var(--bg); }
+  svg{ display:block; }
+  :focus-visible{ outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
+
+  /* ---------- topbar ---------- */
+  header{
+    display:flex; align-items:center; justify-content:center; position:relative;
+    padding: 18px 24px; border-bottom:1px solid var(--line);
+  }
+  .header-back{ position:absolute; left:20px; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; color: var(--muted); cursor:pointer; }
+  .header-back:hover{ color: var(--text); background: var(--card); }
+  .header-back svg{ width:19px; height:19px; }
+  .header-nav{ display:flex; align-items:center; gap:22px; }
+  .header-nav span{ display:flex; align-items:center; gap:7px; font-family: var(--title); font-weight:400; font-size:16.5px; letter-spacing:.2px; color: var(--muted-2); cursor:pointer; transition: color .15s; }
+  .header-nav span:hover{ color: var(--muted); }
+  .header-nav span.active{ color: var(--text); }
+  .header-nav span svg{ width:17px; height:17px; flex-shrink:0; }
+  #navNormativas svg.icon-diagonal{ transform: rotate(-40deg); }
+  .header-nav .nav-dot{ width:3px; height:3px; border-radius:50%; background: var(--line); }
+  .header-region-switch{ position:absolute; right:20px; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%; background: var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; transition: border-color .15s; }
+  .header-region-switch:hover{ border-color: var(--muted-2); }
+  .header-region-switch .landing-flag{ width:20px; height:14px; }
+
+  /* ---------- landing screen ---------- */
+  .landing{ position:fixed; inset:0; z-index:200; background: var(--bg); display:flex; align-items:center; justify-content:center; padding:24px; }
+  .landing.hidden{ display:none; }
+  .landing-content{ display:flex; flex-direction:column; align-items:center; width:100%; }
+  .landing-title{ font-family: var(--title); font-size:52px; line-height:1.05; text-align:center; letter-spacing:.5px; margin-bottom:40px; }
+  .landing-buttons{ display:flex; flex-direction:column; gap:13px; width:100%; max-width:340px; }
+  .landing-btn{ display:flex; align-items:center; justify-content:center; gap:10px; padding:16px; border-radius:14px; border:1px solid var(--line); background: var(--card); color: var(--text); font-family: var(--sans); font-weight:600; font-size:14.5px; cursor:pointer; }
+  .landing-btn:hover{ border-color: var(--muted-2); }
+  .landing-btn-primary{ background: var(--purple); border-color: var(--purple); }
+  .landing-flag{ display:flex; width:22px; height:15px; border-radius:3px; overflow:hidden; flex-shrink:0; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15); }
+  .landing-flag svg{ width:100%; height:100%; display:block; }
+  .landing-region-switch{ position:absolute; top:20px; right:22px; width:42px; height:42px; border-radius:50%; background: var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .landing-region-switch:hover{ border-color: var(--muted-2); }
+  .landing-region-switch .landing-flag{ width:24px; height:16px; }
+
+  /* ---------- region select (windowed modal, grid picker) ---------- */
+  .region-sheet-overlay{
+    display:none; position:fixed; inset:0; z-index:210; background:rgba(0,0,0,0.6);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    align-items:center; justify-content:center; padding:24px;
+  }
+  .region-sheet-overlay.show{ display:flex; }
+  .region-select-panel{ max-width:600px; }
+  .region-select-grid{
+    display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; margin-bottom:22px;
+  }
+  @media (max-width:480px){ .region-select-grid{ grid-template-columns: 1fr; } }
+  .region-row{
+    position:relative; display:flex; align-items:center; gap:13px;
+    background: var(--card-hi); border:1px solid var(--line); border-radius:14px;
+    padding:15px 40px 15px 15px; cursor:pointer; text-align:left; min-height:74px;
+    transition: border-color .12s, background .12s;
+  }
+  .region-row:hover{ border-color: var(--muted-2); }
+  .region-row.selected{ border-color: var(--purple); background: rgba(140,125,245,0.08); }
+  .region-row .landing-flag{
+    width:38px; height:38px; border-radius:50%; flex-shrink:0;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15);
+  }
+  .region-row .landing-flag svg{ width:100%; height:100%; }
+  .region-row .region-name{ flex:1; font-size:13.5px; font-weight:700; line-height:1.25; }
+  .region-row .region-check{
+    position:absolute; top:12px; right:12px; width:18px; height:18px; border-radius:50%;
+    border:1px solid var(--line-soft); display:flex; align-items:center; justify-content:center;
+    color: var(--purple); flex-shrink:0;
+  }
+  .region-row.selected .region-check{ border-color: var(--purple); }
+  .region-row .region-check svg{ width:10px; height:10px; opacity:0; }
+  .region-row.selected .region-check svg{ opacity:1; }
+  .region-select-panel .modal-footer{ background: var(--card); }
+
+  /* ---------- topic stats (shared across regions) ---------- */
+  .topic-stats-list{ display:flex; flex-direction:column; gap:8px; margin-top:12px; margin-bottom:28px; }
+  .topic-stat-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; background: var(--card); border:1px solid var(--line); border-radius:12px; padding:13px 15px; }
+  .topic-stat-name{ font-size:13.5px; font-weight:500; }
+  .topic-stat-regions{ display:flex; align-items:center; gap:5px; margin-top:5px; }
+  .topic-stat-regions .landing-flag{ width:16px; height:11px; }
+  .topic-stat-fails{ font-family: var(--mono); font-size:13px; color: var(--coral); white-space:nowrap; }
+
+  /* ---------- stats screen ---------- */
+  .stats-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:12px; margin-bottom:28px; }
+  .stat-card{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding: 18px 17px; }
+  .stat-label{ font-size:12px; color: var(--muted); margin-bottom:10px; }
+  .stat-value{ font-family: var(--mono); font-size:32px; font-weight:700; }
+  .stat-value.purple{ color: var(--purple); }
+  .stat-value.blue{ color: var(--blue); }
+  .stat-value.teal{ color: var(--teal); }
+  .stat-value.coral{ color: var(--coral); }
+  .empty{ text-align:center; padding: 60px 20px; color: var(--muted); border:1px dashed var(--line); border-radius:14px; font-size:13.5px; }
+
+  main{ max-width: 1080px; margin:0 auto; padding: 32px 24px 76px; }
+  h1{ font-family: var(--title); font-size:23px; font-weight:400; letter-spacing:.3px; margin-bottom:20px; }
+
+  /* ---------- mode cards ---------- */
+  .modes{ display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:12px; margin-bottom:38px; }
+  @media (max-width:640px){ .modes{ grid-template-columns: repeat(2,1fr); } }
+  .mode-card{
+    background: var(--card); border:1px solid var(--line); border-radius:14px;
+    padding: 18px 17px; cursor:pointer; text-align:left; min-height:130px;
+    display:flex; flex-direction:column; justify-content:space-between;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+    transition: border-color .15s, background .15s, transform .15s;
+  }
+  .mode-card:hover{ border-color: var(--muted-2); background: var(--card-hi); transform: translateY(-1px); }
+  .mode-emblem{
+    width:42px; height:42px; border-radius:50%; border:1px solid;
+    display:flex; align-items:center; justify-content:center;
+    transition: transform .15s;
+  }
+  .mode-card:hover .mode-emblem{ transform: scale(1.06); }
+  .mode-emblem svg{ width:20px; height:20px; }
+  .mode-card .m-name{ font-family: var(--title); font-weight:400; font-size:15.5px; letter-spacing:.2px; margin-top:16px; }
+  .mode-card .m-sub{ font-size:11.5px; color: var(--muted); margin-top:4px; }
+  .mode-card.estudio .mode-emblem{ background:none; border:none; border-radius:0; color: var(--purple); width:54px; height:54px; }
+  .mode-card.estudio .mode-emblem svg{ width:38px; height:38px; }
+  .mode-card.fallos .mode-emblem{ background:none; border:none; border-radius:0; color: var(--coral); width:54px; height:54px; }
+  .mode-card.fallos .mode-emblem svg{ width:38px; height:38px; }
+  .mode-card.simulacro .mode-emblem{ background:none; border:none; border-radius:0; color: var(--teal); width:54px; height:54px; }
+  .mode-card.simulacro .mode-emblem svg{ width:38px; height:38px; }
+  .mode-card.examen .mode-emblem{ background:none; border:none; border-radius:0; color: var(--blue); width:54px; height:54px; }
+  .mode-card.examen .mode-emblem svg{ width:38px; height:38px; }
+
+  .section-row{ display:flex; align-items:center; gap:14px; margin: 34px 0 15px; }
+  .section-title{ font-size:13px; font-weight:600; color: var(--muted); white-space:nowrap; }
+  .section-rule{ flex:1; height:1px; background: var(--line); }
+
+  /* ---------- history list ---------- */
+  .history{ display:flex; flex-direction:column; }
+  .hist-date{ font-size:11.5px; color: var(--muted-2); margin: 16px 0 8px; }
+  .hist-item{
+    background: var(--card); border:1px solid var(--line); border-radius:11px;
+    padding: 14px 16px; margin-bottom:8px; cursor:pointer;
+    display:flex; align-items:center; gap:14px;
+    transition: border-color .15s;
+  }
+  .hist-item:hover{ border-color: var(--muted-2); }
+  .hist-icon{ flex-shrink:0; display:flex; align-items:center; justify-content:center; color: var(--muted); }
+  .hist-icon svg{ width:28px; height:28px; }
+  .hist-item.t-examen .hist-icon{ color: var(--blue); }
+  .hist-item.t-estudio .hist-icon{ color: var(--purple); }
+  .hist-item.t-fallos .hist-icon{ color: var(--coral); }
+  .hist-item.t-simulacro .hist-icon{ color: var(--teal); }
+  .hist-content{ flex:1; min-width:0; }
+  .hist-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .hist-title{ font-family: var(--title); font-size:15px; font-weight:400; letter-spacing:.2px; }
+  .hist-score{ font-size:13.5px; color: var(--muted); white-space:nowrap; }
+  .hist-score b{ color: var(--text); font-weight:600; }
+  .hist-bottom{ display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
+  .hist-meta{ font-family: var(--mono); font-size:11.5px; color: var(--muted-2); display:flex; align-items:center; gap:6px; }
+  .hist-meta svg{ width:12px; height:12px; }
+  .hist-counts{ display:flex; gap:13px; font-family: var(--mono); font-size:12px; }
+  .hist-counts span{ display:flex; align-items:center; gap:4px; }
+  .hist-counts svg{ width:13px; height:13px; }
+  .c-ok{ color: var(--green); }
+  .c-bad{ color: var(--coral); }
+  .c-pending{ color: var(--muted-2); }
+
+  /* ---------- config screen (temas / examen / simulacro) ---------- */
+  .modal-panel{
+    width:100%; max-width:900px; margin:auto 0; background: var(--card); border:1px solid var(--line);
+    border-radius:18px; padding:26px 26px 22px; max-height:calc(100vh - 90px); overflow-y:auto;
+    animation: detailIn .15s ease-out;
+  }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:20px; }
+  .modal-head h1{ margin-bottom:0; }
+  .modal-close{
+    width:32px; height:32px; border-radius:50%; border:1px solid var(--line);
+    background: var(--card-hi); color: var(--muted); display:flex; align-items:center;
+    justify-content:center; cursor:pointer; flex-shrink:0; transition: all .12s;
+  }
+  .modal-close:hover{ color: var(--text); border-color: var(--muted-2); }
+  .modal-close svg{ width:15px; height:15px; }
+
+  .config-sub{ font-size:13.5px; color: var(--muted); max-width:460px; line-height:1.5; margin-bottom:22px; }
+
+  .config-block{ margin-bottom:26px; }
+  .config-block-head{ display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:12px; }
+  .config-block-label{ font-size:12.5px; font-weight:600; color: var(--muted); }
+  .select-all-link{ font-size:12.5px; color: var(--blue); font-weight:600; cursor:pointer; white-space:nowrap; }
+  .select-all-link:hover{ text-decoration: underline; }
+
+  /* ---- settings rows (Minutos / Preguntas / Dificultad / Ayuda / Repaso Inteligente) ---- */
+  .settings-list{
+    display:flex; flex-direction:column; border:1px solid var(--line); border-radius:14px;
+    overflow:hidden; background: var(--card-hi);
+  }
+  .settings-row{
+    display:flex; align-items:center; gap:13px; padding:15px 16px;
+    cursor:pointer; border-bottom:1px solid var(--line); transition: background .12s;
+  }
+  .settings-row:last-child{ border-bottom:none; }
+  .settings-row:hover{ background: rgba(255,255,255,0.03); }
+  .settings-row-icon{ width:19px; height:19px; color: var(--muted); flex-shrink:0; display:flex; }
+  .settings-row-icon svg{ width:19px; height:19px; }
+  .settings-row-label{ flex:1; font-size:14.5px; font-weight:500; }
+  .settings-row-value{ font-size:13.5px; color: var(--muted); white-space:nowrap; }
+  .settings-row-chevron{ width:14px; height:14px; color: var(--muted-2); flex-shrink:0; }
+  .settings-row-chevron svg{ width:14px; height:14px; }
+
+  /* ---- toggle switch (Seleccionar todo) ---- */
+  .switch-row{ display:flex; align-items:center; gap:10px; cursor:pointer; }
+  .switch-label{ font-size:13.5px; color: var(--text); }
+  .switch{
+    width:38px; height:22px; border-radius:20px; background: var(--line);
+    border:1px solid var(--line-soft); position:relative; flex-shrink:0; transition: background .15s;
+  }
+  .switch .knob{
+    position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%;
+    background: var(--text); transition: transform .15s;
+  }
+  .switch.on{ background: var(--purple); border-color: var(--purple); }
+  .switch.on .knob{ transform: translateX(16px); }
+  #screen-config[data-mode="examen"] .switch.on{ background: var(--blue); border-color: var(--blue); }
+
+  /* ---- topic categories ---- */
+  .temas-list{ display:flex; flex-direction:column; gap:9px; }
+  .topic-category{ border:1px solid var(--line); border-radius:11px; overflow:hidden; background: var(--card); }
+  .topic-category-head{
+    display:flex; align-items:center; gap:14px; padding:14px 16px; cursor:pointer;
+    transition: background .12s;
+  }
+  .topic-category-head:hover{ background: rgba(255,255,255,0.03); }
+  .topic-category-name{ flex:1; font-family: var(--sans); font-weight:700; font-size:13.5px; letter-spacing:.3px; text-transform:uppercase; }
+  .topic-category-chevron{ width:14px; height:14px; color: var(--muted-2); flex-shrink:0; transition: transform .15s; }
+  .topic-category-chevron svg{ width:14px; height:14px; }
+  .topic-category.expanded .topic-category-chevron{ transform: rotate(90deg); }
+  .topic-category-children{ display:none; flex-direction:column; border-top:1px solid var(--line); }
+  .topic-category.expanded .topic-category-children{ display:flex; }
+
+  .topic-row{
+    display:flex; align-items:center; gap:14px; padding:14px 16px 14px 46px;
+    cursor:pointer; transition: background .12s; border-bottom:1px solid var(--line-soft);
+  }
+  .topic-row:last-child{ border-bottom:none; }
+  .topic-row:hover{ background: rgba(255,255,255,0.03); }
+  .topic-row.selected{ background: rgba(140,125,245,0.06); }
+  .topic-row.disabled{ cursor:not-allowed; opacity:.48; }
+  .topic-check{
+    width:21px; height:21px; border-radius:6px; border:1px solid var(--line-soft);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    color: var(--text); transition: background .12s, border-color .12s;
+  }
+  .topic-check svg{ width:12px; height:12px; opacity:0; transition: opacity .12s; }
+  .topic-check.indeterminate{ background: var(--purple); border-color: var(--purple); }
+  .topic-check.indeterminate svg{ opacity:1; }
+  .topic-row.selected .topic-check{ background: var(--purple); border-color: var(--purple); }
+  .topic-row.selected .topic-check svg{ opacity:1; }
+  .topic-category-head .topic-check{ margin-left:0; }
+  .topic-text{ flex:1; display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .topic-name{ font-family: var(--sans); font-weight:600; font-size:14.5px; }
+  .topic-desc{ font-size:11.5px; color: var(--muted); }
+  .topic-count{ font-family: var(--mono); font-size:11px; color: var(--muted-2); white-space:nowrap; flex-shrink:0; }
+  .topic-row-chevron{ width:14px; height:14px; color: var(--muted-2); flex-shrink:0; }
+  .topic-row-chevron svg{ width:14px; height:14px; }
+
+  /* examen accent = blue, simulacro accent = teal */
+  #screen-config[data-mode="examen"] .topic-row.selected{ background: rgba(78,155,247,0.06); }
+  #screen-config[data-mode="examen"] .topic-row.selected .topic-check{ background: var(--blue); border-color: var(--blue); }
+  #screen-config[data-mode="examen"] .topic-check.indeterminate{ background: var(--blue); border-color: var(--blue); }
+
+  .param-options{ display:flex; flex-wrap:wrap; gap:8px; }
+  .param-opt{
+    font-family: var(--mono); font-size:12.5px; color: var(--muted);
+    border:1px solid var(--line); background: var(--card); padding:9px 15px;
+    border-radius:9px; cursor:pointer; transition: all .12s;
+  }
+  .param-opt:hover{ border-color: var(--muted-2); }
+  #screen-config[data-mode="examen"] .param-opt.selected{ border-color: var(--blue); background: rgba(78,155,247,0.1); color: var(--blue); }
+  #screen-config[data-mode="simulacro"] .param-opt.selected{ border-color: var(--teal); background: rgba(47,191,174,0.1); color: var(--teal); }
+
+  .modal-footer{ position:sticky; bottom:0; background: var(--bg); padding:18px 0 4px; margin-top:4px; }
+
+  /* ---------- option sheet (Minutos / Preguntas / Dificultad / Ayuda / Repaso) ---------- */
+  .sheet-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:60;
+    display:none; align-items:flex-end; justify-content:center; padding:0;
+  }
+  .sheet-overlay.show{ display:flex; }
+  .sheet-panel{
+    width:100%; max-width:520px; background: var(--card); border:1px solid var(--line);
+    border-bottom:none; border-top-left-radius:20px; border-top-right-radius:20px;
+    padding:10px 8px calc(env(safe-area-inset-bottom, 0px) + 18px); max-height:70vh; overflow-y:auto;
+    animation: sheetUp .18s ease-out;
+  }
+  @keyframes sheetUp{ from{ transform:translateY(18px); opacity:.5; } to{ transform:translateY(0); opacity:1; } }
+  @media (prefers-reduced-motion: reduce){ .sheet-panel{ animation:none; } }
+  .sheet-handle{ width:36px; height:4px; border-radius:3px; background: var(--line); margin:6px auto 14px; }
+  .sheet-title{ font-family: var(--title); font-weight:400; font-size:15.5px; letter-spacing:.2px; padding:0 12px 12px; }
+  .sheet-options{ display:flex; flex-direction:column; padding:0 6px; }
+  .sheet-option{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:14px 12px; border-radius:11px; cursor:pointer; font-size:14.5px; color: var(--text);
+    transition: background .12s;
+  }
+  .sheet-option:hover{ background: rgba(255,255,255,0.04); }
+  .sheet-option .sheet-check{ width:16px; height:16px; color: var(--purple); opacity:0; flex-shrink:0; }
+  .sheet-option .sheet-check svg{ width:16px; height:16px; }
+  .sheet-option.selected{ color: var(--purple); font-weight:600; }
+  .sheet-option.selected .sheet-check{ opacity:1; }
+
+  /* ---------- detalle de tema (artículos) — recuadro en la misma página ---------- */
+  .topic-detail-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:55;
+    display:none; align-items:center; justify-content:center; padding:24px; overflow-y:auto;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  .topic-detail-overlay.show{ display:flex; }
+  .topic-detail-panel{
+    width:100%; max-width:340px; margin:auto; background: #3A3A3C; border:1px solid #4A4A4C;
+    border-radius:18px; padding:22px 20px 20px; max-height:min(560px, calc(100vh - 48px)); overflow-y:auto;
+    animation: detailIn .15s ease-out;
+  }
+  @keyframes detailIn{ from{ opacity:.5; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
+  @media (prefers-reduced-motion: reduce){ .topic-detail-panel{ animation:none; } }
+  .topic-detail-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:20px; }
+  .topic-detail-title{ font-family: var(--title); font-weight:400; font-size:21px; letter-spacing:.3px; }
+  .topic-detail-sub{ font-size:13px; color: var(--muted); margin-top:4px; }
+  .article-list{ display:flex; flex-direction:column; gap:8px; }
+  .article-row{
+    display:flex; align-items:center; gap:13px; padding:13px 15px;
+    border:1px solid var(--line); border-radius:11px; background: var(--card-hi);
+    cursor:pointer; transition: border-color .12s, background .12s;
+  }
+  .article-row:hover{ border-color: var(--muted-2); }
+  .article-row.selected{ border-color: var(--purple); background: rgba(140,125,245,0.08); }
+  .article-check{
+    width:21px; height:21px; border-radius:6px; border:1px solid var(--line-soft);
+    display:flex; align-items:center; justify-content:center; color: var(--text); flex-shrink:0;
+    transition: background .12s, border-color .12s;
+  }
+  .article-check svg{ width:12px; height:12px; opacity:0; transition: opacity .12s; }
+  .article-row.selected .article-check{ background: var(--purple); border-color: var(--purple); }
+  .article-row.selected .article-check svg{ opacity:1; }
+  .article-name{ font-size:14px; flex:1; }
+  .article-empty{ font-size:13px; color: var(--muted); padding:26px 4px; text-align:center; }
+  .btn-block{ width:100%; display:block; text-align:center; padding:14px 20px; font-size:14px; }
+  .btn-light{ background: var(--text); color: #0A0A0A; }
+  .btn-light:hover{ opacity:.92; }
+  .btn-confirm{
+    background: linear-gradient(135deg, var(--purple), #6f5cf0); color:#fff;
+    font-weight:700; letter-spacing:.2px; border-radius:13px; padding:15px 20px;
+    box-shadow: 0 10px 22px -10px rgba(140,125,245,0.65);
+    transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+  }
+  .btn-confirm:hover{ transform: translateY(-1px); box-shadow: 0 14px 26px -10px rgba(140,125,245,0.75); filter:brightness(1.05); }
+  .btn-confirm:active{ transform: translateY(0); box-shadow: 0 6px 14px -8px rgba(140,125,245,0.55); }
+
+  /* ---------- fallos intro screen ---------- */
+  .fallos-hero{ text-align:center; padding: 20px 10px 28px; }
+  .fallos-icon{
+    width:80px; height:80px; margin:0 auto 18px; border:none; background:none; border-radius:0;
+    color: var(--coral); display:flex; align-items:center; justify-content:center;
+  }
+  .fallos-icon svg{ width:56px; height:56px; }
+  .fallos-count{ font-family: var(--mono); font-size:46px; font-weight:700; }
+  .fallos-label{ font-size:13px; color: var(--muted); margin-top:6px; }
+  .fallos-breakdown{ display:flex; flex-direction:column; gap:8px; margin-bottom:6px; }
+  .fallos-row{
+    display:flex; align-items:center; justify-content:space-between; padding:13px 16px;
+    border:1px solid var(--line); border-radius:11px; background: var(--card);
+  }
+  .fallos-row-name{ font-family: var(--title); font-weight:400; font-size:14.5px; letter-spacing:.2px; }
+  .fallos-row-count{ font-family: var(--mono); font-size:12px; color: var(--coral); }
+
+  /* ---------- quiz screen ---------- */
+  .screen{ display:none; } .screen.active{ display:block; }
+  .screen.overlay{
+    position:fixed; inset:0; z-index:45; background:rgba(0,0,0,0.55);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    display:none; align-items:flex-start; justify-content:center; overflow-y:auto; padding:56px 20px 30px;
+  }
+  .screen.overlay.active{ display:flex; }
+  .quiz-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; gap:14px; flex-wrap:wrap; }
+  .back-link{ display:flex; align-items:center; gap:7px; font-size:13px; color: var(--muted); cursor:pointer; }
+  .back-link svg{ width:14px; height:14px; }
+  .quiz-head-right{ display:flex; align-items:center; gap:12px; }
+  .quiz-progress{ font-family: var(--mono); font-size:12px; color: var(--muted-2); }
+  .quiz-timer{
+    display:none; align-items:center; gap:6px; font-family: var(--mono); font-size:12px;
+    color: var(--muted); background: var(--card); border:1px solid var(--line);
+    padding:5px 10px; border-radius:20px;
+  }
+  .quiz-timer svg{ width:12px; height:12px; }
+  .quiz-timer.urgent{ color: var(--text); background: rgba(242,102,92,0.22); border-color: var(--coral); animation: timerPulse 1s ease-in-out infinite; }
+  @keyframes timerPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.5; } }
+  @media (prefers-reduced-motion: reduce){ .quiz-timer.urgent{ animation:none; } }
+
+  .article-tag{
+    display:inline-flex; gap:7px; align-items:center;
+    font-family: var(--mono); font-size:11.5px; color: var(--blue);
+    background: rgba(78,155,247,0.09); border:1px solid rgba(78,155,247,0.32);
+    padding:5px 11px 5px 9px; border-radius:20px; margin-bottom:18px;
+  }
+  .article-tag svg{ width:13px; height:13px; }
+  .article-tag.general{ color: var(--muted); background: var(--card); border-color: var(--line); }
+
+  .qmeta-row{ display:flex; gap:18px; margin-bottom:18px; flex-wrap:wrap; }
+  .qmeta{ display:flex; align-items:center; gap:6px; font-family: var(--mono); font-size:11.5px; color: var(--muted-2); }
+  .qmeta svg{ width:13px; height:13px; }
+  .qmeta b{ color: var(--coral); font-weight:600; }
+  .qmeta.time b{ color: var(--muted); font-weight:600; }
+
+  .question{ font-family: 'Source Serif 4', serif; font-size:20px; font-weight:600; line-height:1.5; margin-bottom:24px; }
+
+  .options{ display:flex; flex-direction:column; gap:9px; }
+  .option{
+    display:flex; align-items:center; gap:13px; padding:13px 15px;
+    border:1px solid var(--line); border-radius:11px; background: var(--card);
+    cursor:pointer; font-size:14px; transition: border-color .12s, background .12s;
+  }
+  .option:hover{ border-color: var(--muted-2); }
+  .opt-badge{
+    width:26px; height:26px; border-radius:50%; border:1px solid var(--line-soft);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    font-family: var(--mono); font-size:11.5px; color: var(--muted);
+    transition: all .12s;
+  }
+  .opt-text{ flex:1; }
+  .opt-result{ width:16px; height:16px; flex-shrink:0; display:none; }
+  .opt-result svg{ width:16px; height:16px; }
+  .option.correct{ border-color: var(--green); background: rgba(52,211,153,0.08); }
+  .option.correct .opt-badge{ border-color: var(--green); color: var(--green); background: rgba(52,211,153,0.12); }
+  .option.correct .opt-result{ display:block; color: var(--green); }
+  .option.incorrect{ border-color: var(--coral); background: rgba(242,102,92,0.08); }
+  .option.incorrect .opt-badge{ border-color: var(--coral); color: var(--coral); background: rgba(242,102,92,0.12); }
+  .option.incorrect .opt-result{ display:block; color: var(--coral); }
+
+  .explain{
+    margin-top:20px; padding:15px 17px; background: var(--card); border:1px solid var(--line);
+    border-radius:11px; font-size:13px; line-height:1.65; color: var(--muted); display:none;
+  }
+  .explain.show{ display:block; }
+  .explain b{ color: var(--text); }
+  .explain .cite{ font-family: var(--mono); font-size:11px; color: var(--blue); display:flex; align-items:center; gap:6px; margin-top:10px; }
+  .explain .cite svg{ width:12px; height:12px; }
+
+  .quiz-actions{ margin-top:24px; display:flex; justify-content:flex-end; }
+  .btn{ font-family: var(--sans); font-weight:600; font-size:13.5px; padding:11px 23px; border-radius:9px; border:1px solid transparent; cursor:pointer; }
+  .btn-primary{ background: var(--purple); color: var(--text); }
+  .btn-primary:disabled{ background: var(--card-hi); color: var(--muted-2); cursor:not-allowed; }
+  .btn-ghost{ background:transparent; border-color: var(--line); color: var(--text); }
+  .btn-ghost:hover{ border-color: var(--muted-2); }
+
+  .result-hero{ text-align:center; padding: 34px 10px 12px; }
+  .result-label{ font-size:12px; color: var(--muted); margin-bottom:10px; }
+  .result-score{ font-family: var(--mono); font-size:50px; font-weight:700; }
+  .result-score span{ font-size:20px; color: var(--muted); }
+
+  /* ---------- review / corrección screen ---------- */
+  .review-topbar{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+  .review-toggle-row{ display:flex; align-items:center; margin-bottom:26px; }
+  .review-report{
+    font-size:12px; color: var(--muted-2); display:inline-flex; align-items:center; gap:6px;
+    cursor:pointer; margin-bottom:16px; transition: color .12s;
+  }
+  .review-report:hover{ color: var(--coral); }
+  .review-report svg{ width:13px; height:13px; }
+  .review-nav{ display:flex; align-items:center; justify-content:center; gap:16px; margin-top:28px; }
+  .review-nav button{
+    width:34px; height:34px; border-radius:50%; border:1px solid var(--line); background: var(--card);
+    color: var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer; transition: border-color .12s;
+  }
+  .review-nav button:hover{ border-color: var(--muted-2); }
+  .review-nav button:disabled{ opacity:.35; cursor:not-allowed; }
+  .review-nav button svg{ width:15px; height:15px; }
+  .review-counter{ font-family: var(--mono); font-size:12.5px; color: var(--muted); min-width:56px; text-align:center; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="region-sheet-overlay" id="regionSheetOverlay" onclick="if(event.target===this)closeRegionSheet()">
+    <div class="modal-panel region-select-panel">
+      <div class="modal-head">
+        <h1>¿Qué comunidad quieres preparar?</h1>
+        <div class="modal-close" role="button" tabindex="0" onclick="closeRegionSheet()" onkeydown="if(event.key==='Enter')closeRegionSheet()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </div>
+      </div>
+      <div class="region-select-grid" id="regionList"></div>
+      <div class="modal-footer">
+        <button class="btn btn-block btn-confirm" id="regionConfirmBtn" onclick="confirmRegionSelect()">Siguiente</button>
+      </div>
+    </div>
+  </div>
+
+  <header>
+    <div class="header-nav">
+      <span id="navNormativas" role="button" tabindex="0" onclick="showScreen('screen-normativas')" onkeydown="if(event.key==='Enter')showScreen('screen-normativas')">
+        <svg class="icon-diagonal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 9.5 L10 15.5"/>
+          <path d="M10.5 -2 A1 1 0 0 1 11.5 -1"/>
+          <path d="M12 26 A1 1 0 0 1 13 25"/>
+          <path d="M14 15.5 L10 9.5"/>
+          <path d="M14 9.5 L14 15.5"/>
+          <path d="M17.5 -4 L22.5 -4"/>
+          <path d="M18 15.5 L18 9.5"/>
+          <path d="M18 15.5 L22 15.5"/>
+          <path d="M18 9.5 L22 9.5"/>
+          <path d="M2 14.5 L2 9.5"/>
+          <path d="M20.5 12.5 L18 12.5"/>
+          <path d="M24 -3 L19 -3"/>
+          <path d="M27.5 13 A1 1 0 0 1 28.5 14"/>
+          <path d="M28 13.134 A1 1 0 0 1 28.5 13.995"/>
+          <path d="M28.5 12.5 A1 1 0 0 1 29.5 11.5"/>
+          <path d="M29 15.5 A1 1 0 0 1 28 16.5"/>
+          <path d="M3 15.5 A1 1 0 0 1 2 14.5"/>
+          <path d="M30.5 13.5 A1 1 0 0 1 29.5 12.5"/>
+          <path d="M31.5 11 A1 1 0 0 1 30.5 10"/>
+          <path d="M32.366 9.5 A1 1 0 0 1 31.495 11"/>
+          <path d="M32.5 8 L32.5 3"/>
+          <path d="M33 3.5 A1 1 0 0 1 34 4.5"/>
+          <path d="M33 4.5 L33 9.5"/>
+          <path d="M33.5 6 A1 1 0 0 1 34.5 5"/>
+          <path d="M34 5 L34 10"/>
+          <path d="M4.5 27.5 A1 1 0 0 1 3.5 26.5"/>
+          <path d="M5 15.5 L3 15.5"/>
+          <path d="M6 -1.5 A1 1 0 0 1 7 -2.5"/>
+          <path d="M6 14.5 A1 1 0 0 1 5 15.5"/>
+          <path d="M6 14.5 L6 9.5"/>
+          <path d="M7.5 -3 L12.5 -3"/>
+          <path d="M8.5 25.5 A1 1 0 0 1 7.5 26.5"/>
+        </svg>
+        Normativas
+      </span>
+      <div class="nav-dot"></div>
+      <span class="active" id="navHome" role="button" tabindex="0" onclick="showScreen('screen-home')" onkeydown="if(event.key==='Enter')showScreen('screen-home')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="m19 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"/><path d="m5 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M7 21h10"/></svg>
+        Legislación
+      </span>
+      <div class="nav-dot"></div>
+      <span id="navStats" role="button" tabindex="0" onclick="showScreen('screen-stats')" onkeydown="if(event.key==='Enter')showScreen('screen-stats')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16v5"/><path d="M16 14.639V21"/><path d="M20 10.656V21"/><path d="m22 3-8.646 8.646a.5.5 0 0 1-.708 0L9.354 8.354a.5.5 0 0 0-.707 0L2 15"/><path d="M4 18.463V21"/><path d="M8 14.656V21"/></svg>
+        Estadísticas
+      </span>
+    </div>
+    <div class="header-region-switch" id="headerRegionSwitch" role="button" tabindex="0" title="Cambiar de comunidad" onclick="openRegionSheet()" onkeydown="if(event.key==='Enter')openRegionSheet()">
+      <span class="landing-flag" id="headerRegionFlag"></span>
+    </div>
+  </header>
+
+  <main>
+
+    <section class="screen active" id="screen-home">
+      <h1>Elige un tipo de test</h1>
+      <div class="modes">
+        <div class="mode-card estudio" role="button" tabindex="0" onclick="openConfig('estudio')">
+          <div class="mode-emblem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 7v14"/>
+              <path d="M16 12h2"/>
+              <path d="M16 8h2"/>
+              <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>
+              <path d="M6 12h2"/>
+              <path d="M6 8h2"/>
+            </svg>
+          </div>
+          <div><div class="m-name">Modo estudio</div><div class="m-sub">Elige tus temas</div></div>
+        </div>
+        <div class="mode-card fallos" role="button" tabindex="0" onclick="openFallos()">
+          <div class="mode-emblem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m15 7-6 6"/>
+              <path d="M20 17H6.5a1 1 0 000 5H19a1 1 0 001-1V3a1 1 0 00-1-1H6.5A2.5 2.5 0 004 4.5v15"/>
+              <path d="m9 7 6 6"/>
+            </svg>
+          </div>
+          <div><div class="m-name">Fallos</div><div class="m-sub">31 pendientes</div></div>
+        </div>
+        <div class="mode-card simulacro" role="button" tabindex="0" onclick="openConfig('simulacro')">
+          <div class="mode-emblem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85"/>
+              <path d="M14 2v5a1 1 0 0 0 1 1h5"/>
+              <path d="M8 14v2.2l1.6 1"/>
+              <circle cx="8" cy="16" r="6"/>
+            </svg>
+          </div>
+          <div><div class="m-name">Simulacro</div><div class="m-sub">Tiempo y preguntas</div></div>
+        </div>
+        <div class="mode-card examen" role="button" tabindex="0" onclick="openConfig('examen')">
+          <div class="mode-emblem">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/>
+              <path d="M2 6h4"/>
+              <path d="M2 10h4"/>
+              <path d="M2 14h4"/>
+              <path d="M2 18h4"/>
+              <path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/>
+            </svg>
+          </div>
+          <div><div class="m-name">Examen</div><div class="m-sub">Condiciones reales</div></div>
+        </div>
+      </div>
+
+      <div class="section-row"><div class="section-title">Historial</div><div class="section-rule"></div></div>
+      <div class="history" id="historyList">
+        <!-- filled by JS -->
+      </div>
+    </section>
+
+    <!-- ===== NORMATIVAS SCREEN ===== -->
+    <section class="screen" id="screen-normativas">
+      <h1>Normativas</h1>
+      <div class="empty">Aquí aparecerán las normativas disponibles.</div>
+    </section>
+
+    <!-- ===== STATS SCREEN ===== -->
+    <section class="screen" id="screen-stats">
+      <h1>Estadísticas</h1>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Tests realizados</div>
+          <div class="stat-value purple">24</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Nota media</div>
+          <div class="stat-value blue">7,80</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Racha actual</div>
+          <div class="stat-value teal">6 días</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Fallos pendientes</div>
+          <div class="stat-value coral">31</div>
+        </div>
+      </div>
+      <div class="empty">Aquí irán gráficos y desglose por tema próximamente.</div>
+
+      <div class="section-row"><div class="section-title">Por tema</div><div class="section-rule"></div></div>
+      <div class="topic-stats-list" id="topicStatsList"><!-- filled by JS --></div>
+    </section>
+
+
+    <!-- ===== CONFIG SCREEN (estudio / examen / simulacro) ===== -->
+    <section class="screen overlay" id="screen-config">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h1 id="configTitle">Estudio</h1>
+          <button class="modal-close" aria-label="Cerrar" onclick="showHome()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="config-sub" id="configSub">Selecciona uno o varios temas. El test se generará solo con preguntas de la legislación elegida.</div>
+
+        <div class="config-block" id="configSettingsBlock">
+          <div class="settings-list" id="settingsList"></div>
+        </div>
+
+        <div class="config-block" id="configParamsBlock">
+          <div class="config-block-head"><div class="config-block-label">Número de preguntas</div></div>
+          <div class="param-options" id="countOptions"></div>
+        </div>
+        <div class="config-block" id="configTimeBlock">
+          <div class="config-block-head"><div class="config-block-label">Tiempo</div></div>
+          <div class="param-options" id="timeOptions"></div>
+        </div>
+
+        <div class="config-block" id="configTopicsBlock">
+          <div class="config-block-head">
+            <div class="config-block-label">Temas</div>
+            <span class="switch-row" id="selectAllBtn" role="button" tabindex="0" onclick="toggleAllTopics()">
+              <span class="switch" id="selectAllSwitch"><span class="knob"></span></span>
+              <span class="switch-label">Seleccionar todo</span>
+            </span>
+          </div>
+          <div class="temas-list" id="temasList"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-primary btn-block btn-light" id="startConfigBtn" onclick="startFromConfig()">Comenzar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FALLOS INTRO SCREEN ===== -->
+    <section class="screen overlay" id="screen-fallos">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h1>Fallos</h1>
+          <button class="modal-close" aria-label="Cerrar" onclick="showHome()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="fallos-hero">
+          <div class="fallos-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m15 7-6 6"/><path d="M20 17H6.5a1 1 0 000 5H19a1 1 0 001-1V3a1 1 0 00-1-1H6.5A2.5 2.5 0 004 4.5v15"/><path d="m9 7 6 6"/></svg>
+          </div>
+          <div class="fallos-count"><span id="fallosTotal">31</span></div>
+          <div class="fallos-label">preguntas falladas pendientes de repaso</div>
+        </div>
+        <div class="fallos-breakdown" id="fallosBreakdown"></div>
+        <div class="modal-footer">
+          <button class="btn btn-primary btn-block btn-light" onclick="startFallosReview()">Comenzar repaso</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== QUIZ SCREEN ===== -->
+    <section class="screen" id="screen-quiz">
+      <div class="quiz-head">
+        <span class="back-link" role="button" tabindex="0" onclick="showHome()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="11,6 5,12 11,18"/></svg>
+          Volver
+        </span>
+        <div class="quiz-head-right">
+          <span class="quiz-progress" id="quizCount">1 / 4</span>
+          <span class="quiz-timer" id="quizTimer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
+            <span id="quizTimerText">30:00</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="article-tag" id="articleTag">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="7.2"/><circle cx="12" cy="12" r="3"/></svg>
+        <span id="articleTagText">ART. 81.2</span>
+      </div>
+
+      <div class="qmeta-row">
+        <div class="qmeta">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><polyline points="4,17 4,12 9,12"/></svg>
+          Fallada <b id="qFailCount">3</b> veces
+        </div>
+        <div class="qmeta time">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
+          Tu media <b id="qAvgTime">8s</b>
+        </div>
+      </div>
+
+      <div class="question" id="quizQuestion">—</div>
+      <div class="options" id="quizOptions"></div>
+      <div class="explain" id="quizExplain"></div>
+      <div class="quiz-actions">
+        <button class="btn btn-primary" id="nextBtn" disabled onclick="nextQuestion()">Siguiente</button>
+      </div>
+    </section>
+
+    <!-- ===== RESULT SCREEN ===== -->
+    <section class="screen" id="screen-result">
+      <div class="result-hero">
+        <div class="result-label">Sesión completada</div>
+        <div class="result-score"><span id="resultScore">3</span><span>/<span id="resultTotal">4</span></span></div>
+      </div>
+      <div style="display:flex; gap:10px; justify-content:center; margin-top:26px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" onclick="showHome()">Volver al inicio</button>
+        <button class="btn btn-primary" onclick="openLastReview()">Revisar examen</button>
+      </div>
+    </section>
+
+    <!-- ===== REVIEW / CORRECCIÓN SCREEN ===== -->
+    <section class="screen" id="screen-review">
+      <div class="quiz-head">
+        <span class="back-link" role="button" tabindex="0" onclick="showHome()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="11,6 5,12 11,18"/></svg>
+          Volver
+        </span>
+      </div>
+      <h1 id="reviewTitle">Corrección</h1>
+      <div class="review-topbar" id="reviewFilters"></div>
+      <div class="review-toggle-row">
+        <span class="switch-row" role="button" tabindex="0" onclick="toggleReviewExplain()">
+          <span class="switch on" id="reviewExplainToggle"><span class="knob"></span></span>
+          <span class="switch-label">Mostrar explicaciones</span>
+        </span>
+      </div>
+      <div id="reviewBody"></div>
+      <div class="review-nav" id="reviewNav">
+        <button id="reviewPrev" aria-label="Anterior" onclick="reviewGo(-1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,6 9,12 15,18"/></svg>
+        </button>
+        <span class="review-counter" id="reviewCounter">1 / 4</span>
+        <button id="reviewNext" aria-label="Siguiente" onclick="reviewGo(1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="sheet-overlay" id="sheetOverlay" onclick="if(event.target===this) closeSettingSheet()">
+    <div class="sheet-panel" role="dialog" aria-modal="true">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title" id="sheetTitle">—</div>
+      <div class="sheet-options" id="sheetOptions"></div>
+    </div>
+  </div>
+
+  <div class="topic-detail-overlay" id="topicDetailOverlay" onclick="if(event.target===this) closeTopicDetail()">
+    <div class="topic-detail-panel" role="dialog" aria-modal="true">
+      <div class="topic-detail-head">
+        <div>
+          <div class="topic-detail-title" id="topicDetailTitle">—</div>
+          <div class="topic-detail-sub" id="topicDetailSub"></div>
+        </div>
+        <button class="modal-close" aria-label="Cerrar" onclick="closeTopicDetail()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="article-list" id="articleList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SAMPLE_QUESTIONS = [
+  { art:"Art. 81.2", general:false, failCount:3, avgTime:"8s", difficulty:"media",
+    q:"Según el artículo 81.2, ¿qué naturaleza tienen los convenios interadministrativos por defecto?",
+    options:["Indefinida", "4 años prorrogables", "1 año renovable tácitamente", "Coincide con la legislatura"],
+    correct:1,
+    explain:"El art. 81.2 fija una duración determinada de <b>4 años</b>, prorrogable por acuerdo expreso, salvo que la ley específica del convenio prevea otra cosa." },
+  { art:"General", general:true, failCount:1, avgTime:"5s", difficulty:"facil",
+    q:"¿Qué principio NO figura entre los principios generales de actuación de las Administraciones Públicas?",
+    options:["Buena fe y confianza legítima", "Responsabilidad por la gestión pública", "Beneficio económico del órgano actuante", "Racionalización y agilidad de procedimientos"],
+    correct:2,
+    explain:"El <b>beneficio económico del órgano actuante</b> no es un principio recogido en la norma; los demás sí aparecen listados expresamente." },
+  { art:"Art. 47.1.b", general:false, failCount:6, avgTime:"11s", difficulty:"dificil",
+    q:"Un acto administrativo dictado prescindiendo total y absolutamente del procedimiento es:",
+    options:["Anulable", "Nulo de pleno derecho", "Válido si no se recurre", "Rectificable de oficio sin más trámite"],
+    correct:1,
+    explain:"El art. 47.1.b califica estos actos como <b>nulos de pleno derecho</b>, a diferencia de otros vicios que solo generan anulabilidad." },
+  { art:"Art. 3.1", general:false, failCount:0, avgTime:"4s", difficulty:"facil",
+    q:"¿Cuál de estos es un principio de actuación recogido en el artículo 3.1?",
+    options:["Confidencialidad absoluta", "Servicio efectivo a los ciudadanos", "Centralización total de competencias", "Prioridad presupuestaria sobre la legalidad"],
+    correct:1,
+    explain:"El <b>servicio efectivo a los ciudadanos</b> encabeza la lista de principios generales del art. 3.1." }
+];
+
+const TOPIC_CATEGORIES = [
+  { id:"normativa", name:"Normativa específica" },
+  { id:"generales", name:"Conocimientos generales" }
+];
+
+const FLAG_ANDALUCIA = '<svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg"><rect width="30" height="20" fill="#00954C"/><rect y="6.67" width="30" height="6.67" fill="#fff"/></svg>';
+const FLAG_MADRID = '<svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg"><rect width="30" height="20" fill="#C60B1E"/><g fill="#fff">' +
+  [0,1,2,3,4,5,6].map(i => { const a = (-70 + i*23.3) * Math.PI/180, cx=15+9*Math.cos(a), cy=8+7*Math.sin(a); return '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="1"/>'; }).join('') +
+  '</g></svg>';
+
+const REGIONS = {
+  andalucia: {
+    id:"andalucia", name:"Andalucía", flag: FLAG_ANDALUCIA,
+    topics: [
+      { id:"ley39", category:"normativa", name:"Ley 39/2015", desc:"Procedimiento administrativo común", qIndexes:[2], fails:9, enabled:true },
+      { id:"ley40", category:"normativa", name:"Ley 40/2015", desc:"Régimen jurídico del sector público", qIndexes:[0,3], fails:14, enabled:true },
+      { id:"lcsp", category:"normativa", name:"Ley de Contratos del Sector Público", desc:"Procedimientos de contratación", qIndexes:[], fails:0, enabled:false },
+      { id:"ebep", category:"normativa", name:"Estatuto Básico del Empleado Público", desc:"Derechos y deberes del personal", qIndexes:[], fails:0, enabled:false },
+      { id:"principios", category:"generales", name:"Principios generales", desc:"Actuación de las Administraciones Públicas", qIndexes:[1], fails:8, enabled:true },
+      { id:"ce", category:"generales", name:"Constitución Española", desc:"Título preliminar y derechos fundamentales", qIndexes:[], fails:0, enabled:false }
+    ]
+  },
+  madrid: {
+    id:"madrid", name:"Comunidad de Madrid", flag: FLAG_MADRID,
+    topics: [
+      { id:"ebep-cm", category:"normativa", name:"Función Pública CM", desc:"Ley de Función Pública de la Comunidad de Madrid", qIndexes:[], fails:0, enabled:true },
+      { id:"gobierno-cm", category:"normativa", name:"Ley de Gobierno CM", desc:"Gobierno y Administración de la Comunidad de Madrid", qIndexes:[], fails:0, enabled:false },
+      { id:"principios", category:"generales", name:"Principios generales", desc:"Actuación de las Administraciones Públicas", qIndexes:[1], fails:8, enabled:true },
+      { id:"ce", category:"generales", name:"Constitución Española", desc:"Título preliminar y derechos fundamentales", qIndexes:[], fails:0, enabled:false }
+    ]
+  }
+};
+
+let currentRegion = "andalucia";
+let TOPICS = REGIONS[currentRegion].topics;
+
+const ARTICLES = {
+  ley39: ["Art. 1 - Objeto y ámbito de aplicación", "Art. 21 - Obligación de resolver", "Art. 47 - Nulidad de pleno derecho"],
+  ley40: ["Art. 3 - Principios generales de actuación", "Art. 81 - Convenios interadministrativos"],
+  lcsp: [],
+  ebep: [],
+  "ebep-cm": [],
+  "gobierno-cm": [],
+  principios: ["Art. 3.1 - Principios generales de actuación"],
+  ce: []
+};
+
+const COUNT_OPTIONS = [10, 20, 30, 40];
+const TIME_OPTIONS = [15, 30, 45, 60];
+const MINUTOS_OPTIONS = [null, 10, 20, 30, 45, 60];
+const PREGUNTAS_OPTIONS = [null, 10, 20, 30, 40];
+const DIFICULTAD_OPTIONS = ["aleatoria", "facil", "media", "dificil"];
+const DIFICULTAD_LABELS = { aleatoria:"Aleatoria", facil:"Fácil", media:"Media", dificil:"Difícil" };
+const AYUDA_OPTIONS = ["ocultar", "mostrar"];
+const AYUDA_LABELS = { ocultar:"Ocultar tema", mostrar:"Mostrar tema" };
+const REPASO_OPTIONS = [false, true];
+
+const HISTORY = [
+  { id:"h1", date:"Hace 1 hora", type:"examen", title:"Examen", nota:"7,50", time:"14:20", ok:15, bad:5, pending:0, review:null },
+  { id:"h2", date:"Hace 23 horas", type:"estudio", title:"Estudio", nota:"9,00", time:"6:40", ok:18, bad:2, pending:0, review:null },
+  { id:"h3", date:"Hace 3 días", type:"fallos", title:"Fallos", nota:"3,27", time:"9:12", ok:18, bad:12, pending:13, review:null }
+];
+let lastFinishedReviewId = null;
+
+const ICONS = {
+  estudio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M16 12h2"/><path d="M16 8h2"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/><path d="M6 12h2"/><path d="M6 8h2"/></svg>',
+  fallos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 7-6 6"/><path d="M20 17H6.5a1 1 0 000 5H19a1 1 0 001-1V3a1 1 0 00-1-1H6.5A2.5 2.5 0 004 4.5v15"/><path d="m9 7 6 6"/></svg>',
+  examen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/></svg>',
+  simulacro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M8 14v2.2l1.6 1"/><circle cx="8" cy="16" r="6"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>',
+  ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><polyline points="8.3,12.5 11,15.2 16,9.3"/></svg>',
+  bad: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="9.3" y1="9.3" x2="14.7" y2="14.7"/><line x1="14.7" y1="9.3" x2="9.3" y2="14.7"/></svg>',
+  pending: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="2.8 3.2"><circle cx="12" cy="12" r="8"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,13 10,18 19,6"/></svg>',
+  cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>',
+  seal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="7.2"/><circle cx="12" cy="12" r="3"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 21h20L12 3Z"/><line x1="12" y1="9.5" x2="12" y2="14"/><circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none"/></svg>',
+  timer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="2" x2="14" y2="2"/><line x1="12" y1="2" x2="12" y2="5"/><circle cx="12" cy="13.5" r="8"/><line x1="12" y1="13.5" x2="12" y2="9"/><line x1="12" y1="13.5" x2="15" y2="14.8"/></svg>',
+  doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h9L20 8v12.5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1Z"/><path d="M14.5 3.5V8H19"/><line x1="8" y1="12.5" x2="16" y2="12.5"/><line x1="8" y1="16" x2="16" y2="16"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="20" x2="19" y2="20"/><rect x="6" y="14" width="3.4" height="6"/><rect x="10.3" y="9.5" width="3.4" height="10.5"/><rect x="14.6" y="5" width="3.4" height="15"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"/></svg>',
+  brain: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="6.5" r="2.1"/><circle cx="17" cy="6.5" r="2.1"/><circle cx="7" cy="17.5" r="2.1"/><circle cx="17" cy="17.5" r="2.1"/><circle cx="12" cy="12" r="2.1"/><line x1="8.7" y1="7.6" x2="10.4" y2="10.6"/><line x1="15.3" y1="7.6" x2="13.6" y2="10.6"/><line x1="8.7" y1="16.4" x2="10.4" y2="13.4"/><line x1="15.3" y1="16.4" x2="13.6" y2="13.4"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>'
+};
+
+let quizState = { mode:null, index:0, correctCount:0, answered:false };
+let ACTIVE_QUESTIONS = SAMPLE_QUESTIONS;
+let configState = { mode:null, topics:new Set(), count:20, time:30, minutos:null, preguntas:null, dificultad:'aleatoria', ayuda:'ocultar', repaso:false };
+let expandedCategories = new Set(['generales']);
+let timerInterval = null;
+
+/* ---------- landing / region switching ---------- */
+function updateLandingFlag(){
+  const r = REGIONS[currentRegion];
+  const switchFlag = document.getElementById('landingSwitchFlag');
+  const enterFlag = document.getElementById('landingEnterFlag');
+  const regionName = document.getElementById('landingRegionName');
+  const headerFlag = document.getElementById('headerRegionFlag');
+  if(switchFlag) switchFlag.innerHTML = r.flag;
+  if(enterFlag) enterFlag.innerHTML = r.flag;
+  if(regionName) regionName.textContent = r.name;
+  if(headerFlag) headerFlag.innerHTML = r.flag;
+}
+let pendingRegion = currentRegion;
+function renderRegionGrid(){
+  const list = document.getElementById('regionList');
+  list.innerHTML = '';
+  Object.values(REGIONS).forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'region-row' + (r.id === pendingRegion ? ' selected' : '');
+    row.setAttribute('role','button'); row.setAttribute('tabindex','0');
+    row.innerHTML =
+      '<span class="landing-flag">' + r.flag + '</span>' +
+      '<span class="region-name">' + r.name + '</span>' +
+      '<span class="region-check">' + ICONS.check + '</span>';
+    row.onclick = () => { pendingRegion = r.id; renderRegionGrid(); };
+    row.onkeydown = (e) => { if(e.key === 'Enter'){ pendingRegion = r.id; renderRegionGrid(); } };
+    list.appendChild(row);
+  });
+}
+function openRegionSheet(){
+  pendingRegion = currentRegion;
+  renderRegionGrid();
+  document.getElementById('regionSheetOverlay').classList.add('show');
+}
+function closeRegionSheet(){
+  document.getElementById('regionSheetOverlay').classList.remove('show');
+}
+function confirmRegionSelect(){
+  selectRegion(pendingRegion);
+}
+function selectRegion(id){
+  currentRegion = id;
+  TOPICS = REGIONS[id].topics;
+  configState.topics = new Set(TOPICS.filter(t => t.enabled).map(t => t.id));
+  updateLandingFlag();
+  renderTopicStats();
+  closeRegionSheet();
+}
+function enterApp(screenId){
+  document.getElementById('landingScreen').classList.add('hidden');
+  showScreen(screenId);
+}
+function backToLanding(){
+  document.getElementById('landingScreen').classList.remove('hidden');
+}
+
+/* ---------- topic stats (current region only) ---------- */
+function renderTopicStats(){
+  const el = document.getElementById('topicStatsList');
+  el.innerHTML = '';
+  TOPICS.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'topic-stat-row';
+    row.innerHTML =
+      '<div class="topic-stat-name">' + t.name + '</div>' +
+      '<div class="topic-stat-fails">' + t.fails + ' fallos</div>';
+    el.appendChild(row);
+  });
+}
+
+
+function renderHistory(){
+  const el = document.getElementById('historyList');
+  el.innerHTML = '';
+  HISTORY.forEach(h => {
+    const dateEl = document.createElement('div');
+    dateEl.className = 'hist-date';
+    dateEl.textContent = h.date;
+    el.appendChild(dateEl);
+
+    const item = document.createElement('div');
+    item.className = 'hist-item t-' + h.type;
+    item.setAttribute('role','button');
+    item.setAttribute('tabindex','0');
+    item.innerHTML =
+      '<div class="hist-icon">' + ICONS[h.type] + '</div>' +
+      '<div class="hist-content">' +
+        '<div class="hist-top">' +
+          '<div class="hist-title">' + h.title + '</div>' +
+          '<div class="hist-score">Nota <b>' + h.nota + '</b></div>' +
+        '</div>' +
+        '<div class="hist-bottom">' +
+          '<div class="hist-meta">' + ICONS.clock + h.time + '</div>' +
+          '<div class="hist-counts">' +
+            '<span class="c-ok">' + ICONS.ok + h.ok + '</span>' +
+            '<span class="c-bad">' + ICONS.bad + h.bad + '</span>' +
+            '<span class="c-pending">' + ICONS.pending + h.pending + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    item.onclick = () => {
+      if(h.review){ openReview(h.review, h.title + ' · Nota ' + h.nota); }
+      else { alert('Este test no tiene datos de corrección guardados.'); }
+    };
+    item.onkeydown = (e) => { if(e.key === 'Enter') item.onclick(); };
+    el.appendChild(item);
+  });
+}
+
+/* ---------- navigation ---------- */
+function showScreen(id){
+  if(id !== 'screen-quiz'){ clearInterval(timerInterval); }
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('navNormativas').classList.toggle('active', id === 'screen-normativas');
+  document.getElementById('navHome').classList.toggle('active', id === 'screen-home');
+  document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
+}
+function showHome(){ showScreen('screen-home'); }
+function openOverlay(id){
+  document.getElementById(id).classList.add('active');
+}
+
+/* ---------- config screen (estudio / examen / simulacro) ---------- */
+function openConfig(mode){
+  configState.mode = mode;
+  if((mode === 'estudio' || mode === 'examen') && configState.topics.size === 0){
+    TOPICS.forEach(t => { if(t.enabled) configState.topics.add(t.id); });
+  }
+  document.getElementById('screen-config').setAttribute('data-mode', mode);
+
+  const titles = {
+    estudio: 'Estudio',
+    examen: 'Configura tu examen',
+    simulacro: 'Configura tu simulacro'
+  };
+  const subs = {
+    estudio: 'Selecciona uno o varios temas. El test se generará solo con preguntas de la legislación elegida.',
+    examen: 'Elige los temas, cuántas preguntas quieres y de cuánto tiempo dispones.',
+    simulacro: 'Preguntas de toda la legislación. Elige cuántas quieres y de cuánto tiempo dispones.'
+  };
+  document.getElementById('configTitle').textContent = titles[mode];
+  document.getElementById('configSub').textContent = subs[mode];
+
+  document.getElementById('configTopicsBlock').style.display = (mode === 'estudio' || mode === 'examen') ? 'block' : 'none';
+  document.getElementById('configParamsBlock').style.display = (mode === 'examen' || mode === 'simulacro') ? 'block' : 'none';
+  document.getElementById('configTimeBlock').style.display = (mode === 'examen' || mode === 'simulacro') ? 'block' : 'none';
+  document.getElementById('configSettingsBlock').style.display = (mode === 'estudio') ? 'block' : 'none';
+  document.getElementById('configSub').style.display = (mode === 'estudio') ? 'none' : 'block';
+
+  renderSettings();
+  renderTemas();
+  renderParamOptions();
+  showScreen('screen-home');
+  openOverlay('screen-config');
+}
+
+/* ---------- ajustes (minutos / preguntas / dificultad / ayuda / repaso) ---------- */
+function renderSettings(){
+  if(configState.mode !== 'estudio') return;
+  const rows = [
+    { key:'minutos', icon: ICONS.timer, label:'Minutos',
+      options: MINUTOS_OPTIONS.map(v => ({ value:v, label: v ? (v + ' min') : 'Sin límite' })) },
+    { key:'preguntas', icon: ICONS.doc, label:'Preguntas',
+      options: PREGUNTAS_OPTIONS.map(v => ({ value:v, label: v ? (v + ' preguntas') : 'Sin límite' })) },
+    { key:'dificultad', icon: ICONS.chart, label:'Dificultad',
+      options: DIFICULTAD_OPTIONS.map(v => ({ value:v, label: DIFICULTAD_LABELS[v] })) },
+    { key:'ayuda', icon: ICONS.info, label:'Ayuda',
+      options: AYUDA_OPTIONS.map(v => ({ value:v, label: AYUDA_LABELS[v] })) },
+    { key:'repaso', icon: ICONS.brain, label:'Repaso Inteligente',
+      options: REPASO_OPTIONS.map(v => ({ value:v, label: v ? 'Sí' : 'No' })) }
+  ];
+  const el = document.getElementById('settingsList');
+  el.innerHTML = '';
+  rows.forEach(r => {
+    const current = r.options.find(o => o.value === configState[r.key]);
+    const row = document.createElement('div');
+    row.className = 'settings-row';
+    row.setAttribute('role','button'); row.setAttribute('tabindex','0');
+    row.innerHTML =
+      '<span class="settings-row-icon">' + r.icon + '</span>' +
+      '<span class="settings-row-label">' + r.label + '</span>' +
+      '<span class="settings-row-value">' + (current ? current.label : '') + '</span>' +
+      '<span class="settings-row-chevron">' + ICONS.chevron + '</span>';
+    row.onclick = () => openSettingSheet(r.key, r.label, r.options);
+    el.appendChild(row);
+  });
+}
+
+/* ---------- hoja de selección (Minutos / Preguntas / Dificultad / Ayuda / Repaso) ---------- */
+function openSettingSheet(key, label, options){
+  document.getElementById('sheetTitle').textContent = label;
+  const el = document.getElementById('sheetOptions');
+  el.innerHTML = '';
+  options.forEach(opt => {
+    const row = document.createElement('div');
+    const isSelected = configState[key] === opt.value;
+    row.className = 'sheet-option' + (isSelected ? ' selected' : '');
+    row.setAttribute('role','button'); row.setAttribute('tabindex','0');
+    row.innerHTML = '<span>' + opt.label + '</span><span class="sheet-check">' + ICONS.check + '</span>';
+    row.onclick = () => { configState[key] = opt.value; closeSettingSheet(); renderSettings(); };
+    el.appendChild(row);
+  });
+  document.getElementById('sheetOverlay').classList.add('show');
+}
+function closeSettingSheet(){
+  document.getElementById('sheetOverlay').classList.remove('show');
+}
+
+/* ---------- detalle de tema (artículos) — recuadro en la misma página ---------- */
+function openTopicDetail(topicId){
+  const t = TOPICS.find(x => x.id === topicId);
+  if(!t) return;
+  document.getElementById('topicDetailTitle').textContent = t.name;
+  document.getElementById('topicDetailSub').textContent = t.desc;
+  const list = ARTICLES[topicId] || [];
+  const el = document.getElementById('articleList');
+  el.innerHTML = '';
+  if(!list.length){
+    el.innerHTML = '<div class="article-empty">Aún no hay artículos añadidos en este tema.</div>';
+  } else {
+    list.forEach(label => {
+      const row = document.createElement('div');
+      row.className = 'article-row';
+      row.setAttribute('role','checkbox'); row.setAttribute('aria-checked','false'); row.setAttribute('tabindex','0');
+      row.innerHTML = '<span class="article-check">' + ICONS.check + '</span><span class="article-name">' + label + '</span>';
+      row.onclick = () => {
+        const nowSelected = row.classList.toggle('selected');
+        row.setAttribute('aria-checked', nowSelected ? 'true' : 'false');
+      };
+      el.appendChild(row);
+    });
+  }
+  document.getElementById('topicDetailOverlay').classList.add('show');
+}
+function closeTopicDetail(){
+  document.getElementById('topicDetailOverlay').classList.remove('show');
+}
+
+function renderTemas(){
+  const el = document.getElementById('temasList');
+  el.innerHTML = '';
+  TOPIC_CATEGORIES.forEach(cat => {
+    const catTopics = TOPICS.filter(t => t.category === cat.id);
+    const enabledTopics = catTopics.filter(t => t.enabled);
+    const selectedCount = enabledTopics.filter(t => configState.topics.has(t.id)).length;
+    const allSelected = enabledTopics.length > 0 && selectedCount === enabledTopics.length;
+    const someSelected = selectedCount > 0 && !allSelected;
+    const isExpanded = expandedCategories.has(cat.id);
+
+    const catEl = document.createElement('div');
+    catEl.className = 'topic-category' + (isExpanded ? ' expanded' : '');
+
+    const head = document.createElement('div');
+    head.className = 'topic-category-head';
+    head.setAttribute('role','button'); head.setAttribute('tabindex','0');
+    head.innerHTML =
+      '<span class="topic-check' + (allSelected || someSelected ? ' indeterminate' : '') + '" role="checkbox" aria-checked="' + allSelected + '">' + ICONS.check + '</span>' +
+      '<span class="topic-category-name">' + cat.name + '</span>' +
+      '<span class="topic-category-chevron">' + ICONS.chevron + '</span>';
+    head.querySelector('.topic-check').onclick = (e) => { e.stopPropagation(); toggleCategoryTopics(cat.id); };
+    head.onclick = () => toggleCategoryExpand(cat.id);
+    catEl.appendChild(head);
+
+    const children = document.createElement('div');
+    children.className = 'topic-category-children';
+    catTopics.forEach((t,idx) => {
+      const row = document.createElement('div');
+      row.className = 'topic-row' + (t.enabled ? '' : ' disabled') + (configState.topics.has(t.id) ? ' selected' : '');
+      row.setAttribute('role','checkbox');
+      row.setAttribute('aria-checked', configState.topics.has(t.id) ? 'true' : 'false');
+      if(t.enabled){ row.setAttribute('tabindex','0'); row.onclick = () => toggleTopic(t.id); }
+      row.innerHTML =
+        '<span class="topic-check">' + ICONS.check + '</span>' +
+        '<span class="topic-text"><span class="topic-name">' + (idx+1) + ' - ' + t.name + '</span></span>' +
+        '<span class="topic-row-chevron">' + ICONS.chevron + '</span>';
+      children.appendChild(row);
+      row.querySelector('.topic-row-chevron').onclick = (e) => { e.stopPropagation(); openTopicDetail(t.id); };
+    });
+    catEl.appendChild(children);
+    el.appendChild(catEl);
+  });
+  updateConfigFooter();
+}
+
+function toggleCategoryExpand(id){
+  if(expandedCategories.has(id)) expandedCategories.delete(id); else expandedCategories.add(id);
+  renderTemas();
+}
+
+function toggleCategoryTopics(id){
+  const ids = TOPICS.filter(t => t.category === id && t.enabled).map(t => t.id);
+  const allSelected = ids.length > 0 && ids.every(tid => configState.topics.has(tid));
+  ids.forEach(tid => allSelected ? configState.topics.delete(tid) : configState.topics.add(tid));
+  renderTemas();
+}
+
+function toggleTopic(id){
+  if(configState.topics.has(id)) configState.topics.delete(id); else configState.topics.add(id);
+  renderTemas();
+}
+
+function toggleAllTopics(){
+  const enabledIds = TOPICS.filter(t => t.enabled).map(t => t.id);
+  const allSelected = enabledIds.length > 0 && enabledIds.every(id => configState.topics.has(id));
+  enabledIds.forEach(id => allSelected ? configState.topics.delete(id) : configState.topics.add(id));
+  renderTemas();
+}
+
+function renderParamOptions(){
+  const countEl = document.getElementById('countOptions');
+  countEl.innerHTML = '';
+  COUNT_OPTIONS.forEach(n => {
+    const b = document.createElement('span');
+    b.className = 'param-opt' + (configState.count === n ? ' selected' : '');
+    b.setAttribute('role','button'); b.setAttribute('tabindex','0');
+    b.textContent = n + ' preguntas';
+    b.onclick = () => { configState.count = n; renderParamOptions(); };
+    countEl.appendChild(b);
+  });
+
+  const timeEl = document.getElementById('timeOptions');
+  timeEl.innerHTML = '';
+  TIME_OPTIONS.forEach(m => {
+    const b = document.createElement('span');
+    b.className = 'param-opt' + (configState.time === m ? ' selected' : '');
+    b.setAttribute('role','button'); b.setAttribute('tabindex','0');
+    b.textContent = m + ' min';
+    b.onclick = () => { configState.time = m; renderParamOptions(); };
+    timeEl.appendChild(b);
+  });
+  updateConfigFooter();
+}
+
+function updateConfigFooter(){
+  const mode = configState.mode;
+  const btn = document.getElementById('startConfigBtn');
+  const needsTopics = (mode === 'estudio' || mode === 'examen');
+  const topicsChosen = TOPICS.filter(t => configState.topics.has(t.id));
+
+  if(needsTopics && topicsChosen.length === 0){
+    btn.disabled = true;
+    btn.textContent = mode === 'estudio' ? 'Iniciar test' : 'Selecciona un tema';
+  }else{
+    btn.disabled = false;
+    if(mode === 'estudio'){
+      const totalQ = topicsChosen.reduce((s,t) => s + t.qIndexes.length, 0);
+      btn.disabled = totalQ === 0;
+      btn.textContent = 'Iniciar test';
+    } else if(mode === 'examen'){
+      btn.textContent = 'Comenzar examen (' + configState.count + ' preguntas, ' + configState.time + ' min)';
+    } else if(mode === 'simulacro'){
+      btn.textContent = 'Comenzar simulacro (' + configState.count + ' preguntas, ' + configState.time + ' min)';
+    }
+  }
+
+  if(mode === 'estudio' || mode === 'examen'){
+    const enabledIds = TOPICS.filter(t => t.enabled).map(t => t.id);
+    const allSelected = enabledIds.length > 0 && enabledIds.every(id => configState.topics.has(id));
+    const sw = document.getElementById('selectAllSwitch');
+    if(sw) sw.classList.toggle('on', allSelected);
+    const selAllBtn = document.getElementById('selectAllBtn');
+    if(selAllBtn) selAllBtn.setAttribute('aria-checked', allSelected ? 'true' : 'false');
+  }
+}
+
+function buildQuestionsFromTopics(topicIdSet){
+  const indexes = [];
+  TOPICS.forEach(t => { if(topicIdSet.has(t.id)) indexes.push(...t.qIndexes); });
+  const unique = [...new Set(indexes)].sort((a,b) => a-b);
+  return unique.map(i => SAMPLE_QUESTIONS[i]);
+}
+
+function buildQuestionSet(pool, count){
+  if(!pool.length) return [];
+  const out = [];
+  for(let i = 0; i < count; i++){ out.push(pool[i % pool.length]); }
+  return out;
+}
+
+function startFromConfig(){
+  const mode = configState.mode;
+  if(mode === 'estudio'){
+    const questions = buildQuestionsFromTopics(configState.topics);
+    startQuiz('estudio', questions, null);
+  } else if(mode === 'examen'){
+    const pool = buildQuestionsFromTopics(configState.topics);
+    const questions = buildQuestionSet(pool, configState.count);
+    startQuiz('examen', questions, configState.time);
+  } else if(mode === 'simulacro'){
+    const questions = buildQuestionSet(SAMPLE_QUESTIONS, configState.count);
+    startQuiz('simulacro', questions, configState.time);
+  }
+}
+
+/* ---------- fallos intro screen ---------- */
+function openFallos(){
+  const total = TOPICS.filter(t => t.enabled).reduce((s,t) => s + t.fails, 0);
+  document.getElementById('fallosTotal').textContent = total;
+  const el = document.getElementById('fallosBreakdown');
+  el.innerHTML = '';
+  TOPICS.filter(t => t.enabled).forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'fallos-row';
+    row.innerHTML = '<span class="fallos-row-name">' + t.name + '</span><span class="fallos-row-count">' + t.fails + ' falladas</span>';
+    el.appendChild(row);
+  });
+  showScreen('screen-home');
+  openOverlay('screen-fallos');
+}
+
+function startFallosReview(){
+  startQuiz('fallos', SAMPLE_QUESTIONS, null);
+}
+
+/* ---------- quiz ---------- */
+function startQuiz(mode, questions, timeMinutes){
+  ACTIVE_QUESTIONS = (questions && questions.length) ? questions : SAMPLE_QUESTIONS;
+  quizState = { mode, index:0, correctCount:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), startedAt:Date.now() };
+  showScreen('screen-quiz');
+  startTimer(timeMinutes);
+  renderQuestion();
+}
+
+function startTimer(minutes){
+  clearInterval(timerInterval);
+  const timerEl = document.getElementById('quizTimer');
+  if(!minutes){
+    timerEl.style.display = 'none';
+    return;
+  }
+  timerEl.style.display = 'flex';
+  timerEl.classList.remove('urgent');
+  let secondsLeft = minutes * 60;
+  updateTimerDisplay(secondsLeft);
+  timerInterval = setInterval(() => {
+    secondsLeft--;
+    if(secondsLeft <= 0){
+      clearInterval(timerInterval);
+      updateTimerDisplay(0);
+      finishQuiz();
+      return;
+    }
+    if(secondsLeft <= 60) timerEl.classList.add('urgent');
+    updateTimerDisplay(secondsLeft);
+  }, 1000);
+}
+
+function updateTimerDisplay(s){
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  document.getElementById('quizTimerText').textContent = String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+}
+
+function renderQuestion(){
+  const q = ACTIVE_QUESTIONS[quizState.index];
+  quizState.answered = false;
+  document.getElementById('quizCount').textContent = (quizState.index+1) + ' / ' + ACTIVE_QUESTIONS.length;
+  const tag = document.getElementById('articleTag');
+  document.getElementById('articleTagText').textContent = q.general ? 'General' : q.art;
+  tag.className = 'article-tag' + (q.general ? ' general' : '');
+  document.getElementById('qFailCount').textContent = q.failCount;
+  document.getElementById('qAvgTime').textContent = q.avgTime;
+  document.getElementById('quizQuestion').textContent = q.q;
+
+  const optsEl = document.getElementById('quizOptions');
+  optsEl.innerHTML = '';
+  const letters = ['A','B','C','D'];
+  q.options.forEach((opt,i) => {
+    const div = document.createElement('div');
+    div.className = 'option';
+    div.setAttribute('role','button');
+    div.setAttribute('tabindex','0');
+    div.innerHTML = '<span class="opt-badge">' + letters[i] + '</span><span class="opt-text">' + opt + '</span><span class="opt-result"></span>';
+    div.onclick = () => selectOption(i);
+    optsEl.appendChild(div);
+  });
+  document.getElementById('quizExplain').classList.remove('show');
+  document.getElementById('quizExplain').innerHTML = '';
+  document.getElementById('nextBtn').disabled = true;
+  document.getElementById('nextBtn').textContent = (quizState.index === ACTIVE_QUESTIONS.length-1) ? 'Ver resultado' : 'Siguiente';
+}
+
+function selectOption(i){
+  if(quizState.answered) return;
+  quizState.answered = true;
+  quizState.answers[quizState.index] = i;
+  const q = ACTIVE_QUESTIONS[quizState.index];
+  document.querySelectorAll('#quizOptions .option').forEach((el,idx) => {
+    el.onclick = null;
+    if(idx === q.correct){
+      el.classList.add('correct');
+      el.querySelector('.opt-result').innerHTML = ICONS.check;
+    } else if(idx === i){
+      el.classList.add('incorrect');
+      el.querySelector('.opt-result').innerHTML = ICONS.cross;
+    }
+  });
+  if(i === q.correct) quizState.correctCount++;
+  const explainEl = document.getElementById('quizExplain');
+  explainEl.innerHTML = q.explain + '<span class="cite">' + ICONS.seal + (q.general ? 'Sin artículo asociado' : q.art) + '</span>';
+  explainEl.classList.add('show');
+  document.getElementById('nextBtn').disabled = false;
+}
+
+function nextQuestion(){
+  if(quizState.index < ACTIVE_QUESTIONS.length - 1){
+    quizState.index++;
+    renderQuestion();
+  } else {
+    finishQuiz();
+  }
+}
+
+function finishQuiz(){
+  clearInterval(timerInterval);
+  const total = ACTIVE_QUESTIONS.length;
+  document.getElementById('resultScore').textContent = quizState.correctCount;
+  document.getElementById('resultTotal').textContent = total;
+
+  const blank = quizState.answers.filter(a => a === null || a === undefined).length;
+  const bad = total - quizState.correctCount - blank;
+  const nota = (total ? (quizState.correctCount / total * 10) : 0).toFixed(2).replace('.', ',');
+  const elapsedSec = quizState.startedAt ? Math.round((Date.now() - quizState.startedAt) / 1000) : 0;
+  const mm = Math.floor(elapsedSec / 60), ss = elapsedSec % 60;
+  const timeStr = String(mm).padStart(2,'0') + ':' + String(ss).padStart(2,'0');
+  const MODE_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos' };
+
+  const entry = {
+    id: 'r' + Date.now(),
+    date: 'Ahora',
+    type: quizState.mode,
+    title: MODE_LABELS[quizState.mode] || 'Test',
+    nota: nota,
+    time: timeStr,
+    ok: quizState.correctCount,
+    bad: bad,
+    pending: blank,
+    review: { questions: ACTIVE_QUESTIONS.slice(), answers: quizState.answers.slice() }
+  };
+  HISTORY.unshift(entry);
+  renderHistory();
+  lastFinishedReviewId = entry.id;
+
+  showScreen('screen-result');
+}
+function openLastReview(){
+  const entry = HISTORY.find(h => h.id === lastFinishedReviewId);
+  if(entry && entry.review) openReview(entry.review, entry.title + ' · Nota ' + entry.nota);
+}
+
+/* ---------- review / corrección ---------- */
+let currentReview = null;
+let reviewFilter = 'todas';
+let reviewIndex = 0;
+
+function computeReviewCounts(review){
+  let correct = 0, bad = 0, blank = 0;
+  review.questions.forEach((q, i) => {
+    const a = review.answers[i];
+    if(a === null || a === undefined) blank++;
+    else if(a === q.correct) correct++;
+    else bad++;
+  });
+  return { total: review.questions.length, correct, bad, blank };
+}
+function reviewFilteredIndexes(){
+  const idxs = [];
+  currentReview.questions.forEach((q, i) => {
+    const a = currentReview.answers[i];
+    const isBlank = (a === null || a === undefined);
+    const isCorrect = !isBlank && a === q.correct;
+    if(reviewFilter === 'todas') idxs.push(i);
+    else if(reviewFilter === 'correctas' && isCorrect) idxs.push(i);
+    else if(reviewFilter === 'incorrectas' && !isBlank && !isCorrect) idxs.push(i);
+    else if(reviewFilter === 'blanco' && isBlank) idxs.push(i);
+  });
+  return idxs;
+}
+function openReview(review, title){
+  currentReview = review;
+  reviewFilter = 'todas';
+  reviewIndex = 0;
+  document.getElementById('reviewTitle').textContent = title || 'Corrección';
+  renderReviewFilters();
+  renderReviewQuestion();
+  showScreen('screen-review');
+}
+function renderReviewFilters(){
+  const c = computeReviewCounts(currentReview);
+  const wrap = document.getElementById('reviewFilters');
+  const defs = [
+    { id:'todas', label:'Todas', count:c.total },
+    { id:'correctas', label:'Correctas', count:c.correct },
+    { id:'incorrectas', label:'Incorrectas', count:c.bad },
+    { id:'blanco', label:'En blanco', count:c.blank }
+  ];
+  wrap.innerHTML = '';
+  defs.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'param-opt' + (reviewFilter === d.id ? ' selected' : '');
+    el.setAttribute('role','button'); el.setAttribute('tabindex','0');
+    el.textContent = d.label + ' · ' + d.count;
+    el.onclick = () => { reviewFilter = d.id; reviewIndex = 0; renderReviewFilters(); renderReviewQuestion(); };
+    el.onkeydown = (e) => { if(e.key === 'Enter') el.onclick(); };
+    wrap.appendChild(el);
+  });
+}
+function renderReviewQuestion(){
+  const idxs = reviewFilteredIndexes();
+  const body = document.getElementById('reviewBody');
+  const nav = document.getElementById('reviewNav');
+  if(idxs.length === 0){
+    body.innerHTML = '<div class="empty">No hay preguntas en este filtro.</div>';
+    nav.style.display = 'none';
+    return;
+  }
+  nav.style.display = 'flex';
+  if(reviewIndex >= idxs.length) reviewIndex = 0;
+  const qi = idxs[reviewIndex];
+  const q = currentReview.questions[qi];
+  const userAnswer = currentReview.answers[qi];
+  const showExplain = document.getElementById('reviewExplainToggle').classList.contains('on');
+  const letters = ['A','B','C','D'];
+
+  let html = '';
+  html += '<div class="review-report" role="button" tabindex="0" onclick="reportReviewQuestion()">' + ICONS.warn + ' Impugnar</div>';
+  html += '<div class="article-tag' + (q.general ? ' general' : '') + '">' + ICONS.seal + '<span>' + (q.general ? 'General' : q.art) + '</span></div>';
+  html += '<div class="question">' + (qi + 1) + '. ' + q.q + '</div>';
+  html += '<div class="options">';
+  q.options.forEach((opt, i) => {
+    let cls = 'option', icon = '';
+    if(i === q.correct){ cls += ' correct'; icon = '<span class="opt-result" style="display:block">' + ICONS.check + '</span>'; }
+    else if(i === userAnswer){ cls += ' incorrect'; icon = '<span class="opt-result" style="display:block">' + ICONS.cross + '</span>'; }
+    html += '<div class="' + cls + '"><span class="opt-badge">' + letters[i] + '</span><span class="opt-text">' + opt + '</span>' + icon + '</div>';
+  });
+  html += '</div>';
+  if(userAnswer === null || userAnswer === undefined){
+    html += '<div style="font-size:12.5px; color:var(--muted-2); margin-top:12px;">No respondiste esta pregunta.</div>';
+  }
+  if(showExplain){
+    html += '<div class="explain show">' + q.explain + '<span class="cite">' + ICONS.seal + (q.general ? 'Sin artículo asociado' : q.art) + '</span></div>';
+  }
+  body.innerHTML = html;
+
+  document.getElementById('reviewCounter').textContent = (reviewIndex + 1) + ' / ' + idxs.length;
+  document.getElementById('reviewPrev').disabled = reviewIndex === 0;
+  document.getElementById('reviewNext').disabled = reviewIndex === idxs.length - 1;
+}
+function reviewGo(delta){
+  reviewIndex += delta;
+  renderReviewQuestion();
+}
+function toggleReviewExplain(){
+  document.getElementById('reviewExplainToggle').classList.toggle('on');
+  renderReviewQuestion();
+}
+function reportReviewQuestion(){
+  alert('Gracias, hemos recibido tu impugnación de esta pregunta.');
+}
+
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    closeSettingSheet();
+    closeTopicDetail();
+  }
+  if(e.key === 'Enter' || e.key === ' '){
+    const el = e.target;
+    if(el && el.matches && el.matches('[role="button"]')){
+      e.preventDefault();
+      el.click();
+    }
+  }
+});
+
+// initial render
+renderHistory();
+updateLandingFlag();
+renderTopicStats();
+</script>
+</body>
+</html>
