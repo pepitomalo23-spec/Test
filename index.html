@@ -147,6 +147,16 @@
   .admin-status{ font-size:12.5px; margin: 6px 0 0; min-height:16px; }
   .admin-status.ok{ color: var(--teal); }
   .admin-status.err{ color: var(--coral); }
+  .admin-user-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .admin-user-badges{ display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .admin-badge{ font-family: var(--mono); font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--line); color: var(--muted); }
+  .admin-badge.admin{ color: var(--purple); border-color: var(--purple); background: rgba(140,125,245,0.1); }
+  .admin-badge.over{ color: var(--coral); border-color: var(--coral); background: rgba(242,102,92,0.1); }
+  .admin-device-limit{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .admin-device-limit input{ width:64px; background: var(--card-hi); border:1px solid var(--line); color: var(--text); font-family: var(--mono); font-size:13px; padding:7px 8px; border-radius:8px; text-align:center; }
+  .admin-attempt-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .admin-attempt-ok{ color: var(--teal); }
+  .admin-attempt-fail{ color: var(--coral); }
 
   /* ---------- landing screen ---------- */
   .landing{ position:fixed; inset:0; z-index:200; background: var(--bg); display:flex; align-items:center; justify-content:center; padding:24px; }
@@ -811,6 +821,7 @@
         <div class="admin-tab" id="adminTabBtn-topics" onclick="switchAdminTab('topics')">Temas</div>
         <div class="admin-tab" id="adminTabBtn-articles" onclick="switchAdminTab('articles')">Artículos</div>
         <div class="admin-tab" id="adminTabBtn-questions" onclick="switchAdminTab('questions')">Preguntas</div>
+        <div class="admin-tab" id="adminTabBtn-users" onclick="switchAdminTab('users')">Usuarios</div>
       </div>
 
       <!-- REGIONS -->
@@ -924,6 +935,17 @@
           <div class="admin-status" id="adminStatus-question"></div>
         </div>
         <div id="adminList-questions"></div>
+      </div>
+
+      <!-- USERS -->
+      <div class="admin-section" id="adminSection-users">
+        <div class="admin-card-title" style="margin-bottom:10px;">Usuarios registrados</div>
+        <div class="admin-card-meta" style="margin-bottom:14px;">Consulta quién está registrado, en cuántos dispositivos ha entrado y ajusta el límite de dispositivos permitido por cuenta.</div>
+        <div id="adminList-users"></div>
+
+        <div class="section-row" style="margin-top:30px;"><div class="section-title">Intentos de inicio de sesión</div><div class="section-rule"></div></div>
+        <div class="admin-card-meta" style="margin-bottom:14px;">Incluye intentos correctos y fallidos, con el dispositivo desde el que se hicieron.</div>
+        <div id="adminList-loginAttempts"></div>
       </div>
     </section>
 
@@ -1106,7 +1128,34 @@ const SUPABASE_ANON_KEY = 'sb_publishable_F9-gdlx34vn7FQ_1hSHwcQ__L5EGMOS';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let currentUserIsAdmin = false;
-const adminData = { regions: [], topics: [], articles: [], questions: [] };
+
+/* ---------- device identification & login attempt logging ---------- */
+function getDeviceId(){
+  let id = null;
+  try{ id = localStorage.getItem('legis_device_id'); }catch(e){}
+  if(!id){
+    id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+      : ('dev-' + Date.now().toString(36) + '-' + Math.random().toString(16).slice(2));
+    try{ localStorage.setItem('legis_device_id', id); }catch(e){}
+  }
+  return id;
+}
+async function logLoginAttempt(email, success, errorMessage, userId){
+  try{
+    await sb.from('login_attempts').insert({
+      email: (email || '').trim() || null,
+      user_id: userId || null,
+      device_id: getDeviceId(),
+      user_agent: navigator.userAgent,
+      success: !!success,
+      error_message: errorMessage || null
+    });
+  }catch(e){
+    // El registro de intentos nunca debe bloquear el flujo de login
+    console.warn('No se pudo registrar el intento de acceso', e);
+  }
+}
+const adminData = { regions: [], topics: [], articles: [], questions: [], users: [], loginAttempts: [] };
 let adminCurrentRegion = null;
 const adminEditing = { region: null, topic: null, article: null, question: null };
 
@@ -2093,7 +2142,10 @@ async function handleLogin(){
   setAuthBusy(true);
   const { error } = await sb.auth.signInWithPassword({ email, password });
   setAuthBusy(false);
-  if(error) showAuthError(error.message);
+  if(error){
+    showAuthError(error.message);
+    await logLoginAttempt(email, false, error.message, null);
+  }
 }
 async function handleSignup(){
   const { email, password } = getAuthFields();
@@ -2124,6 +2176,33 @@ async function handleLogout(){
 
 async function onLoggedIn(user){
   currentUser = user;
+
+  // Comprobar el límite de dispositivos antes de dar acceso a la app.
+  const deviceId = getDeviceId();
+  let deviceCheck = null, deviceCheckError = null;
+  try{
+    const res = await sb.rpc('register_device_and_check_limit', {
+      p_device_id: deviceId,
+      p_user_agent: navigator.userAgent
+    });
+    deviceCheck = res.data; deviceCheckError = res.error;
+  }catch(e){ deviceCheckError = e; }
+
+  const blocked = !!deviceCheckError || !deviceCheck || deviceCheck.allowed === false;
+  await logLoginAttempt(
+    user.email,
+    !blocked,
+    blocked ? ((deviceCheck && deviceCheck.reason) || (deviceCheckError && deviceCheckError.message) || 'device_check_failed') : null,
+    user.id
+  );
+
+  if(blocked){
+    currentUser = null;
+    await sb.auth.signOut();
+    showAuthError('Has alcanzado el número máximo de dispositivos permitidos para esta cuenta. Cierra sesión en otro dispositivo o contacta con el administrador para ampliar el límite.');
+    return;
+  }
+
   document.getElementById('authOverlay').classList.add('hidden');
   const emailEl = document.getElementById('headerUserEmail');
   if(emailEl) emailEl.textContent = user.email || '';
@@ -2202,10 +2281,14 @@ async function adminLoadRegionScopedData(){
   await Promise.all([adminLoadTopics(), adminLoadArticles(), adminLoadQuestions()]);
 }
 function switchAdminTab(name){
-  ['regions','topics','articles','questions'].forEach(t => {
+  ['regions','topics','articles','questions','users'].forEach(t => {
     document.getElementById('adminTabBtn-'+t).classList.toggle('active', t===name);
     document.getElementById('adminSection-'+t).classList.toggle('active', t===name);
   });
+  if(name === 'users'){
+    adminLoadUsers();
+    adminLoadLoginAttempts();
+  }
 }
 function toggleAdminForm(type){
   const form = document.getElementById('adminForm-'+type);
@@ -2252,6 +2335,95 @@ function showAdminStatus(type, msg, isError){
   const el = document.getElementById('adminStatus-'+type);
   el.textContent = msg;
   el.className = 'admin-status ' + (isError ? 'err' : 'ok');
+}
+
+/* ---------- USERS (registrados, dispositivos, intentos) ---------- */
+function formatDateTime(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+async function adminLoadUsers(){
+  const el = document.getElementById('adminList-users');
+  el.innerHTML = '<div class="admin-empty">Cargando…</div>';
+  const { data, error } = await sb.rpc('admin_list_users');
+  if(error){ el.innerHTML = '<div class="admin-empty">No se pudo cargar la lista de usuarios.</div>'; console.error(error); return; }
+  adminData.users = data || [];
+  adminRenderUsers();
+}
+function adminRenderUsers(){
+  const el = document.getElementById('adminList-users');
+  if(!adminData.users || !adminData.users.length){ el.innerHTML = '<div class="admin-empty">No hay usuarios registrados todavía.</div>'; return; }
+  el.innerHTML = adminData.users.map(u => {
+    const over = (u.device_count || 0) > (u.device_limit || 0);
+    return (
+      '<div class="admin-card">' +
+        '<div class="admin-user-row">' +
+          '<div>' +
+            '<div class="admin-card-title">'+esc(u.email || '(sin correo)')+'</div>' +
+            '<div class="admin-card-meta">Registrado: '+formatDateTime(u.created_at)+' · Comunidad: '+esc(u.current_region || '—')+'</div>' +
+            '<div class="admin-user-badges">' +
+              (u.is_admin ? '<span class="admin-badge admin">Administrador</span>' : '') +
+              '<span class="admin-badge'+(over ? ' over' : '')+'">'+(u.device_count||0)+' / '+(u.device_limit||0)+' dispositivos</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="admin-device-limit">' +
+            '<input type="number" min="1" id="deviceLimit-'+esc(u.id)+'" value="'+(u.device_limit!=null?u.device_limit:2)+'">' +
+            '<button class="btn btn-ghost" style="padding:8px 12px; font-size:12.5px;" onclick="adminSaveDeviceLimit(\''+u.id+'\')">Guardar</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="admin-status" id="adminStatus-deviceLimit-'+esc(u.id)+'"></div>' +
+      '</div>'
+    );
+  }).join('');
+}
+async function adminSaveDeviceLimit(userId){
+  const input = document.getElementById('deviceLimit-'+userId);
+  const statusEl = document.getElementById('adminStatus-deviceLimit-'+userId);
+  const limit = parseInt(input.value, 10);
+  if(!limit || limit < 1){
+    statusEl.textContent = 'Introduce un número válido (mínimo 1).';
+    statusEl.className = 'admin-status err';
+    return;
+  }
+  const { error } = await sb.rpc('admin_set_device_limit', { p_user_id: userId, p_limit: limit });
+  if(error){
+    statusEl.textContent = 'No se pudo guardar: ' + error.message;
+    statusEl.className = 'admin-status err';
+    return;
+  }
+  statusEl.textContent = 'Límite actualizado.';
+  statusEl.className = 'admin-status ok';
+  await adminLoadUsers();
+}
+async function adminLoadLoginAttempts(){
+  const el = document.getElementById('adminList-loginAttempts');
+  el.innerHTML = '<div class="admin-empty">Cargando…</div>';
+  const { data, error } = await sb.from('login_attempts').select('*').order('created_at', { ascending:false }).limit(200);
+  if(error){ el.innerHTML = '<div class="admin-empty">No se pudieron cargar los intentos de acceso.</div>'; console.error(error); return; }
+  adminData.loginAttempts = data || [];
+  adminRenderLoginAttempts();
+}
+function adminRenderLoginAttempts(){
+  const el = document.getElementById('adminList-loginAttempts');
+  if(!adminData.loginAttempts || !adminData.loginAttempts.length){ el.innerHTML = '<div class="admin-empty">Todavía no hay intentos de acceso registrados.</div>'; return; }
+  el.innerHTML = adminData.loginAttempts.map(a => {
+    const okClass = a.success ? 'admin-attempt-ok' : 'admin-attempt-fail';
+    const label = a.success ? 'Correcto' : 'Fallido';
+    return (
+      '<div class="admin-card">' +
+        '<div class="admin-attempt-row">' +
+          '<div>' +
+            '<div class="admin-card-title">'+esc(a.email || '(desconocido)')+' — <span class="'+okClass+'">'+label+'</span></div>' +
+            '<div class="admin-card-meta">'+formatDateTime(a.created_at)+'</div>' +
+            '<div class="admin-card-meta">Dispositivo: '+esc(a.device_id || '—')+'</div>' +
+            '<div class="admin-card-meta">'+esc(a.user_agent || '')+'</div>' +
+            (a.error_message ? '<div class="admin-card-meta">Motivo: '+esc(a.error_message)+'</div>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }).join('');
 }
 
 /* ---------- REGIONS ---------- */
