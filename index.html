@@ -71,9 +71,22 @@
   .auth-divider{ display:flex; align-items:center; gap:10px; margin:16px 0; color: var(--muted-2); font-size:11.5px; }
   .auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background: var(--line); }
   .btn[disabled]{ opacity:.55; cursor:not-allowed; }
-  .header-logout{ position:absolute; right:64px; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%; background: var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; color: var(--muted); transition: border-color .15s, color .15s; }
-  .header-logout:hover{ border-color: var(--coral); color: var(--coral); }
-  .header-logout svg{ width:16px; height:16px; }
+  .header-user{ position:absolute; right:64px; top:50%; transform:translateY(-50%); }
+  .header-user-btn{ width:36px; height:36px; border-radius:50%; background: var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; color: var(--muted); transition: border-color .15s, color .15s; }
+  .header-user-btn:hover{ border-color: var(--purple); color: var(--text); }
+  .header-user-btn svg{ width:17px; height:17px; }
+  .header-user-menu{
+    position:absolute; top:calc(100% + 10px); right:0; min-width:230px; background: var(--card); border:1px solid var(--line);
+    border-radius:14px; padding:8px; box-shadow: 0 14px 30px -12px rgba(0,0,0,0.55); z-index:50;
+  }
+  .header-user-menu.hidden{ display:none; }
+  .header-user-email{ font-size:12.5px; color: var(--muted); padding:10px 12px 8px; word-break:break-all; border-bottom:1px solid var(--line); margin-bottom:6px; line-height:1.4; }
+  .header-user-logout{
+    display:flex; align-items:center; gap:9px; width:100%; padding:10px 12px; border-radius:9px; border:none; background:transparent;
+    color: var(--text); font-family: var(--sans); font-size:13.5px; font-weight:600; cursor:pointer; text-align:left;
+  }
+  .header-user-logout:hover{ background: var(--card-hi); color: var(--coral); }
+  .header-user-logout svg{ width:16px; height:16px; flex-shrink:0; }
 
   /* ---------- landing screen ---------- */
   .landing{ position:fixed; inset:0; z-index:200; background: var(--bg); display:flex; align-items:center; justify-content:center; padding:24px; }
@@ -608,8 +621,17 @@
         Estadísticas
       </span>
     </div>
-    <div class="header-logout" id="headerLogout" role="button" tabindex="0" title="Cerrar sesión" onclick="handleLogout()" onkeydown="if(event.key==='Enter')handleLogout()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    <div class="header-user" id="headerUser">
+      <div class="header-user-btn" id="headerUserBtn" role="button" tabindex="0" title="Cuenta" onclick="toggleUserMenu()" onkeydown="if(event.key==='Enter')toggleUserMenu()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <div class="header-user-menu hidden" id="headerUserMenu">
+        <div class="header-user-email" id="headerUserEmail"></div>
+        <button class="header-user-logout" id="headerLogout" onclick="handleLogout()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Cerrar sesión
+        </button>
+      </div>
     </div>
     <div class="header-region-switch" id="headerRegionSwitch" role="button" tabindex="0" title="Cambiar de comunidad" onclick="openRegionSheet()" onkeydown="if(event.key==='Enter')openRegionSheet()">
       <span class="landing-flag" id="headerRegionFlag"></span>
@@ -1903,6 +1925,8 @@ async function handleLogout(){
 async function onLoggedIn(user){
   currentUser = user;
   document.getElementById('authOverlay').classList.add('hidden');
+  const emailEl = document.getElementById('headerUserEmail');
+  if(emailEl) emailEl.textContent = user.email || '';
 
   let { data: profile } = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
   if(!profile){
@@ -1931,7 +1955,24 @@ function onLoggedOut(){
   renderHistory();
   document.getElementById('authOverlay').classList.remove('hidden');
   showAuthError(''); showAuthStatus('');
+  const emailEl = document.getElementById('headerUserEmail');
+  if(emailEl) emailEl.textContent = '';
+  closeUserMenu();
 }
+function toggleUserMenu(){
+  const menu = document.getElementById('headerUserMenu');
+  if(menu) menu.classList.toggle('hidden');
+}
+function closeUserMenu(){
+  const menu = document.getElementById('headerUserMenu');
+  if(menu) menu.classList.add('hidden');
+}
+document.addEventListener('click', function(e){
+  const wrap = document.getElementById('headerUser');
+  const menu = document.getElementById('headerUserMenu');
+  if(!wrap || !menu || menu.classList.contains('hidden')) return;
+  if(!wrap.contains(e.target)) closeUserMenu();
+});
 
 sb.auth.onAuthStateChange((event, session) => {
   if(session && session.user){ onLoggedIn(session.user); }
