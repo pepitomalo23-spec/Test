@@ -2355,7 +2355,16 @@ function adminRenderUsers(){
   const el = document.getElementById('adminList-users');
   if(!adminData.users || !adminData.users.length){ el.innerHTML = '<div class="admin-empty">No hay usuarios registrados todavía.</div>'; return; }
   el.innerHTML = adminData.users.map(u => {
-    const over = (u.device_count || 0) > (u.device_limit || 0);
+    const over = !u.is_admin && (u.device_count || 0) > (u.device_limit || 0);
+    const limitControl = u.is_admin
+      ? '<span class="admin-badge admin">Sin límite</span>'
+      : ('<div class="admin-device-limit">' +
+          '<input type="number" min="1" id="deviceLimit-'+esc(u.id)+'" value="'+(u.device_limit!=null?u.device_limit:2)+'">' +
+          '<button class="btn btn-ghost" style="padding:8px 12px; font-size:12.5px;" onclick="adminSaveDeviceLimit(\''+u.id+'\')">Guardar</button>' +
+        '</div>');
+    const deviceBadge = u.is_admin
+      ? '<span class="admin-badge">'+(u.device_count||0)+' dispositivos (ilimitado)</span>'
+      : '<span class="admin-badge'+(over ? ' over' : '')+'">'+(u.device_count||0)+' / '+(u.device_limit||0)+' dispositivos</span>';
     return (
       '<div class="admin-card">' +
         '<div class="admin-user-row">' +
@@ -2364,13 +2373,10 @@ function adminRenderUsers(){
             '<div class="admin-card-meta">Registrado: '+formatDateTime(u.created_at)+' · Comunidad: '+esc(u.current_region || '—')+'</div>' +
             '<div class="admin-user-badges">' +
               (u.is_admin ? '<span class="admin-badge admin">Administrador</span>' : '') +
-              '<span class="admin-badge'+(over ? ' over' : '')+'">'+(u.device_count||0)+' / '+(u.device_limit||0)+' dispositivos</span>' +
+              deviceBadge +
             '</div>' +
           '</div>' +
-          '<div class="admin-device-limit">' +
-            '<input type="number" min="1" id="deviceLimit-'+esc(u.id)+'" value="'+(u.device_limit!=null?u.device_limit:2)+'">' +
-            '<button class="btn btn-ghost" style="padding:8px 12px; font-size:12.5px;" onclick="adminSaveDeviceLimit(\''+u.id+'\')">Guardar</button>' +
-          '</div>' +
+          limitControl +
         '</div>' +
         '<div class="admin-status" id="adminStatus-deviceLimit-'+esc(u.id)+'"></div>' +
       '</div>'
