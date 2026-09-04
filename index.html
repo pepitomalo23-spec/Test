@@ -102,6 +102,7 @@
   }
   .header-pending-dot.hidden{ display:none; }
   .header-user-admin-label{ display:flex; align-items:center; gap:8px; flex:1; }
+  .header-admin-logo{ width:20px; height:20px; border-radius:6px; object-fit:cover; flex-shrink:0; background:#fff; }
   .header-user-admin-count{
     font-family: var(--mono); font-size:10.5px; font-weight:700; color:#fff; background: var(--coral);
     border-radius:20px; padding:1px 7px; line-height:1.5;
@@ -714,7 +715,7 @@
         <div class="header-user-email" id="headerUserEmail"></div>
         <button class="header-user-admin hidden" id="headerAdminBtn" onclick="openAdminPanel()">
           <span class="header-user-admin-label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9 8 11 4.6-2 8-6 8-11V5z"/></svg>
+            <video class="header-admin-logo" src="assets/admin-logo.mp4" autoplay loop muted playsinline></video>
             Panel de administración
           </span>
           <span class="header-user-admin-count hidden" id="headerAdminPendingCount">0</span>
