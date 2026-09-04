@@ -55,6 +55,26 @@
   .header-region-switch:hover{ border-color: var(--muted-2); }
   .header-region-switch .landing-flag{ width:20px; height:14px; }
 
+  /* ---------- auth screen ---------- */
+  .auth-overlay{ position:fixed; inset:0; z-index:300; background: var(--bg); display:flex; align-items:center; justify-content:center; padding:24px; }
+  .auth-overlay.hidden{ display:none; }
+  .auth-panel{ width:100%; max-width:380px; background: var(--card); border:1px solid var(--line); border-radius:18px; padding:30px 26px 26px; }
+  .auth-title{ font-family: var(--title); font-size:26px; letter-spacing:.3px; margin-bottom:8px; }
+  .auth-sub{ font-size:13.5px; color: var(--muted); line-height:1.5; margin-bottom:24px; }
+  .auth-input{
+    width:100%; background: var(--card-hi); border:1px solid var(--line); color: var(--text);
+    font-family: var(--sans); font-size:14.5px; padding:14px 15px; border-radius:12px; margin-bottom:10px;
+  }
+  .auth-input:focus{ outline:none; border-color: var(--purple); }
+  .auth-error{ font-size:12.5px; color: var(--coral); min-height:16px; margin: 4px 0 6px; line-height:1.5; }
+  .auth-status{ font-size:12.5px; color: var(--teal); min-height:16px; margin-top:12px; line-height:1.5; }
+  .auth-divider{ display:flex; align-items:center; gap:10px; margin:16px 0; color: var(--muted-2); font-size:11.5px; }
+  .auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background: var(--line); }
+  .btn[disabled]{ opacity:.55; cursor:not-allowed; }
+  .header-logout{ position:absolute; right:64px; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%; background: var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; color: var(--muted); transition: border-color .15s, color .15s; }
+  .header-logout:hover{ border-color: var(--coral); color: var(--coral); }
+  .header-logout svg{ width:16px; height:16px; }
+
   /* ---------- landing screen ---------- */
   .landing{ position:fixed; inset:0; z-index:200; background: var(--bg); display:flex; align-items:center; justify-content:center; padding:24px; }
   .landing.hidden{ display:none; }
@@ -506,6 +526,23 @@
 <body>
 <div id="app">
 
+  <div class="auth-overlay hidden" id="authOverlay">
+    <div class="auth-panel">
+      <div class="auth-title">Legislación</div>
+      <div class="auth-sub">Inicia sesión para guardar tu progreso, tu historial y tus estadísticas en la nube.</div>
+      <input class="auth-input" id="authEmail" type="email" placeholder="Correo electrónico" autocomplete="email" />
+      <input class="auth-input" id="authPassword" type="password" placeholder="Contraseña" autocomplete="current-password" />
+      <div class="auth-error" id="authError"></div>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button class="btn btn-primary btn-block btn-light" id="authLoginBtn" onclick="handleLogin()">Iniciar sesión</button>
+        <button class="btn btn-ghost btn-block" id="authSignupBtn" onclick="handleSignup()">Crear cuenta</button>
+      </div>
+      <div class="auth-divider">o</div>
+      <button class="btn btn-ghost btn-block" id="authMagicBtn" onclick="handleMagicLink()">Enviarme un enlace mágico</button>
+      <div class="auth-status" id="authStatus"></div>
+    </div>
+  </div>
+
   <div class="region-sheet-overlay" id="regionSheetOverlay" onclick="if(event.target===this)closeRegionSheet()">
     <div class="modal-panel region-select-panel">
       <div class="modal-head">
@@ -571,6 +608,9 @@
         Estadísticas
       </span>
     </div>
+    <div class="header-logout" id="headerLogout" role="button" tabindex="0" title="Cerrar sesión" onclick="handleLogout()" onkeydown="if(event.key==='Enter')handleLogout()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </div>
     <div class="header-region-switch" id="headerRegionSwitch" role="button" tabindex="0" title="Cambiar de comunidad" onclick="openRegionSheet()" onkeydown="if(event.key==='Enter')openRegionSheet()">
       <span class="landing-flag" id="headerRegionFlag"></span>
     </div>
@@ -602,7 +642,7 @@
               <path d="m9 7 6 6"/>
             </svg>
           </div>
-          <div><div class="m-name">Fallos</div><div class="m-sub">31 pendientes</div></div>
+          <div><div class="m-name">Fallos</div><div class="m-sub" id="fallosPendingLabel">— pendientes</div></div>
         </div>
         <div class="mode-card simulacro" role="button" tabindex="0" onclick="openConfig('simulacro')">
           <div class="mode-emblem">
@@ -648,19 +688,19 @@
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-label">Tests realizados</div>
-          <div class="stat-value purple">24</div>
+          <div class="stat-value purple" id="statTestsCount">—</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Nota media</div>
-          <div class="stat-value blue">7,80</div>
+          <div class="stat-value blue" id="statAvgScore">—</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Racha actual</div>
-          <div class="stat-value teal">6 días</div>
+          <div class="stat-value teal" id="statStreak">—</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Fallos pendientes</div>
-          <div class="stat-value coral">31</div>
+          <div class="stat-value coral" id="statFallosPending">—</div>
         </div>
       </div>
       <div class="empty">Aquí irán gráficos y desglose por tema próximamente.</div>
@@ -840,7 +880,14 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
+/* ==================== SUPABASE SETUP ==================== */
+const SUPABASE_URL = 'https://tsjaaqkvncgxqtpmlugv.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_F9-gdlx34vn7FQ_1hSHwcQ__L5EGMOS';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentUser = null;
+
 const SAMPLE_QUESTIONS = [
   { art:"Art. 81.2", general:false, failCount:3, avgTime:"8s", difficulty:"media",
     q:"Según el artículo 81.2, ¿qué naturaleza tienen los convenios interadministrativos por defecto?",
@@ -869,47 +916,12 @@ const TOPIC_CATEGORIES = [
   { id:"generales", name:"Conocimientos generales" }
 ];
 
-const FLAG_ANDALUCIA = '<svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg"><rect width="30" height="20" fill="#00954C"/><rect y="6.67" width="30" height="6.67" fill="#fff"/></svg>';
-const FLAG_MADRID = '<svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg"><rect width="30" height="20" fill="#C60B1E"/><g fill="#fff">' +
-  [0,1,2,3,4,5,6].map(i => { const a = (-70 + i*23.3) * Math.PI/180, cx=15+9*Math.cos(a), cy=8+7*Math.sin(a); return '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="1"/>'; }).join('') +
-  '</g></svg>';
-
-const REGIONS = {
-  andalucia: {
-    id:"andalucia", name:"Andalucía", flag: FLAG_ANDALUCIA,
-    topics: [
-      { id:"ley39", category:"normativa", name:"Ley 39/2015", desc:"Procedimiento administrativo común", qIndexes:[2], fails:9, enabled:true },
-      { id:"ley40", category:"normativa", name:"Ley 40/2015", desc:"Régimen jurídico del sector público", qIndexes:[0,3], fails:14, enabled:true },
-      { id:"lcsp", category:"normativa", name:"Ley de Contratos del Sector Público", desc:"Procedimientos de contratación", qIndexes:[], fails:0, enabled:false },
-      { id:"ebep", category:"normativa", name:"Estatuto Básico del Empleado Público", desc:"Derechos y deberes del personal", qIndexes:[], fails:0, enabled:false },
-      { id:"principios", category:"generales", name:"Principios generales", desc:"Actuación de las Administraciones Públicas", qIndexes:[1], fails:8, enabled:true },
-      { id:"ce", category:"generales", name:"Constitución Española", desc:"Título preliminar y derechos fundamentales", qIndexes:[], fails:0, enabled:false }
-    ]
-  },
-  madrid: {
-    id:"madrid", name:"Comunidad de Madrid", flag: FLAG_MADRID,
-    topics: [
-      { id:"ebep-cm", category:"normativa", name:"Función Pública CM", desc:"Ley de Función Pública de la Comunidad de Madrid", qIndexes:[], fails:0, enabled:true },
-      { id:"gobierno-cm", category:"normativa", name:"Ley de Gobierno CM", desc:"Gobierno y Administración de la Comunidad de Madrid", qIndexes:[], fails:0, enabled:false },
-      { id:"principios", category:"generales", name:"Principios generales", desc:"Actuación de las Administraciones Públicas", qIndexes:[1], fails:8, enabled:true },
-      { id:"ce", category:"generales", name:"Constitución Española", desc:"Título preliminar y derechos fundamentales", qIndexes:[], fails:0, enabled:false }
-    ]
-  }
-};
-
+/* ---------- data now lives in Supabase; these fill in at runtime ---------- */
+let REGIONS = {};              // { [regionId]: {id,name,flag} }
 let currentRegion = "andalucia";
-let TOPICS = REGIONS[currentRegion].topics;
-
-const ARTICLES = {
-  ley39: ["Art. 1 - Objeto y ámbito de aplicación", "Art. 21 - Obligación de resolver", "Art. 47 - Nulidad de pleno derecho"],
-  ley40: ["Art. 3 - Principios generales de actuación", "Art. 81 - Convenios interadministrativos"],
-  lcsp: [],
-  ebep: [],
-  "ebep-cm": [],
-  "gobierno-cm": [],
-  principios: ["Art. 3.1 - Principios generales de actuación"],
-  ce: []
-};
+let TOPICS = [];                // topics of currentRegion, with live `fails` count from DB
+let ARTICLES = {};              // { [topicId]: [labels] }
+let QUESTIONS_POOL = [];        // all questions of currentRegion (DB rows mapped to quiz shape)
 
 const COUNT_OPTIONS = [10, 20, 30, 40];
 const TIME_OPTIONS = [15, 30, 45, 60];
@@ -921,12 +933,45 @@ const AYUDA_OPTIONS = ["ocultar", "mostrar"];
 const AYUDA_LABELS = { ocultar:"Ocultar tema", mostrar:"Mostrar tema" };
 const REPASO_OPTIONS = [false, true];
 
-const HISTORY = [
-  { id:"h1", date:"Hace 1 hora", type:"examen", title:"Examen", nota:"7,50", time:"14:20", ok:15, bad:5, pending:0, review:null },
-  { id:"h2", date:"Hace 23 horas", type:"estudio", title:"Estudio", nota:"9,00", time:"6:40", ok:18, bad:2, pending:0, review:null },
-  { id:"h3", date:"Hace 3 días", type:"fallos", title:"Fallos", nota:"3,27", time:"9:12", ok:18, bad:12, pending:13, review:null }
-];
+let HISTORY = [];
 let lastFinishedReviewId = null;
+
+/* ---------- small helpers ---------- */
+function formatRelativeDate(iso){
+  const d = new Date(iso);
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if(mins < 1) return "Ahora mismo";
+  if(mins < 60) return "Hace " + mins + (mins === 1 ? " minuto" : " minutos");
+  const hours = Math.floor(mins / 60);
+  if(hours < 24) return "Hace " + hours + (hours === 1 ? " hora" : " horas");
+  const days = Math.floor(hours / 24);
+  if(days < 30) return "Hace " + days + (days === 1 ? " día" : " días");
+  return d.toLocaleDateString('es-ES');
+}
+function formatNota(n){
+  return (Number(n) || 0).toFixed(2).replace('.', ',');
+}
+function formatMMSS(totalSeconds){
+  const s = Math.max(0, Math.round(totalSeconds || 0));
+  const m = Math.floor(s / 60), sec = s % 60;
+  return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+}
+function mapDbQuestionToQuiz(row){
+  return {
+    id: row.id,
+    topic_id: row.topic_id,
+    art: row.article_label,
+    general: row.general,
+    difficulty: row.difficulty,
+    q: row.question,
+    options: row.options,
+    correct: row.correct_index,
+    explain: row.explain,
+    failCount: row._failCount || 0,
+    avgTime: row._avgTime || "—"
+  };
+}
 
 const ICONS = {
   estudio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M16 12h2"/><path d="M16 8h2"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/><path d="M6 12h2"/><path d="M6 8h2"/></svg>',
@@ -995,20 +1040,24 @@ function closeRegionSheet(){
 function confirmRegionSelect(){
   selectRegion(pendingRegion);
 }
-function selectRegion(id){
-  currentRegion = id;
-  TOPICS = REGIONS[id].topics;
-  configState.topics = new Set(TOPICS.filter(t => t.enabled).map(t => t.id));
+async function selectRegion(id){
+  await loadRegionData(id);
+  if(currentUser){
+    sb.from('profiles').update({ current_region: id }).eq('id', currentUser.id).then(()=>{});
+  }
   updateLandingFlag();
   renderTopicStats();
   closeRegionSheet();
+  await refreshGlobalStats();
 }
 function enterApp(screenId){
-  document.getElementById('landingScreen').classList.add('hidden');
+  const landing = document.getElementById('landingScreen');
+  if(landing) landing.classList.add('hidden');
   showScreen(screenId);
 }
 function backToLanding(){
-  document.getElementById('landingScreen').classList.remove('hidden');
+  const landing = document.getElementById('landingScreen');
+  if(landing) landing.classList.remove('hidden');
 }
 
 /* ---------- topic stats (current region only) ---------- */
@@ -1023,6 +1072,48 @@ function renderTopicStats(){
       '<div class="topic-stat-fails">' + t.fails + ' fallos</div>';
     el.appendChild(row);
   });
+}
+
+/* ---------- load region content (topics/articles/questions) from Supabase ---------- */
+async function loadRegionData(regionId){
+  currentRegion = regionId;
+
+  const [{ data: topicsData, error: topicsErr }, { data: articlesData }, { data: questionsData }] = await Promise.all([
+    sb.from('topics').select('*').eq('region_id', regionId).order('sort_order'),
+    sb.from('articles').select('*').eq('region_id', regionId).order('sort_order'),
+    sb.from('questions').select('*').eq('region_id', regionId)
+  ]);
+  if(topicsErr) console.error('Error cargando temas', topicsErr);
+
+  ARTICLES = {};
+  (articlesData || []).forEach(a => {
+    if(!ARTICLES[a.topic_id]) ARTICLES[a.topic_id] = [];
+    ARTICLES[a.topic_id].push(a.label);
+  });
+
+  let failsByQuestion = {};
+  if(currentUser){
+    const qIds = (questionsData || []).map(q => q.id);
+    if(qIds.length){
+      const { data: fallosData } = await sb.from('fallos').select('question_id, fail_count').eq('user_id', currentUser.id).in('question_id', qIds);
+      (fallosData || []).forEach(f => { failsByQuestion[f.question_id] = f.fail_count; });
+    }
+  }
+  QUESTIONS_POOL = (questionsData || []).map(row => {
+    row._failCount = failsByQuestion[row.id] || 0;
+    return mapDbQuestionToQuiz(row);
+  });
+
+  const failsByTopic = {};
+  QUESTIONS_POOL.forEach(q => {
+    if(q.failCount > 0 && q.topic_id) failsByTopic[q.topic_id] = (failsByTopic[q.topic_id] || 0) + q.failCount;
+  });
+
+  TOPICS = (topicsData || []).map(t => ({
+    id: t.id, category: t.category, name: t.name, desc: t.description, enabled: t.enabled,
+    fails: failsByTopic[t.id] || 0
+  }));
+  configState.topics = new Set(TOPICS.filter(t => t.enabled).map(t => t.id));
 }
 
 
@@ -1055,13 +1146,81 @@ function renderHistory(){
           '</div>' +
         '</div>' +
       '</div>';
-    item.onclick = () => {
-      if(h.review){ openReview(h.review, h.title + ' · Nota ' + h.nota); }
-      else { alert('Este test no tiene datos de corrección guardados.'); }
+    item.onclick = async () => {
+      if(h.review){ openReview(h.review, h.title + ' · Nota ' + h.nota); return; }
+      const { data: rows, error } = await sb
+        .from('session_answers')
+        .select('question_id, selected_index, is_correct, answer_order, questions(*)')
+        .eq('session_id', h.id)
+        .order('answer_order');
+      if(error || !rows || !rows.length){
+        alert('Este test no tiene datos de corrección guardados.');
+        return;
+      }
+      const review = {
+        questions: rows.map(r => mapDbQuestionToQuiz(r.questions)),
+        answers: rows.map(r => r.selected_index)
+      };
+      h.review = review;
+      openReview(review, h.title + ' · Nota ' + h.nota);
     };
     item.onkeydown = (e) => { if(e.key === 'Enter') item.onclick(); };
     el.appendChild(item);
   });
+}
+
+/* ---------- load session history for the logged-in user ---------- */
+async function loadHistory(){
+  if(!currentUser){ HISTORY = []; renderHistory(); return; }
+  const { data, error } = await sb
+    .from('test_sessions')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if(error){ console.error('Error cargando historial', error); HISTORY = []; renderHistory(); return; }
+  const MODE_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos' };
+  HISTORY = (data || []).map(row => ({
+    id: row.id,
+    date: formatRelativeDate(row.created_at),
+    type: row.mode,
+    title: MODE_LABELS[row.mode] || row.mode,
+    nota: formatNota(row.score),
+    time: formatMMSS(row.time_seconds),
+    ok: row.ok, bad: row.bad, pending: row.pending,
+    review: null
+  }));
+  renderHistory();
+}
+
+/* ---------- global stats screen ---------- */
+async function refreshGlobalStats(){
+  if(!currentUser) return;
+  const { data: sessions } = await sb.from('test_sessions').select('score, created_at').eq('user_id', currentUser.id);
+  const list = sessions || [];
+  const testsCount = list.length;
+  const avgScore = testsCount ? list.reduce((s,r) => s + Number(r.score || 0), 0) / testsCount : 0;
+
+  const dayStrings = new Set(list.map(r => new Date(r.created_at).toDateString()));
+  let streak = 0;
+  let cursor = new Date();
+  while(dayStrings.has(cursor.toDateString())){
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  const { count: fallosPending } = await sb.from('fallos').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id);
+
+  const elTests = document.getElementById('statTestsCount');
+  const elAvg = document.getElementById('statAvgScore');
+  const elStreak = document.getElementById('statStreak');
+  const elFallos = document.getElementById('statFallosPending');
+  const elFallosLabel = document.getElementById('fallosPendingLabel');
+  if(elTests) elTests.textContent = testsCount;
+  if(elAvg) elAvg.textContent = testsCount ? formatNota(avgScore) : '—';
+  if(elStreak) elStreak.textContent = streak + (streak === 1 ? ' día' : ' días');
+  if(elFallos) elFallos.textContent = fallosPending || 0;
+  if(elFallosLabel) elFallosLabel.textContent = (fallosPending || 0) + ' pendientes';
 }
 
 /* ---------- navigation ---------- */
@@ -1322,10 +1481,7 @@ function updateConfigFooter(){
 }
 
 function buildQuestionsFromTopics(topicIdSet){
-  const indexes = [];
-  TOPICS.forEach(t => { if(topicIdSet.has(t.id)) indexes.push(...t.qIndexes); });
-  const unique = [...new Set(indexes)].sort((a,b) => a-b);
-  return unique.map(i => SAMPLE_QUESTIONS[i]);
+  return QUESTIONS_POOL.filter(q => q.topic_id && topicIdSet.has(q.topic_id));
 }
 
 function buildQuestionSet(pool, count){
@@ -1345,7 +1501,7 @@ function startFromConfig(){
     const questions = buildQuestionSet(pool, configState.count);
     startQuiz('examen', questions, configState.time);
   } else if(mode === 'simulacro'){
-    const questions = buildQuestionSet(SAMPLE_QUESTIONS, configState.count);
+    const questions = buildQuestionSet(QUESTIONS_POOL, configState.count);
     startQuiz('simulacro', questions, configState.time);
   }
 }
@@ -1366,13 +1522,21 @@ function openFallos(){
   openOverlay('screen-fallos');
 }
 
-function startFallosReview(){
-  startQuiz('fallos', SAMPLE_QUESTIONS, null);
+async function startFallosReview(){
+  if(!currentUser) return;
+  const { data, error } = await sb
+    .from('fallos')
+    .select('question_id, fail_count, questions!inner(*)')
+    .eq('user_id', currentUser.id)
+    .eq('questions.region_id', currentRegion);
+  if(error){ console.error('Error cargando fallos', error); return; }
+  const questions = (data || []).map(row => mapDbQuestionToQuiz({ ...row.questions, _failCount: row.fail_count }));
+  startQuiz('fallos', questions, null);
 }
 
 /* ---------- quiz ---------- */
 function startQuiz(mode, questions, timeMinutes){
-  ACTIVE_QUESTIONS = (questions && questions.length) ? questions : SAMPLE_QUESTIONS;
+  ACTIVE_QUESTIONS = (questions && questions.length) ? questions : QUESTIONS_POOL;
   quizState = { mode, index:0, correctCount:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), startedAt:Date.now() };
   showScreen('screen-quiz');
   startTimer(timeMinutes);
@@ -1469,7 +1633,7 @@ function nextQuestion(){
   }
 }
 
-function finishQuiz(){
+async function finishQuiz(){
   clearInterval(timerInterval);
   const total = ACTIVE_QUESTIONS.length;
   document.getElementById('resultScore').textContent = quizState.correctCount;
@@ -1477,19 +1641,68 @@ function finishQuiz(){
 
   const blank = quizState.answers.filter(a => a === null || a === undefined).length;
   const bad = total - quizState.correctCount - blank;
-  const nota = (total ? (quizState.correctCount / total * 10) : 0).toFixed(2).replace('.', ',');
+  const notaNum = total ? (quizState.correctCount / total * 10) : 0;
   const elapsedSec = quizState.startedAt ? Math.round((Date.now() - quizState.startedAt) / 1000) : 0;
-  const mm = Math.floor(elapsedSec / 60), ss = elapsedSec % 60;
-  const timeStr = String(mm).padStart(2,'0') + ':' + String(ss).padStart(2,'0');
   const MODE_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos' };
 
+  let sessionId = 'r' + Date.now();
+
+  if(currentUser){
+    try{
+      const { data: sessionRow, error: sErr } = await sb.from('test_sessions').insert({
+        user_id: currentUser.id,
+        region_id: currentRegion,
+        mode: quizState.mode,
+        score: Number(notaNum.toFixed(2)),
+        total, ok: quizState.correctCount, bad, pending: blank,
+        time_seconds: elapsedSec
+      }).select().single();
+      if(sErr) throw sErr;
+      sessionId = sessionRow.id;
+
+      const answerRows = ACTIVE_QUESTIONS.map((q, i) => {
+        const a = quizState.answers[i];
+        return {
+          session_id: sessionId, user_id: currentUser.id, question_id: q.id,
+          selected_index: (a === null || a === undefined) ? null : a,
+          is_correct: a === q.correct, answer_order: i
+        };
+      });
+      if(answerRows.length){
+        const { error: aErr } = await sb.from('session_answers').insert(answerRows);
+        if(aErr) throw aErr;
+      }
+
+      for(let i = 0; i < ACTIVE_QUESTIONS.length; i++){
+        const q = ACTIVE_QUESTIONS[i];
+        const a = quizState.answers[i];
+        if(a === q.correct){
+          await sb.from('fallos').delete().eq('user_id', currentUser.id).eq('question_id', q.id);
+        } else if(a !== null && a !== undefined){
+          const { data: existing } = await sb.from('fallos').select('fail_count').eq('user_id', currentUser.id).eq('question_id', q.id).maybeSingle();
+          if(existing){
+            await sb.from('fallos').update({ fail_count: existing.fail_count + 1, last_failed_at: new Date().toISOString() }).eq('user_id', currentUser.id).eq('question_id', q.id);
+          } else {
+            await sb.from('fallos').insert({ user_id: currentUser.id, question_id: q.id, fail_count: 1 });
+          }
+        }
+      }
+
+      await loadRegionData(currentRegion);
+      await refreshGlobalStats();
+      renderTopicStats();
+    } catch(err){
+      console.error('Error guardando la sesión en Supabase', err);
+    }
+  }
+
   const entry = {
-    id: 'r' + Date.now(),
-    date: 'Ahora',
+    id: sessionId,
+    date: 'Ahora mismo',
     type: quizState.mode,
     title: MODE_LABELS[quizState.mode] || 'Test',
-    nota: nota,
-    time: timeStr,
+    nota: formatNota(notaNum),
+    time: formatMMSS(elapsedSec),
     ok: quizState.correctCount,
     bad: bad,
     pending: blank,
@@ -1630,10 +1843,106 @@ document.addEventListener('keydown', function(e){
   }
 });
 
-// initial render
-renderHistory();
-updateLandingFlag();
-renderTopicStats();
+/* ==================== AUTH ==================== */
+function setAuthBusy(busy){
+  ['authLoginBtn','authSignupBtn','authMagicBtn'].forEach(id => {
+    const b = document.getElementById(id);
+    if(b) b.disabled = busy;
+  });
+}
+function showAuthError(msg){
+  const el = document.getElementById('authError');
+  if(el) el.textContent = msg || '';
+}
+function showAuthStatus(msg){
+  const el = document.getElementById('authStatus');
+  if(el) el.textContent = msg || '';
+}
+function getAuthFields(){
+  return {
+    email: (document.getElementById('authEmail').value || '').trim(),
+    password: document.getElementById('authPassword').value || ''
+  };
+}
+async function handleLogin(){
+  const { email, password } = getAuthFields();
+  showAuthError(''); showAuthStatus('');
+  if(!email || !password){ showAuthError('Introduce tu correo y contraseña.'); return; }
+  setAuthBusy(true);
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  setAuthBusy(false);
+  if(error) showAuthError(error.message);
+}
+async function handleSignup(){
+  const { email, password } = getAuthFields();
+  showAuthError(''); showAuthStatus('');
+  if(!email || !password){ showAuthError('Introduce tu correo y contraseña.'); return; }
+  if(password.length < 6){ showAuthError('La contraseña debe tener al menos 6 caracteres.'); return; }
+  setAuthBusy(true);
+  const { data, error } = await sb.auth.signUp({ email, password });
+  setAuthBusy(false);
+  if(error){ showAuthError(error.message); return; }
+  if(!data.session){
+    showAuthStatus('Cuenta creada. Revisa tu correo para confirmar tu cuenta antes de iniciar sesión.');
+  }
+}
+async function handleMagicLink(){
+  const email = (document.getElementById('authEmail').value || '').trim();
+  showAuthError(''); showAuthStatus('');
+  if(!email){ showAuthError('Introduce tu correo para enviarte el enlace.'); return; }
+  setAuthBusy(true);
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+  setAuthBusy(false);
+  if(error){ showAuthError(error.message); return; }
+  showAuthStatus('Te hemos enviado un enlace mágico a ' + email + '. Ábrelo para iniciar sesión.');
+}
+async function handleLogout(){
+  await sb.auth.signOut();
+}
+
+async function onLoggedIn(user){
+  currentUser = user;
+  document.getElementById('authOverlay').classList.add('hidden');
+
+  let { data: profile } = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  if(!profile){
+    const { data: created } = await sb.from('profiles').insert({ id: user.id, current_region: 'andalucia' }).select().maybeSingle();
+    profile = created;
+  }
+
+  const { data: regionsData } = await sb.from('regions').select('*').order('sort_order');
+  REGIONS = {};
+  (regionsData || []).forEach(r => { REGIONS[r.id] = { id: r.id, name: r.name, flag: r.flag_svg }; });
+
+  const startRegion = (profile && profile.current_region && REGIONS[profile.current_region]) ? profile.current_region : 'andalucia';
+  await loadRegionData(startRegion);
+
+  updateLandingFlag();
+  renderTopicStats();
+  await loadHistory();
+  await refreshGlobalStats();
+  showScreen('screen-home');
+}
+function onLoggedOut(){
+  currentUser = null;
+  HISTORY = [];
+  TOPICS = [];
+  QUESTIONS_POOL = [];
+  renderHistory();
+  document.getElementById('authOverlay').classList.remove('hidden');
+  showAuthError(''); showAuthStatus('');
+}
+
+sb.auth.onAuthStateChange((event, session) => {
+  if(session && session.user){ onLoggedIn(session.user); }
+  else { onLoggedOut(); }
+});
+
+// initial check (also handles magic-link redirect sessions)
+sb.auth.getSession().then(({ data }) => {
+  if(data && data.session && data.session.user){ onLoggedIn(data.session.user); }
+  else { onLoggedOut(); }
+});
 </script>
 </body>
 </html>
