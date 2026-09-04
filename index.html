@@ -838,6 +838,8 @@
       <div class="admin-section" id="adminSection-topics">
         <div class="admin-add-btn" onclick="toggleAdminForm('topic')">+ Añadir tema</div>
         <div class="admin-form hidden" id="adminForm-topic">
+          <label>Id (slug único dentro de la comunidad)</label>
+          <input id="adminTopicId" placeholder="organizacion-administrativa">
           <label>Categoría</label>
           <input id="adminTopicCategory" placeholder="Ej. Organización">
           <label>Nombre</label>
@@ -2221,6 +2223,8 @@ function adminResetForm(type){
     document.getElementById('adminRegionFlag').value = '';
     document.getElementById('adminRegionSort').value = '0';
   } else if(type==='topic'){
+    document.getElementById('adminTopicId').value = '';
+    document.getElementById('adminTopicId').disabled = false;
     document.getElementById('adminTopicCategory').value = '';
     document.getElementById('adminTopicName').value = '';
     document.getElementById('adminTopicDesc').value = '';
@@ -2328,6 +2332,8 @@ function adminEditTopic(id){
   if(!t) return;
   document.getElementById('adminForm-topic').classList.remove('hidden');
   adminEditing.topic = id;
+  document.getElementById('adminTopicId').value = t.id;
+  document.getElementById('adminTopicId').disabled = true;
   document.getElementById('adminTopicCategory').value = t.category || '';
   document.getElementById('adminTopicName').value = t.name || '';
   document.getElementById('adminTopicDesc').value = t.description || '';
@@ -2336,15 +2342,16 @@ function adminEditTopic(id){
 }
 async function adminSaveTopic(){
   if(!adminCurrentRegion){ showAdminStatus('topic', 'Selecciona antes una comunidad.', true); return; }
+  const id = document.getElementById('adminTopicId').value.trim();
   const category = document.getElementById('adminTopicCategory').value.trim();
   const name = document.getElementById('adminTopicName').value.trim();
   const description = document.getElementById('adminTopicDesc').value.trim();
   const enabled = document.getElementById('adminTopicEnabled').checked;
   const sort_order = parseInt(document.getElementById('adminTopicSort').value, 10) || 0;
-  if(!name){ showAdminStatus('topic', 'El nombre es obligatorio.', true); return; }
-  const payload = { region_id: adminCurrentRegion, category, name, description, enabled, sort_order };
+  if(!id || !name){ showAdminStatus('topic', 'Id y nombre son obligatorios.', true); return; }
+  const payload = { id, region_id: adminCurrentRegion, category, name, description, enabled, sort_order };
   const { error } = adminEditing.topic
-    ? await sb.from('topics').update(payload).eq('id', adminEditing.topic)
+    ? await sb.from('topics').update(payload).eq('id', adminEditing.topic).eq('region_id', adminCurrentRegion)
     : await sb.from('topics').insert(payload);
   if(error){ showAdminStatus('topic', error.message, true); return; }
   showAdminStatus('topic', 'Guardado correctamente.', false);
@@ -2353,7 +2360,7 @@ async function adminSaveTopic(){
 }
 async function adminDeleteTopic(id){
   if(!confirm('¿Borrar este tema? También se pueden borrar sus artículos y preguntas asociadas.')) return;
-  const { error } = await sb.from('topics').delete().eq('id', id);
+  const { error } = await sb.from('topics').delete().eq('id', id).eq('region_id', adminCurrentRegion);
   if(error){ alert(error.message); return; }
   await adminLoadTopics();
 }
