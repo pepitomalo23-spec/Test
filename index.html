@@ -1879,7 +1879,7 @@ async function handleSignup(){
   if(!email || !password){ showAuthError('Introduce tu correo y contraseña.'); return; }
   if(password.length < 6){ showAuthError('La contraseña debe tener al menos 6 caracteres.'); return; }
   setAuthBusy(true);
-  const { data, error } = await sb.auth.signUp({ email, password });
+  const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: window.location.href } });
   setAuthBusy(false);
   if(error){ showAuthError(error.message); return; }
   if(!data.session){
