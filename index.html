@@ -544,6 +544,7 @@
   .article-row.selected .article-check svg{ opacity:1; }
   .article-name{ font-size:14px; flex:1; }
   .article-empty{ font-size:13px; color: var(--muted); padding:26px 4px; text-align:center; }
+  .topic-node-badge{ font-size:11px; color: var(--purple); background: rgba(140,125,245,0.15); padding:2px 7px; border-radius:8px; margin-left:6px; }
   .btn-block{ width:100%; display:block; text-align:center; padding:14px 20px; font-size:14px; }
   .btn-light{ background: var(--text); color: #0A0A0A; }
   .btn-light:hover{ opacity:.92; }
@@ -1310,7 +1311,7 @@ const TOPIC_CATEGORIES = [
 let REGIONS = {};              // { [regionId]: {id,name,flag} }
 let currentRegion = "andalucia";
 let TOPICS = [];                // topics of currentRegion, with live `fails` count from DB
-let ARTICLES = {};              // { [topicId]: [rutas completas de sus artículos/hojas] }
+let TOPIC_GROUPS = {};          // { [topicId]: [{id,label}] } — grupos raíz (títulos u otro nivel), nunca artículos
 let NODES_BY_ID = {};           // { [nodeId]: fila de nodos_temario } del árbol de la comunidad actual
 let QUESTIONS_POOL = [];        // all questions of currentRegion (DB rows mapped to quiz shape)
 
@@ -1353,6 +1354,7 @@ function mapDbQuestionToQuiz(row){
   return {
     id: row.id,
     topic_id: row.topic_id || (node ? node.topic_id : null),
+    nodo_id: row.nodo_id || null,
     art: node ? nodeFullPath(row.nodo_id) : null,
     general: !node || node.tipo !== 'articulo',
     difficulty: row.difficulty,
@@ -1397,7 +1399,7 @@ const ICONS = {
 
 let quizState = { mode:null, index:0, correctCount:0, answered:false };
 let ACTIVE_QUESTIONS = SAMPLE_QUESTIONS;
-let configState = { mode:null, topics:new Set(), count:20, time:30, minutos:null, preguntas:null, dificultad:'aleatoria', ayuda:'ocultar', repaso:false };
+let configState = { mode:null, topics:new Set(), nodeSelections:{}, count:20, time:30, minutos:null, preguntas:null, dificultad:'aleatoria', ayuda:'ocultar', repaso:false };
 let expandedCategories = new Set(['generales']);
 let timerInterval = null;
 
@@ -1498,17 +1500,16 @@ async function loadRegionData(regionId){
   NODES_BY_ID = {};
   (nodesData || []).forEach(n => { NODES_BY_ID[n.id] = n; });
 
-  // Para la pantalla "detalle de tema" del alumno: listamos los artículos
-  // del árbol (o, si un tema no tiene artículos como tales, sus niveles
-  // hoja) con su ruta completa (Título › Capítulo › ... › nombre).
-  ARTICLES = {};
+  // Para la pantalla "detalle de tema" del alumno: en vez de listar los artículos
+  // (demasiado granular), listamos solo los grupos de nivel raíz que NO sean
+  // artículo (normalmente Títulos, o el nivel que se haya usado). Elegir un grupo
+  // incluye todas las preguntas colgadas de él y de sus subniveles/artículos.
+  TOPIC_GROUPS = {};
   const nodesByTopic = {};
   (nodesData || []).forEach(n => { (nodesByTopic[n.topic_id] = nodesByTopic[n.topic_id] || []).push(n); });
   Object.keys(nodesByTopic).forEach(topicId => {
-    const nodes = nodesByTopic[topicId];
-    const hasChildren = new Set(nodes.filter(n => n.padre_id).map(n => n.padre_id));
-    const leaves = nodes.filter(n => n.tipo === 'articulo' || !hasChildren.has(n.id)).sort(compareNodes);
-    ARTICLES[topicId] = leaves.map(n => nodeFullPath(n.id));
+    const roots = nodesByTopic[topicId].filter(n => !n.padre_id && n.tipo !== 'articulo').sort(compareNodes);
+    TOPIC_GROUPS[topicId] = roots.map(n => ({ id: n.id, label: nodeDisplayName(n) }));
   });
 
   let failsByQuestion = {};
@@ -1534,6 +1535,7 @@ async function loadRegionData(regionId){
     fails: failsByTopic[t.id] || 0
   }));
   configState.topics = new Set(TOPICS.filter(t => t.enabled).map(t => t.id));
+  configState.nodeSelections = {};
 }
 
 
@@ -1743,30 +1745,49 @@ function closeSettingSheet(){
   document.getElementById('sheetOverlay').classList.remove('show');
 }
 
-/* ---------- detalle de tema (artículos) — recuadro en la misma página ---------- */
+/* ---------- detalle de tema (elegir Títulos, nunca Artículos sueltos) — recuadro en la misma página ---------- */
+function nodeIsInSelectedGroups(nodeId, selectedSet){
+  let cur = NODES_BY_ID[nodeId];
+  while(cur){
+    if(selectedSet.has(cur.id)) return true;
+    cur = cur.padre_id ? NODES_BY_ID[cur.padre_id] : null;
+  }
+  return false;
+}
 function openTopicDetail(topicId){
   const t = TOPICS.find(x => x.id === topicId);
   if(!t) return;
+  const groups = TOPIC_GROUPS[topicId] || [];
   document.getElementById('topicDetailTitle').textContent = t.name;
-  document.getElementById('topicDetailSub').textContent = t.desc;
-  const list = ARTICLES[topicId] || [];
+  document.getElementById('topicDetailSub').textContent = groups.length
+    ? 'Elige qué partes de este tema quieres repasar. Se incluyen todas las preguntas de cada una (también las de sus artículos).'
+    : t.desc;
   const el = document.getElementById('articleList');
   el.innerHTML = '';
-  if(!list.length){
-    el.innerHTML = '<div class="article-empty">Aún no hay artículos añadidos en este tema.</div>';
-  } else {
-    list.forEach(label => {
-      const row = document.createElement('div');
-      row.className = 'article-row';
-      row.setAttribute('role','checkbox'); row.setAttribute('aria-checked','false'); row.setAttribute('tabindex','0');
-      row.innerHTML = '<span class="article-check">' + ICONS.check + '</span><span class="article-name">' + label + '</span>';
-      row.onclick = () => {
-        const nowSelected = row.classList.toggle('selected');
-        row.setAttribute('aria-checked', nowSelected ? 'true' : 'false');
-      };
-      el.appendChild(row);
-    });
+  if(!groups.length){
+    el.innerHTML = '<div class="article-empty">Este tema no tiene títulos definidos: se incluyen todas sus preguntas.</div>';
+    document.getElementById('topicDetailOverlay').classList.add('show');
+    return;
   }
+  if(!configState.nodeSelections[topicId]){
+    configState.nodeSelections[topicId] = new Set(groups.map(g => g.id)); // por defecto, todos incluidos
+  }
+  const selected = configState.nodeSelections[topicId];
+  groups.forEach(g => {
+    const row = document.createElement('div');
+    const isSel = selected.has(g.id);
+    row.className = 'article-row' + (isSel ? ' selected' : '');
+    row.setAttribute('role','checkbox'); row.setAttribute('aria-checked', isSel ? 'true' : 'false'); row.setAttribute('tabindex','0');
+    row.innerHTML = '<span class="article-check">' + ICONS.check + '</span><span class="article-name">' + esc(g.label) + '</span>';
+    row.onclick = () => {
+      if(selected.has(g.id)) selected.delete(g.id); else selected.add(g.id);
+      if(selected.size === 0){ groups.forEach(x => selected.add(x.id)); } // no dejar la selección vacía
+      if(selected.size === groups.length) delete configState.nodeSelections[topicId]; // todos = sin restricción
+      openTopicDetail(topicId);
+      renderTemas();
+    };
+    el.appendChild(row);
+  });
   document.getElementById('topicDetailOverlay').classList.add('show');
 }
 function closeTopicDetail(){
@@ -1806,9 +1827,12 @@ function renderTemas(){
       row.setAttribute('role','checkbox');
       row.setAttribute('aria-checked', configState.topics.has(t.id) ? 'true' : 'false');
       if(t.enabled){ row.setAttribute('tabindex','0'); row.onclick = () => toggleTopic(t.id); }
+      const restriction = configState.nodeSelections[t.id];
+      const groupsCount = (TOPIC_GROUPS[t.id] || []).length;
+      const badge = restriction ? ' <span class="topic-node-badge">' + restriction.size + '/' + groupsCount + ' títulos</span>' : '';
       row.innerHTML =
         '<span class="topic-check">' + ICONS.check + '</span>' +
-        '<span class="topic-text"><span class="topic-name">' + (idx+1) + ' - ' + t.name + '</span></span>' +
+        '<span class="topic-text"><span class="topic-name">' + (idx+1) + ' - ' + t.name + badge + '</span></span>' +
         '<span class="topic-row-chevron">' + ICONS.chevron + '</span>';
       children.appendChild(row);
       row.querySelector('.topic-row-chevron').onclick = (e) => { e.stopPropagation(); openTopicDetail(t.id); };
@@ -1880,7 +1904,7 @@ function updateConfigFooter(){
   }else{
     btn.disabled = false;
     if(mode === 'estudio'){
-      const totalQ = topicsChosen.reduce((s,t) => s + t.qIndexes.length, 0);
+      const totalQ = buildQuestionsFromTopics(configState.topics).length;
       btn.disabled = totalQ === 0;
       btn.textContent = 'Iniciar test';
     } else if(mode === 'examen'){
@@ -1901,7 +1925,13 @@ function updateConfigFooter(){
 }
 
 function buildQuestionsFromTopics(topicIdSet){
-  return QUESTIONS_POOL.filter(q => q.topic_id && topicIdSet.has(q.topic_id));
+  return QUESTIONS_POOL.filter(q => {
+    if(!q.topic_id || !topicIdSet.has(q.topic_id)) return false;
+    const sel = configState.nodeSelections[q.topic_id];
+    if(!sel) return true; // sin restricción de títulos: todas las preguntas del tema
+    if(!q.nodo_id) return false; // pregunta "general de todo el tema": no pertenece a ningún título concreto
+    return nodeIsInSelectedGroups(q.nodo_id, sel);
+  });
 }
 
 function buildQuestionSet(pool, count){
