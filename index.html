@@ -375,23 +375,13 @@
   .switch.on .knob{ transform: translateX(16px); }
   #screen-config[data-mode="examen"] .switch.on{ background: var(--blue); border-color: var(--blue); }
 
-  /* ---- topic categories ---- */
+  /* ---- lista de temas (ya no se agrupa por categorías fijas: es una sola
+     tarjeta con todos los temas activos, en el orden del panel de admin) ---- */
   .temas-list{ display:flex; flex-direction:column; gap:9px; }
-  .topic-category{ border:1px solid var(--line); border-radius:11px; overflow:hidden; background: var(--card); }
-  .topic-category-head{
-    display:flex; align-items:center; gap:14px; padding:14px 16px; cursor:pointer;
-    transition: background .12s;
-  }
-  .topic-category-head:hover{ background: rgba(255,255,255,0.03); }
-  .topic-category-name{ flex:1; font-family: var(--sans); font-weight:700; font-size:13.5px; letter-spacing:.3px; text-transform:uppercase; }
-  .topic-category-chevron{ width:14px; height:14px; color: var(--muted-2); flex-shrink:0; transition: transform .15s; }
-  .topic-category-chevron svg{ width:14px; height:14px; }
-  .topic-category.expanded .topic-category-chevron{ transform: rotate(90deg); }
-  .topic-category-children{ display:none; flex-direction:column; border-top:1px solid var(--line); }
-  .topic-category.expanded .topic-category-children{ display:flex; }
+  .topics-card{ border:1px solid var(--line); border-radius:11px; overflow:hidden; background: var(--card); }
 
   .topic-row{
-    display:flex; align-items:center; gap:14px; padding:14px 16px 14px 46px;
+    display:flex; align-items:center; gap:14px; padding:14px 16px;
     cursor:pointer; transition: background .12s; border-bottom:1px solid var(--line-soft);
   }
   .topic-row:last-child{ border-bottom:none; }
@@ -408,7 +398,6 @@
   .topic-check.indeterminate svg{ opacity:1; }
   .topic-row.selected .topic-check{ background: var(--purple); border-color: var(--purple); }
   .topic-row.selected .topic-check svg{ opacity:1; }
-  .topic-category-head .topic-check{ margin-left:0; }
   .topic-text{ flex:1; display:flex; flex-direction:column; gap:2px; min-width:0; }
   .topic-name{ font-family: var(--sans); font-weight:600; font-size:14.5px; }
   .topic-desc{ font-size:11.5px; color: var(--muted); }
@@ -1351,10 +1340,15 @@ const SAMPLE_QUESTIONS = [
     explain:"El <b>servicio efectivo a los ciudadanos</b> encabeza la lista de principios generales del art. 3.1." }
 ];
 
-const TOPIC_CATEGORIES = [
-  { id:"normativa", name:"Normativa específica" },
-  { id:"generales", name:"Conocimientos generales" }
-];
+/* La lista de temas del test ya no se agrupa en categorías fijas
+   ("Normativa específica" / "Conocimientos generales"): esas dos
+   categorías estaban escritas a mano en el código, así que cualquier
+   tema cuyo campo "Categoría" del admin no coincidiera exactamente con
+   ellas (o la dejara vacía) desaparecía sin más de esta pantalla. Ahora
+   se listan siempre TODOS los temas activos, en el mismo orden en que
+   están en el panel de administración.
+   El campo "Categoría" del admin sigue existiendo (útil como etiqueta
+   interna), simplemente ya no filtra ni agrupa esta lista. */
 
 /* ---------- data now lives in Supabase; these fill in at runtime ---------- */
 let REGIONS = {};              // { [regionId]: {id,name,flag} }
@@ -1452,7 +1446,6 @@ const ICONS = {
 let quizState = { mode:null, index:0, correctCount:0, answered:false };
 let ACTIVE_QUESTIONS = SAMPLE_QUESTIONS;
 let configState = { mode:null, topics:new Set(), nodeSelections:{}, count:20, time:30, minutos:null, preguntas:null, dificultad:'aleatoria', ayuda:'ocultar', repaso:false };
-let expandedCategories = new Set(['generales']);
 let timerInterval = null;
 
 /* ---------- landing / region switching ---------- */
@@ -1806,18 +1799,26 @@ function nodeIsInSelectedGroups(nodeId, selectedSet){
   }
   return false;
 }
+const NODE_TYPE_PLURAL = { titulo:'Títulos', capitulo:'Capítulos', seccion:'Secciones', articulo:'Artículos' };
+function topicGroupTypeLabel(topicId){
+  const groups = TOPIC_GROUPS[topicId] || [];
+  if(!groups.length) return 'Títulos';
+  const first = NODES_BY_ID[groups[0].id];
+  return (first && NODE_TYPE_PLURAL[first.tipo]) || 'Títulos';
+}
 function openTopicDetail(topicId){
   const t = TOPICS.find(x => x.id === topicId);
   if(!t) return;
   const groups = TOPIC_GROUPS[topicId] || [];
+  const groupLabel = topicGroupTypeLabel(topicId);
   document.getElementById('topicDetailTitle').textContent = t.name;
   document.getElementById('topicDetailSub').textContent = groups.length
-    ? 'Elige qué partes de este tema quieres repasar. Se incluyen todas las preguntas de cada una (también las de sus artículos).'
+    ? 'Elige qué ' + groupLabel.toLowerCase() + ' quieres repasar. Se incluyen todas las preguntas de cada uno (también las de sus subniveles).'
     : t.desc;
   const el = document.getElementById('articleList');
   el.innerHTML = '';
   if(!groups.length){
-    el.innerHTML = '<div class="article-empty">Este tema no tiene títulos definidos: se incluyen todas sus preguntas.</div>';
+    el.innerHTML = '<div class="article-empty">Este tema no tiene subniveles definidos: se incluyen todas sus preguntas.</div>';
     document.getElementById('topicDetailOverlay').classList.add('show');
     return;
   }
@@ -1849,62 +1850,33 @@ function closeTopicDetail(){
 function renderTemas(){
   const el = document.getElementById('temasList');
   el.innerHTML = '';
-  TOPIC_CATEGORIES.forEach(cat => {
-    const catTopics = TOPICS.filter(t => t.category === cat.id);
-    const enabledTopics = catTopics.filter(t => t.enabled);
-    const selectedCount = enabledTopics.filter(t => configState.topics.has(t.id)).length;
-    const allSelected = enabledTopics.length > 0 && selectedCount === enabledTopics.length;
-    const someSelected = selectedCount > 0 && !allSelected;
-    const isExpanded = expandedCategories.has(cat.id);
-
-    const catEl = document.createElement('div');
-    catEl.className = 'topic-category' + (isExpanded ? ' expanded' : '');
-
-    const head = document.createElement('div');
-    head.className = 'topic-category-head';
-    head.setAttribute('role','button'); head.setAttribute('tabindex','0');
-    head.innerHTML =
-      '<span class="topic-check' + (allSelected || someSelected ? ' indeterminate' : '') + '" role="checkbox" aria-checked="' + allSelected + '">' + ICONS.check + '</span>' +
-      '<span class="topic-category-name">' + cat.name + '</span>' +
-      '<span class="topic-category-chevron">' + ICONS.chevron + '</span>';
-    head.querySelector('.topic-check').onclick = (e) => { e.stopPropagation(); toggleCategoryTopics(cat.id); };
-    head.onclick = () => toggleCategoryExpand(cat.id);
-    catEl.appendChild(head);
-
-    const children = document.createElement('div');
-    children.className = 'topic-category-children';
-    catTopics.forEach((t,idx) => {
-      const row = document.createElement('div');
-      row.className = 'topic-row' + (t.enabled ? '' : ' disabled') + (configState.topics.has(t.id) ? ' selected' : '');
-      row.setAttribute('role','checkbox');
-      row.setAttribute('aria-checked', configState.topics.has(t.id) ? 'true' : 'false');
-      if(t.enabled){ row.setAttribute('tabindex','0'); row.onclick = () => toggleTopic(t.id); }
-      const restriction = configState.nodeSelections[t.id];
-      const groupsCount = (TOPIC_GROUPS[t.id] || []).length;
-      const badge = restriction ? ' <span class="topic-node-badge">' + restriction.size + '/' + groupsCount + ' títulos</span>' : '';
-      row.innerHTML =
-        '<span class="topic-check">' + ICONS.check + '</span>' +
-        '<span class="topic-text"><span class="topic-name">' + (idx+1) + ' - ' + t.name + badge + '</span></span>' +
-        '<span class="topic-row-chevron">' + ICONS.chevron + '</span>';
-      children.appendChild(row);
-      row.querySelector('.topic-row-chevron').onclick = (e) => { e.stopPropagation(); openTopicDetail(t.id); };
-    });
-    catEl.appendChild(children);
-    el.appendChild(catEl);
+  const enabledTopics = TOPICS.filter(t => t.enabled);
+  if(!enabledTopics.length){
+    el.innerHTML = '<div class="tree-empty">Todavía no hay temas creados. Créalos desde el panel de administración → pestaña "Temas".</div>';
+    updateConfigFooter();
+    return;
+  }
+  const card = document.createElement('div');
+  card.className = 'topics-card';
+  enabledTopics.forEach((t, idx) => {
+    const row = document.createElement('div');
+    row.className = 'topic-row' + (configState.topics.has(t.id) ? ' selected' : '');
+    row.setAttribute('role','checkbox');
+    row.setAttribute('aria-checked', configState.topics.has(t.id) ? 'true' : 'false');
+    row.setAttribute('tabindex','0');
+    row.onclick = () => toggleTopic(t.id);
+    const restriction = configState.nodeSelections[t.id];
+    const groupsCount = (TOPIC_GROUPS[t.id] || []).length;
+    const badge = restriction ? ' <span class="topic-node-badge">' + restriction.size + '/' + groupsCount + ' ' + topicGroupTypeLabel(t.id).toLowerCase() + '</span>' : '';
+    row.innerHTML =
+      '<span class="topic-check">' + ICONS.check + '</span>' +
+      '<span class="topic-text"><span class="topic-name">' + (idx+1) + ' - ' + esc(t.name) + badge + '</span></span>' +
+      '<span class="topic-row-chevron">' + ICONS.chevron + '</span>';
+    card.appendChild(row);
+    row.querySelector('.topic-row-chevron').onclick = (e) => { e.stopPropagation(); openTopicDetail(t.id); };
   });
+  el.appendChild(card);
   updateConfigFooter();
-}
-
-function toggleCategoryExpand(id){
-  if(expandedCategories.has(id)) expandedCategories.delete(id); else expandedCategories.add(id);
-  renderTemas();
-}
-
-function toggleCategoryTopics(id){
-  const ids = TOPICS.filter(t => t.category === id && t.enabled).map(t => t.id);
-  const allSelected = ids.length > 0 && ids.every(tid => configState.topics.has(tid));
-  ids.forEach(tid => allSelected ? configState.topics.delete(tid) : configState.topics.add(tid));
-  renderTemas();
 }
 
 function toggleTopic(id){
