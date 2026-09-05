@@ -462,14 +462,30 @@
   .sheet-option.selected .sheet-check{ opacity:1; }
 
   /* ---------- árbol de estructura (admin) ---------- */
-  .tree-toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+  .tree-toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
   .tree-toolbar select{ flex:1; min-width:200px; }
+  .tree-toolbar-row2{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+  .tree-toolbar-link{ font-size:12.5px; font-weight:600; color: var(--muted); cursor:pointer; }
+  .tree-toolbar-link:hover{ color: var(--text); }
   .tree-node{ margin-left:0; }
-  .tree-children{ margin-left:22px; border-left:1px dashed var(--line, #333); padding-left:14px; }
-  .tree-node-row{ display:flex; flex-direction:column; align-items:stretch; gap:8px; padding:10px 12px; border-radius:10px; margin:4px 0; background:rgba(255,255,255,0.03); }
-  .tree-node-main{ display:flex; align-items:center; gap:8px; min-width:0; flex-wrap:wrap; }
-  .tree-node-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .node-badge{ font-size:11px; padding:2px 7px; border-radius:6px; flex-shrink:0; font-family:var(--mono); }
+  .tree-children{ margin-left:18px; border-left:1px solid var(--line-soft); padding-left:12px; }
+  .tree-node-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:9px 10px; border-radius:9px; margin:2px 0; background: var(--card);
+    border:1px solid transparent; transition: border-color .12s, background .12s;
+  }
+  .tree-node-row:hover{ border-color: var(--line); background: var(--card-hi); }
+  .tree-node-main{ display:flex; align-items:center; gap:8px; min-width:0; flex:1; }
+  .tree-node-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13.5px; }
+  .tree-chevron-btn{
+    width:22px; height:22px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    border-radius:6px; color: var(--muted-2); cursor:pointer; transition: transform .15s, color .12s;
+  }
+  .tree-chevron-btn:hover{ color: var(--text); background: rgba(255,255,255,0.06); }
+  .tree-chevron-btn svg{ width:13px; height:13px; }
+  .tree-chevron-btn.open{ transform: rotate(90deg); }
+  .tree-chevron-spacer{ width:22px; flex-shrink:0; }
+  .node-badge{ font-size:10.5px; padding:2px 7px; border-radius:6px; flex-shrink:0; font-family:var(--mono); white-space:nowrap; }
   .node-badge.titulo{ background:rgba(120,150,255,0.18); color:#a9bcff; }
   .node-badge.capitulo{ background:rgba(255,200,100,0.18); color:#ffcf7d; }
   .node-badge.seccion{ background:rgba(150,255,180,0.18); color:#9dffbd; }
@@ -477,18 +493,34 @@
   .node-badge.general-node{ background:rgba(255,255,255,0.14); color:var(--text); font-weight:600; }
   .node-general-badge{ font-size:11px; padding:2px 8px; border-radius:999px; background:rgba(255,255,255,0.12); color:var(--text); cursor:pointer; flex-shrink:0; white-space:nowrap; font-weight:600; }
   .node-general-badge:hover{ background:rgba(255,255,255,0.22); }
-  .tema-general-row{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:10px; margin:0 0 12px; background:rgba(255,255,255,0.05); border:1px dashed var(--line, #333); }
-  .node-qcount{ font-size:11px; padding:2px 8px; border-radius:999px; background:rgba(120,150,255,0.14); color:#a9bcff; cursor:pointer; flex-shrink:0; white-space:nowrap; }
+  .tema-general-row{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; padding:9px 10px; border-radius:9px; margin:0 0 10px; background:transparent; border:1px dashed var(--line); }
+  .node-qcount{ font-size:10.5px; padding:2px 8px; border-radius:999px; background:rgba(120,150,255,0.14); color:#a9bcff; cursor:pointer; flex-shrink:0; white-space:nowrap; }
   .node-qcount:hover{ background:rgba(120,150,255,0.26); }
-  .tree-node-actions{ display:flex; gap:6px; flex-wrap:wrap; }
+  .tree-node-actions{ position:relative; display:flex; align-items:center; flex-shrink:0; }
   .locate-highlight{ animation: locatePulse 2.2s ease-out; }
   @keyframes locatePulse{
     0%{ box-shadow:0 0 0 0 rgba(78,155,247,.55); border-color: var(--blue); }
     70%{ box-shadow:0 0 0 12px rgba(78,155,247,0); border-color: var(--blue); }
     100%{ box-shadow:0 0 0 0 rgba(78,155,247,0); }
   }
-  .tree-mini-btn{ font-size:12px; padding:5px 9px; border-radius:8px; background:rgba(255,255,255,0.06); cursor:pointer; white-space:nowrap; }
-  .tree-mini-btn:hover{ background:rgba(255,255,255,0.12); }
+  .tree-kebab-btn{
+    width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    color: var(--muted); cursor:pointer; flex-shrink:0;
+  }
+  .tree-kebab-btn:hover{ color: var(--text); background: rgba(255,255,255,0.08); }
+  .tree-kebab-btn svg{ width:16px; height:16px; }
+  .tree-node-menu{
+    display:flex; flex-direction:column; gap:2px; margin:2px 0 6px; padding:6px;
+    background: var(--card-hi); border:1px solid var(--line); border-radius:10px;
+  }
+  .tree-menu-item{
+    display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:7px; font-size:13px;
+    color: var(--text); cursor:pointer; white-space:nowrap;
+  }
+  .tree-menu-item:hover{ background: rgba(255,255,255,0.06); }
+  .tree-menu-item svg{ width:14px; height:14px; flex-shrink:0; color: var(--muted); }
+  .tree-menu-item.danger{ color: var(--coral); }
+  .tree-menu-item.danger svg{ color: var(--coral); }
   .tree-empty{ opacity:0.6; padding:14px 0; font-size:14px; }
 
   /* ---------- tarjeta de pregunta dentro del árbol (clicable entera para editar) ---------- */
@@ -964,6 +996,23 @@
           <div class="admin-add-btn" style="margin:0;" onclick="adminOpenGeneralQuestionPicker()">+ Pregunta general</div>
           <div class="admin-add-btn" style="margin:0;" onclick="adminOpenIAImportForm()">+ Importar con IA</div>
         </div>
+        <div class="tree-toolbar-row2">
+          <span class="tree-toolbar-link" onclick="adminExpandAllTree()">Expandir todo</span>
+          <span class="tree-toolbar-link" onclick="adminCollapseAllTree()">Colapsar todo</span>
+        </div>
+
+        <!-- formulario: mover un nivel (título/capítulo/sección/artículo) a otro sitio -->
+        <div class="admin-form hidden" id="adminForm-moveNode">
+          <div class="qloc-path" id="moveNodePath"></div>
+          <label>Nueva ubicación</label>
+          <select id="moveNodeTarget"></select>
+          <div class="admin-card-meta" style="margin-top:6px;">Se moverá junto con todo lo que cuelgue de él (subniveles, artículos y preguntas). El orden dentro de su nuevo sitio se recalcula solo, a partir del número.</div>
+          <div class="admin-form-actions">
+            <button class="btn btn-ghost" onclick="adminCancelMoveNode()">Cancelar</button>
+            <button class="btn btn-block" onclick="adminConfirmMove()">Mover aquí</button>
+          </div>
+          <div class="admin-status" id="adminStatus-moveNode"></div>
+        </div>
 
         <!-- selector: a quién pertenece una pregunta general (Tema / Título / Capítulo / Sección — Artículo no, porque ya no sería general) -->
         <div class="admin-form hidden" id="adminForm-generalPicker">
@@ -1394,7 +1443,10 @@ const ICONS = {
   info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"/></svg>',
   brain: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="6.5" r="2.1"/><circle cx="17" cy="6.5" r="2.1"/><circle cx="7" cy="17.5" r="2.1"/><circle cx="17" cy="17.5" r="2.1"/><circle cx="12" cy="12" r="2.1"/><line x1="8.7" y1="7.6" x2="10.4" y2="10.6"/><line x1="15.3" y1="7.6" x2="13.6" y2="10.6"/><line x1="8.7" y1="16.4" x2="10.4" y2="13.4"/><line x1="15.3" y1="16.4" x2="13.6" y2="13.4"/></svg>',
   chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>',
-  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.1-7-11.2A7 7 0 0 1 19 9.8C19 14.9 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.4"/></svg>'
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.1-7-11.2A7 7 0 0 1 19 9.8C19 14.9 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.4"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  move: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,9 2,12 5,15"/><polyline points="9,5 12,2 15,5"/><polyline points="15,19 12,22 9,19"/><polyline points="19,9 22,12 19,15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>',
+  kebab: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>'
 };
 
 let quizState = { mode:null, index:0, correctCount:0, answered:false };
@@ -2825,6 +2877,8 @@ function onAdminTreeTopicChange(){
   adminTreeTopicId = document.getElementById('adminTreeTopic').value;
   adminCancelNodeForm();
   adminCancelTreeQuestionForm();
+  adminCancelMoveNode();
+  treeNodeMenuOpen = null;
   adminLoadTree();
 }
 async function adminLoadTree(){
@@ -2864,12 +2918,13 @@ function renderTemaGeneralRow(){
   return (
     '<div class="tema-general-row">' +
       '<div class="tree-node-main">' +
+        '<span class="tree-chevron-spacer"></span>' +
         '<span class="node-badge general-node">General</span>' +
         '<span class="tree-node-name">Todo el tema (sin título, capítulo, sección ni artículo)</span>' +
         (qs.length ? '<span class="node-general-badge" onclick="toggleNodeQuestions(\''+TEMA_GENERAL_KEY+'\')">'+(isOpen?'▾':'▸')+' '+qs.length+' general'+(qs.length===1?'':'es')+'</span>' : '') +
       '</div>' +
       '<div class="tree-node-actions">' +
-        '<div class="tree-mini-btn" onclick="adminOpenTreeQuestionForm(null)">+ Pregunta general aquí</div>' +
+        '<div class="tree-kebab-btn" onclick="adminOpenTreeQuestionForm(null)" title="Añadir pregunta general">'+ICONS.plus+'</div>' +
       '</div>' +
     '</div>' +
     (isOpen ? '<div class="tree-children" style="margin-bottom:12px;">'+renderTemaGeneralQuestionsList()+'</div>' : '')
@@ -2900,7 +2955,27 @@ function renderQuestionCard(q){
     '</div>'
   );
 }
-let expandedTreeNodes = new Set(); // nodos con el listado de preguntas desplegado
+let expandedTreeNodes = new Set();   // nodos con el listado de preguntas desplegado
+let expandedTreeBranches = new Set(); // nodos con sus subniveles (hijos) desplegados — colapsado por defecto para que no se vea todo de golpe
+let treeNodeMenuOpen = null;          // id del nodo cuyo menú de acciones (⋮) está abierto
+function toggleNodeBranch(id, event){
+  if(event) event.stopPropagation();
+  if(expandedTreeBranches.has(id)) expandedTreeBranches.delete(id); else expandedTreeBranches.add(id);
+  renderTree();
+}
+function toggleNodeMenu(id, event){
+  if(event) event.stopPropagation();
+  treeNodeMenuOpen = (treeNodeMenuOpen === id) ? null : id;
+  renderTree();
+}
+function adminExpandAllTree(){
+  adminData.nodes.forEach(n => expandedTreeBranches.add(n.id));
+  renderTree();
+}
+function adminCollapseAllTree(){
+  expandedTreeBranches.clear();
+  renderTree();
+}
 function directQuestionCount(nodeId){
   return adminData.questions.filter(q => q.nodo_id === nodeId).length;
 }
@@ -2924,25 +2999,38 @@ function renderNode(n){
   const count = subtreeQuestionCount(n.id);
   const directGeneral = n.tipo !== 'articulo' ? directQuestionCount(n.id) : 0;
   const isOpen = expandedTreeNodes.has(n.id);
+  const branchOpen = expandedTreeBranches.has(n.id);
+  const hasBranch = children.length > 0;
+  const menuOpen = treeNodeMenuOpen === n.id;
+  const questionLabel = n.tipo === 'articulo' ? '+ Pregunta aquí' : '+ Pregunta general aquí';
   return (
     '<div class="tree-node">' +
       '<div class="tree-node-row">' +
-        '<div class="tree-node-main">' +
+        '<div class="tree-node-main" style="cursor:'+(hasBranch?'pointer':'default')+';" '+(hasBranch?'onclick="toggleNodeBranch(\''+n.id+'\')"':'')+'>' +
+          (hasBranch
+            ? '<span class="tree-chevron-btn'+(branchOpen?' open':'')+'" onclick="toggleNodeBranch(\''+n.id+'\', event)">'+ICONS.chevron+'</span>'
+            : '<span class="tree-chevron-spacer"></span>') +
           '<span class="node-badge '+(isGeneralNode(n) ? 'general-node' : n.tipo)+'">'+(isGeneralNode(n) ? 'General' : NODE_TYPE_LABEL[n.tipo])+'</span>' +
           (isGeneralNode(n) ? '' : '<span class="tree-node-name">'+esc(nodeDisplayName(n))+'</span>') +
-          (directGeneral ? '<span class="node-general-badge" onclick="toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+directGeneral+' general'+(directGeneral===1?'':'es')+' aquí</span>' : '') +
-          (count && !directGeneral ? '<span class="node-qcount" onclick="toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+count+' preg.</span>' : '') +
-          (count && directGeneral && count > directGeneral ? '<span class="node-qcount" onclick="toggleNodeQuestions(\''+n.id+'\')">'+count+' en total</span>' : '') +
+          (directGeneral ? '<span class="node-general-badge" onclick="event.stopPropagation();toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+directGeneral+' general'+(directGeneral===1?'':'es')+' aquí</span>' : '') +
+          (count && !directGeneral ? '<span class="node-qcount" onclick="event.stopPropagation();toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+count+' preg.</span>' : '') +
+          (count && directGeneral && count > directGeneral ? '<span class="node-qcount" onclick="event.stopPropagation();toggleNodeQuestions(\''+n.id+'\')">'+count+' en total</span>' : '') +
         '</div>' +
         '<div class="tree-node-actions">' +
-          (canHaveChildren ? '<div class="tree-mini-btn" onclick="adminOpenNodeForm(\''+n.id+'\')">+ Subnivel</div>' : '') +
-          '<div class="tree-mini-btn" onclick="adminOpenTreeQuestionForm(\''+n.id+'\')">'+(n.tipo==='articulo'?'+ Pregunta aquí':'+ Pregunta general aquí')+'</div>' +
-          '<div class="admin-icon-btn" onclick="adminEditNode(\''+n.id+'\')" title="Editar">'+ICONS.check+'</div>' +
-          '<div class="admin-icon-btn" onclick="adminDeleteNode(\''+n.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
+          '<div class="tree-kebab-btn" onclick="toggleNodeMenu(\''+n.id+'\', event)" title="Más acciones">'+ICONS.kebab+'</div>' +
         '</div>' +
       '</div>' +
+      (menuOpen ? (
+        '<div class="tree-node-menu">' +
+          (canHaveChildren ? '<div class="tree-menu-item" onclick="adminOpenNodeForm(\''+n.id+'\')">'+ICONS.plus+'<span>Añadir subnivel</span></div>' : '') +
+          '<div class="tree-menu-item" onclick="adminOpenTreeQuestionForm(\''+n.id+'\')">'+ICONS.plus+'<span>'+questionLabel+'</span></div>' +
+          '<div class="tree-menu-item" onclick="adminEditNode(\''+n.id+'\')">'+ICONS.check+'<span>Editar</span></div>' +
+          '<div class="tree-menu-item" onclick="adminOpenMoveNode(\''+n.id+'\')">'+ICONS.move+'<span>Mover a otro título / sección…</span></div>' +
+          '<div class="tree-menu-item danger" onclick="adminDeleteNode(\''+n.id+'\')">'+ICONS.cross+'<span>Borrar</span></div>' +
+        '</div>'
+      ) : '') +
       (isOpen ? '<div class="tree-children">'+renderNodeQuestionsList(n.id)+'</div>' : '') +
-      (children.length ? '<div class="tree-children">'+children.map(c => renderNode(c)).join('')+'</div>' : '') +
+      (hasBranch && branchOpen ? '<div class="tree-children">'+children.map(c => renderNode(c)).join('')+'</div>' : '') +
     '</div>'
   );
 }
@@ -2955,6 +3043,8 @@ function adminOpenNodeForm(parentId){
   treeAddParentId = parentId || null;
   adminEditing.node = null;
   adminCancelIAImportForm();
+  adminCancelMoveNode();
+  treeNodeMenuOpen = null;
   document.getElementById('adminForm-node').classList.remove('hidden');
   document.getElementById('adminForm-treeQuestion').classList.add('hidden');
   document.getElementById('nodeFormParentPath').textContent = parentId
@@ -2964,12 +3054,15 @@ function adminOpenNodeForm(parentId){
   document.getElementById('adminNodeNumber').value = '';
   document.getElementById('adminNodeName').value = '';
   document.getElementById('adminStatus-node').textContent = '';
+  renderTree();
 }
 function adminEditNode(id){
   const n = adminData.nodes.find(x => String(x.id) === String(id));
   if(!n) return;
   treeAddParentId = n.padre_id || null;
   adminEditing.node = id;
+  adminCancelMoveNode();
+  treeNodeMenuOpen = null;
   document.getElementById('adminForm-node').classList.remove('hidden');
   document.getElementById('adminForm-treeQuestion').classList.add('hidden');
   document.getElementById('nodeFormParentPath').textContent = 'Editando: ' + nodePathName(id);
@@ -2977,6 +3070,7 @@ function adminEditNode(id){
   document.getElementById('adminNodeNumber').value = n.numero || '';
   document.getElementById('adminNodeName').value = n.nombre || '';
   document.getElementById('adminStatus-node').textContent = '';
+  renderTree();
 }
 function adminCancelNodeForm(){
   adminEditing.node = null;
@@ -3005,12 +3099,83 @@ async function adminDeleteNode(id){
   await adminLoadTree();
 }
 
+/* ---------- Mover un nivel (título/capítulo/sección/artículo) a otro sitio del árbol ---------- */
+let moveNodeId = null;
+function nodeDescendantIds(id){
+  const result = new Set();
+  (function walk(parentId){
+    nodeChildren(parentId).forEach(c => { result.add(c.id); walk(c.id); });
+  })(id);
+  return result;
+}
+// Opciones válidas de destino: cualquier nodo cuyo nivel sea inferior al del nodo que
+// se mueve (para que la jerarquía Título > Capítulo > Sección > Artículo siga teniendo
+// sentido), excluyendo el propio nodo y todo lo que cuelga de él (no se puede meter un
+// título dentro de su propio artículo).
+function buildMoveTargetOptions(nodeId){
+  const node = adminData.nodes.find(n => n.id === nodeId);
+  if(!node) return [];
+  const level = NODE_TYPE_LEVEL[node.tipo];
+  const excluded = nodeDescendantIds(nodeId);
+  excluded.add(nodeId);
+  const options = [];
+  (function walk(parentId, depth){
+    nodeChildren(parentId).forEach(n => {
+      if(excluded.has(n.id)) return;
+      if(NODE_TYPE_LEVEL[n.tipo] < level){
+        options.push({ id: n.id, label: '—'.repeat(depth) + ' ' + nodeDisplayName(n) });
+      }
+      walk(n.id, depth + 1);
+    });
+  })(null, 0);
+  return options;
+}
+function adminOpenMoveNode(id){
+  const n = adminData.nodes.find(x => String(x.id) === String(id));
+  if(!n) return;
+  moveNodeId = id;
+  adminCancelNodeForm();
+  adminCancelTreeQuestionForm();
+  adminCancelGeneralPicker();
+  adminCancelIAImportForm();
+  treeNodeMenuOpen = null;
+  renderTree();
+  document.getElementById('moveNodePath').textContent = 'Mover: ' + nodePathName(id);
+  const targets = buildMoveTargetOptions(id);
+  const sel = document.getElementById('moveNodeTarget');
+  const rootOption = '<option value="">Nivel raíz del tema (directamente bajo el tema)</option>';
+  sel.innerHTML = rootOption + targets.map(t => '<option value="'+t.id+'">'+esc(t.label)+'</option>').join('');
+  sel.value = n.padre_id || '';
+  document.getElementById('adminStatus-moveNode').textContent = '';
+  document.getElementById('adminForm-moveNode').classList.remove('hidden');
+  document.getElementById('adminForm-moveNode').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+function adminCancelMoveNode(){
+  moveNodeId = null;
+  const form = document.getElementById('adminForm-moveNode');
+  if(form) form.classList.add('hidden');
+}
+async function adminConfirmMove(){
+  if(!moveNodeId) return;
+  const val = document.getElementById('moveNodeTarget').value;
+  const newParentId = val || null;
+  const { error } = await sb.from('nodos_temario').update({ padre_id: newParentId }).eq('id', moveNodeId);
+  if(error){ showAdminStatus('moveNode', error.message, true); return; }
+  showAdminStatus('moveNode', 'Movido correctamente.', false);
+  if(newParentId) expandedTreeBranches.add(newParentId);
+  await adminLoadTree();
+  setTimeout(adminCancelMoveNode, 500);
+}
+
 /* ---------- Pregunta "general": el admin elige a qué nivel pertenece (Tema/Título/Capítulo/Sección; Artículo no, porque dejaría de ser general) ---------- */
 function adminOpenGeneralQuestionPicker(){
   if(!adminTreeTopicId){ alert('Selecciona antes un tema.'); return; }
   adminCancelNodeForm();
   adminCancelTreeQuestionForm();
   adminCancelIAImportForm();
+  adminCancelMoveNode();
+  treeNodeMenuOpen = null;
+  renderTree();
   document.getElementById('adminForm-generalPicker').classList.remove('hidden');
   const sel = document.getElementById('generalPickerNode');
   const options = ['<option value="">Todo el tema (sin título, capítulo ni sección concretos)</option>'];
@@ -3040,6 +3205,9 @@ function adminOpenIAImportForm(){
   adminCancelNodeForm();
   adminCancelTreeQuestionForm();
   adminCancelGeneralPicker();
+  adminCancelMoveNode();
+  treeNodeMenuOpen = null;
+  renderTree();
   iaPreviewData = [];
   document.getElementById('iaPreviewList').innerHTML = '';
   document.getElementById('iaSaveRow').classList.add('hidden');
@@ -3249,6 +3417,9 @@ function adminOpenTreeQuestionForm(nodeId){
   adminCancelNodeForm();
   adminCancelGeneralPicker();
   adminCancelIAImportForm();
+  adminCancelMoveNode();
+  treeNodeMenuOpen = null;
+  renderTree();
   document.getElementById('adminForm-treeQuestion').classList.remove('hidden');
   const node = treeQuestionNodeId ? adminData.nodes.find(n => n.id === treeQuestionNodeId) : null;
   document.getElementById('treeQuestionPath').textContent = !node
@@ -3278,6 +3449,9 @@ function adminEditQuestionInTree(id){
   adminCancelNodeForm();
   adminCancelGeneralPicker();
   adminCancelIAImportForm();
+  adminCancelMoveNode();
+  treeNodeMenuOpen = null;
+  renderTree();
   const form = document.getElementById('adminForm-treeQuestion');
   form.classList.remove('hidden');
   document.getElementById('treeQuestionPath').textContent = 'Editando pregunta en: ' + (q.nodo_id ? nodePathName(q.nodo_id) : 'Todo el tema (general)');
