@@ -454,8 +454,8 @@
   .tree-toolbar select{ flex:1; min-width:200px; }
   .tree-node{ margin-left:0; }
   .tree-children{ margin-left:22px; border-left:1px dashed var(--line, #333); padding-left:14px; }
-  .tree-node-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 10px; border-radius:10px; margin:4px 0; background:rgba(255,255,255,0.03); }
-  .tree-node-main{ display:flex; align-items:center; gap:8px; min-width:0; }
+  .tree-node-row{ display:flex; flex-direction:column; align-items:stretch; gap:8px; padding:10px 12px; border-radius:10px; margin:4px 0; background:rgba(255,255,255,0.03); }
+  .tree-node-main{ display:flex; align-items:center; gap:8px; min-width:0; flex-wrap:wrap; }
   .tree-node-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .node-badge{ font-size:11px; padding:2px 7px; border-radius:6px; flex-shrink:0; font-family:var(--mono); }
   .node-badge.titulo{ background:rgba(120,150,255,0.18); color:#a9bcff; }
@@ -465,10 +465,10 @@
   .node-badge.general-node{ background:rgba(255,255,255,0.14); color:var(--text); font-weight:600; }
   .node-general-badge{ font-size:11px; padding:2px 8px; border-radius:999px; background:rgba(255,255,255,0.12); color:var(--text); cursor:pointer; flex-shrink:0; white-space:nowrap; font-weight:600; }
   .node-general-badge:hover{ background:rgba(255,255,255,0.22); }
-  .tema-general-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:10px; margin:0 0 12px; background:rgba(255,255,255,0.05); border:1px dashed var(--line, #333); }
+  .tema-general-row{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:10px; margin:0 0 12px; background:rgba(255,255,255,0.05); border:1px dashed var(--line, #333); }
   .node-qcount{ font-size:11px; padding:2px 8px; border-radius:999px; background:rgba(120,150,255,0.14); color:#a9bcff; cursor:pointer; flex-shrink:0; white-space:nowrap; }
   .node-qcount:hover{ background:rgba(120,150,255,0.26); }
-  .tree-node-actions{ display:flex; gap:6px; flex-shrink:0; }
+  .tree-node-actions{ display:flex; gap:6px; flex-wrap:wrap; }
   .locate-highlight{ animation: locatePulse 2.2s ease-out; }
   @keyframes locatePulse{
     0%{ box-shadow:0 0 0 0 rgba(78,155,247,.55); border-color: var(--blue); }
@@ -478,6 +478,23 @@
   .tree-mini-btn{ font-size:12px; padding:5px 9px; border-radius:8px; background:rgba(255,255,255,0.06); cursor:pointer; white-space:nowrap; }
   .tree-mini-btn:hover{ background:rgba(255,255,255,0.12); }
   .tree-empty{ opacity:0.6; padding:14px 0; font-size:14px; }
+
+  /* ---------- tarjeta de pregunta dentro del árbol (clicable entera para editar) ---------- */
+  .question-card{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+    background: var(--card-hi); border:1px solid var(--line-soft); border-radius:12px;
+    padding:12px 14px; margin-bottom:8px; cursor:pointer; transition: border-color .15s, background .15s;
+  }
+  .question-card:last-child{ margin-bottom:0; }
+  .question-card:hover, .question-card:focus-visible{ border-color: var(--purple); background: var(--card); }
+  .question-card-body{ min-width:0; }
+  .question-card-text{ font-size:13.5px; font-weight:700; line-height:1.45; margin-bottom:6px; }
+  .question-card-meta{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .q-diff{ font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; font-family:var(--mono); white-space:nowrap; }
+  .q-diff-facil{ background:rgba(52,211,153,0.16); color:var(--green); }
+  .q-diff-media{ background:rgba(255,122,61,0.16); color:var(--orange); }
+  .q-diff-dificil{ background:rgba(242,102,92,0.16); color:var(--coral); }
+  .question-card-actions{ display:flex; gap:8px; flex-shrink:0; }
   .qloc-path{ font-family:var(--mono); font-size:12px; opacity:0.75; margin:4px 0 14px; padding:8px 10px; background:rgba(255,255,255,0.04); border-radius:8px; }
 
   /* ---------- detalle de tema (artículos) — recuadro en la misma página ---------- */
@@ -875,7 +892,6 @@
         <div class="admin-tab active" id="adminTabBtn-regions" onclick="switchAdminTab('regions')">Comunidades</div>
         <div class="admin-tab" id="adminTabBtn-topics" onclick="switchAdminTab('topics')">Temas</div>
         <div class="admin-tab" id="adminTabBtn-articles" onclick="switchAdminTab('articles')">Estructura</div>
-        <div class="admin-tab" id="adminTabBtn-questions" onclick="switchAdminTab('questions')">Preguntas</div>
         <div class="admin-tab" id="adminTabBtn-users" onclick="switchAdminTab('users')">Usuarios</div>
       </div>
 
@@ -1000,48 +1016,6 @@
         </div>
 
         <div id="adminTreeContainer"></div>
-      </div>
-
-      <!-- QUESTIONS -->
-      <div class="admin-section" id="adminSection-questions">
-        <div class="admin-add-btn" onclick="toggleAdminForm('question')">+ Añadir pregunta</div>
-        <div class="admin-form hidden" id="adminForm-question">
-          <label>Tema</label>
-          <select id="adminQuestionTopic" onchange="onAdminQuestionTopicChange()"></select>
-          <label>Ubicación (Título/Capítulo/Sección/Artículo)</label>
-          <select id="adminQuestionNode"></select>
-          <label>Pregunta</label>
-          <textarea id="adminQuestionText" placeholder="Enunciado de la pregunta"></textarea>
-          <label>Opción A</label>
-          <input id="adminQuestionOpt0" placeholder="Opción A">
-          <label>Opción B</label>
-          <input id="adminQuestionOpt1" placeholder="Opción B">
-          <label>Opción C</label>
-          <input id="adminQuestionOpt2" placeholder="Opción C">
-          <label>Opción D (opcional)</label>
-          <input id="adminQuestionOpt3" placeholder="Opción D">
-          <label>Opción correcta</label>
-          <select id="adminQuestionCorrect">
-            <option value="0">Opción A</option>
-            <option value="1">Opción B</option>
-            <option value="2">Opción C</option>
-            <option value="3">Opción D</option>
-          </select>
-          <label>Explicación</label>
-          <textarea id="adminQuestionExplain" placeholder="Por qué es correcta"></textarea>
-          <label>Dificultad</label>
-          <select id="adminQuestionDifficulty">
-            <option value="facil">Fácil</option>
-            <option value="media" selected>Media</option>
-            <option value="dificil">Difícil</option>
-          </select>
-          <div class="admin-form-actions">
-            <button class="btn btn-ghost" onclick="toggleAdminForm('question')">Cancelar</button>
-            <button class="btn btn-block" onclick="adminSaveQuestion()">Guardar</button>
-          </div>
-          <div class="admin-status" id="adminStatus-question"></div>
-        </div>
-        <div id="adminList-questions"></div>
       </div>
 
       <!-- USERS -->
@@ -2434,7 +2408,7 @@ async function adminLoadRegionScopedData(){
   refreshTreeTopicSelect();
 }
 function switchAdminTab(name){
-  ['regions','topics','articles','questions','users'].forEach(t => {
+  ['regions','topics','articles','users'].forEach(t => {
     document.getElementById('adminTabBtn-'+t).classList.toggle('active', t===name);
     document.getElementById('adminSection-'+t).classList.toggle('active', t===name);
   });
@@ -2466,17 +2440,6 @@ function adminResetForm(type){
     document.getElementById('adminTopicDesc').value = '';
     document.getElementById('adminTopicEnabled').checked = true;
     document.getElementById('adminTopicSort').value = '0';
-  } else if(type==='question'){
-    document.getElementById('adminQuestionTopic').innerHTML = adminData.topics.map(t => '<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
-    document.getElementById('adminQuestionText').value = '';
-    document.getElementById('adminQuestionOpt0').value = '';
-    document.getElementById('adminQuestionOpt1').value = '';
-    document.getElementById('adminQuestionOpt2').value = '';
-    document.getElementById('adminQuestionOpt3').value = '';
-    document.getElementById('adminQuestionCorrect').value = '0';
-    document.getElementById('adminQuestionExplain').value = '';
-    document.getElementById('adminQuestionDifficulty').value = 'media';
-    if(adminData.topics.length) adminPopulateQuestionNodeSelect(adminData.topics[0].id, null);
   }
 }
 function showAdminStatus(type, msg, isError){
@@ -2852,15 +2815,27 @@ function renderTemaGeneralRow(){
 function renderTemaGeneralQuestionsList(){
   const qs = temaGeneralQuestions();
   if(!qs.length) return '<div class="tree-empty" style="padding:8px 0;">Todavía no hay preguntas generales de todo el tema.</div>';
-  return qs.map(q =>
-    '<div class="admin-card" data-qid="'+q.id+'"><div class="admin-card-row">' +
-      '<div><div class="admin-card-title">'+esc(q.question)+'</div><div class="admin-card-meta">'+esc(q.difficulty||'')+'</div></div>' +
-      '<div class="admin-card-actions">' +
-        '<div class="admin-icon-btn" onclick="adminEditQuestionInTree(\''+q.id+'\')" title="Editar aquí">'+ICONS.check+'</div>' +
-        '<div class="admin-icon-btn" onclick="adminDeleteQuestion(\''+q.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
+  return qs.map(q => renderQuestionCard(q)).join('');
+}
+/* Tarjeta de pregunta: toda la tarjeta es clicable para editar directamente
+   (más fácil y accesible que depender solo del icono pequeño), y el botón de
+   borrar corta la propagación para no abrir el editor al pulsarlo. */
+function renderQuestionCard(q){
+  const diff = q.difficulty || 'media';
+  return (
+    '<div class="question-card" data-qid="'+q.id+'" role="button" tabindex="0" ' +
+      'onclick="adminEditQuestionInTree(\''+q.id+'\')" ' +
+      'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();adminEditQuestionInTree(\''+q.id+'\');}">' +
+      '<div class="question-card-body">' +
+        '<div class="question-card-text">'+esc(q.question)+'</div>' +
+        '<div class="question-card-meta"><span class="q-diff q-diff-'+esc(diff)+'">'+esc(DIFICULTAD_LABELS[diff]||diff)+'</span></div>' +
       '</div>' +
-    '</div></div>'
-  ).join('');
+      '<div class="question-card-actions">' +
+        '<div class="admin-icon-btn" onclick="event.stopPropagation();adminEditQuestionInTree(\''+q.id+'\')" title="Editar">'+ICONS.check+'</div>' +
+        '<div class="admin-icon-btn" onclick="event.stopPropagation();adminDeleteQuestion(\''+q.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
+      '</div>' +
+    '</div>'
+  );
 }
 let expandedTreeNodes = new Set(); // nodos con el listado de preguntas desplegado
 function directQuestionCount(nodeId){
@@ -2878,15 +2853,7 @@ function toggleNodeQuestions(nodeId){
 function renderNodeQuestionsList(nodeId){
   const qs = adminData.questions.filter(q => q.nodo_id === nodeId);
   if(!qs.length) return '<div class="tree-empty" style="padding:8px 0;">Este nivel todavía no tiene preguntas propias.</div>';
-  return qs.map(q =>
-    '<div class="admin-card" data-qid="'+q.id+'"><div class="admin-card-row">' +
-      '<div><div class="admin-card-title">'+esc(q.question)+'</div><div class="admin-card-meta">'+esc(q.difficulty||'')+'</div></div>' +
-      '<div class="admin-card-actions">' +
-        '<div class="admin-icon-btn" onclick="adminEditQuestionInTree(\''+q.id+'\')" title="Editar aquí">'+ICONS.check+'</div>' +
-        '<div class="admin-icon-btn" onclick="adminDeleteQuestion(\''+q.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
-      '</div>' +
-    '</div></div>'
-  ).join('');
+  return qs.map(q => renderQuestionCard(q)).join('');
 }
 function renderNode(n){
   const children = nodeChildren(n.id);
@@ -3083,143 +3050,12 @@ async function adminSaveTreeQuestion(){
   setTimeout(adminCancelTreeQuestionForm, 700);
 }
 
-/* ---------- QUESTIONS (listado + alta rápida desde la pestaña Preguntas) ---------- */
-let adminAllNodes = []; // todos los nodos de la comunidad, para poder mostrar la ruta de cada pregunta
-async function adminLoadAllNodes(){
-  if(!adminCurrentRegion) return;
-  const { data, error } = await sb.from('nodos_temario').select('*').eq('region_id', adminCurrentRegion).order('orden');
-  if(error){ console.error(error); return; }
-  adminAllNodes = data || [];
-}
-function pathForNode(nodeId, nodes){
-  if(!nodeId) return 'General (todo el tema)';
-  const parts = [];
-  let cur = nodes.find(n => n.id === nodeId);
-  while(cur){
-    parts.unshift(nodeDisplayName(cur));
-    cur = cur.padre_id ? nodes.find(n => n.id === cur.padre_id) : null;
-  }
-  return parts.join(' › ');
-}
-function topicNameFromNode(nodeId, topicId){
-  let tId = topicId;
-  if(!tId){
-    const n = adminAllNodes.find(x => x.id === nodeId);
-    if(!n) return '—';
-    tId = n.topic_id;
-  }
-  const t = adminData.topics.find(x => x.id === tId);
-  return t ? t.name : tId;
-}
+/* ---------- QUESTIONS (datos usados por el árbol de Estructura) ---------- */
 async function adminLoadQuestions(){
   if(!adminCurrentRegion){ return; }
-  await adminLoadAllNodes();
   const { data, error } = await sb.from('questions').select('*').eq('region_id', adminCurrentRegion);
   if(error){ console.error(error); return; }
   adminData.questions = data || [];
-  const el = document.getElementById('adminList-questions');
-  if(!adminData.questions.length){ el.innerHTML = '<div class="admin-empty">No hay preguntas en esta comunidad.</div>'; return; }
-  el.innerHTML = adminData.questions.map(q =>
-    '<div class="admin-card"><div class="admin-card-row">' +
-      '<div><div class="admin-card-title">'+esc(q.question)+'</div><div class="admin-card-meta">'+esc(topicNameFromNode(q.nodo_id, q.topic_id))+' · '+esc(pathForNode(q.nodo_id, adminAllNodes))+' · '+esc(q.difficulty||'')+'</div></div>' +
-      '<div class="admin-card-actions">' +
-        '<div class="admin-icon-btn" onclick="adminLocateQuestion(\''+q.id+'\')" title="Localizar en la estructura">'+ICONS.pin+'</div>' +
-        '<div class="admin-icon-btn" onclick="adminEditQuestion(\''+q.id+'\')" title="Editar">'+ICONS.check+'</div>' +
-        '<div class="admin-icon-btn" onclick="adminDeleteQuestion(\''+q.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
-      '</div>' +
-    '</div></div>'
-  ).join('');
-}
-function adminPopulateQuestionNodeSelect(topicId, selectedNodeId){
-  const sel = document.getElementById('adminQuestionNode');
-  const nodesOfTopic = adminAllNodes.filter(n => n.topic_id === topicId);
-  const options = ['<option value="">Todo el tema (general, sin nivel concreto)</option>'];
-  const walk = (parentId, depth) => {
-    nodesOfTopic.filter(n => (n.padre_id || null) === (parentId || null)).sort(compareNodes).forEach(n => {
-      options.push('<option value="'+n.id+'">'+'—'.repeat(depth)+' '+esc(nodeDisplayName(n))+'</option>');
-      walk(n.id, depth + 1);
-    });
-  };
-  walk(null, 0);
-  sel.innerHTML = options.join('');
-  sel.value = selectedNodeId || '';
-}
-function onAdminQuestionTopicChange(){
-  adminPopulateQuestionNodeSelect(document.getElementById('adminQuestionTopic').value, null);
-}
-function adminEditQuestion(id){
-  switchAdminTab('questions');
-  const q = adminData.questions.find(x => x.id === id);
-  if(!q) return;
-  document.getElementById('adminForm-question').classList.remove('hidden');
-  document.getElementById('adminQuestionTopic').innerHTML = adminData.topics.map(t => '<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
-  adminEditing.question = id;
-  const n = adminAllNodes.find(x => x.id === q.nodo_id);
-  document.getElementById('adminQuestionTopic').value = q.topic_id || (n ? n.topic_id : (adminData.topics[0] && adminData.topics[0].id));
-  adminPopulateQuestionNodeSelect(document.getElementById('adminQuestionTopic').value, q.nodo_id);
-  document.getElementById('adminQuestionText').value = q.question || '';
-  const opts = q.options || [];
-  document.getElementById('adminQuestionOpt0').value = opts[0] || '';
-  document.getElementById('adminQuestionOpt1').value = opts[1] || '';
-  document.getElementById('adminQuestionOpt2').value = opts[2] || '';
-  document.getElementById('adminQuestionOpt3').value = opts[3] || '';
-  document.getElementById('adminQuestionCorrect').value = q.correct_index != null ? q.correct_index : 0;
-  document.getElementById('adminQuestionExplain').value = q.explain || '';
-  document.getElementById('adminQuestionDifficulty').value = q.difficulty || 'media';
-}
-/* Localizar una pregunta dentro de la estructura (árbol) del tema al que pertenece:
-   cambia a la pestaña "Estructura", selecciona su tema, despliega el nivel exacto
-   (o el cajón "General" si es una pregunta general de todo el tema) y hace scroll
-   hasta ella resaltándola, para poder entrar directamente a editarla desde ahí. */
-async function adminLocateQuestion(id){
-  const q = adminData.questions.find(x => x.id === id);
-  if(!q) return;
-  const n = q.nodo_id ? adminAllNodes.find(x => x.id === q.nodo_id) : null;
-  const topicId = q.topic_id || (n ? n.topic_id : null);
-  if(!topicId){ alert('No se ha podido determinar en qué tema está esta pregunta.'); return; }
-  switchAdminTab('articles');
-  adminCancelNodeForm();
-  adminCancelTreeQuestionForm();
-  adminTreeTopicId = topicId;
-  const sel = document.getElementById('adminTreeTopic');
-  if(sel) sel.value = topicId;
-  await adminLoadTree();
-  expandedTreeNodes.add(q.nodo_id || TEMA_GENERAL_KEY);
-  renderTree();
-  requestAnimationFrame(() => {
-    adminEditQuestionInTree(q.id);
-    const card = document.querySelector('#adminTreeContainer [data-qid="'+q.id+'"]');
-    if(card){
-      card.classList.add('locate-highlight');
-      setTimeout(() => card.classList.remove('locate-highlight'), 2200);
-    }
-  });
-}
-async function adminSaveQuestion(){
-  if(!adminCurrentRegion){ showAdminStatus('question', 'Selecciona antes una comunidad.', true); return; }
-  const nodo_id = document.getElementById('adminQuestionNode').value || null;
-  const topic_id = document.getElementById('adminQuestionTopic').value;
-  const question = document.getElementById('adminQuestionText').value.trim();
-  const options = [
-    document.getElementById('adminQuestionOpt0').value.trim(),
-    document.getElementById('adminQuestionOpt1').value.trim(),
-    document.getElementById('adminQuestionOpt2').value.trim(),
-    document.getElementById('adminQuestionOpt3').value.trim()
-  ].filter(o => o.length > 0);
-  const correct_index = parseInt(document.getElementById('adminQuestionCorrect').value, 10) || 0;
-  const explain = document.getElementById('adminQuestionExplain').value.trim();
-  const difficulty = document.getElementById('adminQuestionDifficulty').value;
-  if(!topic_id || !question || options.length < 2){ showAdminStatus('question', 'Tema, enunciado y al menos 2 opciones son obligatorios.', true); return; }
-  if(correct_index >= options.length){ showAdminStatus('question', 'La opción correcta seleccionada no existe entre las opciones rellenadas.', true); return; }
-  const payload = { region_id: adminCurrentRegion, topic_id, nodo_id, question, options, correct_index, explain, difficulty };
-  const { error } = adminEditing.question
-    ? await sb.from('questions').update(payload).eq('id', adminEditing.question)
-    : await sb.from('questions').insert(payload);
-  if(error){ showAdminStatus('question', error.message, true); return; }
-  showAdminStatus('question', 'Guardado correctamente.', false);
-  await adminLoadQuestions();
-  renderTree();
-  setTimeout(() => toggleAdminForm('question'), 600);
 }
 async function adminDeleteQuestion(id){
   if(!confirm('¿Borrar esta pregunta?')) return;
