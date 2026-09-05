@@ -923,7 +923,19 @@
         <div class="tree-toolbar">
           <select id="adminTreeTopic" onchange="onAdminTreeTopicChange()"></select>
           <div class="admin-add-btn" style="margin:0;" onclick="adminOpenNodeForm(null)">+ Añadir nivel raíz</div>
-          <div class="admin-add-btn" style="margin:0;" onclick="adminAddGeneralQuestion()">+ Pregunta general del tema</div>
+          <div class="admin-add-btn" style="margin:0;" onclick="adminOpenGeneralQuestionPicker()">+ Pregunta general</div>
+        </div>
+
+        <!-- selector: a quién pertenece una pregunta general (Tema / Título / Capítulo / Sección — Artículo no, porque ya no sería general) -->
+        <div class="admin-form hidden" id="adminForm-generalPicker">
+          <label>¿A qué pertenece esta pregunta general?</label>
+          <select id="generalPickerNode"></select>
+          <div class="admin-card-meta" style="margin-top:6px;">Una pregunta general no se liga a un Artículo concreto — elige el Tema completo, o el Título, Capítulo o Sección al que pertenece.</div>
+          <div class="admin-form-actions">
+            <button class="btn btn-ghost" onclick="adminCancelGeneralPicker()">Cancelar</button>
+            <button class="btn btn-block" onclick="adminConfirmGeneralPicker()">Continuar</button>
+          </div>
+          <div class="admin-status" id="adminStatus-generalPicker"></div>
         </div>
 
         <!-- formulario: crear/editar nodo del árbol -->
@@ -1246,8 +1258,9 @@ let adminCurrentRegion = null;
 const adminEditing = { region: null, topic: null, question: null, node: null };
 let adminTreeTopicId = null;   // tema seleccionado en la pestaña Estructura
 let treeAddParentId = null;    // padre del nodo que se está creando (null = raíz del tema)
-let treeQuestionNodeId = null; // nodo donde se añadirá la pregunta desde el árbol
+let treeQuestionNodeId = null; // nodo donde se añadirá la pregunta desde el árbol (null = pregunta general de todo el tema)
 let treeQuestionTopicId = null;
+let treeQuestionLocationSet = false; // true en cuanto se ha elegido explícitamente una ubicación (incluso "todo el tema")
 
 const SAMPLE_QUESTIONS = [
   { art:"Art. 81.2", general:false, failCount:3, avgTime:"8s", difficulty:"media",
@@ -1325,7 +1338,7 @@ function mapDbQuestionToQuiz(row){
     id: row.id,
     topic_id: node ? node.topic_id : null,
     art: node ? nodeFullPath(row.nodo_id) : null,
-    general: !node || nodeOrAncestorIsGeneral(row.nodo_id, NODES_BY_ID),
+    general: !node || node.tipo !== 'articulo',
     difficulty: row.difficulty,
     q: row.question,
     options: row.options,
@@ -1334,6 +1347,14 @@ function mapDbQuestionToQuiz(row){
     failCount: row._failCount || 0,
     avgTime: row._avgTime || "—"
   };
+}
+/* Para preguntas generales, si tienen un nodo (Tema/Título/Capítulo/Sección) mostramos
+   también ese ámbito junto al sello "General"; si son de todo el tema (sin nodo), solo "General". */
+function generalTagText(q){
+  return q.art ? ('General · ' + q.art) : 'General';
+}
+function generalCiteText(q){
+  return q.art ? ('General · ' + q.art) : 'Sin artículo asociado';
 }
 
 const ICONS = {
@@ -1960,7 +1981,7 @@ function renderQuestion(){
   quizState.answered = false;
   document.getElementById('quizCount').textContent = (quizState.index+1) + ' / ' + ACTIVE_QUESTIONS.length;
   const tag = document.getElementById('articleTag');
-  document.getElementById('articleTagText').textContent = q.general ? 'General' : q.art;
+  document.getElementById('articleTagText').textContent = q.general ? generalTagText(q) : q.art;
   tag.className = 'article-tag' + (q.general ? ' general' : '');
   document.getElementById('qFailCount').textContent = q.failCount;
   document.getElementById('qAvgTime').textContent = q.avgTime;
@@ -2001,7 +2022,7 @@ function selectOption(i){
   });
   if(i === q.correct) quizState.correctCount++;
   const explainEl = document.getElementById('quizExplain');
-  explainEl.innerHTML = q.explain + '<span class="cite">' + ICONS.seal + (q.general ? 'Sin artículo asociado' : q.art) + '</span>';
+  explainEl.innerHTML = q.explain + '<span class="cite">' + ICONS.seal + (q.general ? generalCiteText(q) : q.art) + '</span>';
   explainEl.classList.add('show');
   document.getElementById('nextBtn').disabled = false;
 }
@@ -2177,7 +2198,7 @@ function renderReviewQuestion(){
 
   let html = '';
   html += '<div class="review-report" role="button" tabindex="0" onclick="reportReviewQuestion()">' + ICONS.warn + ' Impugnar</div>';
-  html += '<div class="article-tag' + (q.general ? ' general' : '') + '">' + ICONS.seal + '<span>' + (q.general ? 'General' : q.art) + '</span></div>';
+  html += '<div class="article-tag' + (q.general ? ' general' : '') + '">' + ICONS.seal + '<span>' + (q.general ? generalTagText(q) : q.art) + '</span></div>';
   html += '<div class="question">' + (qi + 1) + '. ' + q.q + '</div>';
   html += '<div class="options">';
   q.options.forEach((opt, i) => {
@@ -2191,7 +2212,7 @@ function renderReviewQuestion(){
     html += '<div style="font-size:12.5px; color:var(--muted-2); margin-top:12px;">No respondiste esta pregunta.</div>';
   }
   if(showExplain){
-    html += '<div class="explain show">' + q.explain + '<span class="cite">' + ICONS.seal + (q.general ? 'Sin artículo asociado' : q.art) + '</span></div>';
+    html += '<div class="explain show">' + q.explain + '<span class="cite">' + ICONS.seal + (q.general ? generalCiteText(q) : q.art) + '</span></div>';
   }
   body.innerHTML = html;
 
@@ -2708,15 +2729,6 @@ const NODE_TYPE_LEVEL = { titulo:1, capitulo:2, seccion:3, articulo:4 };
 function isGeneralNode(n){
   return !!n && !n.padre_id && !n.numero && (n.nombre||'').trim().toLowerCase() === 'general';
 }
-function nodeOrAncestorIsGeneral(nodeId, nodesById){
-  let cur = nodesById ? nodesById[nodeId] : adminData.nodes.find(n => n.id === nodeId);
-  const getParent = p => nodesById ? nodesById[p] : adminData.nodes.find(n => n.id === p);
-  while(cur){
-    if(isGeneralNode(cur)) return true;
-    cur = cur.padre_id ? getParent(cur.padre_id) : null;
-  }
-  return false;
-}
 function nodeDisplayName(n){
   const parts = [];
   if(n.numero) parts.push(NODE_TYPE_LABEL[n.tipo] + ' ' + n.numero);
@@ -2913,26 +2925,43 @@ async function adminDeleteNode(id){
   await adminLoadTree();
 }
 
-/* ---------- Añadir pregunta directamente desde un nodo del árbol ---------- */
-async function adminAddGeneralQuestion(){
+/* ---------- Pregunta "general": el admin elige a qué nivel pertenece (Tema/Título/Capítulo/Sección; Artículo no, porque dejaría de ser general) ---------- */
+function adminOpenGeneralQuestionPicker(){
   if(!adminTreeTopicId){ alert('Selecciona antes un tema.'); return; }
-  let g = adminData.nodes.find(n => !n.padre_id && !n.numero && (n.nombre||'').trim().toLowerCase() === 'general');
-  if(!g){
-    const payload = { region_id: adminCurrentRegion, topic_id: adminTreeTopicId, padre_id: null, tipo: 'titulo', numero: null, nombre: 'General' };
-    const { data, error } = await sb.from('nodos_temario').insert(payload).select().single();
-    if(error){ alert(error.message); return; }
-    adminData.nodes.push(data);
-    g = data;
-  }
-  renderTree();
-  adminOpenTreeQuestionForm(g.id);
+  adminCancelNodeForm();
+  adminCancelTreeQuestionForm();
+  document.getElementById('adminForm-generalPicker').classList.remove('hidden');
+  const sel = document.getElementById('generalPickerNode');
+  const options = ['<option value="">Todo el tema (sin título, capítulo ni sección concretos)</option>'];
+  const walk = (parentId, depth) => {
+    nodeChildren(parentId).filter(n => n.tipo !== 'articulo').forEach(n => {
+      options.push('<option value="'+n.id+'">'+'—'.repeat(depth)+' '+esc(nodeDisplayName(n))+'</option>');
+      walk(n.id, depth + 1);
+    });
+  };
+  walk(null, 0);
+  sel.innerHTML = options.join('');
+  document.getElementById('adminStatus-generalPicker').textContent = '';
+}
+function adminCancelGeneralPicker(){
+  document.getElementById('adminForm-generalPicker').classList.add('hidden');
+}
+function adminConfirmGeneralPicker(){
+  const nodeId = document.getElementById('generalPickerNode').value || null;
+  adminCancelGeneralPicker();
+  adminOpenTreeQuestionForm(nodeId);
 }
 function adminOpenTreeQuestionForm(nodeId){
-  treeQuestionNodeId = nodeId;
+  treeQuestionNodeId = nodeId || null;
   treeQuestionTopicId = adminTreeTopicId;
+  treeQuestionLocationSet = true;
   adminCancelNodeForm();
+  adminCancelGeneralPicker();
   document.getElementById('adminForm-treeQuestion').classList.remove('hidden');
-  document.getElementById('treeQuestionPath').textContent = 'Pregunta en: ' + nodePathName(nodeId);
+  const node = treeQuestionNodeId ? adminData.nodes.find(n => n.id === treeQuestionNodeId) : null;
+  document.getElementById('treeQuestionPath').textContent = !node
+    ? 'Pregunta general de todo el tema (sin título, capítulo, sección ni artículo asociado)'
+    : (node.tipo === 'articulo' ? 'Pregunta en: ' : 'Pregunta general en: ') + nodePathName(treeQuestionNodeId);
   document.getElementById('tqText').value = '';
   document.getElementById('tqOpt0').value = '';
   document.getElementById('tqOpt1').value = '';
@@ -2945,10 +2974,11 @@ function adminOpenTreeQuestionForm(nodeId){
 }
 function adminCancelTreeQuestionForm(){
   treeQuestionNodeId = null;
+  treeQuestionLocationSet = false;
   document.getElementById('adminForm-treeQuestion').classList.add('hidden');
 }
 async function adminSaveTreeQuestion(){
-  if(!treeQuestionNodeId || !treeQuestionTopicId){ showAdminStatus('treeQuestion', 'No hay ubicación seleccionada.', true); return; }
+  if(!treeQuestionLocationSet || !treeQuestionTopicId){ showAdminStatus('treeQuestion', 'No hay ubicación seleccionada.', true); return; }
   const question = document.getElementById('tqText').value.trim();
   const options = [
     document.getElementById('tqOpt0').value.trim(),
