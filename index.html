@@ -994,7 +994,7 @@
           </select>
           <div class="admin-form-actions">
             <button class="btn btn-ghost" onclick="adminCancelTreeQuestionForm()">Cancelar</button>
-            <button class="btn btn-block" onclick="adminSaveTreeQuestion()">Guardar pregunta</button>
+            <button class="btn btn-block" id="tqSaveBtn" onclick="adminSaveTreeQuestion()">Guardar pregunta</button>
           </div>
           <div class="admin-status" id="adminStatus-treeQuestion"></div>
         </div>
@@ -2856,7 +2856,7 @@ function renderTemaGeneralQuestionsList(){
     '<div class="admin-card" data-qid="'+q.id+'"><div class="admin-card-row">' +
       '<div><div class="admin-card-title">'+esc(q.question)+'</div><div class="admin-card-meta">'+esc(q.difficulty||'')+'</div></div>' +
       '<div class="admin-card-actions">' +
-        '<div class="admin-icon-btn" onclick="adminEditQuestion(\''+q.id+'\')" title="Editar">'+ICONS.check+'</div>' +
+        '<div class="admin-icon-btn" onclick="adminEditQuestionInTree(\''+q.id+'\')" title="Editar aquí">'+ICONS.check+'</div>' +
         '<div class="admin-icon-btn" onclick="adminDeleteQuestion(\''+q.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
       '</div>' +
     '</div></div>'
@@ -2882,7 +2882,7 @@ function renderNodeQuestionsList(nodeId){
     '<div class="admin-card" data-qid="'+q.id+'"><div class="admin-card-row">' +
       '<div><div class="admin-card-title">'+esc(q.question)+'</div><div class="admin-card-meta">'+esc(q.difficulty||'')+'</div></div>' +
       '<div class="admin-card-actions">' +
-        '<div class="admin-icon-btn" onclick="adminEditQuestion(\''+q.id+'\')" title="Editar">'+ICONS.check+'</div>' +
+        '<div class="admin-icon-btn" onclick="adminEditQuestionInTree(\''+q.id+'\')" title="Editar aquí">'+ICONS.check+'</div>' +
         '<div class="admin-icon-btn" onclick="adminDeleteQuestion(\''+q.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
       '</div>' +
     '</div></div>'
@@ -3004,6 +3004,7 @@ function adminOpenTreeQuestionForm(nodeId){
   treeQuestionNodeId = nodeId || null;
   treeQuestionTopicId = adminTreeTopicId;
   treeQuestionLocationSet = true;
+  adminEditing.question = null;
   adminCancelNodeForm();
   adminCancelGeneralPicker();
   document.getElementById('adminForm-treeQuestion').classList.remove('hidden');
@@ -3020,10 +3021,40 @@ function adminOpenTreeQuestionForm(nodeId){
   document.getElementById('tqExplain').value = '';
   document.getElementById('tqDifficulty').value = 'media';
   document.getElementById('adminStatus-treeQuestion').textContent = '';
+  document.getElementById('tqSaveBtn').textContent = 'Guardar pregunta';
+}
+/* Editar una pregunta ya existente sin salir de la Estructura: reutiliza el mismo
+   formulario flotante que se usa para añadir preguntas en un nivel del árbol, pero
+   precargado con sus datos y en modo "actualizar" en vez de "crear". */
+function adminEditQuestionInTree(id){
+  const q = adminData.questions.find(x => x.id === id);
+  if(!q) return;
+  treeQuestionNodeId = q.nodo_id || null;
+  treeQuestionTopicId = q.topic_id || adminTreeTopicId;
+  treeQuestionLocationSet = true;
+  adminEditing.question = id;
+  adminCancelNodeForm();
+  adminCancelGeneralPicker();
+  const form = document.getElementById('adminForm-treeQuestion');
+  form.classList.remove('hidden');
+  document.getElementById('treeQuestionPath').textContent = 'Editando pregunta en: ' + (q.nodo_id ? nodePathName(q.nodo_id) : 'Todo el tema (general)');
+  document.getElementById('tqText').value = q.question || '';
+  const opts = q.options || [];
+  document.getElementById('tqOpt0').value = opts[0] || '';
+  document.getElementById('tqOpt1').value = opts[1] || '';
+  document.getElementById('tqOpt2').value = opts[2] || '';
+  document.getElementById('tqOpt3').value = opts[3] || '';
+  document.getElementById('tqCorrect').value = q.correct_index != null ? q.correct_index : 0;
+  document.getElementById('tqExplain').value = q.explain || '';
+  document.getElementById('tqDifficulty').value = q.difficulty || 'media';
+  document.getElementById('adminStatus-treeQuestion').textContent = '';
+  document.getElementById('tqSaveBtn').textContent = 'Guardar cambios';
+  form.scrollIntoView({ behavior:'smooth', block:'center' });
 }
 function adminCancelTreeQuestionForm(){
   treeQuestionNodeId = null;
   treeQuestionLocationSet = false;
+  adminEditing.question = null;
   document.getElementById('adminForm-treeQuestion').classList.add('hidden');
 }
 async function adminSaveTreeQuestion(){
@@ -3041,9 +3072,12 @@ async function adminSaveTreeQuestion(){
   if(!question || options.length < 2){ showAdminStatus('treeQuestion', 'Enunciado y al menos 2 opciones son obligatorios.', true); return; }
   if(correct_index >= options.length){ showAdminStatus('treeQuestion', 'La opción correcta seleccionada no existe entre las opciones rellenadas.', true); return; }
   const payload = { region_id: adminCurrentRegion, topic_id: treeQuestionTopicId, nodo_id: treeQuestionNodeId, question, options, correct_index, explain, difficulty };
-  const { error } = await sb.from('questions').insert(payload);
+  const editingId = adminEditing.question;
+  const { error } = editingId
+    ? await sb.from('questions').update(payload).eq('id', editingId)
+    : await sb.from('questions').insert(payload);
   if(error){ showAdminStatus('treeQuestion', error.message, true); return; }
-  showAdminStatus('treeQuestion', 'Pregunta guardada correctamente.', false);
+  showAdminStatus('treeQuestion', editingId ? 'Cambios guardados correctamente.' : 'Pregunta guardada correctamente.', false);
   await adminLoadQuestions();
   renderTree();
   setTimeout(adminCancelTreeQuestionForm, 700);
