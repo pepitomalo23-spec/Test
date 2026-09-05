@@ -449,6 +449,25 @@
   .sheet-option.selected{ color: var(--purple); font-weight:600; }
   .sheet-option.selected .sheet-check{ opacity:1; }
 
+  /* ---------- árbol de estructura (admin) ---------- */
+  .tree-toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+  .tree-toolbar select{ flex:1; min-width:200px; }
+  .tree-node{ margin-left:0; }
+  .tree-children{ margin-left:22px; border-left:1px dashed var(--line, #333); padding-left:14px; }
+  .tree-node-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 10px; border-radius:10px; margin:4px 0; background:rgba(255,255,255,0.03); }
+  .tree-node-main{ display:flex; align-items:center; gap:8px; min-width:0; }
+  .tree-node-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .node-badge{ font-size:11px; padding:2px 7px; border-radius:6px; flex-shrink:0; font-family:var(--mono); }
+  .node-badge.titulo{ background:rgba(120,150,255,0.18); color:#a9bcff; }
+  .node-badge.capitulo{ background:rgba(255,200,100,0.18); color:#ffcf7d; }
+  .node-badge.seccion{ background:rgba(150,255,180,0.18); color:#9dffbd; }
+  .node-badge.articulo{ background:rgba(255,150,150,0.18); color:#ffabab; }
+  .tree-node-actions{ display:flex; gap:6px; flex-shrink:0; }
+  .tree-mini-btn{ font-size:12px; padding:5px 9px; border-radius:8px; background:rgba(255,255,255,0.06); cursor:pointer; white-space:nowrap; }
+  .tree-mini-btn:hover{ background:rgba(255,255,255,0.12); }
+  .tree-empty{ opacity:0.6; padding:14px 0; font-size:14px; }
+  .qloc-path{ font-family:var(--mono); font-size:12px; opacity:0.75; margin:4px 0 14px; padding:8px 10px; background:rgba(255,255,255,0.04); border-radius:8px; }
+
   /* ---------- detalle de tema (artículos) — recuadro en la misma página ---------- */
   .topic-detail-overlay{
     position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:55;
@@ -843,7 +862,7 @@
       <div class="admin-tabs">
         <div class="admin-tab active" id="adminTabBtn-regions" onclick="switchAdminTab('regions')">Comunidades</div>
         <div class="admin-tab" id="adminTabBtn-topics" onclick="switchAdminTab('topics')">Temas</div>
-        <div class="admin-tab" id="adminTabBtn-articles" onclick="switchAdminTab('articles')">Artículos</div>
+        <div class="admin-tab" id="adminTabBtn-articles" onclick="switchAdminTab('articles')">Estructura</div>
         <div class="admin-tab" id="adminTabBtn-questions" onclick="switchAdminTab('questions')">Preguntas</div>
         <div class="admin-tab" id="adminTabBtn-users" onclick="switchAdminTab('users')">Usuarios</div>
       </div>
@@ -896,23 +915,70 @@
         <div id="adminList-topics"></div>
       </div>
 
-      <!-- ARTICLES -->
+      <!-- ESTRUCTURA (árbol libre: Título / Capítulo / Sección / Artículo) -->
       <div class="admin-section" id="adminSection-articles">
-        <div class="admin-add-btn" onclick="toggleAdminForm('article')">+ Añadir artículo</div>
-        <div class="admin-form hidden" id="adminForm-article">
-          <label>Tema</label>
-          <select id="adminArticleTopic"></select>
-          <label>Etiqueta (ej. Art. 34.2)</label>
-          <input id="adminArticleLabel" placeholder="Art. 34.2">
-          <label>Orden</label>
-          <input id="adminArticleSort" type="number" value="0">
-          <div class="admin-form-actions">
-            <button class="btn btn-ghost" onclick="toggleAdminForm('article')">Cancelar</button>
-            <button class="btn btn-block" onclick="adminSaveArticle()">Guardar</button>
-          </div>
-          <div class="admin-status" id="adminStatus-article"></div>
+        <div class="tree-toolbar">
+          <select id="adminTreeTopic" onchange="onAdminTreeTopicChange()"></select>
+          <div class="admin-add-btn" style="margin:0;" onclick="adminOpenNodeForm(null)">+ Añadir nivel raíz</div>
         </div>
-        <div id="adminList-articles"></div>
+
+        <!-- formulario: crear/editar nodo del árbol -->
+        <div class="admin-form hidden" id="adminForm-node">
+          <div class="qloc-path" id="nodeFormParentPath"></div>
+          <label>Tipo</label>
+          <select id="adminNodeType">
+            <option value="titulo">Título</option>
+            <option value="capitulo">Capítulo</option>
+            <option value="seccion">Sección</option>
+            <option value="articulo">Artículo</option>
+          </select>
+          <label>Nombre (ej. "Título I" o "Art. 34.2")</label>
+          <input id="adminNodeName" placeholder="Nombre del nivel">
+          <label>Orden</label>
+          <input id="adminNodeSort" type="number" value="0">
+          <div class="admin-form-actions">
+            <button class="btn btn-ghost" onclick="adminCancelNodeForm()">Cancelar</button>
+            <button class="btn btn-block" onclick="adminSaveNode()">Guardar</button>
+          </div>
+          <div class="admin-status" id="adminStatus-node"></div>
+        </div>
+
+        <!-- formulario: añadir pregunta directamente en un nodo del árbol -->
+        <div class="admin-form hidden" id="adminForm-treeQuestion">
+          <div class="qloc-path" id="treeQuestionPath"></div>
+          <label>Pregunta</label>
+          <textarea id="tqText" placeholder="Enunciado de la pregunta"></textarea>
+          <label>Opción A</label><input id="tqOpt0" placeholder="Opción A">
+          <label>Opción B</label><input id="tqOpt1" placeholder="Opción B">
+          <label>Opción C</label><input id="tqOpt2" placeholder="Opción C">
+          <label>Opción D (opcional)</label><input id="tqOpt3" placeholder="Opción D">
+          <label>Opción correcta</label>
+          <select id="tqCorrect">
+            <option value="0">Opción A</option>
+            <option value="1">Opción B</option>
+            <option value="2">Opción C</option>
+            <option value="3">Opción D</option>
+          </select>
+          <label>Explicación</label>
+          <textarea id="tqExplain" placeholder="Por qué es correcta"></textarea>
+          <label>Dificultad</label>
+          <select id="tqDifficulty">
+            <option value="facil">Fácil</option>
+            <option value="media" selected>Media</option>
+            <option value="dificil">Difícil</option>
+          </select>
+          <div class="admin-check-row">
+            <input type="checkbox" id="tqGeneral">
+            <label for="tqGeneral">Incluir en examen general</label>
+          </div>
+          <div class="admin-form-actions">
+            <button class="btn btn-ghost" onclick="adminCancelTreeQuestionForm()">Cancelar</button>
+            <button class="btn btn-block" onclick="adminSaveTreeQuestion()">Guardar pregunta</button>
+          </div>
+          <div class="admin-status" id="adminStatus-treeQuestion"></div>
+        </div>
+
+        <div id="adminTreeContainer"></div>
       </div>
 
       <!-- QUESTIONS -->
@@ -1179,9 +1245,13 @@ async function logLoginAttempt(email, success, errorMessage, userId){
     console.warn('No se pudo registrar el intento de acceso', e);
   }
 }
-const adminData = { regions: [], topics: [], articles: [], questions: [], users: [], loginAttempts: [] };
+const adminData = { regions: [], topics: [], articles: [], nodes: [], questions: [], users: [], loginAttempts: [] };
 let adminCurrentRegion = null;
-const adminEditing = { region: null, topic: null, article: null, question: null };
+const adminEditing = { region: null, topic: null, question: null, node: null };
+let adminTreeTopicId = null;   // tema seleccionado en la pestaña Estructura
+let treeAddParentId = null;    // padre del nodo que se está creando (null = raíz del tema)
+let treeQuestionNodeId = null; // nodo donde se añadirá la pregunta desde el árbol
+let treeQuestionTopicId = null;
 
 const SAMPLE_QUESTIONS = [
   { art:"Art. 81.2", general:false, failCount:3, avgTime:"8s", difficulty:"media",
@@ -1373,17 +1443,29 @@ function renderTopicStats(){
 async function loadRegionData(regionId){
   currentRegion = regionId;
 
-  const [{ data: topicsData, error: topicsErr }, { data: articlesData }, { data: questionsData }] = await Promise.all([
+  const [{ data: topicsData, error: topicsErr }, { data: nodesData }, { data: questionsData }] = await Promise.all([
     sb.from('topics').select('*').eq('region_id', regionId).order('sort_order'),
-    sb.from('articles').select('*').eq('region_id', regionId).order('sort_order'),
+    sb.from('topic_nodes').select('*').eq('region_id', regionId).order('sort_order'),
     sb.from('questions').select('*').eq('region_id', regionId)
   ]);
   if(topicsErr) console.error('Error cargando temas', topicsErr);
 
+  // Para la pantalla "detalle de tema" del alumno: listamos los artículos
+  // del árbol (o, si un tema no tiene artículos como tales, sus niveles
+  // hoja) con su ruta completa (Título › Capítulo › ... › nombre).
   ARTICLES = {};
-  (articlesData || []).forEach(a => {
-    if(!ARTICLES[a.topic_id]) ARTICLES[a.topic_id] = [];
-    ARTICLES[a.topic_id].push(a.label);
+  const nodesByTopic = {};
+  (nodesData || []).forEach(n => { (nodesByTopic[n.topic_id] = nodesByTopic[n.topic_id] || []).push(n); });
+  const pathOf = (nodes, n) => {
+    const parts = [n.name]; let cur = n;
+    while(cur.parent_id){ cur = nodes.find(x => x.id === cur.parent_id); if(!cur) break; parts.unshift(cur.name); }
+    return parts.join(' › ');
+  };
+  Object.keys(nodesByTopic).forEach(topicId => {
+    const nodes = nodesByTopic[topicId];
+    const hasChildren = new Set(nodes.filter(n => n.parent_id).map(n => n.parent_id));
+    const leaves = nodes.filter(n => n.node_type === 'articulo' || !hasChildren.has(n.id));
+    ARTICLES[topicId] = leaves.map(n => pathOf(nodes, n));
   });
 
   let failsByQuestion = {};
@@ -2312,7 +2394,8 @@ async function onAdminRegionChange(){
   await adminLoadRegionScopedData();
 }
 async function adminLoadRegionScopedData(){
-  await Promise.all([adminLoadTopics(), adminLoadArticles(), adminLoadQuestions()]);
+  await Promise.all([adminLoadTopics(), adminLoadQuestions()]);
+  refreshTreeTopicSelect();
 }
 function switchAdminTab(name){
   ['regions','topics','articles','questions','users'].forEach(t => {
@@ -2347,10 +2430,6 @@ function adminResetForm(type){
     document.getElementById('adminTopicDesc').value = '';
     document.getElementById('adminTopicEnabled').checked = true;
     document.getElementById('adminTopicSort').value = '0';
-  } else if(type==='article'){
-    document.getElementById('adminArticleTopic').innerHTML = adminData.topics.map(t => '<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
-    document.getElementById('adminArticleLabel').value = '';
-    document.getElementById('adminArticleSort').value = '0';
   } else if(type==='question'){
     document.getElementById('adminQuestionTopic').innerHTML = adminData.topics.map(t => '<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
     document.getElementById('adminQuestionArticleLabel').value = '';
@@ -2604,64 +2683,184 @@ async function adminSaveTopic(){
   if(error){ showAdminStatus('topic', error.message, true); return; }
   showAdminStatus('topic', 'Guardado correctamente.', false);
   await adminLoadTopics();
+  refreshTreeTopicSelect();
   setTimeout(() => toggleAdminForm('topic'), 600);
 }
 async function adminDeleteTopic(id){
-  if(!confirm('¿Borrar este tema? También se pueden borrar sus artículos y preguntas asociadas.')) return;
+  if(!confirm('¿Borrar este tema? También se borrará su estructura (títulos/capítulos/secciones/artículos) y las preguntas asociadas.')) return;
   const { error } = await sb.from('topics').delete().eq('id', id).eq('region_id', adminCurrentRegion);
   if(error){ alert(error.message); return; }
   await adminLoadTopics();
+  if(adminTreeTopicId === id) adminTreeTopicId = null;
+  refreshTreeTopicSelect();
 }
 
-/* ---------- ARTICLES ---------- */
-async function adminLoadArticles(){
-  if(!adminCurrentRegion){ return; }
-  const { data, error } = await sb.from('articles').select('*').eq('region_id', adminCurrentRegion).order('sort_order');
-  if(error){ console.error(error); return; }
-  adminData.articles = data || [];
-  const topicName = tid => { const t = adminData.topics.find(x => x.id === tid); return t ? t.name : tid; };
-  const el = document.getElementById('adminList-articles');
-  if(!adminData.articles.length){ el.innerHTML = '<div class="admin-empty">No hay artículos en esta comunidad.</div>'; return; }
-  el.innerHTML = adminData.articles.map(a =>
-    '<div class="admin-card"><div class="admin-card-row">' +
-      '<div><div class="admin-card-title">'+esc(a.label)+'</div><div class="admin-card-meta">Tema: '+esc(topicName(a.topic_id))+'</div></div>' +
-      '<div class="admin-card-actions">' +
-        '<div class="admin-icon-btn" onclick="adminEditArticle(\''+a.id+'\')" title="Editar">'+ICONS.check+'</div>' +
-        '<div class="admin-icon-btn" onclick="adminDeleteArticle(\''+a.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
+/* ---------- ESTRUCTURA (árbol libre: Título / Capítulo / Sección / Artículo) ---------- */
+const NODE_TYPE_LABEL = { titulo:'Título', capitulo:'Capítulo', seccion:'Sección', articulo:'Artículo' };
+
+function refreshTreeTopicSelect(){
+  const sel = document.getElementById('adminTreeTopic');
+  if(!sel) return;
+  if(!adminData.topics.length){
+    sel.innerHTML = '<option value="">No hay temas todavía</option>';
+    adminTreeTopicId = null;
+    document.getElementById('adminTreeContainer').innerHTML = '<div class="tree-empty">Crea primero un tema en la pestaña "Temas".</div>';
+    return;
+  }
+  const keepSelection = adminTreeTopicId && adminData.topics.some(t => t.id === adminTreeTopicId);
+  sel.innerHTML = adminData.topics.map(t => '<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
+  adminTreeTopicId = keepSelection ? adminTreeTopicId : adminData.topics[0].id;
+  sel.value = adminTreeTopicId;
+  adminLoadTree();
+}
+function onAdminTreeTopicChange(){
+  adminTreeTopicId = document.getElementById('adminTreeTopic').value;
+  adminCancelNodeForm();
+  adminCancelTreeQuestionForm();
+  adminLoadTree();
+}
+async function adminLoadTree(){
+  const el = document.getElementById('adminTreeContainer');
+  if(!adminTreeTopicId){ el.innerHTML = ''; return; }
+  const { data, error } = await sb.from('topic_nodes').select('*').eq('topic_id', adminTreeTopicId).order('sort_order');
+  if(error){ el.innerHTML = '<div class="tree-empty">Error cargando la estructura: '+esc(error.message)+'</div>'; return; }
+  adminData.nodes = data || [];
+  renderTree();
+}
+function nodeChildren(parentId){
+  return adminData.nodes.filter(n => (n.parent_id || null) === (parentId || null));
+}
+function nodePathName(nodeId){
+  const parts = [];
+  let cur = adminData.nodes.find(n => n.id === nodeId);
+  while(cur){
+    parts.unshift(cur.name);
+    cur = cur.parent_id ? adminData.nodes.find(n => n.id === cur.parent_id) : null;
+  }
+  return parts.join(' › ');
+}
+function renderTree(){
+  const el = document.getElementById('adminTreeContainer');
+  const roots = nodeChildren(null);
+  if(!roots.length){ el.innerHTML = '<div class="tree-empty">Este tema todavía no tiene estructura. Añade un nivel raíz (Título, Capítulo, Sección o Artículo, el que necesites).</div>'; return; }
+  el.innerHTML = roots.map(n => renderNode(n)).join('');
+}
+function renderNode(n){
+  const children = nodeChildren(n.id);
+  return (
+    '<div class="tree-node">' +
+      '<div class="tree-node-row">' +
+        '<div class="tree-node-main">' +
+          '<span class="node-badge '+n.node_type+'">'+NODE_TYPE_LABEL[n.node_type]+'</span>' +
+          '<span class="tree-node-name">'+esc(n.name)+'</span>' +
+        '</div>' +
+        '<div class="tree-node-actions">' +
+          '<div class="tree-mini-btn" onclick="adminOpenNodeForm(\''+n.id+'\')">+ Subnivel</div>' +
+          '<div class="tree-mini-btn" onclick="adminOpenTreeQuestionForm(\''+n.id+'\')">+ Pregunta aquí</div>' +
+          '<div class="admin-icon-btn" onclick="adminEditNode(\''+n.id+'\')" title="Editar">'+ICONS.check+'</div>' +
+          '<div class="admin-icon-btn" onclick="adminDeleteNode(\''+n.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
+        '</div>' +
       '</div>' +
-    '</div></div>'
-  ).join('');
+      (children.length ? '<div class="tree-children">'+children.map(c => renderNode(c)).join('')+'</div>' : '') +
+    '</div>'
+  );
 }
-function adminEditArticle(id){
-  const a = adminData.articles.find(x => x.id === id);
-  if(!a) return;
-  document.getElementById('adminForm-article').classList.remove('hidden');
-  document.getElementById('adminArticleTopic').innerHTML = adminData.topics.map(t => '<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
-  adminEditing.article = id;
-  document.getElementById('adminArticleTopic').value = a.topic_id;
-  document.getElementById('adminArticleLabel').value = a.label || '';
-  document.getElementById('adminArticleSort').value = a.sort_order || 0;
+function adminOpenNodeForm(parentId){
+  treeAddParentId = parentId || null;
+  adminEditing.node = null;
+  document.getElementById('adminForm-node').classList.remove('hidden');
+  document.getElementById('adminForm-treeQuestion').classList.add('hidden');
+  document.getElementById('nodeFormParentPath').textContent = parentId
+    ? 'Se creará dentro de: ' + nodePathName(parentId)
+    : 'Se creará como nivel raíz del tema (directamente bajo el tema).';
+  document.getElementById('adminNodeType').value = 'titulo';
+  document.getElementById('adminNodeName').value = '';
+  document.getElementById('adminNodeSort').value = '0';
+  document.getElementById('adminStatus-node').textContent = '';
 }
-async function adminSaveArticle(){
-  if(!adminCurrentRegion){ showAdminStatus('article', 'Selecciona antes una comunidad.', true); return; }
-  const topic_id = document.getElementById('adminArticleTopic').value;
-  const label = document.getElementById('adminArticleLabel').value.trim();
-  const sort_order = parseInt(document.getElementById('adminArticleSort').value, 10) || 0;
-  if(!topic_id || !label){ showAdminStatus('article', 'Tema y etiqueta son obligatorios.', true); return; }
-  const payload = { region_id: adminCurrentRegion, topic_id, label, sort_order };
-  const { error } = adminEditing.article
-    ? await sb.from('articles').update(payload).eq('id', adminEditing.article)
-    : await sb.from('articles').insert(payload);
-  if(error){ showAdminStatus('article', error.message, true); return; }
-  showAdminStatus('article', 'Guardado correctamente.', false);
-  await adminLoadArticles();
-  setTimeout(() => toggleAdminForm('article'), 600);
+function adminEditNode(id){
+  const n = adminData.nodes.find(x => x.id === id);
+  if(!n) return;
+  treeAddParentId = n.parent_id || null;
+  adminEditing.node = id;
+  document.getElementById('adminForm-node').classList.remove('hidden');
+  document.getElementById('adminForm-treeQuestion').classList.add('hidden');
+  document.getElementById('nodeFormParentPath').textContent = 'Editando: ' + nodePathName(id);
+  document.getElementById('adminNodeType').value = n.node_type;
+  document.getElementById('adminNodeName').value = n.name || '';
+  document.getElementById('adminNodeSort').value = n.sort_order || 0;
+  document.getElementById('adminStatus-node').textContent = '';
 }
-async function adminDeleteArticle(id){
-  if(!confirm('¿Borrar este artículo?')) return;
-  const { error } = await sb.from('articles').delete().eq('id', id);
+function adminCancelNodeForm(){
+  adminEditing.node = null;
+  document.getElementById('adminForm-node').classList.add('hidden');
+}
+async function adminSaveNode(){
+  if(!adminTreeTopicId){ showAdminStatus('node', 'Selecciona antes un tema.', true); return; }
+  const node_type = document.getElementById('adminNodeType').value;
+  const name = document.getElementById('adminNodeName').value.trim();
+  const sort_order = parseInt(document.getElementById('adminNodeSort').value, 10) || 0;
+  if(!name){ showAdminStatus('node', 'El nombre es obligatorio.', true); return; }
+  const payload = { region_id: adminCurrentRegion, topic_id: adminTreeTopicId, parent_id: treeAddParentId, node_type, name, sort_order };
+  const { error } = adminEditing.node
+    ? await sb.from('topic_nodes').update(payload).eq('id', adminEditing.node)
+    : await sb.from('topic_nodes').insert(payload);
+  if(error){ showAdminStatus('node', error.message, true); return; }
+  showAdminStatus('node', 'Guardado correctamente.', false);
+  await adminLoadTree();
+  setTimeout(adminCancelNodeForm, 500);
+}
+async function adminDeleteNode(id){
+  if(!confirm('¿Borrar este nivel? También se borrarán sus subniveles y quedará sin ubicación cualquier pregunta que colgara de él.')) return;
+  const { error } = await sb.from('topic_nodes').delete().eq('id', id);
   if(error){ alert(error.message); return; }
-  await adminLoadArticles();
+  await adminLoadTree();
+}
+
+/* ---------- Añadir pregunta directamente desde un nodo del árbol ---------- */
+function adminOpenTreeQuestionForm(nodeId){
+  treeQuestionNodeId = nodeId;
+  treeQuestionTopicId = adminTreeTopicId;
+  adminCancelNodeForm();
+  document.getElementById('adminForm-treeQuestion').classList.remove('hidden');
+  document.getElementById('treeQuestionPath').textContent = 'Pregunta en: ' + nodePathName(nodeId);
+  document.getElementById('tqText').value = '';
+  document.getElementById('tqOpt0').value = '';
+  document.getElementById('tqOpt1').value = '';
+  document.getElementById('tqOpt2').value = '';
+  document.getElementById('tqOpt3').value = '';
+  document.getElementById('tqCorrect').value = '0';
+  document.getElementById('tqExplain').value = '';
+  document.getElementById('tqDifficulty').value = 'media';
+  document.getElementById('tqGeneral').checked = false;
+  document.getElementById('adminStatus-treeQuestion').textContent = '';
+}
+function adminCancelTreeQuestionForm(){
+  treeQuestionNodeId = null;
+  document.getElementById('adminForm-treeQuestion').classList.add('hidden');
+}
+async function adminSaveTreeQuestion(){
+  if(!treeQuestionNodeId || !treeQuestionTopicId){ showAdminStatus('treeQuestion', 'No hay ubicación seleccionada.', true); return; }
+  const question = document.getElementById('tqText').value.trim();
+  const options = [
+    document.getElementById('tqOpt0').value.trim(),
+    document.getElementById('tqOpt1').value.trim(),
+    document.getElementById('tqOpt2').value.trim(),
+    document.getElementById('tqOpt3').value.trim()
+  ].filter(o => o.length > 0);
+  const correct_index = parseInt(document.getElementById('tqCorrect').value, 10) || 0;
+  const explain = document.getElementById('tqExplain').value.trim();
+  const difficulty = document.getElementById('tqDifficulty').value;
+  const general = document.getElementById('tqGeneral').checked;
+  if(!question || options.length < 2){ showAdminStatus('treeQuestion', 'Enunciado y al menos 2 opciones son obligatorios.', true); return; }
+  if(correct_index >= options.length){ showAdminStatus('treeQuestion', 'La opción correcta seleccionada no existe entre las opciones rellenadas.', true); return; }
+  const article_label = nodePathName(treeQuestionNodeId);
+  const payload = { region_id: adminCurrentRegion, topic_id: treeQuestionTopicId, node_id: treeQuestionNodeId, article_label, question, options, correct_index, explain, difficulty, general };
+  const { error } = await sb.from('questions').insert(payload);
+  if(error){ showAdminStatus('treeQuestion', error.message, true); return; }
+  showAdminStatus('treeQuestion', 'Pregunta guardada correctamente.', false);
+  await adminLoadQuestions();
+  setTimeout(adminCancelTreeQuestionForm, 700);
 }
 
 /* ---------- QUESTIONS ---------- */
