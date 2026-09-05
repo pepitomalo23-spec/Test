@@ -126,6 +126,13 @@
   .ia-preview-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
   .ia-preview-head label{ display:flex; align-items:center; gap:6px; font-size:12.5px; color: var(--muted); margin:0; }
   .ia-discard-btn{ font-size:12px; color: var(--coral); cursor:pointer; font-weight:600; }
+  .ia-loc-row{ display:flex; gap:6px; margin-bottom:8px; }
+  .ia-loc-row input{ margin-bottom:0; }
+  .ia-loc-row input:first-child{ flex:0 0 70px; }
+  .ia-loc-row input:last-child{ flex:1; }
+  .ia-loc-label{ font-size:11px; color: var(--muted-2); text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px; }
+  .ia-warn{ font-size:12px; color: var(--coral); font-weight:600; margin-bottom:8px; }
+  .ia-general-check{ display:flex; align-items:center; gap:6px; font-size:12.5px; color: var(--muted); margin-bottom:10px; }
   .admin-section{ display:none; }
   .admin-section.active{ display:block; }
   .admin-card{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
@@ -1024,13 +1031,12 @@
         <!-- formulario: importar preguntas en bloque con IA (Gemini / Google AI Studio) -->
         <div class="admin-form hidden" id="adminForm-iaImport">
           <div class="qloc-path" id="iaImportPath"></div>
-          <label>¿Dónde se guardan las preguntas que generes?</label>
-          <select id="iaImportNode"></select>
           <label>Tu clave de API de Google AI Studio</label>
           <input id="iaApiKey" type="password" placeholder="AIza… o AQ.Ab8…" onchange="localStorage.setItem('gemini_api_key', this.value)">
           <div class="admin-card-meta" style="margin:-2px 0 10px;">Se guarda solo en este navegador (localStorage), nunca en el código del repositorio. Consíguela en <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--blue);">aistudio.google.com/apikey</a>.</div>
           <label>Texto extraído (pega aquí el resultado del bookmarklet)</label>
           <textarea id="iaRawText" placeholder="Pega aquí el texto en bruto con las preguntas y opciones" style="min-height:140px;"></textarea>
+          <div class="admin-card-meta" style="margin:-2px 0 10px;">La IA intentará detectar a qué Título/Capítulo/Sección/Artículo pertenece cada pregunta a partir del propio texto. Si no lo detecta, tendrás que indicarlo tú antes de guardar — no se guarda nada como "general" sin confirmarlo.</div>
           <div class="admin-form-actions">
             <button class="btn btn-ghost" onclick="adminCancelIAImportForm()">Cancelar</button>
             <button class="btn btn-block" id="iaExtractBtn" onclick="adminExtractWithAI()">Extraer con IA</button>
@@ -2997,6 +3003,7 @@ function adminConfirmGeneralPicker(){
   adminOpenTreeQuestionForm(nodeId);
 }
 /* ---------- Importar preguntas en bloque con IA (Gemini) ---------- */
+const IA_LOC_LEVELS = ['titulo','capitulo','seccion','articulo'];
 let iaPreviewData = []; // preguntas propuestas por la IA, pendientes de revisar/guardar
 function adminOpenIAImportForm(){
   if(!adminTreeTopicId){ alert('Selecciona antes un tema.'); return; }
@@ -3009,21 +3016,25 @@ function adminOpenIAImportForm(){
   document.getElementById('iaRawText').value = '';
   document.getElementById('adminStatus-iaImport').textContent = '';
   document.getElementById('iaApiKey').value = localStorage.getItem('gemini_api_key') || '';
+  const topic = adminData.topics.find(t => t.id === adminTreeTopicId);
+  document.getElementById('iaImportPath').textContent = 'Tema: ' + (topic ? topic.name : '');
   document.getElementById('adminForm-iaImport').classList.remove('hidden');
-  const sel = document.getElementById('iaImportNode');
-  const options = ['<option value="">Todo el tema (sin título, capítulo ni sección concretos)</option>'];
-  const walk = (parentId, depth) => {
-    nodeChildren(parentId).forEach(n => {
-      options.push('<option value="'+n.id+'">'+'—'.repeat(depth)+' '+esc(nodeDisplayName(n))+'</option>');
-      walk(n.id, depth + 1);
-    });
-  };
-  walk(null, 0);
-  sel.innerHTML = options.join('');
 }
 function adminCancelIAImportForm(){
   document.getElementById('adminForm-iaImport').classList.add('hidden');
 }
+function emptyIALoc(){ return { titulo: null, capitulo: null, seccion: null, articulo: null }; }
+function normalizeIALoc(loc){
+  const out = emptyIALoc();
+  if(loc && typeof loc === 'object'){
+    IA_LOC_LEVELS.forEach(t => {
+      const v = loc[t];
+      if(v && (v.numero || v.nombre)) out[t] = { numero: v.numero || '', nombre: v.nombre || '' };
+    });
+  }
+  return out;
+}
+function iaLocIsEmpty(loc){ return IA_LOC_LEVELS.every(t => !loc[t]); }
 async function adminExtractWithAI(){
   const apiKey = document.getElementById('iaApiKey').value.trim();
   const rawText = document.getElementById('iaRawText').value.trim();
@@ -3035,16 +3046,23 @@ async function adminExtractWithAI(){
   btn.disabled = true; btn.textContent = 'Extrayendo…';
   statusEl.style.color = 'var(--muted)';
   statusEl.textContent = 'Consultando a la IA, puede tardar unos segundos…';
-  const prompt = 'Eres un asistente que convierte texto en bruto (copiado de un test de una oposición) en preguntas ' +
-    'estructuradas de tipo test. A partir del TEXTO que te doy, devuelve EXCLUSIVAMENTE un array JSON (sin markdown, ' +
-    'sin \`\`\`, sin explicaciones) donde cada elemento tenga esta forma exacta:\n' +
+  const prompt = 'Eres un asistente que convierte texto en bruto (copiado de un test de una oposición, normalmente con ' +
+    'referencias a artículos de una ley) en preguntas estructuradas de tipo test. A partir del TEXTO que te doy, ' +
+    'devuelve EXCLUSIVAMENTE un array JSON (sin markdown, sin \`\`\`, sin explicaciones) donde cada elemento tenga ' +
+    'esta forma exacta:\n' +
     '{"question": "enunciado de la pregunta", "options": ["opción A", "opción B", "opción C", "opción D"], ' +
-    '"correct_index": 0, "explain": "breve explicación de por qué es correcta", "difficulty": "media"}\n' +
+    '"correct_index": 0, "explain": "explicación de por qué es correcta, citando el artículo si el texto lo indica", ' +
+    '"location": {"titulo": {"numero":"I","nombre":"..."} o null, "capitulo": {"numero":"II","nombre":"..."} o null, ' +
+    '"seccion": {"numero":"1","nombre":"..."} o null, "articulo": {"numero":"15","nombre":"..."} o null}}\n' +
     'Reglas: "options" debe tener entre 2 y 4 opciones (usa las que haya en el texto, sin inventar contenido). ' +
     '"correct_index" es la posición (empezando en 0) de la opción correcta dentro de "options". Si el texto marca ' +
-    'la respuesta correcta, respétala; si no la indica, pon tu mejor estimación razonada. "difficulty" debe ser ' +
-    '"facil", "media" o "dificil" según la dificultad aparente. Si el texto trae varias preguntas, devuélvelas todas. ' +
-    'Si no encuentras ninguna pregunta reconocible, devuelve un array vacío [].\n\nTEXTO:\n' + rawText;
+    'la respuesta correcta, respétala; si no la indica, pon tu mejor estimación razonada. Para "location", busca en el ' +
+    'propio texto (encabezados tipo "TÍTULO I", "CAPÍTULO II", "Artículo 15", o menciones en la explicación) a qué ' +
+    'nivel pertenece CADA pregunta y rellena solo los niveles que el texto realmente indique (deja el resto en null; ' +
+    'no inventes números de artículo que no aparezcan en el texto). Si de verdad no hay forma de saber a qué artículo ' +
+    'pertenece una pregunta, deja "location" con todos los niveles en null en vez de inventar uno. Si el texto trae ' +
+    'varias preguntas, devuélvelas todas. Si no encuentras ninguna pregunta reconocible, devuelve un array vacío [].' +
+    '\n\nTEXTO:\n' + rawText;
   try{
     const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' + encodeURIComponent(apiKey), {
       method: 'POST',
@@ -3065,7 +3083,8 @@ async function adminExtractWithAI(){
       options: Array.isArray(q.options) ? q.options.slice(0,4) : [],
       correct_index: Number.isInteger(q.correct_index) ? q.correct_index : 0,
       explain: q.explain || '',
-      difficulty: ['facil','media','dificil'].includes(q.difficulty) ? q.difficulty : 'media',
+      location: normalizeIALoc(q.location),
+      confirmedGeneral: false, // el admin debe marcarlo explícitamente si de verdad no hay artículo
       include: true
     }));
     renderIAPreview();
@@ -3079,10 +3098,19 @@ async function adminExtractWithAI(){
     btn.disabled = false; btn.textContent = 'Extraer con IA';
   }
 }
+function iaLocField(i, tipo, field){
+  return 'onchange="iaPreviewData['+i+'].location.'+tipo+'=iaPreviewData['+i+'].location.'+tipo+'||{numero:\'\',nombre:\'\'};' +
+    'iaPreviewData['+i+'].location.'+tipo+'.'+field+'=this.value;' +
+    'if(!iaPreviewData['+i+'].location.'+tipo+'.numero&&!iaPreviewData['+i+'].location.'+tipo+'.nombre)iaPreviewData['+i+'].location.'+tipo+'=null;"';
+}
+const IA_LOC_TITLE = { titulo:'Título', capitulo:'Capítulo', seccion:'Sección', articulo:'Artículo' };
 function renderIAPreview(){
   const el = document.getElementById('iaPreviewList');
   if(!iaPreviewData.length){ el.innerHTML = ''; return; }
-  el.innerHTML = iaPreviewData.map((q, i) => (
+  el.innerHTML = iaPreviewData.map((q, i) => {
+    const noLoc = iaLocIsEmpty(q.location);
+    const needsAttention = noLoc && !q.confirmedGeneral;
+    return (
     '<div class="ia-preview-item">' +
       '<div class="ia-preview-head">' +
         '<label><input type="checkbox" '+(q.include?'checked':'')+' onchange="iaPreviewData['+i+'].include=this.checked">Incluir al guardar</label>' +
@@ -3100,40 +3128,88 @@ function renderIAPreview(){
       '</select>' +
       '<label>Explicación</label>' +
       '<textarea onchange="iaPreviewData['+i+'].explain=this.value">'+esc(q.explain)+'</textarea>' +
-      '<label>Dificultad</label>' +
-      '<select onchange="iaPreviewData['+i+'].difficulty=this.value">' +
-        ['facil','media','dificil'].map(d => '<option value="'+d+'" '+(d===q.difficulty?'selected':'')+'>'+(DIFICULTAD_LABELS[d]||d)+'</option>').join('') +
-      '</select>' +
+      '<label>Ubicación en el temario</label>' +
+      (needsAttention ? '<div class="ia-warn">⚠ No se ha detectado artículo/capítulo para esta pregunta. Indícalo abajo o márcala como general a propósito.</div>' : '') +
+      IA_LOC_LEVELS.map(tipo => (
+        '<div class="ia-loc-row">' +
+          '<input placeholder="Nº" value="'+esc(q.location[tipo] ? q.location[tipo].numero : '')+'" '+iaLocField(i,tipo,'numero')+'>' +
+          '<input placeholder="'+IA_LOC_TITLE[tipo]+' — nombre (opcional)" value="'+esc(q.location[tipo] ? q.location[tipo].nombre : '')+'" '+iaLocField(i,tipo,'nombre')+'>' +
+        '</div>'
+      )).join('') +
+      '<div class="ia-general-check"><input type="checkbox" id="iaGeneral'+i+'" '+(q.confirmedGeneral?'checked':'')+' onchange="iaPreviewData['+i+'].confirmedGeneral=this.checked;renderIAPreview();">' +
+      '<label for="iaGeneral'+i+'" style="margin:0;">Es una pregunta general de todo el tema (sin artículo), a propósito</label></div>' +
     '</div>'
-  )).join('');
+    );
+  }).join('');
+}
+/* Busca (o crea si no existe) la cadena de niveles del árbol que indica la ubicación
+   de una pregunta, y devuelve el id del nivel más profundo indicado (o null si la
+   ubicación está vacía = pregunta general confirmada). Si hace falta crear algún
+   nivel, se crea aquí mismo para que el admin no tenga que ir antes a "Estructura". */
+async function ensureIANodePath(topicId, loc){
+  let parentId = null, leafId = null;
+  for(const tipo of IA_LOC_LEVELS){
+    const spec = loc[tipo];
+    if(!spec || (!spec.numero && !spec.nombre)) continue;
+    let existing = adminData.nodes.find(n => n.topic_id === topicId && (n.padre_id||null) === parentId && n.tipo === tipo &&
+      ((spec.numero && n.numero && String(n.numero).trim().toLowerCase() === String(spec.numero).trim().toLowerCase()) ||
+       (!spec.numero && spec.nombre && n.nombre && n.nombre.trim().toLowerCase() === spec.nombre.trim().toLowerCase())));
+    if(!existing){
+      const payload = { region_id: adminCurrentRegion, topic_id: topicId, padre_id: parentId, tipo, numero: spec.numero || null, nombre: spec.nombre || null };
+      const { data, error } = await sb.from('nodos_temario').insert(payload).select().single();
+      if(error) throw new Error('No se pudo crear "'+(IA_LOC_TITLE[tipo])+' '+(spec.numero||spec.nombre)+'": ' + error.message);
+      existing = data;
+      adminData.nodes.push(existing);
+    }
+    parentId = existing.id;
+    leafId = existing.id;
+  }
+  return leafId;
 }
 async function adminSaveIAQuestions(){
-  const nodeId = document.getElementById('iaImportNode').value || null;
-  const toSave = iaPreviewData.filter(q => q.include && q.question.trim() && q.options.filter(o=>o && o.trim()).length >= 2);
-  if(!toSave.length){ document.getElementById('adminStatus-iaImport').textContent = 'No hay preguntas válidas seleccionadas para guardar.'; document.getElementById('adminStatus-iaImport').style.color = 'var(--coral)'; return; }
-  const payload = toSave.map(q => ({
-    region_id: adminCurrentRegion,
-    topic_id: adminTreeTopicId,
-    nodo_id: nodeId,
-    question: q.question.trim(),
-    options: q.options.map(o => (o||'').trim()).filter(o => o.length > 0),
-    correct_index: q.correct_index,
-    explain: (q.explain||'').trim(),
-    difficulty: q.difficulty
-  }));
+  const statusEl = document.getElementById('adminStatus-iaImport');
+  const candidates = iaPreviewData.filter(q => q.include && q.question.trim() && q.options.filter(o=>o && o.trim()).length >= 2);
+  if(!candidates.length){ statusEl.style.color = 'var(--coral)'; statusEl.textContent = 'No hay preguntas válidas seleccionadas para guardar.'; return; }
+  const pending = candidates.filter(q => iaLocIsEmpty(q.location) && !q.confirmedGeneral);
+  if(pending.length){
+    statusEl.style.color = 'var(--coral)';
+    statusEl.textContent = 'Hay ' + pending.length + ' pregunta' + (pending.length===1?'':'s') + ' sin ubicación: indica el artículo/capítulo o márca' + (pending.length===1?'la':'las') + ' como general a propósito antes de guardar.';
+    return;
+  }
   const btn = document.getElementById('iaSaveBtn');
   btn.disabled = true; btn.textContent = 'Guardando…';
-  const { error } = await sb.from('questions').insert(payload);
-  btn.disabled = false; btn.textContent = 'Guardar preguntas seleccionadas';
-  const statusEl = document.getElementById('adminStatus-iaImport');
-  if(error){ statusEl.style.color = 'var(--coral)'; statusEl.textContent = error.message; return; }
-  statusEl.style.color = 'var(--green)'; statusEl.textContent = payload.length + ' pregunta' + (payload.length===1?'':'s') + ' guardada' + (payload.length===1?'':'s') + ' correctamente.';
-  iaPreviewData = [];
-  renderIAPreview();
-  document.getElementById('iaSaveRow').classList.add('hidden');
-  await adminLoadQuestions();
-  renderTree();
-  setTimeout(adminCancelIAImportForm, 900);
+  try{
+    const payload = [];
+    for(const q of candidates){
+      const nodoId = iaLocIsEmpty(q.location) ? null : await ensureIANodePath(adminTreeTopicId, q.location);
+      payload.push({
+        region_id: adminCurrentRegion,
+        topic_id: adminTreeTopicId,
+        nodo_id: nodoId,
+        question: q.question.trim(),
+        options: q.options.map(o => (o||'').trim()).filter(o => o.length > 0),
+        correct_index: q.correct_index,
+        explain: (q.explain||'').trim(),
+        difficulty: 'media'
+      });
+    }
+    const { error } = await sb.from('questions').insert(payload);
+    if(error) throw new Error(error.message);
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = payload.length + ' pregunta' + (payload.length===1?'':'s') + ' guardada' + (payload.length===1?'':'s') + ' correctamente' + (payload.some(p=>p.nodo_id) ? ', creando la estructura que hiciera falta.' : '.');
+    iaPreviewData = [];
+    renderIAPreview();
+    document.getElementById('iaSaveRow').classList.add('hidden');
+    await adminLoadTree();
+    await adminLoadQuestions();
+    renderTree();
+    setTimeout(adminCancelIAImportForm, 1200);
+  } catch(err){
+    statusEl.style.color = 'var(--coral)';
+    statusEl.textContent = err.message || 'Ha ocurrido un error al guardar las preguntas.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar preguntas seleccionadas';
+  }
 }
 function adminOpenTreeQuestionForm(nodeId){
   treeQuestionNodeId = nodeId || null;
