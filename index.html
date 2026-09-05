@@ -462,6 +462,7 @@
   .node-badge.capitulo{ background:rgba(255,200,100,0.18); color:#ffcf7d; }
   .node-badge.seccion{ background:rgba(150,255,180,0.18); color:#9dffbd; }
   .node-badge.articulo{ background:rgba(255,150,150,0.18); color:#ffabab; }
+  .node-badge.general-node{ background:rgba(255,255,255,0.14); color:var(--text); font-weight:600; }
   .node-qcount{ font-size:11px; padding:2px 8px; border-radius:999px; background:rgba(120,150,255,0.14); color:#a9bcff; cursor:pointer; flex-shrink:0; white-space:nowrap; }
   .node-qcount:hover{ background:rgba(120,150,255,0.26); }
   .tree-node-actions{ display:flex; gap:6px; flex-shrink:0; }
@@ -1324,7 +1325,7 @@ function mapDbQuestionToQuiz(row){
     id: row.id,
     topic_id: node ? node.topic_id : null,
     art: node ? nodeFullPath(row.nodo_id) : null,
-    general: !node,
+    general: !node || nodeOrAncestorIsGeneral(row.nodo_id, NODES_BY_ID),
     difficulty: row.difficulty,
     q: row.question,
     options: row.options,
@@ -2701,6 +2702,21 @@ async function adminDeleteTopic(id){
 /* ---------- ESTRUCTURA (árbol libre: Título / Capítulo / Sección / Artículo) ---------- */
 const NODE_TYPE_LABEL = { titulo:'Título', capitulo:'Capítulo', seccion:'Sección', articulo:'Artículo' };
 const NODE_TYPE_LEVEL = { titulo:1, capitulo:2, seccion:3, articulo:4 };
+/* El nodo "General" es un Título especial (raíz, sin número, nombre "General")
+   que sirve de cajón de sastre para preguntas sin artículo concreto. Se detecta
+   y se marca de forma visible en vez de mostrarse como un Título cualquiera. */
+function isGeneralNode(n){
+  return !!n && !n.padre_id && !n.numero && (n.nombre||'').trim().toLowerCase() === 'general';
+}
+function nodeOrAncestorIsGeneral(nodeId, nodesById){
+  let cur = nodesById ? nodesById[nodeId] : adminData.nodes.find(n => n.id === nodeId);
+  const getParent = p => nodesById ? nodesById[p] : adminData.nodes.find(n => n.id === p);
+  while(cur){
+    if(isGeneralNode(cur)) return true;
+    cur = cur.padre_id ? getParent(cur.padre_id) : null;
+  }
+  return false;
+}
 function nodeDisplayName(n){
   const parts = [];
   if(n.numero) parts.push(NODE_TYPE_LABEL[n.tipo] + ' ' + n.numero);
@@ -2824,8 +2840,8 @@ function renderNode(n){
     '<div class="tree-node">' +
       '<div class="tree-node-row">' +
         '<div class="tree-node-main">' +
-          '<span class="node-badge '+n.tipo+'">'+NODE_TYPE_LABEL[n.tipo]+'</span>' +
-          '<span class="tree-node-name">'+esc(nodeDisplayName(n))+'</span>' +
+          '<span class="node-badge '+(isGeneralNode(n) ? 'general-node' : n.tipo)+'">'+(isGeneralNode(n) ? 'General' : NODE_TYPE_LABEL[n.tipo])+'</span>' +
+          (isGeneralNode(n) ? '' : '<span class="tree-node-name">'+esc(nodeDisplayName(n))+'</span>') +
           (count ? '<span class="node-qcount" onclick="toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+count+' preg.</span>' : '') +
         '</div>' +
         '<div class="tree-node-actions">' +
