@@ -3046,7 +3046,7 @@ async function adminExtractWithAI(){
     '"facil", "media" o "dificil" según la dificultad aparente. Si el texto trae varias preguntas, devuélvelas todas. ' +
     'Si no encuentras ninguna pregunta reconocible, devuelve un array vacío [].\n\nTEXTO:\n' + rawText;
   try{
-    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(apiKey), {
+    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' + encodeURIComponent(apiKey), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
