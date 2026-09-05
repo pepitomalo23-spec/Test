@@ -922,6 +922,7 @@
         <div class="tree-toolbar">
           <select id="adminTreeTopic" onchange="onAdminTreeTopicChange()"></select>
           <div class="admin-add-btn" style="margin:0;" onclick="adminOpenNodeForm(null)">+ Añadir nivel raíz</div>
+          <div class="admin-add-btn" style="margin:0;" onclick="adminAddGeneralQuestion()">+ Pregunta general del tema</div>
         </div>
 
         <!-- formulario: crear/editar nodo del árbol -->
@@ -2829,7 +2830,7 @@ function renderNode(n){
         '</div>' +
         '<div class="tree-node-actions">' +
           (canHaveChildren ? '<div class="tree-mini-btn" onclick="adminOpenNodeForm(\''+n.id+'\')">+ Subnivel</div>' : '') +
-          '<div class="tree-mini-btn" onclick="adminOpenTreeQuestionForm(\''+n.id+'\')">+ Pregunta aquí</div>' +
+          '<div class="tree-mini-btn" onclick="adminOpenTreeQuestionForm(\''+n.id+'\')">'+(n.tipo==='articulo'?'+ Pregunta aquí':'+ Pregunta general aquí')+'</div>' +
           '<div class="admin-icon-btn" onclick="adminEditNode(\''+n.id+'\')" title="Editar">'+ICONS.check+'</div>' +
           '<div class="admin-icon-btn" onclick="adminDeleteNode(\''+n.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
         '</div>' +
@@ -2897,6 +2898,19 @@ async function adminDeleteNode(id){
 }
 
 /* ---------- Añadir pregunta directamente desde un nodo del árbol ---------- */
+async function adminAddGeneralQuestion(){
+  if(!adminTreeTopicId){ alert('Selecciona antes un tema.'); return; }
+  let g = adminData.nodes.find(n => !n.padre_id && !n.numero && (n.nombre||'').trim().toLowerCase() === 'general');
+  if(!g){
+    const payload = { region_id: adminCurrentRegion, topic_id: adminTreeTopicId, padre_id: null, tipo: 'titulo', numero: null, nombre: 'General' };
+    const { data, error } = await sb.from('nodos_temario').insert(payload).select().single();
+    if(error){ alert(error.message); return; }
+    adminData.nodes.push(data);
+    g = data;
+  }
+  renderTree();
+  adminOpenTreeQuestionForm(g.id);
+}
 function adminOpenTreeQuestionForm(nodeId){
   treeQuestionNodeId = nodeId;
   treeQuestionTopicId = adminTreeTopicId;
