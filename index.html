@@ -2960,9 +2960,10 @@ async function adminSaveNode(){
   setTimeout(adminCancelNodeForm, 500);
 }
 async function adminDeleteNode(id){
-  if(!confirm('¿Borrar este nivel? También se borrarán sus subniveles y las preguntas asociadas a ellos.')) return;
+  if(!confirm('¿Borrar este nivel? Se borrarán sus subniveles, pero las preguntas que colgaban directamente de él (y de esos subniveles) NO se borran: pasarán a quedar como preguntas generales de todo el tema.')) return;
   const { error } = await sb.from('nodos_temario').delete().eq('id', id);
   if(error){ alert(error.message); return; }
+  await adminLoadQuestions();
   await adminLoadTree();
 }
 

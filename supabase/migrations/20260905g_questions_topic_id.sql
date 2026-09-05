@@ -28,3 +28,13 @@ exception when duplicate_object then null; end $$;
 alter table public.questions alter column topic_id set not null;
 
 create index if not exists questions_topic_idx on public.questions(topic_id);
+
+-- La FK real en producción bloqueaba el borrado de nodos con preguntas
+-- colgadas ("on delete: no action" en vez de "set null"), rompiendo el
+-- botón de borrar en el árbol. Se corrige para que, al borrar un nodo,
+-- sus preguntas se conviertan automáticamente en generales de todo el
+-- tema (nodo_id = null) en lugar de bloquear el borrado.
+alter table public.questions drop constraint if exists questions_nodo_id_fkey;
+alter table public.questions
+  add constraint questions_nodo_id_fkey
+  foreign key (nodo_id) references public.nodos_temario(id) on delete set null;
