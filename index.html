@@ -932,8 +932,10 @@
             <option value="seccion">Sección</option>
             <option value="articulo">Artículo</option>
           </select>
-          <label>Nombre (ej. "Título I" o "Art. 34.2")</label>
-          <input id="adminNodeName" placeholder="Nombre del nivel">
+          <label>Número (ej. "3", "II", "34.2") — opcional</label>
+          <input id="adminNodeNumber" placeholder="3">
+          <label>Nombre descriptivo (ej. "De la protección civil") — opcional</label>
+          <input id="adminNodeName" placeholder="Nombre o título del nivel">
           <label>Orden</label>
           <input id="adminNodeSort" type="number" value="0">
           <div class="admin-form-actions">
@@ -2697,6 +2699,13 @@ async function adminDeleteTopic(id){
 
 /* ---------- ESTRUCTURA (árbol libre: Título / Capítulo / Sección / Artículo) ---------- */
 const NODE_TYPE_LABEL = { titulo:'Título', capitulo:'Capítulo', seccion:'Sección', articulo:'Artículo' };
+function nodeDisplayName(n){
+  const parts = [];
+  if(n.number) parts.push(NODE_TYPE_LABEL[n.node_type] + ' ' + n.number);
+  if(n.name) parts.push(n.name);
+  if(!parts.length) return NODE_TYPE_LABEL[n.node_type];
+  return n.number ? parts.join(' – ') : parts.join('');
+}
 
 function refreshTreeTopicSelect(){
   const sel = document.getElementById('adminTreeTopic');
@@ -2734,7 +2743,7 @@ function nodePathName(nodeId){
   const parts = [];
   let cur = adminData.nodes.find(n => n.id === nodeId);
   while(cur){
-    parts.unshift(cur.name);
+    parts.unshift(nodeDisplayName(cur));
     cur = cur.parent_id ? adminData.nodes.find(n => n.id === cur.parent_id) : null;
   }
   return parts.join(' › ');
@@ -2752,7 +2761,7 @@ function renderNode(n){
       '<div class="tree-node-row">' +
         '<div class="tree-node-main">' +
           '<span class="node-badge '+n.node_type+'">'+NODE_TYPE_LABEL[n.node_type]+'</span>' +
-          '<span class="tree-node-name">'+esc(n.name)+'</span>' +
+          '<span class="tree-node-name">'+esc(nodeDisplayName(n))+'</span>' +
         '</div>' +
         '<div class="tree-node-actions">' +
           '<div class="tree-mini-btn" onclick="adminOpenNodeForm(\''+n.id+'\')">+ Subnivel</div>' +
@@ -2774,6 +2783,7 @@ function adminOpenNodeForm(parentId){
     ? 'Se creará dentro de: ' + nodePathName(parentId)
     : 'Se creará como nivel raíz del tema (directamente bajo el tema).';
   document.getElementById('adminNodeType').value = 'titulo';
+  document.getElementById('adminNodeNumber').value = '';
   document.getElementById('adminNodeName').value = '';
   document.getElementById('adminNodeSort').value = '0';
   document.getElementById('adminStatus-node').textContent = '';
@@ -2787,6 +2797,7 @@ function adminEditNode(id){
   document.getElementById('adminForm-treeQuestion').classList.add('hidden');
   document.getElementById('nodeFormParentPath').textContent = 'Editando: ' + nodePathName(id);
   document.getElementById('adminNodeType').value = n.node_type;
+  document.getElementById('adminNodeNumber').value = n.number || '';
   document.getElementById('adminNodeName').value = n.name || '';
   document.getElementById('adminNodeSort').value = n.sort_order || 0;
   document.getElementById('adminStatus-node').textContent = '';
@@ -2798,10 +2809,11 @@ function adminCancelNodeForm(){
 async function adminSaveNode(){
   if(!adminTreeTopicId){ showAdminStatus('node', 'Selecciona antes un tema.', true); return; }
   const node_type = document.getElementById('adminNodeType').value;
+  const number = document.getElementById('adminNodeNumber').value.trim();
   const name = document.getElementById('adminNodeName').value.trim();
   const sort_order = parseInt(document.getElementById('adminNodeSort').value, 10) || 0;
-  if(!name){ showAdminStatus('node', 'El nombre es obligatorio.', true); return; }
-  const payload = { region_id: adminCurrentRegion, topic_id: adminTreeTopicId, parent_id: treeAddParentId, node_type, name, sort_order };
+  if(!number && !name){ showAdminStatus('node', 'Rellena al menos el número o el nombre.', true); return; }
+  const payload = { region_id: adminCurrentRegion, topic_id: adminTreeTopicId, parent_id: treeAddParentId, node_type, number: number || null, name: name || null, sort_order };
   const { error } = adminEditing.node
     ? await sb.from('topic_nodes').update(payload).eq('id', adminEditing.node)
     : await sb.from('topic_nodes').insert(payload);
