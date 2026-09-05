@@ -2597,7 +2597,7 @@ async function adminLoadRegions(){
   ).join('');
 }
 function adminEditRegion(id){
-  const r = adminData.regions.find(x => x.id === id);
+  const r = adminData.regions.find(x => String(x.id) === String(id));
   if(!r) return;
   document.getElementById('adminForm-region').classList.remove('hidden');
   adminEditing.region = id;
@@ -2653,7 +2653,7 @@ async function adminLoadTopics(){
   ).join('');
 }
 function adminEditTopic(id){
-  const t = adminData.topics.find(x => x.id === id);
+  const t = adminData.topics.find(x => String(x.id) === String(id));
   if(!t) return;
   document.getElementById('adminForm-topic').classList.remove('hidden');
   adminEditing.topic = id;
@@ -2902,7 +2902,7 @@ function adminOpenNodeForm(parentId){
   document.getElementById('adminStatus-node').textContent = '';
 }
 function adminEditNode(id){
-  const n = adminData.nodes.find(x => x.id === id);
+  const n = adminData.nodes.find(x => String(x.id) === String(id));
   if(!n) return;
   treeAddParentId = n.padre_id || null;
   adminEditing.node = id;
@@ -2994,7 +2994,7 @@ function adminOpenTreeQuestionForm(nodeId){
    formulario flotante que se usa para añadir preguntas en un nivel del árbol, pero
    precargado con sus datos y en modo "actualizar" en vez de "crear". */
 function adminEditQuestionInTree(id){
-  const q = adminData.questions.find(x => x.id === id);
+  const q = adminData.questions.find(x => String(x.id) === String(id));
   if(!q) return;
   treeQuestionNodeId = q.nodo_id || null;
   treeQuestionTopicId = q.topic_id || adminTreeTopicId;
