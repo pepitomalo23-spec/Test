@@ -462,6 +462,8 @@
   .node-badge.capitulo{ background:rgba(255,200,100,0.18); color:#ffcf7d; }
   .node-badge.seccion{ background:rgba(150,255,180,0.18); color:#9dffbd; }
   .node-badge.articulo{ background:rgba(255,150,150,0.18); color:#ffabab; }
+  .node-qcount{ font-size:11px; padding:2px 8px; border-radius:999px; background:rgba(120,150,255,0.14); color:#a9bcff; cursor:pointer; flex-shrink:0; white-space:nowrap; }
+  .node-qcount:hover{ background:rgba(120,150,255,0.26); }
   .tree-node-actions{ display:flex; gap:6px; flex-shrink:0; }
   .tree-mini-btn{ font-size:12px; padding:5px 9px; border-radius:8px; background:rgba(255,255,255,0.06); cursor:pointer; white-space:nowrap; }
   .tree-mini-btn:hover{ background:rgba(255,255,255,0.12); }
@@ -936,8 +938,6 @@
           <input id="adminNodeNumber" placeholder="3">
           <label>Nombre descriptivo (ej. "De la protección civil") — opcional</label>
           <input id="adminNodeName" placeholder="Nombre o título del nivel">
-          <label>Orden</label>
-          <input id="adminNodeSort" type="number" value="0">
           <div class="admin-form-actions">
             <button class="btn btn-ghost" onclick="adminCancelNodeForm()">Cancelar</button>
             <button class="btn btn-block" onclick="adminSaveNode()">Guardar</button>
@@ -1467,7 +1467,7 @@ async function loadRegionData(regionId){
   Object.keys(nodesByTopic).forEach(topicId => {
     const nodes = nodesByTopic[topicId];
     const hasChildren = new Set(nodes.filter(n => n.padre_id).map(n => n.padre_id));
-    const leaves = nodes.filter(n => n.tipo === 'articulo' || !hasChildren.has(n.id));
+    const leaves = nodes.filter(n => n.tipo === 'articulo' || !hasChildren.has(n.id)).sort(compareNodes);
     ARTICLES[topicId] = leaves.map(n => nodeFullPath(n.id));
   });
 
@@ -2713,6 +2713,33 @@ function allowedChildTypes(parentId){
   const parentLevel = parent ? NODE_TYPE_LEVEL[parent.tipo] : 0;
   return Object.keys(NODE_TYPE_LEVEL).filter(t => NODE_TYPE_LEVEL[t] > parentLevel);
 }
+/* Orden automático: se detecta a partir del "número" de cada nivel
+   (soporta números, decimales tipo "34.2" y números romanos tipo "II"),
+   sin que el admin tenga que rellenar un campo de orden a mano. */
+function romanToInt(s){
+  const map = { I:1, V:5, X:10, L:50, C:100, D:500, M:1000 };
+  if(!/^[IVXLCDM]+$/.test(s)) return null;
+  let total = 0;
+  for(let i = 0; i < s.length; i++){
+    const cur = map[s[i]], next = map[s[i+1]];
+    if(next && cur < next){ total -= cur; } else { total += cur; }
+  }
+  return total;
+}
+function nodeSortKey(n){
+  const raw = (n.numero || '').trim();
+  if(!raw) return null;
+  if(/^\d+(\.\d+)?$/.test(raw)) return parseFloat(raw);
+  const roman = romanToInt(raw.toUpperCase());
+  return roman == null ? null : roman;
+}
+function compareNodes(a, b){
+  const ka = nodeSortKey(a), kb = nodeSortKey(b);
+  if(ka != null && kb != null) return ka - kb;
+  if(ka != null) return -1;
+  if(kb != null) return 1;
+  return (a.nombre || '').localeCompare(b.nombre || '', 'es', { numeric:true, sensitivity:'base' });
+}
 
 function refreshTreeTopicSelect(){
   const sel = document.getElementById('adminTreeTopic');
@@ -2738,13 +2765,13 @@ function onAdminTreeTopicChange(){
 async function adminLoadTree(){
   const el = document.getElementById('adminTreeContainer');
   if(!adminTreeTopicId){ el.innerHTML = ''; return; }
-  const { data, error } = await sb.from('nodos_temario').select('*').eq('topic_id', adminTreeTopicId).order('orden');
+  const { data, error } = await sb.from('nodos_temario').select('*').eq('topic_id', adminTreeTopicId);
   if(error){ el.innerHTML = '<div class="tree-empty">Error cargando la estructura: '+esc(error.message)+'</div>'; return; }
   adminData.nodes = data || [];
   renderTree();
 }
 function nodeChildren(parentId){
-  return adminData.nodes.filter(n => (n.padre_id || null) === (parentId || null));
+  return adminData.nodes.filter(n => (n.padre_id || null) === (parentId || null)).sort(compareNodes);
 }
 function nodePathName(nodeId){
   const parts = [];
@@ -2761,15 +2788,44 @@ function renderTree(){
   if(!roots.length){ el.innerHTML = '<div class="tree-empty">Este tema todavía no tiene estructura. Añade un nivel raíz (Título, Capítulo, Sección o Artículo, el que necesites).</div>'; return; }
   el.innerHTML = roots.map(n => renderNode(n)).join('');
 }
+let expandedTreeNodes = new Set(); // nodos con el listado de preguntas desplegado
+function directQuestionCount(nodeId){
+  return adminData.questions.filter(q => q.nodo_id === nodeId).length;
+}
+function subtreeQuestionCount(nodeId){
+  let total = directQuestionCount(nodeId);
+  nodeChildren(nodeId).forEach(c => { total += subtreeQuestionCount(c.id); });
+  return total;
+}
+function toggleNodeQuestions(nodeId){
+  if(expandedTreeNodes.has(nodeId)) expandedTreeNodes.delete(nodeId); else expandedTreeNodes.add(nodeId);
+  renderTree();
+}
+function renderNodeQuestionsList(nodeId){
+  const qs = adminData.questions.filter(q => q.nodo_id === nodeId);
+  if(!qs.length) return '<div class="tree-empty" style="padding:8px 0;">Este nivel todavía no tiene preguntas propias.</div>';
+  return qs.map(q =>
+    '<div class="admin-card"><div class="admin-card-row">' +
+      '<div><div class="admin-card-title">'+esc(q.question)+'</div><div class="admin-card-meta">'+esc(q.difficulty||'')+'</div></div>' +
+      '<div class="admin-card-actions">' +
+        '<div class="admin-icon-btn" onclick="adminEditQuestion(\''+q.id+'\')" title="Editar">'+ICONS.check+'</div>' +
+        '<div class="admin-icon-btn" onclick="adminDeleteQuestion(\''+q.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
+      '</div>' +
+    '</div></div>'
+  ).join('');
+}
 function renderNode(n){
   const children = nodeChildren(n.id);
   const canHaveChildren = n.tipo !== 'articulo';
+  const count = subtreeQuestionCount(n.id);
+  const isOpen = expandedTreeNodes.has(n.id);
   return (
     '<div class="tree-node">' +
       '<div class="tree-node-row">' +
         '<div class="tree-node-main">' +
           '<span class="node-badge '+n.tipo+'">'+NODE_TYPE_LABEL[n.tipo]+'</span>' +
           '<span class="tree-node-name">'+esc(nodeDisplayName(n))+'</span>' +
+          (count ? '<span class="node-qcount" onclick="toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+count+' preg.</span>' : '') +
         '</div>' +
         '<div class="tree-node-actions">' +
           (canHaveChildren ? '<div class="tree-mini-btn" onclick="adminOpenNodeForm(\''+n.id+'\')">+ Subnivel</div>' : '') +
@@ -2778,6 +2834,7 @@ function renderNode(n){
           '<div class="admin-icon-btn" onclick="adminDeleteNode(\''+n.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
         '</div>' +
       '</div>' +
+      (isOpen ? '<div class="tree-children">'+renderNodeQuestionsList(n.id)+'</div>' : '') +
       (children.length ? '<div class="tree-children">'+children.map(c => renderNode(c)).join('')+'</div>' : '') +
     '</div>'
   );
@@ -2798,7 +2855,6 @@ function adminOpenNodeForm(parentId){
   fillNodeTypeSelect(allowedChildTypes(parentId), parentId ? allowedChildTypes(parentId)[0] : 'titulo');
   document.getElementById('adminNodeNumber').value = '';
   document.getElementById('adminNodeName').value = '';
-  document.getElementById('adminNodeSort').value = '0';
   document.getElementById('adminStatus-node').textContent = '';
 }
 function adminEditNode(id){
@@ -2812,7 +2868,6 @@ function adminEditNode(id){
   fillNodeTypeSelect(allowedChildTypes(n.padre_id || null), n.tipo);
   document.getElementById('adminNodeNumber').value = n.numero || '';
   document.getElementById('adminNodeName').value = n.nombre || '';
-  document.getElementById('adminNodeSort').value = n.orden || 0;
   document.getElementById('adminStatus-node').textContent = '';
 }
 function adminCancelNodeForm(){
@@ -2824,9 +2879,8 @@ async function adminSaveNode(){
   const tipo = document.getElementById('adminNodeType').value;
   const numero = document.getElementById('adminNodeNumber').value.trim();
   const nombre = document.getElementById('adminNodeName').value.trim();
-  const orden = parseInt(document.getElementById('adminNodeSort').value, 10) || 0;
   if(!numero && !nombre){ showAdminStatus('node', 'Rellena al menos el número o el nombre.', true); return; }
-  const payload = { region_id: adminCurrentRegion, topic_id: adminTreeTopicId, padre_id: treeAddParentId, tipo, numero: numero || null, nombre: nombre || null, orden };
+  const payload = { region_id: adminCurrentRegion, topic_id: adminTreeTopicId, padre_id: treeAddParentId, tipo, numero: numero || null, nombre: nombre || null };
   const { error } = adminEditing.node
     ? await sb.from('nodos_temario').update(payload).eq('id', adminEditing.node)
     : await sb.from('nodos_temario').insert(payload);
@@ -2882,6 +2936,7 @@ async function adminSaveTreeQuestion(){
   if(error){ showAdminStatus('treeQuestion', error.message, true); return; }
   showAdminStatus('treeQuestion', 'Pregunta guardada correctamente.', false);
   await adminLoadQuestions();
+  renderTree();
   setTimeout(adminCancelTreeQuestionForm, 700);
 }
 
@@ -2931,7 +2986,7 @@ function adminPopulateQuestionNodeSelect(topicId, selectedNodeId){
   const nodesOfTopic = adminAllNodes.filter(n => n.topic_id === topicId);
   const options = [];
   const walk = (parentId, depth) => {
-    nodesOfTopic.filter(n => (n.padre_id || null) === (parentId || null)).forEach(n => {
+    nodesOfTopic.filter(n => (n.padre_id || null) === (parentId || null)).sort(compareNodes).forEach(n => {
       options.push('<option value="'+n.id+'">'+'—'.repeat(depth)+' '+esc(nodeDisplayName(n))+'</option>');
       walk(n.id, depth + 1);
     });
@@ -2944,6 +2999,7 @@ function onAdminQuestionTopicChange(){
   adminPopulateQuestionNodeSelect(document.getElementById('adminQuestionTopic').value, null);
 }
 function adminEditQuestion(id){
+  switchAdminTab('questions');
   const q = adminData.questions.find(x => x.id === id);
   if(!q) return;
   document.getElementById('adminForm-question').classList.remove('hidden');
@@ -2984,6 +3040,7 @@ async function adminSaveQuestion(){
   if(error){ showAdminStatus('question', error.message, true); return; }
   showAdminStatus('question', 'Guardado correctamente.', false);
   await adminLoadQuestions();
+  renderTree();
   setTimeout(() => toggleAdminForm('question'), 600);
 }
 async function adminDeleteQuestion(id){
@@ -2991,6 +3048,7 @@ async function adminDeleteQuestion(id){
   const { error } = await sb.from('questions').delete().eq('id', id);
   if(error){ alert(error.message); return; }
   await adminLoadQuestions();
+  renderTree();
 }
 
 sb.auth.onAuthStateChange((event, session) => {
