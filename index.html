@@ -3187,11 +3187,12 @@ async function adminLocateQuestion(id){
   expandedTreeNodes.add(q.nodo_id || TEMA_GENERAL_KEY);
   renderTree();
   requestAnimationFrame(() => {
+    adminEditQuestionInTree(q.id);
     const card = document.querySelector('#adminTreeContainer [data-qid="'+q.id+'"]');
-    if(!card) return;
-    card.scrollIntoView({ behavior:'smooth', block:'center' });
-    card.classList.add('locate-highlight');
-    setTimeout(() => card.classList.remove('locate-highlight'), 2200);
+    if(card){
+      card.classList.add('locate-highlight');
+      setTimeout(() => card.classList.remove('locate-highlight'), 2200);
+    }
   });
 }
 async function adminSaveQuestion(){
