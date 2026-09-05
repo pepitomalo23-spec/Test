@@ -463,6 +463,9 @@
   .node-badge.seccion{ background:rgba(150,255,180,0.18); color:#9dffbd; }
   .node-badge.articulo{ background:rgba(255,150,150,0.18); color:#ffabab; }
   .node-badge.general-node{ background:rgba(255,255,255,0.14); color:var(--text); font-weight:600; }
+  .node-general-badge{ font-size:11px; padding:2px 8px; border-radius:999px; background:rgba(255,255,255,0.12); color:var(--text); cursor:pointer; flex-shrink:0; white-space:nowrap; font-weight:600; }
+  .node-general-badge:hover{ background:rgba(255,255,255,0.22); }
+  .tema-general-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:10px; margin:0 0 12px; background:rgba(255,255,255,0.05); border:1px dashed var(--line, #333); }
   .node-qcount{ font-size:11px; padding:2px 8px; border-radius:999px; background:rgba(120,150,255,0.14); color:#a9bcff; cursor:pointer; flex-shrink:0; white-space:nowrap; }
   .node-qcount:hover{ background:rgba(120,150,255,0.26); }
   .tree-node-actions{ display:flex; gap:6px; flex-shrink:0; }
@@ -1336,7 +1339,7 @@ function mapDbQuestionToQuiz(row){
   const node = row.nodo_id ? NODES_BY_ID[row.nodo_id] : null;
   return {
     id: row.id,
-    topic_id: node ? node.topic_id : null,
+    topic_id: row.topic_id || (node ? node.topic_id : null),
     art: node ? nodeFullPath(row.nodo_id) : null,
     general: !node || node.tipo !== 'articulo',
     difficulty: row.difficulty,
@@ -2814,8 +2817,43 @@ function nodePathName(nodeId){
 function renderTree(){
   const el = document.getElementById('adminTreeContainer');
   const roots = nodeChildren(null);
-  if(!roots.length){ el.innerHTML = '<div class="tree-empty">Este tema todavía no tiene estructura. Añade un nivel raíz (Título, Capítulo, Sección o Artículo, el que necesites).</div>'; return; }
-  el.innerHTML = roots.map(n => renderNode(n)).join('');
+  const temaHtml = renderTemaGeneralRow();
+  if(!roots.length){ el.innerHTML = temaHtml + '<div class="tree-empty">Este tema todavía no tiene estructura. Añade un nivel raíz (Título, Capítulo, Sección o Artículo, el que necesites).</div>'; return; }
+  el.innerHTML = temaHtml + roots.map(n => renderNode(n)).join('');
+}
+const TEMA_GENERAL_KEY = '__tema_general__';
+function temaGeneralQuestions(){
+  return adminData.questions.filter(q => !q.nodo_id && q.topic_id === adminTreeTopicId);
+}
+function renderTemaGeneralRow(){
+  const qs = temaGeneralQuestions();
+  const isOpen = expandedTreeNodes.has(TEMA_GENERAL_KEY);
+  return (
+    '<div class="tema-general-row">' +
+      '<div class="tree-node-main">' +
+        '<span class="node-badge general-node">General</span>' +
+        '<span class="tree-node-name">Todo el tema (sin título, capítulo, sección ni artículo)</span>' +
+        (qs.length ? '<span class="node-general-badge" onclick="toggleNodeQuestions(\''+TEMA_GENERAL_KEY+'\')">'+(isOpen?'▾':'▸')+' '+qs.length+' general'+(qs.length===1?'':'es')+'</span>' : '') +
+      '</div>' +
+      '<div class="tree-node-actions">' +
+        '<div class="tree-mini-btn" onclick="adminOpenTreeQuestionForm(null)">+ Pregunta general aquí</div>' +
+      '</div>' +
+    '</div>' +
+    (isOpen ? '<div class="tree-children" style="margin-bottom:12px;">'+renderTemaGeneralQuestionsList()+'</div>' : '')
+  );
+}
+function renderTemaGeneralQuestionsList(){
+  const qs = temaGeneralQuestions();
+  if(!qs.length) return '<div class="tree-empty" style="padding:8px 0;">Todavía no hay preguntas generales de todo el tema.</div>';
+  return qs.map(q =>
+    '<div class="admin-card"><div class="admin-card-row">' +
+      '<div><div class="admin-card-title">'+esc(q.question)+'</div><div class="admin-card-meta">'+esc(q.difficulty||'')+'</div></div>' +
+      '<div class="admin-card-actions">' +
+        '<div class="admin-icon-btn" onclick="adminEditQuestion(\''+q.id+'\')" title="Editar">'+ICONS.check+'</div>' +
+        '<div class="admin-icon-btn" onclick="adminDeleteQuestion(\''+q.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
+      '</div>' +
+    '</div></div>'
+  ).join('');
 }
 let expandedTreeNodes = new Set(); // nodos con el listado de preguntas desplegado
 function directQuestionCount(nodeId){
@@ -2847,6 +2885,7 @@ function renderNode(n){
   const children = nodeChildren(n.id);
   const canHaveChildren = n.tipo !== 'articulo';
   const count = subtreeQuestionCount(n.id);
+  const directGeneral = n.tipo !== 'articulo' ? directQuestionCount(n.id) : 0;
   const isOpen = expandedTreeNodes.has(n.id);
   return (
     '<div class="tree-node">' +
@@ -2854,7 +2893,9 @@ function renderNode(n){
         '<div class="tree-node-main">' +
           '<span class="node-badge '+(isGeneralNode(n) ? 'general-node' : n.tipo)+'">'+(isGeneralNode(n) ? 'General' : NODE_TYPE_LABEL[n.tipo])+'</span>' +
           (isGeneralNode(n) ? '' : '<span class="tree-node-name">'+esc(nodeDisplayName(n))+'</span>') +
-          (count ? '<span class="node-qcount" onclick="toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+count+' preg.</span>' : '') +
+          (directGeneral ? '<span class="node-general-badge" onclick="toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+directGeneral+' general'+(directGeneral===1?'':'es')+' aquí</span>' : '') +
+          (count && !directGeneral ? '<span class="node-qcount" onclick="toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+count+' preg.</span>' : '') +
+          (count && directGeneral && count > directGeneral ? '<span class="node-qcount" onclick="toggleNodeQuestions(\''+n.id+'\')">'+count+' en total</span>' : '') +
         '</div>' +
         '<div class="tree-node-actions">' +
           (canHaveChildren ? '<div class="tree-mini-btn" onclick="adminOpenNodeForm(\''+n.id+'\')">+ Subnivel</div>' : '') +
@@ -2991,7 +3032,7 @@ async function adminSaveTreeQuestion(){
   const difficulty = document.getElementById('tqDifficulty').value;
   if(!question || options.length < 2){ showAdminStatus('treeQuestion', 'Enunciado y al menos 2 opciones son obligatorios.', true); return; }
   if(correct_index >= options.length){ showAdminStatus('treeQuestion', 'La opción correcta seleccionada no existe entre las opciones rellenadas.', true); return; }
-  const payload = { region_id: adminCurrentRegion, nodo_id: treeQuestionNodeId, question, options, correct_index, explain, difficulty };
+  const payload = { region_id: adminCurrentRegion, topic_id: treeQuestionTopicId, nodo_id: treeQuestionNodeId, question, options, correct_index, explain, difficulty };
   const { error } = await sb.from('questions').insert(payload);
   if(error){ showAdminStatus('treeQuestion', error.message, true); return; }
   showAdminStatus('treeQuestion', 'Pregunta guardada correctamente.', false);
@@ -3009,6 +3050,7 @@ async function adminLoadAllNodes(){
   adminAllNodes = data || [];
 }
 function pathForNode(nodeId, nodes){
+  if(!nodeId) return 'General (todo el tema)';
   const parts = [];
   let cur = nodes.find(n => n.id === nodeId);
   while(cur){
@@ -3017,11 +3059,15 @@ function pathForNode(nodeId, nodes){
   }
   return parts.join(' › ');
 }
-function topicNameFromNode(nodeId){
-  const n = adminAllNodes.find(x => x.id === nodeId);
-  if(!n) return '—';
-  const t = adminData.topics.find(x => x.id === n.topic_id);
-  return t ? t.name : n.topic_id;
+function topicNameFromNode(nodeId, topicId){
+  let tId = topicId;
+  if(!tId){
+    const n = adminAllNodes.find(x => x.id === nodeId);
+    if(!n) return '—';
+    tId = n.topic_id;
+  }
+  const t = adminData.topics.find(x => x.id === tId);
+  return t ? t.name : tId;
 }
 async function adminLoadQuestions(){
   if(!adminCurrentRegion){ return; }
@@ -3033,7 +3079,7 @@ async function adminLoadQuestions(){
   if(!adminData.questions.length){ el.innerHTML = '<div class="admin-empty">No hay preguntas en esta comunidad.</div>'; return; }
   el.innerHTML = adminData.questions.map(q =>
     '<div class="admin-card"><div class="admin-card-row">' +
-      '<div><div class="admin-card-title">'+esc(q.question)+'</div><div class="admin-card-meta">'+esc(topicNameFromNode(q.nodo_id))+' · '+esc(pathForNode(q.nodo_id, adminAllNodes))+' · '+esc(q.difficulty||'')+'</div></div>' +
+      '<div><div class="admin-card-title">'+esc(q.question)+'</div><div class="admin-card-meta">'+esc(topicNameFromNode(q.nodo_id, q.topic_id))+' · '+esc(pathForNode(q.nodo_id, adminAllNodes))+' · '+esc(q.difficulty||'')+'</div></div>' +
       '<div class="admin-card-actions">' +
         '<div class="admin-icon-btn" onclick="adminEditQuestion(\''+q.id+'\')" title="Editar">'+ICONS.check+'</div>' +
         '<div class="admin-icon-btn" onclick="adminDeleteQuestion(\''+q.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
@@ -3044,7 +3090,7 @@ async function adminLoadQuestions(){
 function adminPopulateQuestionNodeSelect(topicId, selectedNodeId){
   const sel = document.getElementById('adminQuestionNode');
   const nodesOfTopic = adminAllNodes.filter(n => n.topic_id === topicId);
-  const options = [];
+  const options = ['<option value="">Todo el tema (general, sin nivel concreto)</option>'];
   const walk = (parentId, depth) => {
     nodesOfTopic.filter(n => (n.padre_id || null) === (parentId || null)).sort(compareNodes).forEach(n => {
       options.push('<option value="'+n.id+'">'+'—'.repeat(depth)+' '+esc(nodeDisplayName(n))+'</option>');
@@ -3052,8 +3098,8 @@ function adminPopulateQuestionNodeSelect(topicId, selectedNodeId){
     });
   };
   walk(null, 0);
-  sel.innerHTML = options.length ? options.join('') : '<option value="">(este tema no tiene estructura todavía)</option>';
-  if(selectedNodeId) sel.value = selectedNodeId;
+  sel.innerHTML = options.join('');
+  sel.value = selectedNodeId || '';
 }
 function onAdminQuestionTopicChange(){
   adminPopulateQuestionNodeSelect(document.getElementById('adminQuestionTopic').value, null);
@@ -3066,7 +3112,7 @@ function adminEditQuestion(id){
   document.getElementById('adminQuestionTopic').innerHTML = adminData.topics.map(t => '<option value="'+t.id+'">'+esc(t.name)+'</option>').join('');
   adminEditing.question = id;
   const n = adminAllNodes.find(x => x.id === q.nodo_id);
-  document.getElementById('adminQuestionTopic').value = n ? n.topic_id : (adminData.topics[0] && adminData.topics[0].id);
+  document.getElementById('adminQuestionTopic').value = q.topic_id || (n ? n.topic_id : (adminData.topics[0] && adminData.topics[0].id));
   adminPopulateQuestionNodeSelect(document.getElementById('adminQuestionTopic').value, q.nodo_id);
   document.getElementById('adminQuestionText').value = q.question || '';
   const opts = q.options || [];
@@ -3080,7 +3126,8 @@ function adminEditQuestion(id){
 }
 async function adminSaveQuestion(){
   if(!adminCurrentRegion){ showAdminStatus('question', 'Selecciona antes una comunidad.', true); return; }
-  const nodo_id = document.getElementById('adminQuestionNode').value;
+  const nodo_id = document.getElementById('adminQuestionNode').value || null;
+  const topic_id = document.getElementById('adminQuestionTopic').value;
   const question = document.getElementById('adminQuestionText').value.trim();
   const options = [
     document.getElementById('adminQuestionOpt0').value.trim(),
@@ -3091,9 +3138,9 @@ async function adminSaveQuestion(){
   const correct_index = parseInt(document.getElementById('adminQuestionCorrect').value, 10) || 0;
   const explain = document.getElementById('adminQuestionExplain').value.trim();
   const difficulty = document.getElementById('adminQuestionDifficulty').value;
-  if(!nodo_id || !question || options.length < 2){ showAdminStatus('question', 'Ubicación, enunciado y al menos 2 opciones son obligatorios.', true); return; }
+  if(!topic_id || !question || options.length < 2){ showAdminStatus('question', 'Tema, enunciado y al menos 2 opciones son obligatorios.', true); return; }
   if(correct_index >= options.length){ showAdminStatus('question', 'La opción correcta seleccionada no existe entre las opciones rellenadas.', true); return; }
-  const payload = { region_id: adminCurrentRegion, nodo_id, question, options, correct_index, explain, difficulty };
+  const payload = { region_id: adminCurrentRegion, topic_id, nodo_id, question, options, correct_index, explain, difficulty };
   const { error } = adminEditing.question
     ? await sb.from('questions').update(payload).eq('id', adminEditing.question)
     : await sb.from('questions').insert(payload);
