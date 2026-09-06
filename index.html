@@ -1811,7 +1811,9 @@ function toggleTopicGroup(topicId, groupId){
   }
   const selected = configState.nodeSelections[topicId];
   if(selected.has(groupId)) selected.delete(groupId); else selected.add(groupId);
-  if(selected.size === 0){ groups.forEach(g => selected.add(g.id)); } // no dejar la selección vacía
+  // Antes, al llegar a 0 seleccionados se forzaba de vuelta a "todos", lo que
+  // hacía que el check del último subtema no respondiera al pulsarlo. Ahora sí
+  // se puede dejar en 0 (el badge mostrará "0/N" y ese tema no aportará preguntas).
   if(selected.size === groups.length) delete configState.nodeSelections[topicId]; // todos = sin restricción
   renderTemas();
 }
@@ -1839,8 +1841,9 @@ function renderTemas(){
     row.onclick = () => toggleTopic(t.id);
     const restriction = configState.nodeSelections[t.id];
     const badge = restriction ? ' <span class="topic-node-badge">' + restriction.size + '/' + groups.length + ' ' + topicGroupTypeLabel(t.id).toLowerCase() + '</span>' : '';
+    const isPartial = !!(restriction && restriction.size > 0 && restriction.size < groups.length);
     row.innerHTML =
-      '<span class="topic-check">' + ICONS.check + '</span>' +
+      '<span class="topic-check' + (isPartial ? ' indeterminate' : '') + '">' + ICONS.check + '</span>' +
       '<span class="topic-text"><span class="topic-name">' + (idx+1) + ' - ' + esc(t.name) + badge + '</span></span>' +
       (hasGroups ? '<span class="topic-row-chevron' + (isOpen ? ' open' : '') + '">' + ICONS.chevron + '</span>' : '');
     if(hasGroups){
@@ -1913,7 +1916,9 @@ function updateConfigFooter(){
       btn.disabled = totalQ === 0;
       btn.textContent = 'Iniciar test';
     } else if(mode === 'examen'){
-      btn.textContent = 'Comenzar examen (' + configState.count + ' preguntas, ' + configState.time + ' min)';
+      const totalQ = buildQuestionsFromTopics(configState.topics).length;
+      btn.disabled = totalQ === 0;
+      btn.textContent = totalQ === 0 ? 'No hay preguntas con esa selección' : ('Comenzar examen (' + configState.count + ' preguntas, ' + configState.time + ' min)');
     } else if(mode === 'simulacro'){
       btn.textContent = 'Comenzar simulacro (' + configState.count + ' preguntas, ' + configState.time + ' min)';
     }
