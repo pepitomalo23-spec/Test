@@ -6,6 +6,12 @@
 -- NOTA: esta migración ya se aplicó directamente en la base de datos de
 -- producción (proyecto Supabase "Test") el 2026-09-06. Este archivo deja
 -- constancia en el repositorio para mantener el histórico sincronizado.
+--
+-- CORRECCIÓN POSTERIOR (mismo día): la primera versión de
+-- admin_list_user_devices tenía una columna de salida llamada "id" que
+-- chocaba con profiles.id dentro del cuerpo de la función ("column reference
+-- \"id\" is ambiguous"), haciendo que la llamada fallara siempre con error.
+-- Se corrigió cualificando la comparación como "pp.id = auth.uid()".
 
 ALTER TABLE public.user_devices ADD COLUMN IF NOT EXISTS ip_address text;
 
@@ -87,7 +93,7 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
 begin
-  if not exists (select 1 from public.profiles where id = auth.uid() and is_admin = true) then
+  if not exists (select 1 from public.profiles pp where pp.id = auth.uid() and pp.is_admin = true) then
     raise exception 'NOT_AUTHORIZED';
   end if;
   return query
