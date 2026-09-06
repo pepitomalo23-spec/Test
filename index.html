@@ -3302,7 +3302,12 @@ async function onLoggedIn(user){
   if(blocked){
     currentUser = null;
     await sb.auth.signOut();
-    showAuthError('Has alcanzado el número máximo de dispositivos permitidos para esta cuenta. Cierra sesión en otro dispositivo o contacta con el administrador para ampliar el límite.');
+    const reason = (deviceCheck && deviceCheck.reason) || (deviceCheckError && (deviceCheckError.message || deviceCheckError.code)) || 'unknown';
+    if(reason === 'device_limit_reached'){
+      showAuthError('Has alcanzado el número máximo de dispositivos permitidos para esta cuenta. Cierra sesión en otro dispositivo o contacta con el administrador para ampliar el límite.');
+    } else {
+      showAuthError('No se ha podido verificar el dispositivo (motivo: ' + reason + '). Vuelve a intentarlo; si persiste, contacta con el administrador.');
+    }
     return;
   }
 
