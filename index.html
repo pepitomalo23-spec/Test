@@ -538,6 +538,7 @@
   .topic-detail-inline{
     padding:2px 16px 16px 51px; background: rgba(255,255,255,0.02); border-bottom:1px solid var(--line-soft);
   }
+  .topic-detail-inline.inactive{ opacity:.55; }
   .topic-detail-inline-sub{ font-size:12.5px; color: var(--muted); margin:8px 0 10px; line-height:1.45; }
   .article-list{ display:flex; flex-direction:column; gap:8px; }
   .article-row{
@@ -1792,14 +1793,16 @@ function toggleTopicDetail(topicId, event){
 function closeTopicDetail(){
   if(expandedTopicIds.size){ expandedTopicIds.clear(); renderTemas(); }
 }
-function renderTopicGroupList(topicId){
+function renderTopicGroupList(topicId, topicSelected){
   const groups = TOPIC_GROUPS[topicId] || [];
   if(!configState.nodeSelections[topicId]){
     configState.nodeSelections[topicId] = new Set(groups.map(g => g.id)); // por defecto, todos incluidos
   }
   const selected = configState.nodeSelections[topicId];
   return '<div class="article-list">' + groups.map(g => {
-    const isSel = selected.has(g.id);
+    // Si el tema en general está apagado, ningún título se muestra como activo
+    // (aunque su selección se conserve por dentro para cuando vuelvas a activarlo).
+    const isSel = topicSelected && selected.has(g.id);
     return '<div class="article-row' + (isSel ? ' selected' : '') + '" role="checkbox" aria-checked="' + isSel + '" tabindex="0" ' +
       'onclick="toggleTopicGroup(\'' + topicId + '\', \'' + g.id + '\')" ' +
       'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleTopicGroup(\'' + topicId + '\', \'' + g.id + '\');}">' +
@@ -1845,9 +1848,10 @@ function renderTemas(){
     // solo el cuadradito de check hace eso. Si no tiene subtemas, la fila entera marca/desmarca,
     // ya que no hay ningún panel que abrir.
     row.onclick = hasGroups ? ((e) => toggleTopicDetail(t.id, e)) : (() => toggleTopic(t.id));
+    const topicSelected = configState.topics.has(t.id);
     const restriction = configState.nodeSelections[t.id];
-    const badge = restriction ? ' <span class="topic-node-badge">' + restriction.size + '/' + groups.length + ' ' + topicGroupTypeLabel(t.id).toLowerCase() + '</span>' : '';
-    const isPartial = !!(restriction && restriction.size < groups.length);
+    const badge = (topicSelected && restriction) ? ' <span class="topic-node-badge">' + restriction.size + '/' + groups.length + ' ' + topicGroupTypeLabel(t.id).toLowerCase() + '</span>' : '';
+    const isPartial = !!(topicSelected && restriction && restriction.size < groups.length);
     row.innerHTML =
       '<span class="topic-check' + (isPartial ? ' indeterminate' : '') + '">' + ICONS.check + '</span>' +
       '<span class="topic-text"><span class="topic-name">' + (idx+1) + ' - ' + esc(t.name) + badge + '</span></span>' +
@@ -1859,10 +1863,12 @@ function renderTemas(){
     card.appendChild(row);
     if(hasGroups && isOpen){
       const detail = document.createElement('div');
-      detail.className = 'topic-detail-inline';
+      detail.className = 'topic-detail-inline' + (topicSelected ? '' : ' inactive');
       detail.innerHTML =
-        '<div class="topic-detail-inline-sub">Elige qué ' + topicGroupTypeLabel(t.id).toLowerCase() + ' quieres incluir en el test. Se añaden todas las preguntas de cada uno (también las de sus subniveles).</div>' +
-        renderTopicGroupList(t.id);
+        '<div class="topic-detail-inline-sub">' + (topicSelected
+          ? 'Elige qué ' + topicGroupTypeLabel(t.id).toLowerCase() + ' quieres incluir en el test. Se añaden todas las preguntas de cada uno (también las de sus subniveles).'
+          : 'Este tema está desactivado, así que no entrará ningún título en el test. Actívalo con el check de arriba; tu selección de aquí se conserva.') + '</div>' +
+        renderTopicGroupList(t.id, topicSelected);
       card.appendChild(detail);
     }
   });
