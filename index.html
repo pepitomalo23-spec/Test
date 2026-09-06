@@ -643,22 +643,61 @@
   .fail-history-toggle{
     display:inline-flex; align-items:center; gap:6px; font-family: var(--mono); font-size:11.5px;
     color: var(--muted-2); cursor:pointer; user-select:none; margin-bottom:12px;
+    padding:6px 12px 6px 10px; border:1px solid var(--line); border-radius:20px; background: var(--card);
+    transition: border-color .12s, background .12s;
   }
+  .fail-history-toggle:hover{ border-color: var(--muted-2); }
   .fail-history-toggle svg:first-child{ width:13px; height:13px; }
   .fail-history-toggle b{ color: var(--coral); font-weight:600; }
-  .fail-history-toggle .chev{ width:12px; height:12px; display:flex; transition: transform .15s; }
+  .fail-history-toggle .chev{ width:12px; height:12px; display:flex; transition: transform .15s; color: var(--muted-2); }
   .fail-history-toggle .chev svg{ width:12px; height:12px; }
+  .fail-history-toggle.open{ border-color: rgba(140,125,245,0.4); background: rgba(140,125,245,0.06); }
   .fail-history-toggle.open .chev{ transform: rotate(90deg); }
   .fail-history-panel{
-    display:none; flex-direction:column; gap:7px; margin:0 0 14px;
-    padding:11px 13px; background: var(--card-hi); border:1px solid var(--line); border-radius:9px;
+    display:none; flex-direction:column; margin:0 0 16px; overflow:hidden;
+    background: var(--card); border:1px solid var(--line); border-radius:14px;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+    animation: failPanelIn .16s ease;
   }
+  @keyframes failPanelIn{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:translateY(0); } }
   .fail-history-panel.open{ display:flex; }
-  .fail-history-row{ display:flex; align-items:center; gap:9px; font-family: var(--mono); font-size:12px; color: var(--muted); }
-  .fail-history-row svg{ width:14px; height:14px; flex-shrink:0; }
-  .fh-ok{ color: var(--green); display:flex; }
-  .fh-bad{ color: var(--coral); display:flex; }
-  .fail-history-loading, .fail-history-empty{ font-family: var(--mono); font-size:11.5px; color: var(--muted-2); }
+  .fail-history-row{
+    display:flex; align-items:center; gap:11px; font-family: var(--mono); font-size:12.5px; color: var(--muted);
+    padding:11px 15px; border-bottom:1px solid var(--line-soft);
+  }
+  .fail-history-row:last-child{ border-bottom:none; }
+  .fail-history-row .fh-badge{
+    width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .fail-history-row .fh-badge svg{ width:13px; height:13px; }
+  .fh-ok .fh-badge{ background: rgba(52,211,153,0.14); color: var(--green); }
+  .fh-bad .fh-badge{ background: rgba(242,102,92,0.14); color: var(--coral); }
+  .fail-history-loading, .fail-history-empty{
+    font-family: var(--mono); font-size:11.5px; color: var(--muted-2); padding:14px 15px;
+  }
+
+  .explain-body{ position:relative; }
+  .ia-explain-btn{
+    position:absolute; top:-6px; right:-5px; display:flex; align-items:center; gap:5px;
+    font-family: var(--sans); font-weight:600; font-size:11px; color: var(--purple);
+    background: rgba(140,125,245,0.1); border:1px solid rgba(140,125,245,0.35);
+    padding:5px 11px 5px 8px; border-radius:20px; cursor:pointer; transition: background .12s, border-color .12s;
+  }
+  .ia-explain-btn:hover{ background: rgba(140,125,245,0.18); border-color: rgba(140,125,245,0.55); }
+  .ia-explain-btn:disabled{ opacity:.6; cursor:default; }
+  .ia-explain-btn svg{ width:13px; height:13px; }
+  .explain-text{ padding-right:60px; }
+  .ia-explain-result{ display:none; margin-top:16px; padding-top:15px; border-top:1px dashed var(--line); }
+  .ia-explain-result.show{ display:block; }
+  .ia-explain-label{
+    display:flex; align-items:center; gap:6px; font-family: var(--sans); font-weight:600; font-size:11.5px;
+    color: var(--purple); margin-bottom:8px;
+  }
+  .ia-explain-label svg{ width:14px; height:14px; }
+  .ia-explain-text{ font-size:13px; line-height:1.65; color: var(--muted); }
+  .ia-explain-text p{ margin:0 0 10px; }
+  .ia-explain-text p:last-child{ margin-bottom:0; }
+  .ia-explain-loading, .ia-explain-empty{ font-family: var(--mono); font-size:11.5px; color: var(--muted-2); }
 
   .question{ font-family: 'Source Serif 4', serif; font-size:20px; font-weight:600; line-height:1.5; margin-bottom:24px; }
 
@@ -2269,8 +2308,8 @@ async function toggleFailHistory(questionId, toggleEl){
         const d = new Date(r.test_sessions.created_at);
         const dateStr = d.toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' });
         const icon = r.is_correct
-          ? '<span class="fh-ok">' + ICONS.check + '</span>'
-          : '<span class="fh-bad">' + ICONS.cross + '</span>';
+          ? '<span class="fh-ok"><span class="fh-badge">' + ICONS.check + '</span></span>'
+          : '<span class="fh-bad"><span class="fh-badge">' + ICONS.cross + '</span></span>';
         return '<div class="fail-history-row">' + icon + '<span>' + dateStr + '</span></div>';
       }).join('');
     }
@@ -2278,6 +2317,98 @@ async function toggleFailHistory(questionId, toggleEl){
   } catch(err){
     console.error('Error cargando el historial de intentos', err);
     panel.innerHTML = '<div class="fail-history-empty">No se ha podido cargar el historial. Inténtalo de nuevo.</div>';
+  }
+}
+
+/* Cuerpo de la explicación: el texto guardado + un botón "IA" en la esquina
+   que, al pulsarlo, pide a Gemini una explicación más completa y la añade
+   debajo de todo. Reutiliza la misma clave de API que el panel de admin
+   usa para "Extraer con IA" (se guarda en localStorage, en este navegador). */
+function explainBodyHtml(q){
+  return '<div class="explain-body">' +
+    '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
+      ICONS.brain + '<span>IA</span>' +
+    '</button>' +
+    '<div class="explain-text">' + q.explain + '</div>' +
+    '<div class="ia-explain-result"></div>' +
+  '</div>';
+}
+
+function findQuestionById(questionId){
+  if(typeof ACTIVE_QUESTIONS !== 'undefined' && ACTIVE_QUESTIONS){
+    const found = ACTIVE_QUESTIONS.find(q => q.id === questionId);
+    if(found) return found;
+  }
+  if(typeof currentReview !== 'undefined' && currentReview && currentReview.questions){
+    const found = currentReview.questions.find(q => q.id === questionId);
+    if(found) return found;
+  }
+  return null;
+}
+
+async function explainWithAI(questionId, btnEl){
+  const body = btnEl.closest('.explain-body');
+  const resultEl = body ? body.querySelector('.ia-explain-result') : null;
+  if(!resultEl) return;
+
+  // si ya se generó antes para esta pregunta, solo mostrar/ocultar sin repetir la llamada
+  if(resultEl.dataset.loaded === '1'){
+    resultEl.classList.toggle('show');
+    return;
+  }
+
+  const apiKey = localStorage.getItem('gemini_api_key');
+  if(!apiKey){
+    resultEl.innerHTML = '<div class="ia-explain-empty">Falta tu clave de API de Google AI Studio. Añádela una vez en el panel de administración ("Importar con IA") y se reutilizará aquí.</div>';
+    resultEl.classList.add('show');
+    return;
+  }
+
+  const q = findQuestionById(questionId);
+  if(!q){
+    resultEl.innerHTML = '<div class="ia-explain-empty">No se ha podido identificar la pregunta.</div>';
+    resultEl.classList.add('show');
+    return;
+  }
+
+  const originalBtnHtml = btnEl.innerHTML;
+  btnEl.disabled = true;
+  btnEl.innerHTML = '<span>Generando…</span>';
+  resultEl.classList.add('show');
+  resultEl.innerHTML = '<div class="ia-explain-loading">Generando una explicación más completa…</div>';
+
+  const letters = ['A','B','C','D'];
+  const optionsText = q.options.map((opt,i) => letters[i] + ') ' + opt).join('\n');
+  const prompt = 'Eres un profesor que prepara opositores para un examen tipo test de legislación. ' +
+    'Te doy una pregunta, sus opciones, la respuesta correcta y una explicación breve ya existente. ' +
+    'Redacta una explicación más completa y pedagógica de por qué esa es la respuesta correcta, ayudando a ' +
+    'entender el artículo o el concepto de fondo (no te limites a repetir la explicación breve). ' +
+    'Responde en español, en un máximo de dos párrafos cortos, en texto plano sin markdown ni asteriscos.\n\n' +
+    'PREGUNTA: ' + q.q + '\n\nOPCIONES:\n' + optionsText + '\n\n' +
+    'RESPUESTA CORRECTA: ' + letters[q.correct] + ') ' + q.options[q.correct] + '\n\n' +
+    'EXPLICACIÓN BREVE YA EXISTENTE: ' + (q.explain ? q.explain.replace(/<[^>]+>/g, ' ') : '(ninguna)');
+
+  try{
+    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' + encodeURIComponent(apiKey), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+    const data = await resp.json();
+    if(!resp.ok){ throw new Error((data && data.error && data.error.message) || 'Error llamando a la API de Gemini.'); }
+    const text = (data.candidates && data.candidates[0] && data.candidates[0].content &&
+      data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || '';
+    const cleanText = text.trim();
+    if(!cleanText){ throw new Error('La IA no ha devuelto ninguna explicación.'); }
+    const paragraphs = cleanText.split(/\n{2,}/).map(p => '<p>' + esc(p.trim()).replace(/\n/g, '<br>') + '</p>').join('');
+    resultEl.innerHTML = '<div class="ia-explain-label">' + ICONS.brain + '<span>Explicación ampliada con IA</span></div>' +
+      '<div class="ia-explain-text">' + paragraphs + '</div>';
+    resultEl.dataset.loaded = '1';
+  } catch(err){
+    resultEl.innerHTML = '<div class="ia-explain-empty">No se ha podido generar la explicación: ' + esc(err.message || 'error desconocido') + '</div>';
+  } finally {
+    btnEl.disabled = false;
+    btnEl.innerHTML = originalBtnHtml;
   }
 }
 
@@ -2318,7 +2449,7 @@ function renderQuestion(){
   const explainEl = document.getElementById('quizExplain');
   explainEl.classList.remove('show');
   explainEl.innerHTML = isAnswered
-    ? (explainMetaHtml(q) + q.explain)
+    ? (explainMetaHtml(q) + explainBodyHtml(q))
     : '';
 
   renderQuizPill();
@@ -2364,7 +2495,7 @@ function selectOption(i){
     }
   });
   const explainEl = document.getElementById('quizExplain');
-  explainEl.innerHTML = explainMetaHtml(q) + q.explain;
+  explainEl.innerHTML = explainMetaHtml(q) + explainBodyHtml(q);
   explainEl.classList.remove('show'); // queda oculta hasta que se pulse "Mostrar explicación"
   renderQuizPill();
   document.getElementById('quizNextBtn').disabled = false;
@@ -2385,7 +2516,7 @@ function markBlank(){
     }
   });
   const explainEl = document.getElementById('quizExplain');
-  explainEl.innerHTML = explainMetaHtml(q) + q.explain;
+  explainEl.innerHTML = explainMetaHtml(q) + explainBodyHtml(q);
   explainEl.classList.remove('show'); // queda oculta hasta que se pulse "Mostrar explicación"
   renderQuizPill();
   document.getElementById('quizNextBtn').disabled = false;
@@ -2635,7 +2766,7 @@ function renderReviewQuestion(){
     html += '<div style="font-size:12.5px; color:var(--muted-2); margin-top:12px;">No respondiste esta pregunta.</div>';
   }
   if(showExplain){
-    html += '<div class="explain show">' + explainMetaHtml(q) + q.explain + '</div>';
+    html += '<div class="explain show">' + explainMetaHtml(q) + explainBodyHtml(q) + '</div>';
   }
   body.innerHTML = html;
 
