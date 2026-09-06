@@ -725,13 +725,45 @@
   @keyframes iaScan{ 0%{ background-position:0% 0; } 100%{ background-position:200% 0; } }
   .ia-explain-label{
     display:flex; align-items:center; gap:8px; font-family: var(--sans); font-weight:800; font-size:11px;
-    letter-spacing:.08em; text-transform:uppercase; color: var(--text); margin-bottom:12px;
+    letter-spacing:.08em; text-transform:uppercase; color: var(--text); margin-bottom:14px;
   }
   .ia-explain-icon-badge{
     width:22px; height:22px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
     background: linear-gradient(135deg, var(--purple), var(--teal));
   }
   .ia-explain-icon-badge svg{ width:12px; height:12px; color:#0A0A0A; }
+  .ia-explain-remove{
+    margin-left:auto; width:24px; height:24px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    background: rgba(255,255,255,0.05); border:1px solid var(--line-soft); color: var(--muted-2);
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  .ia-explain-remove svg{ width:11px; height:11px; }
+  .ia-explain-remove:hover{ background: rgba(242,102,92,0.16); border-color: rgba(242,102,92,0.45); color: var(--coral); }
+  .ia-explain-remove:disabled{ opacity:.5; cursor:default; }
+  .ia-explain-block{ }
+  .ia-explain-block + .ia-explain-block{ margin-top:16px; padding-top:16px; border-top:1px dashed rgba(255,255,255,0.09); }
+  .ia-explain-block-head{
+    display:flex; align-items:center; gap:8px; font-family: var(--sans); font-weight:700; font-size:12px;
+    color: var(--text); margin-bottom:8px;
+  }
+  .ia-block-icon{
+    width:21px; height:21px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  }
+  .ia-block-icon svg{ width:12px; height:12px; }
+  .ia-block-icon.simple{ background: rgba(47,191,174,0.16); color: var(--teal); }
+  .ia-block-icon.technical{ background: rgba(140,125,245,0.16); color: var(--purple); }
+  .ia-block-icon.glossary{ background: rgba(78,155,247,0.16); color: var(--blue); }
+  .ia-explain-glossary{
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .ia-glossary-item{
+    background: rgba(255,255,255,0.03); border:1px solid var(--line-soft); border-radius:10px; padding:10px 12px;
+  }
+  .ia-glossary-term{ font-family: var(--sans); font-weight:700; font-size:12.5px; color: var(--text); margin-bottom:3px; }
+  .ia-glossary-def{ font-size:12.5px; line-height:1.55; color: var(--muted); }
+  .ia-glossary-syn{ font-size:11px; color: var(--muted-2); margin-top:5px; }
+  .ia-glossary-syn b{ color: var(--teal); font-weight:600; }
   .ia-explain-text{ font-size:13.5px; line-height:1.8; color: var(--muted); }
   .ia-explain-text p{ margin:0 0 10px; }
   .ia-explain-text p:last-child{ margin-bottom:0; }
@@ -1554,6 +1586,7 @@ function mapDbQuestionToQuiz(row){
     options: row.options,
     correct: row.correct_index,
     explain: row.explain,
+    ai_explain: row.ai_explain || null,
     failCount: row._failCount || 0,
     avgTime: row._avgTime || "—"
   };
@@ -1591,7 +1624,10 @@ const ICONS = {
   move: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,9 2,12 5,15"/><polyline points="9,5 12,2 15,5"/><polyline points="15,19 12,22 9,19"/><polyline points="19,9 22,12 19,15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>',
   kebab: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
-  bulb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2Z"/></svg>'
+  bulb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2Z"/></svg>',
+  smile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
+  graduation: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12.5V17c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.5"/><path d="M22 10v6"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13.5v15H6a2 2 0 0 0-2 2Z"/><path d="M19.5 18H6a2 2 0 0 0-2 2"/><path d="M8 7h8"/><path d="M8 10.5h8"/></svg>'
 };
 
 let quizState = { mode:null, index:0, correctCount:0, answered:false };
@@ -2391,15 +2427,60 @@ async function toggleFailHistory(questionId, toggleEl){
    debajo de todo. Reutiliza la misma clave de API que el panel de admin
    usa para "Extraer con IA" (se guarda en localStorage, en este navegador). */
 function explainBodyHtml(q){
+  const generateBtn = '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
+      ICONS.brain + '<span>IA</span>' +
+    '</button>';
   return '<div class="explain-body">' +
     '<div class="explain-section-head">' +
       '<div class="explain-section-label"><span class="explain-icon-badge">' + ICONS.bulb + '</span><span>Explicación</span></div>' +
-      '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
-        ICONS.brain + '<span>IA</span>' +
-      '</button>' +
+      (q.ai_explain ? '' : generateBtn) +
     '</div>' +
     '<div class="explain-text">' + q.explain + '</div>' +
-    '<div class="ia-explain-result"></div>' +
+    '<div class="ia-explain-result' + (q.ai_explain ? ' show' : '') + '"' + (q.ai_explain ? ' data-loaded="1"' : '') + '>' +
+      (q.ai_explain ? aiExplainCardHtml(q.ai_explain, q.id) : '') +
+    '</div>' +
+  '</div>';
+}
+
+/* Construye la tarjeta de la explicación ampliada por IA a partir del objeto
+   { simple, technical, glossary }: explicación fácil, explicación técnica y
+   un pequeño glosario. Se usa tanto justo después de generarla como al
+   recargar una pregunta que ya la tenía guardada de forma permanente. */
+function formatAIParagraphs(text){
+  return (text || '').split(/\n{2,}/).map(p => '<p>' + esc(p.trim()).replace(/\n/g, '<br>') + '</p>').join('');
+}
+function aiExplainCardHtml(data, questionId){
+  const glossary = Array.isArray(data.glossary) ? data.glossary.filter(g => g && g.term) : [];
+  const glossaryItemsHtml = glossary.map(g =>
+    '<div class="ia-glossary-item">' +
+      '<div class="ia-glossary-term">' + esc(g.term) + '</div>' +
+      '<div class="ia-glossary-def">' + esc(g.meaning || '') + '</div>' +
+      (Array.isArray(g.synonyms) && g.synonyms.length
+        ? '<div class="ia-glossary-syn"><b>Sinónimos:</b> ' + esc(g.synonyms.join(', ')) + '</div>'
+        : '') +
+    '</div>'
+  ).join('');
+  const glossaryHtml = glossary.length
+    ? '<div class="ia-explain-block">' +
+        '<div class="ia-explain-block-head"><span class="ia-block-icon glossary">' + ICONS.book + '</span><span>Palabras clave</span></div>' +
+        '<div class="ia-explain-glossary">' + glossaryItemsHtml + '</div>' +
+      '</div>'
+    : '';
+
+  return '<div class="ia-explain-card">' +
+    '<div class="ia-explain-label">' +
+      '<span class="ia-explain-icon-badge">' + ICONS.brain + '</span><span>Explicación ampliada con IA</span>' +
+      '<button type="button" class="ia-explain-remove" onclick="event.stopPropagation();removeAIExplain(\'' + questionId + '\', this)" title="Quitar esta explicación generada por IA">' + ICONS.cross + '</button>' +
+    '</div>' +
+    '<div class="ia-explain-block">' +
+      '<div class="ia-explain-block-head"><span class="ia-block-icon simple">' + ICONS.smile + '</span><span>Explicado fácil</span></div>' +
+      '<div class="ia-explain-text">' + formatAIParagraphs(data.simple) + '</div>' +
+    '</div>' +
+    '<div class="ia-explain-block">' +
+      '<div class="ia-explain-block-head"><span class="ia-block-icon technical">' + ICONS.graduation + '</span><span>Explicado con más detalle</span></div>' +
+      '<div class="ia-explain-text">' + formatAIParagraphs(data.technical) + '</div>' +
+    '</div>' +
+    glossaryHtml +
   '</div>';
 }
 
@@ -2420,7 +2501,7 @@ async function explainWithAI(questionId, btnEl){
   const resultEl = body ? body.querySelector('.ia-explain-result') : null;
   if(!resultEl) return;
 
-  // si ya se generó antes para esta pregunta, solo mostrar/ocultar sin repetir la llamada
+  // si ya se generó/cargó antes para esta pregunta, solo mostrar/ocultar sin repetir la llamada
   if(resultEl.dataset.loaded === '1'){
     resultEl.classList.toggle('show');
     return;
@@ -2444,15 +2525,20 @@ async function explainWithAI(questionId, btnEl){
   btnEl.disabled = true;
   btnEl.innerHTML = '<span>Generando…</span>';
   resultEl.classList.add('show');
-  resultEl.innerHTML = '<div class="ia-explain-loading">Generando una explicación más completa…</div>';
+  resultEl.innerHTML = '<div class="ia-explain-loading">Generando una explicación estructurada…</div>';
 
   const letters = ['A','B','C','D'];
   const optionsText = q.options.map((opt,i) => letters[i] + ') ' + opt).join('\n');
   const prompt = 'Eres un profesor que prepara opositores para un examen tipo test de legislación. ' +
     'Te doy una pregunta, sus opciones, la respuesta correcta y una explicación breve ya existente. ' +
-    'Redacta una explicación más completa y pedagógica de por qué esa es la respuesta correcta, ayudando a ' +
-    'entender el artículo o el concepto de fondo (no te limites a repetir la explicación breve). ' +
-    'Responde en español, en un máximo de dos párrafos cortos, en texto plano sin markdown ni asteriscos.\n\n' +
+    'Devuelve EXCLUSIVAMENTE un objeto JSON (sin markdown, sin ```, sin texto antes ni después) con esta forma exacta:\n' +
+    '{\n' +
+    '  "simple": "por qué es correcta esa opción, en lenguaje MUY sencillo y cercano, como si se lo explicaras a un niño o a una persona mayor sin conocimientos de leyes, con algún ejemplo cotidiano y sin tecnicismos",\n' +
+    '  "technical": "la misma idea explicada de otra forma: más completa y precisa, con el rigor y el vocabulario propios de una oposición, citando el artículo o concepto de fondo",\n' +
+    '  "glossary": [ { "term": "palabra técnica que aparezca en \'technical\'", "meaning": "qué significa, explicado de forma simple", "synonyms": ["sinónimo 1", "sinónimo 2"] } ]\n' +
+    '}\n\n' +
+    'En "glossary" incluye solo palabras realmente técnicas o poco comunes que aparezcan en "technical" (deja el array vacío si no hay ninguna). ' +
+    'Responde siempre en español, en texto plano dentro de cada campo (sin markdown ni asteriscos), y separa los párrafos de "simple" y "technical" con una línea en blanco si hace falta más de uno.\n\n' +
     'PREGUNTA: ' + q.q + '\n\nOPCIONES:\n' + optionsText + '\n\n' +
     'RESPUESTA CORRECTA: ' + letters[q.correct] + ') ' + q.options[q.correct] + '\n\n' +
     'EXPLICACIÓN BREVE YA EXISTENTE: ' + (q.explain ? q.explain.replace(/<[^>]+>/g, ' ') : '(ninguna)');
@@ -2467,19 +2553,70 @@ async function explainWithAI(questionId, btnEl){
     if(!resp.ok){ throw new Error((data && data.error && data.error.message) || 'Error llamando a la API de Gemini.'); }
     const text = (data.candidates && data.candidates[0] && data.candidates[0].content &&
       data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || '';
-    const cleanText = text.trim();
+    const cleanText = text.trim().replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
     if(!cleanText){ throw new Error('La IA no ha devuelto ninguna explicación.'); }
-    const paragraphs = cleanText.split(/\n{2,}/).map(p => '<p>' + esc(p.trim()).replace(/\n/g, '<br>') + '</p>').join('');
-    resultEl.innerHTML = '<div class="ia-explain-card">' +
-      '<div class="ia-explain-label"><span class="ia-explain-icon-badge">' + ICONS.brain + '</span><span>Explicación ampliada con IA</span></div>' +
-      '<div class="ia-explain-text">' + paragraphs + '</div>' +
-    '</div>';
+
+    let parsed;
+    try{
+      parsed = JSON.parse(cleanText);
+    } catch(parseErr){
+      // si por lo que sea no ha devuelto JSON válido, lo mostramos igualmente como explicación "fácil"
+      parsed = { simple: cleanText, technical: '', glossary: [] };
+    }
+    if(!parsed || (!parsed.simple && !parsed.technical)){
+      throw new Error('La IA no ha devuelto ninguna explicación.');
+    }
+
+    resultEl.innerHTML = aiExplainCardHtml(parsed, q.id);
     resultEl.dataset.loaded = '1';
+    q.ai_explain = parsed;
+    btnEl.remove(); // ya no hace falta el botón "IA": la explicación queda permanente hasta que se quite con la X
+
+    // Guardarla de forma permanente en la pregunta (RPC que solo toca la columna ai_explain)
+    try{
+      const { error: saveErr } = await sb.rpc('set_question_ai_explain', { p_question_id: q.id, p_explain: parsed });
+      if(saveErr){ console.error('No se ha podido guardar la explicación de forma permanente', saveErr); }
+    } catch(saveErr){
+      console.error('No se ha podido guardar la explicación de forma permanente', saveErr);
+    }
   } catch(err){
     resultEl.innerHTML = '<div class="ia-explain-empty">No se ha podido generar la explicación: ' + esc(err.message || 'error desconocido') + '</div>';
-  } finally {
     btnEl.disabled = false;
     btnEl.innerHTML = originalBtnHtml;
+  }
+}
+
+/* Quita una explicación IA ya generada (botón "X" dentro de la tarjeta).
+   Se borra también en Supabase (permanente para todo el mundo) y se vuelve
+   a mostrar el botón "IA" por si se quiere generar otra distinta. */
+async function removeAIExplain(questionId, btnEl){
+  if(!confirm('¿Quitar esta explicación generada por IA?\n\nSe borrará de forma permanente y habrá que generarla de nuevo si se quiere volver a ver.')) return;
+
+  const resultEl = btnEl.closest('.ia-explain-result');
+  const body = btnEl.closest('.explain-body');
+  const q = findQuestionById(questionId);
+
+  btnEl.disabled = true;
+  try{
+    const { error } = await sb.rpc('clear_question_ai_explain', { p_question_id: questionId });
+    if(error) throw error;
+
+    if(q) q.ai_explain = null;
+    if(resultEl){
+      resultEl.innerHTML = '';
+      resultEl.classList.remove('show');
+      resultEl.dataset.loaded = '';
+    }
+    const head = body ? body.querySelector('.explain-section-head') : null;
+    if(head && !head.querySelector('.ia-explain-btn')){
+      head.insertAdjacentHTML('beforeend',
+        '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + questionId + '\', this)" title="Pedir una explicación más completa con IA">' +
+          ICONS.brain + '<span>IA</span>' +
+        '</button>');
+    }
+  } catch(err){
+    alert('No se ha podido quitar la explicación: ' + (err.message || 'error desconocido'));
+    btnEl.disabled = false;
   }
 }
 
