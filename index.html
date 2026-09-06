@@ -944,6 +944,9 @@
   .quiz-pill.clickable:hover{ border-color: var(--purple); }
   .quiz-pill .chev{ width:12px; height:12px; transition: transform .15s; }
   .quiz-pill.open .chev{ transform: rotate(90deg); }
+  .quiz-finish-row{ display:flex; justify-content:center; margin-top:14px; }
+  .quiz-finish-link{ font-family: var(--sans); font-weight:600; font-size:12.5px; color: var(--muted); cursor:pointer; padding:6px 10px; border-radius:8px; }
+  .quiz-finish-link:hover{ color: var(--coral); background: rgba(242,102,92,0.08); }
 
   /* ---------- quiz list view (examen / simulacro: todas las preguntas seguidas) ---------- */
   .quiz-list-item{
@@ -1444,6 +1447,9 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>
           </button>
         </div>
+        <div class="quiz-finish-row">
+          <span class="quiz-finish-link" role="button" tabindex="0" onclick="confirmFinishQuiz()" onkeydown="if(event.key==='Enter')confirmFinishQuiz()">Finalizar</span>
+        </div>
       </div>
 
 
@@ -1535,7 +1541,7 @@ async function logLoginAttempt(email, success, errorMessage, userId){
       device_id: getDeviceId(),
       user_agent: navigator.userAgent,
       success: !!success,
-      error_message: errorMessage || null
+      reason: errorMessage || null
     });
   }catch(e){
     // El registro de intentos nunca debe bloquear el flujo de login
@@ -2956,10 +2962,27 @@ function selectListOption(qi, i){
   item.querySelectorAll('.option').forEach((el, idx) => el.classList.toggle('selected', idx === i));
   document.getElementById('quizCount').textContent = countAnsweredList() + ' / ' + ACTIVE_QUESTIONS.length;
 }
+const QUIZ_FINISH_LABELS = { examen:'examen', simulacro:'simulacro', estudio:'test de estudio', fallos:'repaso de fallos' };
 function confirmFinishQuiz(){
+  if(quizState.viewMode === 'card'){
+    // En tarjeta (estudio/fallos) también cuentan como "sin responder" las preguntas
+    // que aún no se han visitado ni marcado como en blanco.
+    const answeredOrBlanked = ACTIVE_QUESTIONS.reduce((acc, _, i) => {
+      const a = quizState.answers[i];
+      const isBlanked = !!(quizState.blanked && quizState.blanked[i]);
+      return acc + (((a !== null && a !== undefined) || isBlanked) ? 1 : 0);
+    }, 0);
+    const blank = ACTIVE_QUESTIONS.length - answeredOrBlanked;
+    if(blank > 0){
+      const label = QUIZ_FINISH_LABELS[quizState.mode] || 'test';
+      if(!confirm('Tienes ' + blank + ' pregunta' + (blank === 1 ? '' : 's') + ' sin responder. ¿Quieres finalizar el ' + label + ' igualmente?')) return;
+    }
+    finishQuiz();
+    return;
+  }
   const blank = ACTIVE_QUESTIONS.length - countAnsweredList();
   if(blank > 0){
-    const label = quizState.mode === 'simulacro' ? 'simulacro' : 'examen';
+    const label = QUIZ_FINISH_LABELS[quizState.mode] || 'test';
     if(!confirm('Tienes ' + blank + ' pregunta' + (blank === 1 ? '' : 's') + ' sin responder. ¿Quieres finalizar el ' + label + ' igualmente?')) return;
   }
   finishQuiz();
