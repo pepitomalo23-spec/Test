@@ -330,6 +330,8 @@
     transition: border-color .15s, background .15s, transform .15s;
   }
   .mode-card:hover{ border-color: var(--muted-2); background: var(--card-hi); transform: translateY(-1px); }
+  .mode-card.disabled{ opacity:.4; cursor:not-allowed; pointer-events:none; }
+  .mode-card.disabled:hover{ border-color: var(--line); background: var(--card); transform:none; }
   .mode-emblem{
     width:42px; height:42px; border-radius:50%; border:1px solid;
     display:flex; align-items:center; justify-content:center;
@@ -1122,7 +1124,7 @@
           </div>
           <div><div class="m-name">Modo estudio</div><div class="m-sub">Elige tus temas</div></div>
         </div>
-        <div class="mode-card fallos" role="button" tabindex="0" onclick="openFallos()">
+        <div class="mode-card fallos" id="modeCardFallos" role="button" tabindex="0" onclick="openFallos()">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
               <path d="m15 7-6 6"/>
@@ -1460,7 +1462,7 @@
         </div>
         <div class="fallos-breakdown" id="fallosBreakdown"></div>
         <div class="modal-footer">
-          <button class="btn btn-primary btn-block btn-light" onclick="startFallosReview()">Comenzar repaso</button>
+          <button class="btn btn-primary btn-block btn-light" id="fallosStartBtn" onclick="startFallosReview()">Comenzar repaso</button>
         </div>
       </div>
     </section>
@@ -2133,6 +2135,8 @@ async function refreshGlobalStats(){
   // "Pendientes" (aviso del modo Fallos en el home) se sigue calculando en
   // caliente a partir del historial real, no de ningún contador aparte.
   const fallosPending = QUESTIONS_POOL.filter(q => q.masteryStatus === 'red').length;
+  const modeCardFallos = document.getElementById('modeCardFallos');
+  if(modeCardFallos) modeCardFallos.classList.toggle('disabled', fallosPending === 0);
 
   // Nivel general: de todo el temario (preguntas sin hacer incluidas), qué
   // porcentaje está realmente dominado (verde). Las falladas y las que aún
@@ -2495,6 +2499,7 @@ function startFromConfig(){
 /* ---------- fallos intro screen ---------- */
 function openFallos(){
   const total = TOPICS.filter(t => t.enabled).reduce((s,t) => s + t.fails, 0);
+  if(total === 0) return; // no hay fallos: no se puede abrir el repaso
   document.getElementById('fallosTotal').textContent = total;
   const el = document.getElementById('fallosBreakdown');
   el.innerHTML = '';
@@ -2504,6 +2509,8 @@ function openFallos(){
     row.innerHTML = '<span class="fallos-row-name">' + t.name + '</span><span class="fallos-row-count">' + t.fails + ' falladas</span>';
     el.appendChild(row);
   });
+  const startBtn = document.getElementById('fallosStartBtn');
+  if(startBtn) startBtn.disabled = false;
   showScreen('screen-home');
   openOverlay('screen-fallos');
 }
@@ -2514,6 +2521,7 @@ function startFallosReview(){
   // computeQuestionMastery() sobre el historial actual: no hace falta ninguna
   // consulta ni tabla aparte que se pueda quedar desactualizada.
   const questions = QUESTIONS_POOL.filter(q => q.masteryStatus === 'red');
+  if(!questions.length) return; // sin fallos pendientes no se puede iniciar el repaso
   startQuiz('fallos', questions, null);
 }
 
@@ -2980,7 +2988,6 @@ function renderQuizList(){
   const letters = ['A','B','C','D'];
   document.getElementById('quizCount').textContent = countAnsweredList() + ' / ' + ACTIVE_QUESTIONS.length;
   body.innerHTML = ACTIVE_QUESTIONS.map((q, qi) => {
-    const tagText = q.general ? generalTagText(q) : q.art;
     const optsHtml = q.options.map((opt, i) => {
       const selected = quizState.answers[qi] === i;
       return '<div class="option' + (selected ? ' selected' : '') + '" role="button" tabindex="0" onclick="selectListOption(' + qi + ',' + i + ')">' +
@@ -2989,7 +2996,6 @@ function renderQuizList(){
     }).join('');
     return (
       '<div class="quiz-list-item" data-qi="' + qi + '">' +
-        '<div class="article-tag' + (q.general ? ' general' : '') + '">' + ICONS.seal + '<span>' + esc(tagText) + '</span></div>' +
         '<div class="question">' + (qi + 1) + '. ' + esc(q.q) + '</div>' +
         '<div class="options">' + optsHtml + '</div>' +
       '</div>'
