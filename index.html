@@ -1864,16 +1864,10 @@ function renderTemas(){
 }
 
 function toggleTopic(id){
-  if(configState.topics.has(id)){
-    configState.topics.delete(id);
-  } else {
-    configState.topics.add(id);
-    // Al marcar el tema desde su check (a diferencia de la selección inicial de
-    // pantalla o "Seleccionar todo"), no se incluye ningún título por defecto:
-    // el usuario elige dentro del panel cuáles quiere que entren en el test.
-    const groups = TOPIC_GROUPS[id] || [];
-    if(groups.length) configState.nodeSelections[id] = new Set();
-  }
+  // Marcar/desmarcar el tema no toca la selección de títulos de dentro: por
+  // defecto se incluye todo (sin restricción); el panel sirve para EXCLUIR
+  // los títulos concretos que no se quieran, no para partir de cero.
+  if(configState.topics.has(id)) configState.topics.delete(id); else configState.topics.add(id);
   renderTemas();
 }
 
