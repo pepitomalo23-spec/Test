@@ -1841,7 +1841,7 @@ function renderTemas(){
     row.onclick = () => toggleTopic(t.id);
     const restriction = configState.nodeSelections[t.id];
     const badge = restriction ? ' <span class="topic-node-badge">' + restriction.size + '/' + groups.length + ' ' + topicGroupTypeLabel(t.id).toLowerCase() + '</span>' : '';
-    const isPartial = !!(restriction && restriction.size > 0 && restriction.size < groups.length);
+    const isPartial = !!(restriction && restriction.size < groups.length);
     row.innerHTML =
       '<span class="topic-check' + (isPartial ? ' indeterminate' : '') + '">' + ICONS.check + '</span>' +
       '<span class="topic-text"><span class="topic-name">' + (idx+1) + ' - ' + esc(t.name) + badge + '</span></span>' +
@@ -1864,7 +1864,16 @@ function renderTemas(){
 }
 
 function toggleTopic(id){
-  if(configState.topics.has(id)) configState.topics.delete(id); else configState.topics.add(id);
+  if(configState.topics.has(id)){
+    configState.topics.delete(id);
+  } else {
+    configState.topics.add(id);
+    // Al marcar el tema desde su check (a diferencia de la selección inicial de
+    // pantalla o "Seleccionar todo"), no se incluye ningún título por defecto:
+    // el usuario elige dentro del panel cuáles quiere que entren en el test.
+    const groups = TOPIC_GROUPS[id] || [];
+    if(groups.length) configState.nodeSelections[id] = new Set();
+  }
   renderTemas();
 }
 
