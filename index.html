@@ -2553,6 +2553,9 @@ function renderReviewQuestion(){
   let html = '';
   html += '<div class="review-report" role="button" tabindex="0" onclick="reportReviewQuestion()">' + ICONS.warn + ' Impugnar</div>';
   html += '<div class="article-tag' + (q.general ? ' general' : '') + '">' + ICONS.seal + '<span>' + (q.general ? generalTagText(q) : q.art) + '</span></div>';
+  html += '<div class="qmeta-row"><div class="qmeta">' +
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><polyline points="4,17 4,12 9,12"/></svg>' +
+    'Fallada <b>' + (q.failCount || 0) + '</b> veces</div></div>';
   html += '<div class="question">' + (qi + 1) + '. ' + q.q + '</div>';
   html += '<div class="options">';
   q.options.forEach((opt, i) => {
