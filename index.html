@@ -620,6 +620,11 @@
   @keyframes timerPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.5; } }
   @media (prefers-reduced-motion: reduce){ .quiz-timer.urgent{ animation:none; } }
 
+  .quiz-card{
+    background: var(--card); border:1px solid var(--line); border-radius:18px;
+    padding:28px 26px 30px;
+  }
+
   .article-tag{
     display:inline-flex; gap:7px; align-items:center;
     font-family: var(--mono); font-size:11.5px; color: var(--blue);
@@ -640,8 +645,8 @@
   .options{ display:flex; flex-direction:column; gap:9px; }
   .option{
     display:flex; align-items:center; gap:13px; padding:13px 15px;
-    border:1px solid var(--line); border-radius:11px; background: var(--card);
-    cursor:pointer; font-size:14px; transition: border-color .12s, background .12s;
+    border:1px solid var(--line); border-radius:11px; background: var(--card-hi);
+    cursor:pointer; font-size:14px; transition: border-color .12s, background .12s, color .12s;
   }
   .option:hover{ border-color: var(--muted-2); }
   .opt-badge{
@@ -653,10 +658,10 @@
   .opt-text{ flex:1; }
   .opt-result{ width:16px; height:16px; flex-shrink:0; display:none; }
   .opt-result svg{ width:16px; height:16px; }
-  .option.correct{ border-color: var(--green); background: rgba(52,211,153,0.08); }
+  .option.correct{ border-color: var(--green); background: rgba(52,211,153,0.08); color: var(--green); font-weight:600; }
   .option.correct .opt-badge{ border-color: var(--green); color: var(--green); background: rgba(52,211,153,0.12); }
   .option.correct .opt-result{ display:block; color: var(--green); }
-  .option.incorrect{ border-color: var(--coral); background: rgba(242,102,92,0.08); }
+  .option.incorrect{ border-color: var(--coral); background: rgba(242,102,92,0.08); color: var(--coral); font-weight:600; }
   .option.incorrect .opt-badge{ border-color: var(--coral); color: var(--coral); background: rgba(242,102,92,0.12); }
   .option.incorrect .opt-result{ display:block; color: var(--coral); }
 
@@ -1217,24 +1222,27 @@
 
       <!-- ===== Vista tarjeta (estudio / fallos): una pregunta, explicación colapsable, navegación con flechas ===== -->
       <div id="quizCardView">
-        <div class="article-tag" id="articleTag">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="7.2"/><circle cx="12" cy="12" r="3"/></svg>
-          <span id="articleTagText">ART. 81.2</span>
+        <div class="quiz-card">
+          <div class="article-tag" id="articleTag">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="7.2"/><circle cx="12" cy="12" r="3"/></svg>
+            <span id="articleTagText">ART. 81.2</span>
+          </div>
+
+          <div class="qmeta-row">
+            <div class="qmeta">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><polyline points="4,17 4,12 9,12"/></svg>
+              Fallada <b id="qFailCount">3</b> veces
+            </div>
+            <div class="qmeta time">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
+              Tu media <b id="qAvgTime">8s</b>
+            </div>
+          </div>
+
+          <div class="question" id="quizQuestion">—</div>
+          <div class="options" id="quizOptions"></div>
         </div>
 
-        <div class="qmeta-row">
-          <div class="qmeta">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><polyline points="4,17 4,12 9,12"/></svg>
-            Fallada <b id="qFailCount">3</b> veces
-          </div>
-          <div class="qmeta time">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
-            Tu media <b id="qAvgTime">8s</b>
-          </div>
-        </div>
-
-        <div class="question" id="quizQuestion">—</div>
-        <div class="options" id="quizOptions"></div>
         <div class="explain" id="quizExplain"></div>
 
         <div class="quiz-bottombar" id="quizBottomBar">
@@ -1247,6 +1255,7 @@
           </button>
         </div>
       </div>
+
 
       <!-- ===== Vista lista (examen / simulacro): todas las preguntas seguidas, corrección al final ===== -->
       <div id="quizListView" style="display:none;">
