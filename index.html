@@ -53,12 +53,9 @@
   .header-nav span svg{ width:17px; height:17px; flex-shrink:0; }
   #navNormativas svg.icon-diagonal{ transform: rotate(-40deg); }
   .header-nav .nav-dot{ width:3px; height:3px; border-radius:50%; background: var(--line); }
-  .header-region-switch{ position:absolute; right:20px; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%; background: var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; transition: border-color .15s; }
-  .header-region-switch:hover{ border-color: var(--muted-2); }
-  .header-region-switch .landing-flag{ width:20px; height:14px; }
 
   /* --- Barra superior en móvil: con los tres nombres completos ("Normativas",
-     "Legislación", "Estadísticas") más los botones de comunidad y cuenta no
+     "Legislación", "Estadísticas") más el botón de cuenta no
      cabía en el ancho de un teléfono y se solapaba todo. En pantallas
      pequeñas se muestran solo los iconos, en píldoras compactas, con la
      pestaña activa resaltada con fondo y color para que se note claramente
@@ -81,7 +78,6 @@
     .header-back{ left:12px; width:32px; height:32px; }
     .header-user{ right:54px; }
     .header-user-btn{ width:32px; height:32px; }
-    .header-region-switch{ right:12px; width:32px; height:32px; }
   }
 
   /* ---------- auth screen ---------- */
@@ -140,10 +136,6 @@
   .admin-back svg{ width:16px; height:16px; }
   .admin-title{ font-family: var(--title); font-size:26px; margin-bottom:6px; }
   .admin-sub{ font-size:13px; color: var(--muted); margin-bottom:22px; }
-  .admin-region-select{
-    width:100%; background: var(--card-hi); border:1px solid var(--line); color: var(--text); font-family: var(--sans);
-    font-size:14px; padding:12px 14px; border-radius:12px; margin-bottom:18px;
-  }
   .admin-tabs{ display:flex; gap:6px; margin-bottom:18px; overflow-x:auto; }
   .admin-tab{
     padding:8px 14px; border-radius:20px; border:1px solid var(--line); background: var(--card); color: var(--muted);
@@ -219,50 +211,13 @@
   .landing-btn{ display:flex; align-items:center; justify-content:center; gap:10px; padding:16px; border-radius:14px; border:1px solid var(--line); background: var(--card); color: var(--text); font-family: var(--sans); font-weight:600; font-size:14.5px; cursor:pointer; }
   .landing-btn:hover{ border-color: var(--muted-2); }
   .landing-btn-primary{ background: var(--purple); border-color: var(--purple); }
-  .landing-flag{ display:flex; width:22px; height:15px; border-radius:3px; overflow:hidden; flex-shrink:0; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15); }
-  .landing-flag svg{ width:100%; height:100%; display:block; }
-  .landing-region-switch{ position:absolute; top:20px; right:22px; width:42px; height:42px; border-radius:50%; background: var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; }
-  .landing-region-switch:hover{ border-color: var(--muted-2); }
-  .landing-region-switch .landing-flag{ width:24px; height:16px; }
-
-  /* ---------- region select (windowed modal, grid picker) ---------- */
-  .region-sheet-overlay{
+  /* ---------- sheet overlay (used by the profile menu) ---------- */
+  .sheet-overlay{
     display:none; position:fixed; inset:0; z-index:210; background:rgba(0,0,0,0.6);
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
     align-items:center; justify-content:center; padding:24px;
   }
-  .region-sheet-overlay.show{ display:flex; }
-  .region-select-panel{ max-width:600px; }
-  .region-select-grid{
-    display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; margin-bottom:22px;
-  }
-  @media (max-width:480px){ .region-select-grid{ grid-template-columns: 1fr; } }
-  .region-row{
-    position:relative; display:flex; align-items:center; gap:13px;
-    background: var(--card-hi); border:1px solid var(--line); border-radius:14px;
-    padding:15px 40px 15px 15px; cursor:pointer; text-align:left; min-height:74px;
-    transition: border-color .12s, background .12s;
-  }
-  .region-row:hover{ border-color: var(--muted-2); }
-  .region-row.selected{ border-color: var(--purple); background: rgba(140,125,245,0.08); }
-  .region-row .landing-flag{
-    width:38px; height:38px; border-radius:50%; flex-shrink:0;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15);
-  }
-  .region-row .landing-flag svg{ width:100%; height:100%; }
-  .region-row .region-name{ flex:1; font-size:13.5px; font-weight:700; line-height:1.25; }
-  .region-row .region-check{
-    position:absolute; top:12px; right:12px; width:18px; height:18px; border-radius:50%;
-    border:1px solid var(--line-soft); display:flex; align-items:center; justify-content:center;
-    color: var(--purple); flex-shrink:0;
-  }
-  .region-row.selected .region-check{ border-color: var(--purple); }
-  .region-row .region-check svg{ width:10px; height:10px; opacity:0; }
-  .region-row.selected .region-check svg{ opacity:1; }
-
-  /* ---------- topic stats (shared across regions) ---------- */
-  .topic-stat-regions{ display:flex; align-items:center; gap:5px; margin-top:5px; }
-  .topic-stat-regions .landing-flag{ width:16px; height:11px; }
+  .sheet-overlay.show{ display:flex; }
 
   /* ---------- stats screen ---------- */
   .stats-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:12px; margin-bottom:28px; }
@@ -332,6 +287,20 @@
   .mode-card:hover{ border-color: var(--muted-2); background: var(--card-hi); transform: translateY(-1px); }
   .mode-card.disabled{ opacity:.4; cursor:not-allowed; pointer-events:none; }
   .mode-card.disabled:hover{ border-color: var(--line); background: var(--card); transform:none; }
+  /* ---------- tarjeta bloqueada por tener otro test en curso ---------- */
+  .mode-card.locked{ opacity:.4; cursor:not-allowed; pointer-events:none; filter: grayscale(1); }
+  .mode-card.locked:hover{ border-color: var(--line); background: var(--card); transform:none; }
+  .mode-card.active-test{ border-color: var(--coral); box-shadow: 0 0 0 1px var(--coral); }
+  .mode-resume-btn{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    margin-top:12px; padding:9px 10px; border-radius:10px; border:none;
+    background: var(--coral); color:#fff; font-family: var(--sans); font-weight:700;
+    font-size:12.5px; letter-spacing:.2px; cursor:pointer; text-align:center;
+    transition: filter .15s;
+  }
+  .mode-resume-btn:hover{ filter: brightness(1.08); }
+  .mode-resume-btn.hidden{ display:none; }
+  .mode-resume-btn svg{ width:13px; height:13px; flex-shrink:0; }
   .mode-emblem{
     width:42px; height:42px; border-radius:50%; border:1px solid;
     display:flex; align-items:center; justify-content:center;
@@ -1007,21 +976,6 @@
     </div>
   </div>
 
-  <div class="region-sheet-overlay" id="regionSheetOverlay" onclick="if(event.target===this)closeRegionSheet()">
-    <div class="modal-panel region-select-panel">
-      <div class="modal-head">
-        <h1>¿Qué comunidad quieres preparar?</h1>
-        <div class="modal-close" role="button" tabindex="0" onclick="closeRegionSheet()" onkeydown="if(event.key==='Enter')closeRegionSheet()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
-        </div>
-      </div>
-      <div class="region-select-grid" id="regionList"></div>
-      <div class="modal-footer">
-        <button class="btn btn-block btn-confirm" id="regionConfirmBtn" onclick="confirmRegionSelect()">Siguiente</button>
-      </div>
-    </div>
-  </div>
-
   <header>
     <div class="header-nav">
       <span id="navNormativas" role="button" tabindex="0" onclick="showScreen('screen-normativas')" onkeydown="if(event.key==='Enter')showScreen('screen-normativas')">
@@ -1078,12 +1032,9 @@
         <span class="header-pending-dot hidden" id="headerPendingDot">0</span>
       </div>
     </div>
-    <div class="header-region-switch" id="headerRegionSwitch" role="button" tabindex="0" title="Cambiar de comunidad" onclick="openRegionSheet()" onkeydown="if(event.key==='Enter')openRegionSheet()">
-      <span class="landing-flag" id="headerRegionFlag"></span>
-    </div>
   </header>
 
-  <div class="region-sheet-overlay" id="profileSheetOverlay" onclick="if(event.target===this)closeUserMenu()">
+  <div class="sheet-overlay" id="profileSheetOverlay" onclick="if(event.target===this)closeUserMenu()">
     <div class="modal-panel profile-sheet-panel">
       <div class="modal-head">
         <h1>Tu cuenta</h1>
@@ -1111,7 +1062,7 @@
     <section class="screen active" id="screen-home">
       <h1>Elige un tipo de test</h1>
       <div class="modes">
-        <div class="mode-card estudio" role="button" tabindex="0" onclick="openConfig('estudio')">
+        <div class="mode-card estudio" id="modeCardEstudio" role="button" tabindex="0" onclick="openConfig('estudio')">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 7v14"/>
@@ -1123,6 +1074,10 @@
             </svg>
           </div>
           <div><div class="m-name">Modo estudio</div><div class="m-sub">Elige tus temas</div></div>
+          <div class="mode-resume-btn hidden" role="button" tabindex="0" onclick="event.stopPropagation(); resumeQuiz();" onkeydown="event.stopPropagation(); if(event.key==='Enter')resumeQuiz();">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Reanudar
+          </div>
         </div>
         <div class="mode-card fallos" id="modeCardFallos" role="button" tabindex="0" onclick="openFallos()">
           <div class="mode-emblem">
@@ -1133,8 +1088,12 @@
             </svg>
           </div>
           <div><div class="m-name">Fallos</div><div class="m-sub" id="fallosPendingLabel">— pendientes</div></div>
+          <div class="mode-resume-btn hidden" role="button" tabindex="0" onclick="event.stopPropagation(); resumeQuiz();" onkeydown="event.stopPropagation(); if(event.key==='Enter')resumeQuiz();">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Reanudar
+          </div>
         </div>
-        <div class="mode-card simulacro" role="button" tabindex="0" onclick="openConfig('simulacro')">
+        <div class="mode-card simulacro" id="modeCardSimulacro" role="button" tabindex="0" onclick="openConfig('simulacro')">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85"/>
@@ -1144,8 +1103,12 @@
             </svg>
           </div>
           <div><div class="m-name">Simulacro</div><div class="m-sub">Tiempo y preguntas</div></div>
+          <div class="mode-resume-btn hidden" role="button" tabindex="0" onclick="event.stopPropagation(); resumeQuiz();" onkeydown="event.stopPropagation(); if(event.key==='Enter')resumeQuiz();">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Reanudar
+          </div>
         </div>
-        <div class="mode-card examen" role="button" tabindex="0" onclick="openConfig('examen')">
+        <div class="mode-card examen" id="modeCardExamen" role="button" tabindex="0" onclick="openConfig('examen')">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/>
@@ -1157,6 +1120,10 @@
             </svg>
           </div>
           <div><div class="m-name">Examen</div><div class="m-sub">Condiciones reales</div></div>
+          <div class="mode-resume-btn hidden" role="button" tabindex="0" onclick="event.stopPropagation(); resumeQuiz();" onkeydown="event.stopPropagation(); if(event.key==='Enter')resumeQuiz();">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Reanudar
+          </div>
         </div>
       </div>
 
@@ -1218,40 +1185,16 @@
         Volver
       </div>
       <div class="admin-title">Panel de administración</div>
-      <div class="admin-sub">Gestiona comunidades, temas, artículos y preguntas.</div>
-
-      <select class="admin-region-select" id="adminRegionSelect" onchange="onAdminRegionChange()"></select>
+      <div class="admin-sub">Gestiona temas, artículos y preguntas.</div>
 
       <div class="admin-tabs">
-        <div class="admin-tab active" id="adminTabBtn-regions" onclick="switchAdminTab('regions')">Comunidades</div>
-        <div class="admin-tab" id="adminTabBtn-topics" onclick="switchAdminTab('topics')">Temas</div>
+        <div class="admin-tab active" id="adminTabBtn-topics" onclick="switchAdminTab('topics')">Temas</div>
         <div class="admin-tab" id="adminTabBtn-articles" onclick="switchAdminTab('articles')">Estructura</div>
         <div class="admin-tab" id="adminTabBtn-users" onclick="switchAdminTab('users')">Usuarios</div>
       </div>
 
-      <!-- REGIONS -->
-      <div class="admin-section active" id="adminSection-regions">
-        <div class="admin-add-btn" onclick="toggleAdminForm('region')">+ Añadir comunidad</div>
-        <div class="admin-form hidden" id="adminForm-region">
-          <label>Id (slug único, ej. andalucia)</label>
-          <input id="adminRegionId" placeholder="andalucia">
-          <label>Nombre</label>
-          <input id="adminRegionName" placeholder="Andalucía">
-          <label>SVG de la bandera (opcional)</label>
-          <textarea id="adminRegionFlag" placeholder="<svg>...</svg>"></textarea>
-          <label>Orden</label>
-          <input id="adminRegionSort" type="number" value="0">
-          <div class="admin-form-actions">
-            <button class="btn btn-ghost" onclick="toggleAdminForm('region')">Cancelar</button>
-            <button class="btn btn-block" onclick="adminSaveRegion()">Guardar</button>
-          </div>
-          <div class="admin-status" id="adminStatus-region"></div>
-        </div>
-        <div id="adminList-regions"></div>
-      </div>
-
       <!-- TOPICS -->
-      <div class="admin-section" id="adminSection-topics">
+      <div class="admin-section active" id="adminSection-topics">
         <div class="admin-add-btn" onclick="toggleAdminForm('topic')">+ Añadir tema</div>
         <div class="admin-form hidden" id="adminForm-topic">
           <label>Id (slug único dentro de la comunidad)</label>
@@ -1599,9 +1542,8 @@ async function logLoginAttempt(email, success, errorMessage, userId){
     console.warn('No se pudo registrar el intento de acceso', e);
   }
 }
-const adminData = { regions: [], topics: [], articles: [], nodes: [], questions: [], users: [], loginAttempts: [] };
-let adminCurrentRegion = null;
-const adminEditing = { region: null, topic: null, question: null, node: null };
+const adminData = { topics: [], articles: [], nodes: [], questions: [], users: [], loginAttempts: [] };
+const adminEditing = { topic: null, question: null, node: null };
 let adminTreeTopicId = null;   // tema seleccionado en la pestaña Estructura
 let treeAddParentId = null;    // padre del nodo que se está creando (null = raíz del tema)
 let treeQuestionNodeId = null; // nodo donde se añadirá la pregunta desde el árbol (null = pregunta general de todo el tema)
@@ -1642,12 +1584,10 @@ const SAMPLE_QUESTIONS = [
    interna), simplemente ya no filtra ni agrupa esta lista. */
 
 /* ---------- data now lives in Supabase; these fill in at runtime ---------- */
-let REGIONS = {};              // { [regionId]: {id,name,flag} }
-let currentRegion = "andalucia";
-let TOPICS = [];                // topics of currentRegion, with live `fails` count from DB
+let TOPICS = [];                // topics, with live `fails` count from DB
 let TOPIC_GROUPS = {};          // { [topicId]: [{id,label}] } — grupos raíz (títulos u otro nivel), nunca artículos
-let NODES_BY_ID = {};           // { [nodeId]: fila de nodos_temario } del árbol de la comunidad actual
-let QUESTIONS_POOL = [];        // all questions of currentRegion (DB rows mapped to quiz shape)
+let NODES_BY_ID = {};           // { [nodeId]: fila de nodos_temario } del árbol de temario
+let QUESTIONS_POOL = [];        // all questions (DB rows mapped to quiz shape)
 
 const COUNT_OPTIONS = [10, 20, 30, 40];
 const TIME_OPTIONS = [15, 30, 45, 60];
@@ -1797,55 +1737,7 @@ let ACTIVE_QUESTIONS = SAMPLE_QUESTIONS;
 let configState = { mode:null, topics:new Set(), nodeSelections:{}, count:20, time:30, minutos:null, preguntas:null, dificultad:'aleatoria', ayuda:'ocultar', repaso:false };
 let timerInterval = null;
 
-/* ---------- landing / region switching ---------- */
-function updateLandingFlag(){
-  const r = REGIONS[currentRegion];
-  const switchFlag = document.getElementById('landingSwitchFlag');
-  const enterFlag = document.getElementById('landingEnterFlag');
-  const regionName = document.getElementById('landingRegionName');
-  const headerFlag = document.getElementById('headerRegionFlag');
-  if(switchFlag) switchFlag.innerHTML = r.flag;
-  if(enterFlag) enterFlag.innerHTML = r.flag;
-  if(regionName) regionName.textContent = r.name;
-  if(headerFlag) headerFlag.innerHTML = r.flag;
-}
-let pendingRegion = currentRegion;
-function renderRegionGrid(){
-  const list = document.getElementById('regionList');
-  list.innerHTML = '';
-  Object.values(REGIONS).forEach(r => {
-    const row = document.createElement('div');
-    row.className = 'region-row' + (r.id === pendingRegion ? ' selected' : '');
-    row.setAttribute('role','button'); row.setAttribute('tabindex','0');
-    row.innerHTML =
-      '<span class="landing-flag">' + r.flag + '</span>' +
-      '<span class="region-name">' + r.name + '</span>' +
-      '<span class="region-check">' + ICONS.check + '</span>';
-    row.onclick = () => { pendingRegion = r.id; renderRegionGrid(); };
-    row.onkeydown = (e) => { if(e.key === 'Enter'){ pendingRegion = r.id; renderRegionGrid(); } };
-    list.appendChild(row);
-  });
-}
-function openRegionSheet(){
-  pendingRegion = currentRegion;
-  renderRegionGrid();
-  document.getElementById('regionSheetOverlay').classList.add('show');
-}
-function closeRegionSheet(){
-  document.getElementById('regionSheetOverlay').classList.remove('show');
-}
-function confirmRegionSelect(){
-  selectRegion(pendingRegion);
-}
-async function selectRegion(id){
-  await loadRegionData(id);
-  if(currentUser){
-    sb.from('profiles').update({ current_region: id }).eq('id', currentUser.id).then(()=>{});
-  }
-  updateLandingFlag();
-  closeRegionSheet();
-  await refreshGlobalStats();
-}
+/* ---------- landing ---------- */
 function enterApp(screenId){
   const landing = document.getElementById('landingScreen');
   if(landing) landing.classList.add('hidden');
@@ -1928,7 +1820,7 @@ function renderTopicRanking(){
   }).join('');
 }
 
-/* ---------- load region content (topics/estructura en árbol/questions) from Supabase ---------- */
+/* ---------- load app content (topics/estructura en árbol/questions) from Supabase ---------- */
 function nodeFullPath(nodeId){
   const parts = [];
   let cur = NODES_BY_ID[nodeId];
@@ -1938,13 +1830,11 @@ function nodeFullPath(nodeId){
   }
   return parts.join(' › ');
 }
-async function loadRegionData(regionId){
-  currentRegion = regionId;
-
+async function loadAppData(){
   const [{ data: topicsData, error: topicsErr }, { data: nodesData }, { data: questionsData }] = await Promise.all([
-    sb.from('topics').select('*').eq('region_id', regionId).order('sort_order'),
-    sb.from('nodos_temario').select('*').eq('region_id', regionId).order('orden'),
-    sb.from('questions').select('*').eq('region_id', regionId)
+    sb.from('topics').select('*').order('sort_order'),
+    sb.from('nodos_temario').select('*').order('orden'),
+    sb.from('questions').select('*')
   ]);
   if(topicsErr) console.error('Error cargando temas', topicsErr);
 
@@ -2168,14 +2058,44 @@ function showScreen(id){
   document.getElementById('navNormativas').classList.toggle('active', id === 'screen-normativas');
   document.getElementById('navHome').classList.toggle('active', id === 'screen-home');
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
+  if(id === 'screen-home') updateModeCardsLockState();
 }
 function showHome(){ showScreen('screen-home'); }
+
+/* ---------- bloqueo visual de las tarjetas de home cuando hay un test a medias ---------- */
+function updateModeCardsLockState(){
+  const activeMode = (quizState && quizState.mode) ? quizState.mode : null;
+  const cards = {
+    estudio: document.getElementById('modeCardEstudio'),
+    fallos: document.getElementById('modeCardFallos'),
+    simulacro: document.getElementById('modeCardSimulacro'),
+    examen: document.getElementById('modeCardExamen')
+  };
+  Object.keys(cards).forEach(mode => {
+    const card = cards[mode];
+    if(!card) return;
+    const resumeBtn = card.querySelector('.mode-resume-btn');
+    if(activeMode && mode === activeMode){
+      card.classList.remove('locked');
+      card.classList.add('active-test');
+      if(resumeBtn) resumeBtn.classList.remove('hidden');
+    } else if(activeMode){
+      card.classList.add('locked');
+      card.classList.remove('active-test');
+      if(resumeBtn) resumeBtn.classList.add('hidden');
+    } else {
+      card.classList.remove('locked', 'active-test');
+      if(resumeBtn) resumeBtn.classList.add('hidden');
+    }
+  });
+}
 function openOverlay(id){
   document.getElementById(id).classList.add('active');
 }
 
 /* ---------- config screen (estudio / examen / simulacro) ---------- */
 function openConfig(mode){
+  if(quizState && quizState.mode && quizState.mode !== mode) return; // hay un test en curso en otro apartado
   configState.mode = mode;
   if((mode === 'estudio' || mode === 'examen') && configState.topics.size === 0){
     TOPICS.forEach(t => { if(t.enabled) configState.topics.add(t.id); });
@@ -2498,6 +2418,7 @@ function startFromConfig(){
 
 /* ---------- fallos intro screen ---------- */
 function openFallos(){
+  if(quizState && quizState.mode && quizState.mode !== 'fallos') return; // hay un test en curso en otro apartado
   const total = TOPICS.filter(t => t.enabled).reduce((s,t) => s + t.fails, 0);
   if(total === 0) return; // no hay fallos: no se puede abrir el repaso
   document.getElementById('fallosTotal').textContent = total;
@@ -2531,7 +2452,7 @@ function startQuiz(mode, questions, timeMinutes){
   const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
   ACTIVE_QUESTIONS = shuffleArray(base); // el orden de las preguntas siempre es aleatorio en cada intento
   const viewMode = QUIZ_LIST_MODES.includes(mode) ? 'list' : 'card';
-  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now() };
+  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes };
   showScreen('screen-quiz');
   document.getElementById('quizCardView').style.display = (viewMode === 'card') ? 'block' : 'none';
   document.getElementById('quizListView').style.display = (viewMode === 'list') ? 'block' : 'none';
@@ -2545,7 +2466,28 @@ function startQuiz(mode, questions, timeMinutes){
   }
 }
 
-function startTimer(minutes){
+/* ---------- reanudar un test dejado a medias (desde la tarjeta bloqueada de home) ---------- */
+function resumeQuiz(){
+  if(!quizState || !quizState.mode) return;
+  showScreen('screen-quiz');
+  document.getElementById('quizCardView').style.display = (quizState.viewMode === 'card') ? 'block' : 'none';
+  document.getElementById('quizListView').style.display = (quizState.viewMode === 'list') ? 'block' : 'none';
+  document.getElementById('quizCount').style.display = (quizState.viewMode === 'card') ? 'none' : '';
+  if(quizState.viewMode === 'card'){
+    renderQuestion();
+  } else {
+    renderQuizList();
+  }
+  // continúa la cuenta atrás desde donde se quedó en vez de reiniciarla desde el total
+  if(quizState.timeMinutes){
+    startTimer(quizState.timeMinutes, quizSecondsLeft != null ? quizSecondsLeft : undefined);
+  } else {
+    startTimer(null);
+  }
+}
+
+let quizSecondsLeft = null;
+function startTimer(minutes, resumeSeconds){
   clearInterval(timerInterval);
   const timerEl = document.getElementById('quizTimer');
   if(!minutes){
@@ -2554,10 +2496,13 @@ function startTimer(minutes){
   }
   timerEl.style.display = 'flex';
   timerEl.classList.remove('urgent');
-  let secondsLeft = minutes * 60;
+  let secondsLeft = (typeof resumeSeconds === 'number') ? resumeSeconds : minutes * 60;
+  quizSecondsLeft = secondsLeft;
   updateTimerDisplay(secondsLeft);
+  if(secondsLeft <= 60) timerEl.classList.add('urgent');
   timerInterval = setInterval(() => {
     secondsLeft--;
+    quizSecondsLeft = secondsLeft;
     if(secondsLeft <= 0){
       clearInterval(timerInterval);
       updateTimerDisplay(0);
@@ -3051,7 +2996,6 @@ async function finishQuiz(){
     try{
       const { data: sessionRow, error: sErr } = await sb.from('test_sessions').insert({
         user_id: currentUser.id,
-        region_id: currentRegion,
         mode: quizState.mode,
         score: Number(notaNum.toFixed(2)),
         total, ok: quizState.correctCount, bad, pending: blank,
@@ -3074,9 +3018,9 @@ async function finishQuiz(){
       }
 
       // El estado de cada pregunta (fallada / en progreso / dominada) ya no
-      // se guarda aparte: loadRegionData() lo recalcula del tirón a partir de
+      // se guarda aparte: loadAppData() lo recalcula del tirón a partir de
       // session_answers, que es lo que se acaba de insertar arriba.
-      await loadRegionData(currentRegion);
+      await loadAppData();
       await refreshGlobalStats();
     } catch(err){
       console.error('Error guardando la sesión en Supabase', err);
@@ -3098,6 +3042,10 @@ async function finishQuiz(){
   HISTORY.unshift(entry);
   renderHistory();
   lastFinishedReviewId = entry.id;
+
+  // el test ya ha terminado: se libera el bloqueo de las demás tarjetas de home
+  quizState.mode = null;
+  quizSecondsLeft = null;
 
   showScreen('screen-result');
 }
@@ -3297,7 +3245,7 @@ async function onLoggedIn(user){
   // correo electrónico).
   let { data: profile } = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
   if(!profile){
-    const { data: created } = await sb.from('profiles').insert({ id: user.id, current_region: 'andalucia' }).select().maybeSingle();
+    const { data: created } = await sb.from('profiles').insert({ id: user.id }).select().maybeSingle();
     profile = created;
   }
   currentUserIsAdmin = !!(profile && profile.is_admin);
@@ -3343,14 +3291,8 @@ async function onLoggedIn(user){
   if(adminBtn) adminBtn.classList.toggle('hidden', !currentUserIsAdmin);
   if(currentUserIsAdmin) refreshAdminPendingBadge();
 
-  const { data: regionsData } = await sb.from('regions').select('*').order('sort_order');
-  REGIONS = {};
-  (regionsData || []).forEach(r => { REGIONS[r.id] = { id: r.id, name: r.name, flag: r.flag_svg }; });
+  await loadAppData();
 
-  const startRegion = (profile && profile.current_region && REGIONS[profile.current_region]) ? profile.current_region : 'andalucia';
-  await loadRegionData(startRegion);
-
-  updateLandingFlag();
   await loadHistory();
   await refreshGlobalStats();
   showScreen('screen-home');
@@ -3367,6 +3309,8 @@ function onLoggedOut(){
   HISTORY = [];
   TOPICS = [];
   QUESTIONS_POOL = [];
+  quizState = { mode:null, index:0, correctCount:0, answered:false };
+  quizSecondsLeft = null;
   renderHistory();
   document.getElementById('authOverlay').classList.remove('hidden');
   showAuthError(''); showAuthStatus('');
@@ -3390,23 +3334,14 @@ async function openAdminPanel(){
   if(!currentUserIsAdmin) return;
   closeUserMenu();
   showScreen('screen-admin');
-  const sel = document.getElementById('adminRegionSelect');
-  sel.innerHTML = Object.values(REGIONS).map(r => '<option value="'+esc(r.id)+'">'+esc(r.name)+'</option>').join('');
-  adminCurrentRegion = sel.value || Object.keys(REGIONS)[0] || null;
-  await adminLoadRegions();
-  if(adminCurrentRegion) sel.value = adminCurrentRegion;
-  await adminLoadRegionScopedData();
+  await adminLoadAllData();
 }
-async function onAdminRegionChange(){
-  adminCurrentRegion = document.getElementById('adminRegionSelect').value;
-  await adminLoadRegionScopedData();
-}
-async function adminLoadRegionScopedData(){
+async function adminLoadAllData(){
   await Promise.all([adminLoadTopics(), adminLoadQuestions()]);
   refreshTreeTopicSelect();
 }
 function switchAdminTab(name){
-  ['regions','topics','articles','users'].forEach(t => {
+  ['topics','articles','users'].forEach(t => {
     document.getElementById('adminTabBtn-'+t).classList.toggle('active', t===name);
     document.getElementById('adminSection-'+t).classList.toggle('active', t===name);
   });
@@ -3424,13 +3359,7 @@ function toggleAdminForm(type){
 function adminResetForm(type){
   adminEditing[type] = null;
   document.getElementById('adminStatus-'+type).textContent = '';
-  if(type==='region'){
-    document.getElementById('adminRegionId').value = '';
-    document.getElementById('adminRegionId').disabled = false;
-    document.getElementById('adminRegionName').value = '';
-    document.getElementById('adminRegionFlag').value = '';
-    document.getElementById('adminRegionSort').value = '0';
-  } else if(type==='topic'){
+  if(type==='topic'){
     document.getElementById('adminTopicId').value = '';
     document.getElementById('adminTopicId').disabled = false;
     document.getElementById('adminTopicCategory').value = '';
@@ -3486,7 +3415,7 @@ function adminRenderUsers(){
         '<div class="admin-user-row">' +
           '<div>' +
             '<div class="admin-card-title">'+esc(u.email || '(sin correo)')+'</div>' +
-            '<div class="admin-card-meta">Registrado: '+formatDateTime(u.created_at)+' · Comunidad: '+esc(u.current_region || '—')+'</div>' +
+            '<div class="admin-card-meta">Registrado: '+formatDateTime(u.created_at)+'</div>' +
             '<div class="admin-user-badges">' +
               (u.is_admin ? '<span class="admin-badge admin">Administrador</span>' : '') +
               (pending ? '<span class="admin-badge pending">Pendiente</span>' : '') +
@@ -3577,69 +3506,13 @@ function adminRenderLoginAttempts(){
   }).join('');
 }
 
-/* ---------- REGIONS ---------- */
-async function adminLoadRegions(){
-  const { data, error } = await sb.from('regions').select('*').order('sort_order');
-  if(error){ console.error(error); return; }
-  adminData.regions = data || [];
-  const el = document.getElementById('adminList-regions');
-  if(!adminData.regions.length){ el.innerHTML = '<div class="admin-empty">No hay comunidades todavía.</div>'; return; }
-  el.innerHTML = adminData.regions.map(r =>
-    '<div class="admin-card"><div class="admin-card-row">' +
-      '<div><div class="admin-card-title">'+esc(r.name)+'</div><div class="admin-card-meta">id: '+esc(r.id)+' · orden '+r.sort_order+'</div></div>' +
-      '<div class="admin-card-actions">' +
-        '<div class="admin-icon-btn" onclick="adminEditRegion(\''+r.id+'\')" title="Editar">'+ICONS.check.replace('viewBox="0 0 24 24"','viewBox="0 0 24 24" width="15" height="15"')+'</div>' +
-        '<div class="admin-icon-btn" onclick="adminDeleteRegion(\''+r.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
-      '</div>' +
-    '</div></div>'
-  ).join('');
-}
-function adminEditRegion(id){
-  const r = adminData.regions.find(x => String(x.id) === String(id));
-  if(!r) return;
-  document.getElementById('adminForm-region').classList.remove('hidden');
-  adminEditing.region = id;
-  document.getElementById('adminRegionId').value = r.id;
-  document.getElementById('adminRegionId').disabled = true;
-  document.getElementById('adminRegionName').value = r.name || '';
-  document.getElementById('adminRegionFlag').value = r.flag_svg || '';
-  document.getElementById('adminRegionSort').value = r.sort_order || 0;
-}
-async function adminSaveRegion(){
-  const id = document.getElementById('adminRegionId').value.trim();
-  const name = document.getElementById('adminRegionName').value.trim();
-  const flag_svg = document.getElementById('adminRegionFlag').value.trim();
-  const sort_order = parseInt(document.getElementById('adminRegionSort').value, 10) || 0;
-  if(!id || !name){ showAdminStatus('region', 'Id y nombre son obligatorios.', true); return; }
-  const payload = { id, name, flag_svg, sort_order };
-  const { error } = adminEditing.region
-    ? await sb.from('regions').update(payload).eq('id', adminEditing.region)
-    : await sb.from('regions').insert(payload);
-  if(error){ showAdminStatus('region', error.message, true); return; }
-  showAdminStatus('region', 'Guardado correctamente.', false);
-  await adminLoadRegions();
-  const { data: regionsData } = await sb.from('regions').select('*').order('sort_order');
-  REGIONS = {}; (regionsData || []).forEach(r => { REGIONS[r.id] = { id: r.id, name: r.name, flag: r.flag_svg }; });
-  const sel = document.getElementById('adminRegionSelect');
-  sel.innerHTML = Object.values(REGIONS).map(r => '<option value="'+esc(r.id)+'">'+esc(r.name)+'</option>').join('');
-  sel.value = adminCurrentRegion || id;
-  setTimeout(() => toggleAdminForm('region'), 600);
-}
-async function adminDeleteRegion(id){
-  if(!confirm('¿Borrar esta comunidad? Esto también puede afectar a sus temas, artículos y preguntas.')) return;
-  const { error } = await sb.from('regions').delete().eq('id', id);
-  if(error){ alert(error.message); return; }
-  await adminLoadRegions();
-}
-
 /* ---------- TOPICS ---------- */
 async function adminLoadTopics(){
-  if(!adminCurrentRegion) return;
-  const { data, error } = await sb.from('topics').select('*').eq('region_id', adminCurrentRegion).order('sort_order');
+  const { data, error } = await sb.from('topics').select('*').order('sort_order');
   if(error){ console.error(error); return; }
   adminData.topics = data || [];
   const el = document.getElementById('adminList-topics');
-  if(!adminData.topics.length){ el.innerHTML = '<div class="admin-empty">No hay temas en esta comunidad.</div>'; return; }
+  if(!adminData.topics.length){ el.innerHTML = '<div class="admin-empty">No hay temas todavía.</div>'; return; }
   el.innerHTML = adminData.topics.map(t =>
     '<div class="admin-card"><div class="admin-card-row">' +
       '<div><div class="admin-card-title">'+esc(t.name)+'</div><div class="admin-card-meta">'+esc(t.category||'')+' · '+(t.enabled ? 'Activo' : 'Inactivo')+' · orden '+t.sort_order+'</div></div>' +
@@ -3664,7 +3537,6 @@ function adminEditTopic(id){
   document.getElementById('adminTopicSort').value = t.sort_order || 0;
 }
 async function adminSaveTopic(){
-  if(!adminCurrentRegion){ showAdminStatus('topic', 'Selecciona antes una comunidad.', true); return; }
   const id = document.getElementById('adminTopicId').value.trim();
   const category = document.getElementById('adminTopicCategory').value.trim();
   const name = document.getElementById('adminTopicName').value.trim();
@@ -3672,9 +3544,9 @@ async function adminSaveTopic(){
   const enabled = document.getElementById('adminTopicEnabled').checked;
   const sort_order = parseInt(document.getElementById('adminTopicSort').value, 10) || 0;
   if(!id || !name){ showAdminStatus('topic', 'Id y nombre son obligatorios.', true); return; }
-  const payload = { id, region_id: adminCurrentRegion, category, name, description, enabled, sort_order };
+  const payload = { id, category, name, description, enabled, sort_order };
   const { error } = adminEditing.topic
-    ? await sb.from('topics').update(payload).eq('id', adminEditing.topic).eq('region_id', adminCurrentRegion)
+    ? await sb.from('topics').update(payload).eq('id', adminEditing.topic)
     : await sb.from('topics').insert(payload);
   if(error){ showAdminStatus('topic', error.message, true); return; }
   showAdminStatus('topic', 'Guardado correctamente.', false);
@@ -3684,7 +3556,7 @@ async function adminSaveTopic(){
 }
 async function adminDeleteTopic(id){
   if(!confirm('¿Borrar este tema? También se borrará su estructura (títulos/capítulos/secciones/artículos) y las preguntas asociadas.')) return;
-  const { error } = await sb.from('topics').delete().eq('id', id).eq('region_id', adminCurrentRegion);
+  const { error } = await sb.from('topics').delete().eq('id', id);
   if(error){ alert(error.message); return; }
   await adminLoadTopics();
   if(adminTreeTopicId === id) adminTreeTopicId = null;
@@ -3965,7 +3837,7 @@ async function adminSaveNode(){
   const numero = document.getElementById('adminNodeNumber').value.trim();
   const nombre = document.getElementById('adminNodeName').value.trim();
   if(!numero && !nombre){ showAdminStatus('node', 'Rellena al menos el número o el nombre.', true); return; }
-  const payload = { region_id: adminCurrentRegion, topic_id: adminTreeTopicId, padre_id: treeAddParentId, tipo, numero: numero || null, nombre: nombre || null };
+  const payload = { topic_id: adminTreeTopicId, padre_id: treeAddParentId, tipo, numero: numero || null, nombre: nombre || null };
   const { error } = adminEditing.node
     ? await sb.from('nodos_temario').update(payload).eq('id', adminEditing.node)
     : await sb.from('nodos_temario').insert(payload);
@@ -4236,7 +4108,7 @@ async function ensureIANodePath(topicId, loc){
       ((spec.numero && n.numero && String(n.numero).trim().toLowerCase() === String(spec.numero).trim().toLowerCase()) ||
        (!spec.numero && spec.nombre && n.nombre && n.nombre.trim().toLowerCase() === spec.nombre.trim().toLowerCase())));
     if(!existing){
-      const payload = { region_id: adminCurrentRegion, topic_id: topicId, padre_id: parentId, tipo, numero: spec.numero || null, nombre: spec.nombre || null };
+      const payload = { topic_id: topicId, padre_id: parentId, tipo, numero: spec.numero || null, nombre: spec.nombre || null };
       const { data, error } = await sb.from('nodos_temario').insert(payload).select().single();
       if(error) throw new Error('No se pudo crear "'+(IA_LOC_TITLE[tipo])+' '+(spec.numero||spec.nombre)+'": ' + error.message);
       existing = data;
@@ -4264,7 +4136,6 @@ async function adminSaveIAQuestions(){
     for(const q of candidates){
       const nodoId = iaLocIsEmpty(q.location) ? null : await ensureIANodePath(adminTreeTopicId, q.location);
       payload.push({
-        region_id: adminCurrentRegion,
         topic_id: adminTreeTopicId,
         nodo_id: nodoId,
         question: q.question.trim(),
@@ -4371,7 +4242,7 @@ async function adminSaveTreeQuestion(){
   const difficulty = document.getElementById('tqDifficulty').value;
   if(!question || options.length < 2){ showAdminStatus('treeQuestion', 'Enunciado y al menos 2 opciones son obligatorios.', true); return; }
   if(correct_index >= options.length){ showAdminStatus('treeQuestion', 'La opción correcta seleccionada no existe entre las opciones rellenadas.', true); return; }
-  const payload = { region_id: adminCurrentRegion, topic_id: treeQuestionTopicId, nodo_id: treeQuestionNodeId, question, options, correct_index, explain, difficulty };
+  const payload = { topic_id: treeQuestionTopicId, nodo_id: treeQuestionNodeId, question, options, correct_index, explain, difficulty };
   const editingId = adminEditing.question;
   const { error } = editingId
     ? await sb.from('questions').update(payload).eq('id', editingId)
@@ -4385,8 +4256,7 @@ async function adminSaveTreeQuestion(){
 
 /* ---------- QUESTIONS (datos usados por el árbol de Estructura) ---------- */
 async function adminLoadQuestions(){
-  if(!adminCurrentRegion){ return; }
-  const { data, error } = await sb.from('questions').select('*').eq('region_id', adminCurrentRegion);
+  const { data, error } = await sb.from('questions').select('*');
   if(error){ console.error(error); return; }
   adminData.questions = data || [];
 }
