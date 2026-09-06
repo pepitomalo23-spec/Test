@@ -640,6 +640,26 @@
   .qmeta b{ color: var(--coral); font-weight:600; }
   .qmeta.time b{ color: var(--muted); font-weight:600; }
 
+  .fail-history-toggle{
+    display:inline-flex; align-items:center; gap:6px; font-family: var(--mono); font-size:11.5px;
+    color: var(--muted-2); cursor:pointer; user-select:none; margin-bottom:12px;
+  }
+  .fail-history-toggle svg:first-child{ width:13px; height:13px; }
+  .fail-history-toggle b{ color: var(--coral); font-weight:600; }
+  .fail-history-toggle .chev{ width:12px; height:12px; display:flex; transition: transform .15s; }
+  .fail-history-toggle .chev svg{ width:12px; height:12px; }
+  .fail-history-toggle.open .chev{ transform: rotate(90deg); }
+  .fail-history-panel{
+    display:none; flex-direction:column; gap:7px; margin:0 0 14px;
+    padding:11px 13px; background: var(--card-hi); border:1px solid var(--line); border-radius:9px;
+  }
+  .fail-history-panel.open{ display:flex; }
+  .fail-history-row{ display:flex; align-items:center; gap:9px; font-family: var(--mono); font-size:12px; color: var(--muted); }
+  .fail-history-row svg{ width:14px; height:14px; flex-shrink:0; }
+  .fh-ok{ color: var(--green); display:flex; }
+  .fh-bad{ color: var(--coral); display:flex; }
+  .fail-history-loading, .fail-history-empty{ font-family: var(--mono); font-size:11.5px; color: var(--muted-2); }
+
   .question{ font-family: 'Source Serif 4', serif; font-size:20px; font-weight:600; line-height:1.5; margin-bottom:24px; }
 
   .options{ display:flex; flex-direction:column; gap:9px; }
@@ -1223,13 +1243,6 @@
       <!-- ===== Vista tarjeta (estudio / fallos): una pregunta, explicación colapsable, navegación con flechas ===== -->
       <div id="quizCardView">
         <div class="quiz-card">
-          <div class="qmeta-row">
-            <div class="qmeta time">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
-              Tu media <b id="qAvgTime">8s</b>
-            </div>
-          </div>
-
           <div class="question" id="quizQuestion">—</div>
           <div class="options" id="quizOptions"></div>
         </div>
@@ -2197,17 +2210,77 @@ function updateTimerDisplay(s){
   document.getElementById('quizTimerText').textContent = String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
 }
 
-/* Bloque "ubicación (azul) + veces fallada" que se muestra como lo primero
-   dentro de la explicación, no como cabecera fija de la pregunta. */
+/* Bloque "ubicación (azul) + panel de veces fallada" que se muestra como lo
+   primero dentro de la explicación, no como cabecera fija de la pregunta. */
 function explainMetaHtml(q){
   return '<div class="article-tag' + (q.general ? ' general' : '') + '" style="margin-bottom:12px;">' +
       ICONS.seal + '<span>' + (q.general ? generalTagText(q) : q.art) + '</span>' +
     '</div>' +
-    '<div class="qmeta-row" style="margin-bottom:12px;"><div class="qmeta">' +
+    '<div class="fail-history-toggle" role="button" tabindex="0" ' +
+      'onclick="toggleFailHistory(\'' + q.id + '\', this)" ' +
+      'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><polyline points="4,17 4,12 9,12"/></svg>' +
-      'Fallada <b>' + (q.failCount || 0) + '</b> veces' +
-    '</div></div>';
+      '<span>Fallada <b>' + (q.failCount || 0) + '</b> veces</span>' +
+      '<span class="chev">' + ICONS.chevron + '</span>' +
+    '</div>' +
+    '<div class="fail-history-panel"></div>';
 }
+
+/* Abre/cierra el panel con el historial de intentos de una pregunta (más
+   reciente primero), con un check o una X roja según acertaras o fallaras
+   ese día. Se carga una sola vez de Supabase y se guarda en el propio panel. */
+async function toggleFailHistory(questionId, toggleEl){
+  const panel = toggleEl.nextElementSibling;
+  if(!panel || !panel.classList.contains('fail-history-panel')) return;
+
+  const isOpen = panel.classList.contains('open');
+  if(isOpen){
+    panel.classList.remove('open');
+    toggleEl.classList.remove('open');
+    return;
+  }
+  toggleEl.classList.add('open');
+  panel.classList.add('open');
+
+  if(panel.dataset.loaded === '1') return; // ya se cargó antes, no repetir la consulta
+
+  if(!currentUser){
+    panel.innerHTML = '<div class="fail-history-empty">Inicia sesión para ver tu historial de intentos.</div>';
+    return;
+  }
+
+  panel.innerHTML = '<div class="fail-history-loading">Cargando historial…</div>';
+  try{
+    const { data, error } = await sb
+      .from('session_answers')
+      .select('is_correct, test_sessions!inner(created_at)')
+      .eq('user_id', currentUser.id)
+      .eq('question_id', questionId);
+    if(error) throw error;
+
+    const rows = (data || [])
+      .filter(r => r.test_sessions && r.test_sessions.created_at)
+      .sort((a, b) => new Date(b.test_sessions.created_at) - new Date(a.test_sessions.created_at));
+
+    if(!rows.length){
+      panel.innerHTML = '<div class="fail-history-empty">Todavía no has respondido esta pregunta en ningún test.</div>';
+    } else {
+      panel.innerHTML = rows.map(r => {
+        const d = new Date(r.test_sessions.created_at);
+        const dateStr = d.toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' });
+        const icon = r.is_correct
+          ? '<span class="fh-ok">' + ICONS.check + '</span>'
+          : '<span class="fh-bad">' + ICONS.cross + '</span>';
+        return '<div class="fail-history-row">' + icon + '<span>' + dateStr + '</span></div>';
+      }).join('');
+    }
+    panel.dataset.loaded = '1';
+  } catch(err){
+    console.error('Error cargando el historial de intentos', err);
+    panel.innerHTML = '<div class="fail-history-empty">No se ha podido cargar el historial. Inténtalo de nuevo.</div>';
+  }
+}
+
 function renderQuestion(){
   const q = ACTIVE_QUESTIONS[quizState.index];
   const existingAnswer = quizState.answers[quizState.index];
@@ -2216,7 +2289,6 @@ function renderQuestion(){
   quizState.answered = isAnswered;
 
   document.getElementById('quizCount').textContent = (quizState.index+1) + ' / ' + ACTIVE_QUESTIONS.length;
-  document.getElementById('qAvgTime').textContent = q.avgTime;
   document.getElementById('quizQuestion').textContent = q.q;
 
   const optsEl = document.getElementById('quizOptions');
