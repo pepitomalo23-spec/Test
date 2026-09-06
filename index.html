@@ -260,14 +260,8 @@
   .region-row.selected .region-check svg{ opacity:1; }
 
   /* ---------- topic stats (shared across regions) ---------- */
-  .topic-stats-list{ display:flex; flex-direction:column; gap:8px; margin-top:12px; margin-bottom:28px; }
-  .topic-stat-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; background: var(--card); border:1px solid var(--line); border-radius:12px; padding:13px 15px; }
-  .topic-stat-name{ font-size:13.5px; font-weight:500; }
-  .topic-stat-right{ display:flex; align-items:center; gap:14px; flex-shrink:0; }
-  .topic-stat-seen{ font-family: var(--mono); font-size:12px; color: var(--muted); white-space:nowrap; }
   .topic-stat-regions{ display:flex; align-items:center; gap:5px; margin-top:5px; }
   .topic-stat-regions .landing-flag{ width:16px; height:11px; }
-  .topic-stat-fails{ font-family: var(--mono); font-size:13px; color: var(--coral); white-space:nowrap; }
 
   /* ---------- stats screen ---------- */
   .stats-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:12px; margin-bottom:28px; }
@@ -278,6 +272,8 @@
   .stat-value.blue{ color: var(--blue); }
   .stat-value.teal{ color: var(--teal); }
   .stat-value.coral{ color: var(--coral); }
+  .stat-sub{ font-size:12px; color: var(--muted); margin-top:9px; }
+  .stat-sub b{ color: var(--text); font-family: var(--mono); font-weight:700; }
   .empty{ text-align:center; padding: 60px 20px; color: var(--muted); border:1px dashed var(--line); border-radius:14px; font-size:13.5px; }
 
   /* ---------- barra de dominio de preguntas (verde/amarillo/rojo) ---------- */
@@ -1154,20 +1150,17 @@
       <h1>Estadísticas</h1>
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-label">Tests realizados</div>
-          <div class="stat-value purple" id="statTestsCount">—</div>
+          <div class="stat-label">Preguntas hechas</div>
+          <div class="stat-value purple" id="statQuestionsDone">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Preguntas totales</div>
+          <div class="stat-value coral" id="statQuestionsTotal">—</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Nota media</div>
           <div class="stat-value blue" id="statAvgScore">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Racha actual</div>
-          <div class="stat-value teal" id="statStreak">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Fallos pendientes</div>
-          <div class="stat-value coral" id="statFallosPending">—</div>
+          <div class="stat-sub">Nivel general: <b id="statLevelPct">—</b></div>
         </div>
       </div>
       <div class="mastery-card">
@@ -1182,9 +1175,6 @@
           <div class="mastery-legend-item"><span class="mastery-dot mastery-red"></span>Suspendidas <span class="mastery-legend-value" id="masteryRedCount">0</span></div>
         </div>
       </div>
-
-      <div class="section-row"><div class="section-title">Por tema</div><div class="section-rule"></div></div>
-      <div class="topic-stats-list" id="topicStatsList"><!-- filled by JS --></div>
     </section>
 
     <!-- ===== ADMIN SCREEN ===== -->
@@ -1819,7 +1809,6 @@ async function selectRegion(id){
     sb.from('profiles').update({ current_region: id }).eq('id', currentUser.id).then(()=>{});
   }
   updateLandingFlag();
-  renderTopicStats();
   closeRegionSheet();
   await refreshGlobalStats();
 }
@@ -1831,23 +1820,6 @@ function enterApp(screenId){
 function backToLanding(){
   const landing = document.getElementById('landingScreen');
   if(landing) landing.classList.remove('hidden');
-}
-
-/* ---------- topic stats (current region only) ---------- */
-function renderTopicStats(){
-  const el = document.getElementById('topicStatsList');
-  el.innerHTML = '';
-  TOPICS.forEach(t => {
-    const row = document.createElement('div');
-    row.className = 'topic-stat-row';
-    row.innerHTML =
-      '<div class="topic-stat-name">' + t.name + '</div>' +
-      '<div class="topic-stat-right">' +
-        '<span class="topic-stat-seen">Vista ' + (t.seen || 0) + ' veces</span>' +
-        '<span class="topic-stat-fails">' + t.fails + ' fallos</span>' +
-      '</div>';
-    el.appendChild(row);
-  });
 }
 
 /* ---------- barra de dominio (verde/amarillo/rojo) de la pantalla Estadísticas ---------- */
@@ -1926,17 +1898,14 @@ async function loadRegionData(regionId){
   });
 
   const redByTopic = {};
-  const seenByTopic = {};
   QUESTIONS_POOL.forEach(q => {
     if(!q.topic_id) return;
-    if(q.timesSeen) seenByTopic[q.topic_id] = (seenByTopic[q.topic_id] || 0) + q.timesSeen;
     if(q.masteryStatus === 'red') redByTopic[q.topic_id] = (redByTopic[q.topic_id] || 0) + 1;
   });
 
   TOPICS = (topicsData || []).map(t => ({
     id: t.id, category: t.category, name: t.name, desc: t.description, enabled: t.enabled,
-    fails: redByTopic[t.id] || 0,
-    seen: seenByTopic[t.id] || 0
+    fails: redByTopic[t.id] || 0
   }));
   configState.topics = new Set(TOPICS.filter(t => t.enabled).map(t => t.id));
   configState.nodeSelections = {};
@@ -2048,7 +2017,6 @@ async function deleteHistoryItem(h, btnEl){
 
   if(currentUser){
     await refreshGlobalStats();
-    renderTopicStats();
   }
 }
 
@@ -2079,34 +2047,32 @@ async function loadHistory(){
 /* ---------- global stats screen ---------- */
 async function refreshGlobalStats(){
   if(!currentUser) return;
-  const { data: sessions } = await sb.from('test_sessions').select('score, created_at').eq('user_id', currentUser.id);
+  const { data: sessions } = await sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
   const list = sessions || [];
   const testsCount = list.length;
   const avgScore = testsCount ? list.reduce((s,r) => s + Number(r.score || 0), 0) / testsCount : 0;
+  const questionsDone = list.reduce((s,r) => s + (r.total || 0), 0);
 
-  const dayStrings = new Set(list.map(r => new Date(r.created_at).toDateString()));
-  let streak = 0;
-  let cursor = new Date();
-  while(dayStrings.has(cursor.toDateString())){
-    streak++;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-
-  // "Pendientes" ya no es un contador aparte que se pueda desincronizar del
-  // historial real: es, en cada momento, el número de preguntas cuyo último
-  // intento (dentro de lo que quede en el historial, sin lo borrado) fue un
-  // fallo — calculado en computeQuestionMastery() a partir de session_answers.
+  // "Pendientes" (aviso del modo Fallos en el home) se sigue calculando en
+  // caliente a partir del historial real, no de ningún contador aparte.
   const fallosPending = QUESTIONS_POOL.filter(q => q.masteryStatus === 'red').length;
 
-  const elTests = document.getElementById('statTestsCount');
+  // Nivel general: de todo el temario (preguntas sin hacer incluidas), qué
+  // porcentaje está realmente dominado (verde). Las falladas y las que aún
+  // no se han hecho restan por igual, no puntúan.
+  const totalQuestions = QUESTIONS_POOL.length;
+  const greenCount = QUESTIONS_POOL.filter(q => q.masteryStatus === 'green').length;
+  const levelPct = totalQuestions ? Math.round((greenCount / totalQuestions) * 100) : null;
+
+  const elDone = document.getElementById('statQuestionsDone');
+  const elTotal = document.getElementById('statQuestionsTotal');
   const elAvg = document.getElementById('statAvgScore');
-  const elStreak = document.getElementById('statStreak');
-  const elFallos = document.getElementById('statFallosPending');
+  const elLevel = document.getElementById('statLevelPct');
   const elFallosLabel = document.getElementById('fallosPendingLabel');
-  if(elTests) elTests.textContent = testsCount;
+  if(elDone) elDone.textContent = questionsDone;
+  if(elTotal) elTotal.textContent = totalQuestions;
   if(elAvg) elAvg.textContent = testsCount ? formatNota(avgScore) : '—';
-  if(elStreak) elStreak.textContent = streak + (streak === 1 ? ' día' : ' días');
-  if(elFallos) elFallos.textContent = fallosPending;
+  if(elLevel) elLevel.textContent = (levelPct === null) ? '—' : (levelPct + '%');
   if(elFallosLabel) elFallosLabel.textContent = fallosPending + ' pendientes';
 
   renderMasteryBar();
@@ -3028,7 +2994,6 @@ async function finishQuiz(){
       // session_answers, que es lo que se acaba de insertar arriba.
       await loadRegionData(currentRegion);
       await refreshGlobalStats();
-      renderTopicStats();
     } catch(err){
       console.error('Error guardando la sesión en Supabase', err);
     }
@@ -3302,7 +3267,6 @@ async function onLoggedIn(user){
   await loadRegionData(startRegion);
 
   updateLandingFlag();
-  renderTopicStats();
   await loadHistory();
   await refreshGlobalStats();
   showScreen('screen-home');
