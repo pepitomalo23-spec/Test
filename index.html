@@ -646,17 +646,18 @@
     padding:6px 12px 6px 10px; border:1px solid var(--line); border-radius:20px; background: var(--card);
     transition: border-color .12s, background .12s;
   }
-  .fail-history-toggle:hover{ border-color: var(--muted-2); }
+  .fail-history-toggle:hover{ border-color: rgba(242,102,92,0.45); box-shadow: 0 0 12px rgba(242,102,92,0.18); }
   .fail-history-toggle svg:first-child{ width:13px; height:13px; }
   .fail-history-toggle b{ color: var(--coral); font-weight:600; }
   .fail-history-toggle .chev{ width:12px; height:12px; display:flex; transition: transform .15s; color: var(--muted-2); }
   .fail-history-toggle .chev svg{ width:12px; height:12px; }
-  .fail-history-toggle.open{ border-color: rgba(140,125,245,0.4); background: rgba(140,125,245,0.06); }
-  .fail-history-toggle.open .chev{ transform: rotate(90deg); }
+  .fail-history-toggle.open{ border-color: rgba(140,125,245,0.45); background: rgba(140,125,245,0.08); box-shadow: 0 0 14px rgba(140,125,245,0.22); }
+  .fail-history-toggle.open .chev{ transform: rotate(90deg); color: var(--purple); }
   .fail-history-panel{
     display:none; flex-direction:column; width:100%; margin:10px 0 0; overflow:hidden;
-    background: var(--card); border:1px solid var(--line); border-radius:14px;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+    background: rgba(20,20,20,0.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border:1px solid rgba(140,125,245,0.22); border-radius:14px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
     animation: failPanelIn .16s ease;
   }
   @keyframes failPanelIn{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:translateY(0); } }
@@ -676,39 +677,72 @@
     font-family: var(--mono); font-size:11.5px; color: var(--muted-2); padding:14px 15px;
   }
 
-  .explain-body{ }
-  .explain-section-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .explain-body{ position:relative; }
+  .explain-section-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
   .explain-section-label{
-    display:flex; align-items:center; gap:7px; font-family: var(--sans); font-weight:700; font-size:11px;
-    letter-spacing:.04em; text-transform:uppercase; color: var(--muted-2);
+    display:flex; align-items:center; gap:9px; font-family: var(--sans); font-weight:800; font-size:11px;
+    letter-spacing:.08em; text-transform:uppercase;
+    background: linear-gradient(90deg, var(--purple), var(--teal));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
   }
-  .explain-section-label svg{ width:14px; height:14px; color: var(--purple); }
+  .explain-icon-badge{
+    width:26px; height:26px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(135deg, var(--purple), var(--teal));
+    animation: bulbGlow 2.6s ease-in-out infinite;
+  }
+  .explain-icon-badge svg{ width:14px; height:14px; color:#0A0A0A; }
+  @keyframes bulbGlow{
+    0%,100%{ box-shadow: 0 0 0 4px rgba(140,125,245,0.12), 0 0 14px rgba(140,125,245,0.4); }
+    50%{ box-shadow: 0 0 0 6px rgba(47,191,174,0.14), 0 0 22px rgba(47,191,174,0.5); }
+  }
   .ia-explain-btn{
-    display:flex; align-items:center; gap:5px; flex-shrink:0;
-    font-family: var(--sans); font-weight:600; font-size:11px; color: var(--purple);
-    background: rgba(140,125,245,0.1); border:1px solid rgba(140,125,245,0.35);
-    padding:5px 11px 5px 8px; border-radius:20px; cursor:pointer; transition: background .12s, border-color .12s;
+    position:relative; display:flex; align-items:center; gap:6px; flex-shrink:0;
+    font-family: var(--sans); font-weight:700; font-size:11px; color:#0A0A0A;
+    background: linear-gradient(90deg, var(--purple), var(--teal));
+    border:1px solid transparent;
+    padding:6px 13px 6px 10px; border-radius:20px; cursor:pointer;
+    box-shadow: 0 0 14px rgba(140,125,245,0.35);
+    transition: transform .15s ease, box-shadow .15s ease;
   }
-  .ia-explain-btn:hover{ background: rgba(140,125,245,0.18); border-color: rgba(140,125,245,0.55); }
-  .ia-explain-btn:disabled{ opacity:.6; cursor:default; }
+  .ia-explain-btn:hover{ transform: translateY(-1px); box-shadow: 0 0 20px rgba(47,191,174,0.55); }
+  .ia-explain-btn:active{ transform: translateY(0); }
+  .ia-explain-btn:disabled{ opacity:.6; cursor:default; transform:none; box-shadow:none; }
   .ia-explain-btn svg{ width:13px; height:13px; }
-  .explain-text{ font-size:13.5px; line-height:1.75; color: var(--muted); }
+  .explain-text{ font-size:13.5px; line-height:1.8; color: var(--muted); }
   .explain-text b{ color: var(--text); font-weight:600; }
-  .ia-explain-result{ display:none; margin-top:18px; }
+  .ia-explain-result{ display:none; margin-top:20px; }
   .ia-explain-result.show{ display:block; animation: failPanelIn .16s ease; }
   .ia-explain-card{
-    background: linear-gradient(135deg, rgba(140,125,245,0.09), rgba(140,125,245,0.02));
-    border:1px solid rgba(140,125,245,0.28); border-radius:14px; padding:16px 18px;
+    position:relative; overflow:hidden;
+    background: linear-gradient(160deg, rgba(140,125,245,0.14), rgba(47,191,174,0.05) 55%, rgba(20,20,20,0.4));
+    border:1px solid rgba(140,125,245,0.32); border-radius:16px; padding:18px 20px 20px;
   }
+  .ia-explain-card::before{
+    content:''; position:absolute; inset:0 0 auto 0; height:2px;
+    background: linear-gradient(90deg, var(--purple), var(--teal), var(--purple));
+    background-size:200% 100%; animation: iaScan 3s linear infinite;
+  }
+  @keyframes iaScan{ 0%{ background-position:0% 0; } 100%{ background-position:200% 0; } }
   .ia-explain-label{
-    display:flex; align-items:center; gap:7px; font-family: var(--sans); font-weight:700; font-size:11px;
-    letter-spacing:.04em; text-transform:uppercase; color: var(--purple); margin-bottom:10px;
+    display:flex; align-items:center; gap:8px; font-family: var(--sans); font-weight:800; font-size:11px;
+    letter-spacing:.08em; text-transform:uppercase; color: var(--text); margin-bottom:12px;
   }
-  .ia-explain-label svg{ width:14px; height:14px; }
-  .ia-explain-text{ font-size:13.5px; line-height:1.75; color: var(--muted); }
+  .ia-explain-icon-badge{
+    width:22px; height:22px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(135deg, var(--purple), var(--teal));
+  }
+  .ia-explain-icon-badge svg{ width:12px; height:12px; color:#0A0A0A; }
+  .ia-explain-text{ font-size:13.5px; line-height:1.8; color: var(--muted); }
   .ia-explain-text p{ margin:0 0 10px; }
   .ia-explain-text p:last-child{ margin-bottom:0; }
   .ia-explain-loading, .ia-explain-empty{ font-family: var(--mono); font-size:11.5px; color: var(--muted-2); }
+  .ia-explain-loading{ display:flex; align-items:center; gap:8px; }
+  .ia-explain-loading::before{
+    content:''; width:7px; height:7px; border-radius:50%; flex-shrink:0;
+    background: linear-gradient(135deg, var(--purple), var(--teal));
+    animation: dotPulse 1s ease-in-out infinite;
+  }
+  @keyframes dotPulse{ 0%,100%{ opacity:.3; transform:scale(.8); } 50%{ opacity:1; transform:scale(1.15); } }
 
   .question{ font-family: 'Source Serif 4', serif; font-size:20px; font-weight:600; line-height:1.5; margin-bottom:24px; }
 
@@ -736,15 +770,28 @@
   .option.incorrect .opt-result{ display:block; color: var(--coral); }
 
   .explain{
-    margin-top:20px; padding:22px 24px 24px; background: var(--card); border:1px solid var(--line);
-    border-radius:16px; font-size:13px; line-height:1.65; color: var(--muted); display:none;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+    position:relative; margin-top:20px; padding:24px 26px 26px;
+    background:
+      radial-gradient(120% 140% at 0% 0%, rgba(140,125,245,0.10), transparent 55%),
+      radial-gradient(120% 140% at 100% 100%, rgba(47,191,174,0.08), transparent 55%),
+      var(--card);
+    border:1px solid rgba(140,125,245,0.22);
+    border-radius:20px; font-size:13px; line-height:1.65; color: var(--muted); display:none;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+    overflow:hidden;
   }
-  .explain.show{ display:block; }
+  .explain::before{
+    content:''; position:absolute; inset:0; padding:1px; border-radius:20px;
+    background: linear-gradient(135deg, rgba(140,125,245,0.55), rgba(47,191,174,0.35), transparent 60%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    pointer-events:none;
+  }
+  .explain.show{ display:block; animation: failPanelIn .2s ease; }
   .explain b{ color: var(--text); }
-  .explain-meta{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .explain-meta{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
   .explain-meta .article-tag{ margin-bottom:0; }
-  .explain-divider{ height:1px; background: var(--line-soft); border:none; margin:0 0 18px; }
+  .explain-divider{ height:1px; background: linear-gradient(90deg, rgba(140,125,245,0.35), rgba(47,191,174,0.05)); border:none; margin:0 0 18px; }
   .explain .cite{ font-family: var(--mono); font-size:11px; color: var(--blue); display:flex; align-items:center; gap:6px; margin-top:10px; }
   .explain .cite svg{ width:12px; height:12px; }
 
@@ -2346,7 +2393,7 @@ async function toggleFailHistory(questionId, toggleEl){
 function explainBodyHtml(q){
   return '<div class="explain-body">' +
     '<div class="explain-section-head">' +
-      '<div class="explain-section-label">' + ICONS.bulb + '<span>Explicación</span></div>' +
+      '<div class="explain-section-label"><span class="explain-icon-badge">' + ICONS.bulb + '</span><span>Explicación</span></div>' +
       '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
         ICONS.brain + '<span>IA</span>' +
       '</button>' +
@@ -2424,7 +2471,7 @@ async function explainWithAI(questionId, btnEl){
     if(!cleanText){ throw new Error('La IA no ha devuelto ninguna explicación.'); }
     const paragraphs = cleanText.split(/\n{2,}/).map(p => '<p>' + esc(p.trim()).replace(/\n/g, '<br>') + '</p>').join('');
     resultEl.innerHTML = '<div class="ia-explain-card">' +
-      '<div class="ia-explain-label">' + ICONS.brain + '<span>Explicación ampliada con IA</span></div>' +
+      '<div class="ia-explain-label"><span class="ia-explain-icon-badge">' + ICONS.brain + '</span><span>Explicación ampliada con IA</span></div>' +
       '<div class="ia-explain-text">' + paragraphs + '</div>' +
     '</div>';
     resultEl.dataset.loaded = '1';
