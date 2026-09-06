@@ -1811,6 +1811,10 @@ function renderTopicGroupList(topicId, topicSelected){
   }).join('') + '</div>';
 }
 function toggleTopicGroup(topicId, groupId){
+  // Tocar un título enciende el tema automáticamente si estaba apagado, para
+  // que la acción tenga efecto inmediato y visible (antes, con el tema
+  // apagado, tocar un título no se reflejaba en nada).
+  if(!configState.topics.has(topicId)) configState.topics.add(topicId);
   const groups = TOPIC_GROUPS[topicId] || [];
   if(!configState.nodeSelections[topicId]){
     configState.nodeSelections[topicId] = new Set(groups.map(g => g.id));
@@ -1877,10 +1881,13 @@ function renderTemas(){
 }
 
 function toggleTopic(id){
-  // Marcar/desmarcar el tema no toca la selección de títulos de dentro: por
-  // defecto se incluye todo (sin restricción); el panel sirve para EXCLUIR
-  // los títulos concretos que no se quieran, no para partir de cero.
+  // El check del tema principal tiene prioridad sobre la selección de
+  // títulos de dentro: actives o desactives el tema, siempre se reinicia a
+  // "todos incluidos" (se borra cualquier exclusión que hubiera en el panel).
+  // El panel sigue sirviendo para excluir títulos concretos después, pero
+  // cada vez que tocas este check se parte de cero.
   if(configState.topics.has(id)) configState.topics.delete(id); else configState.topics.add(id);
+  delete configState.nodeSelections[id];
   renderTemas();
 }
 
