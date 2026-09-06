@@ -198,6 +198,15 @@
   .admin-badge.over{ color: var(--coral); border-color: var(--coral); background: rgba(242,102,92,0.1); }
   .admin-device-limit{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
   .admin-device-limit input{ width:64px; background: var(--card-hi); border:1px solid var(--line); color: var(--text); font-family: var(--mono); font-size:13px; padding:7px 8px; border-radius:8px; text-align:center; }
+  .admin-devices-toggle{ font-family: var(--sans); font-weight:600; font-size:12px; color: var(--muted); cursor:pointer; margin-top:10px; display:inline-block; }
+  .admin-devices-toggle:hover{ color: var(--purple); }
+  .admin-devices-list{ margin-top:10px; padding-top:10px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:10px; }
+  .admin-device-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:8px 10px; border:1px solid var(--line); border-radius:9px; background: var(--card-hi); }
+  .admin-device-row.admin-device-warn{ border-color: var(--coral); }
+  .admin-device-name{ font-family: var(--sans); font-weight:600; font-size:13px; }
+  .admin-device-ip{ display:flex; align-items:center; font-family: var(--mono); font-size:12px; flex-shrink:0; }
+  .admin-ip-link{ color: var(--muted); text-decoration:underline; }
+  .admin-ip-link:hover{ color: var(--purple); }
   .admin-attempt-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
   .admin-attempt-ok{ color: var(--teal); }
   .admin-attempt-fail{ color: var(--coral); }
@@ -3454,9 +3463,57 @@ function adminRenderUsers(){
         '</div>' +
         pendingRow +
         '<div class="admin-status" id="adminStatus-deviceLimit-'+esc(u.id)+'"></div>' +
+        '<div class="admin-devices-toggle" role="button" tabindex="0" onclick="adminToggleDevices(\''+u.id+'\')">Ver dispositivos</div>' +
+        '<div class="admin-devices-list" id="adminDevices-'+esc(u.id)+'" style="display:none;"></div>' +
       '</div>'
     );
   }).join('');
+}
+function describeUserAgent(ua){
+  if(!ua) return 'Dispositivo desconocido';
+  let os = 'Dispositivo desconocido';
+  if(/iPhone/i.test(ua)) os = 'iPhone';
+  else if(/iPad/i.test(ua)) os = 'iPad';
+  else if(/Android/i.test(ua)) os = 'Android';
+  else if(/Macintosh|Mac OS X/i.test(ua)) os = 'Mac';
+  else if(/Windows/i.test(ua)) os = 'Windows';
+  else if(/Linux/i.test(ua)) os = 'Linux';
+  let browser = '';
+  if(/Edg\//i.test(ua)) browser = 'Edge';
+  else if(/OPR\/|Opera/i.test(ua)) browser = 'Opera';
+  else if(/CriOS|Chrome\//i.test(ua)) browser = 'Chrome';
+  else if(/FxiOS|Firefox\//i.test(ua)) browser = 'Firefox';
+  else if(/Safari\//i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
+  return browser ? (os + ' · ' + browser) : os;
+}
+async function adminToggleDevices(userId){
+  const box = document.getElementById('adminDevices-'+userId);
+  if(!box) return;
+  if(box.style.display !== 'none'){ box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = '<div class="admin-empty" style="padding:10px 0;">Cargando…</div>';
+  const { data, error } = await sb.rpc('admin_list_user_devices', { target_user_id: userId });
+  if(error){ box.innerHTML = '<div class="admin-empty" style="padding:10px 0;">No se pudo cargar los dispositivos.</div>'; console.error(error); return; }
+  if(!data || !data.length){ box.innerHTML = '<div class="admin-empty" style="padding:10px 0;">Sin dispositivos registrados.</div>'; return; }
+  const ips = data.map(d => d.ip_address).filter(Boolean);
+  const uniqueIps = [...new Set(ips)];
+  box.innerHTML = data.map(d => {
+    const differs = d.ip_address && uniqueIps.length > 1;
+    const ipLabel = d.ip_address
+      ? '<a href="https://ipinfo.io/'+encodeURIComponent(d.ip_address)+'" target="_blank" rel="noopener" class="admin-ip-link">'+esc(d.ip_address)+'</a>'
+      : 'IP no disponible';
+    return (
+      '<div class="admin-device-row'+(differs ? ' admin-device-warn' : '')+'">' +
+        '<div>' +
+          '<div class="admin-device-name">'+esc(describeUserAgent(d.user_agent))+'</div>' +
+          '<div class="admin-card-meta">Primera vez: '+formatDateTime(d.first_seen)+' · Última vez: '+formatDateTime(d.last_seen)+'</div>' +
+        '</div>' +
+        '<div class="admin-device-ip">'+ipLabel+(differs ? '<span class="admin-badge over" style="margin-left:6px;">IP distinta</span>' : '')+'</div>' +
+      '</div>'
+    );
+  }).join('') + (uniqueIps.length > 1
+      ? '<div class="admin-card-meta" style="color:var(--coral); margin-top:6px;">Estos dispositivos se han conectado desde direcciones IP distintas. Revisa si todos son realmente suyos.</div>'
+      : (uniqueIps.length === 1 ? '<div class="admin-card-meta" style="margin-top:6px;">Todos los dispositivos se han conectado desde la misma dirección IP.</div>' : ''));
 }
 async function adminApproveUser(userId){
   const { error } = await sb.rpc('admin_approve_user', { p_user_id: userId });
