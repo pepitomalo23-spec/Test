@@ -2302,6 +2302,17 @@ function confirmFinishQuiz(){
 }
 
 async function finishQuiz(){
+  // Si finishQuiz() ya está en marcha (p. ej. el usuario ha pulsado "Finalizar"
+  // varias veces mientras se guardaba en Supabase), ignoramos las llamadas
+  // repetidas: sin esto, cada clic de más creaba una sesión duplicada en el
+  // historial.
+  if(quizState.finishing) return;
+  quizState.finishing = true;
+  const finishBtn = document.getElementById('quizFinishBtn');
+  if(finishBtn) finishBtn.disabled = true;
+  const nextBtn = document.getElementById('quizNextBtn');
+  if(nextBtn) nextBtn.disabled = true;
+
   clearInterval(timerInterval);
   const total = ACTIVE_QUESTIONS.length;
   const correctCount = ACTIVE_QUESTIONS.reduce((acc, q, i) => acc + (quizState.answers[i] === q.correct ? 1 : 0), 0);
