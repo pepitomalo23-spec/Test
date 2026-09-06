@@ -642,7 +642,7 @@
 
   .fail-history-toggle{
     display:inline-flex; align-items:center; gap:6px; font-family: var(--mono); font-size:11.5px;
-    color: var(--muted-2); cursor:pointer; user-select:none; margin-bottom:12px;
+    color: var(--muted-2); cursor:pointer; user-select:none;
     padding:6px 12px 6px 10px; border:1px solid var(--line); border-radius:20px; background: var(--card);
     transition: border-color .12s, background .12s;
   }
@@ -654,7 +654,7 @@
   .fail-history-toggle.open{ border-color: rgba(140,125,245,0.4); background: rgba(140,125,245,0.06); }
   .fail-history-toggle.open .chev{ transform: rotate(90deg); }
   .fail-history-panel{
-    display:none; flex-direction:column; margin:0 0 16px; overflow:hidden;
+    display:none; flex-direction:column; width:100%; margin:10px 0 0; overflow:hidden;
     background: var(--card); border:1px solid var(--line); border-radius:14px;
     box-shadow: 0 1px 0 rgba(0,0,0,0.02);
     animation: failPanelIn .16s ease;
@@ -676,9 +676,15 @@
     font-family: var(--mono); font-size:11.5px; color: var(--muted-2); padding:14px 15px;
   }
 
-  .explain-body{ position:relative; }
+  .explain-body{ }
+  .explain-section-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .explain-section-label{
+    display:flex; align-items:center; gap:7px; font-family: var(--sans); font-weight:700; font-size:11px;
+    letter-spacing:.04em; text-transform:uppercase; color: var(--muted-2);
+  }
+  .explain-section-label svg{ width:14px; height:14px; color: var(--purple); }
   .ia-explain-btn{
-    position:absolute; top:-6px; right:-5px; display:flex; align-items:center; gap:5px;
+    display:flex; align-items:center; gap:5px; flex-shrink:0;
     font-family: var(--sans); font-weight:600; font-size:11px; color: var(--purple);
     background: rgba(140,125,245,0.1); border:1px solid rgba(140,125,245,0.35);
     padding:5px 11px 5px 8px; border-radius:20px; cursor:pointer; transition: background .12s, border-color .12s;
@@ -686,15 +692,20 @@
   .ia-explain-btn:hover{ background: rgba(140,125,245,0.18); border-color: rgba(140,125,245,0.55); }
   .ia-explain-btn:disabled{ opacity:.6; cursor:default; }
   .ia-explain-btn svg{ width:13px; height:13px; }
-  .explain-text{ padding-right:60px; }
-  .ia-explain-result{ display:none; margin-top:16px; padding-top:15px; border-top:1px dashed var(--line); }
-  .ia-explain-result.show{ display:block; }
+  .explain-text{ font-size:13.5px; line-height:1.75; color: var(--muted); }
+  .explain-text b{ color: var(--text); font-weight:600; }
+  .ia-explain-result{ display:none; margin-top:18px; }
+  .ia-explain-result.show{ display:block; animation: failPanelIn .16s ease; }
+  .ia-explain-card{
+    background: linear-gradient(135deg, rgba(140,125,245,0.09), rgba(140,125,245,0.02));
+    border:1px solid rgba(140,125,245,0.28); border-radius:14px; padding:16px 18px;
+  }
   .ia-explain-label{
-    display:flex; align-items:center; gap:6px; font-family: var(--sans); font-weight:600; font-size:11.5px;
-    color: var(--purple); margin-bottom:8px;
+    display:flex; align-items:center; gap:7px; font-family: var(--sans); font-weight:700; font-size:11px;
+    letter-spacing:.04em; text-transform:uppercase; color: var(--purple); margin-bottom:10px;
   }
   .ia-explain-label svg{ width:14px; height:14px; }
-  .ia-explain-text{ font-size:13px; line-height:1.65; color: var(--muted); }
+  .ia-explain-text{ font-size:13.5px; line-height:1.75; color: var(--muted); }
   .ia-explain-text p{ margin:0 0 10px; }
   .ia-explain-text p:last-child{ margin-bottom:0; }
   .ia-explain-loading, .ia-explain-empty{ font-family: var(--mono); font-size:11.5px; color: var(--muted-2); }
@@ -725,11 +736,15 @@
   .option.incorrect .opt-result{ display:block; color: var(--coral); }
 
   .explain{
-    margin-top:20px; padding:15px 17px; background: var(--card); border:1px solid var(--line);
-    border-radius:11px; font-size:13px; line-height:1.65; color: var(--muted); display:none;
+    margin-top:20px; padding:22px 24px 24px; background: var(--card); border:1px solid var(--line);
+    border-radius:16px; font-size:13px; line-height:1.65; color: var(--muted); display:none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
   }
   .explain.show{ display:block; }
   .explain b{ color: var(--text); }
+  .explain-meta{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .explain-meta .article-tag{ margin-bottom:0; }
+  .explain-divider{ height:1px; background: var(--line-soft); border:none; margin:0 0 18px; }
   .explain .cite{ font-family: var(--mono); font-size:11px; color: var(--blue); display:flex; align-items:center; gap:6px; margin-top:10px; }
   .explain .cite svg{ width:12px; height:12px; }
 
@@ -1528,7 +1543,8 @@ const ICONS = {
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
   move: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,9 2,12 5,15"/><polyline points="9,5 12,2 15,5"/><polyline points="15,19 12,22 9,19"/><polyline points="19,9 22,12 19,15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>',
   kebab: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>',
-  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
+  bulb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2Z"/></svg>'
 };
 
 let quizState = { mode:null, index:0, correctCount:0, answered:false };
@@ -2252,7 +2268,8 @@ function updateTimerDisplay(s){
 /* Bloque "ubicación (azul) + panel de veces fallada" que se muestra como lo
    primero dentro de la explicación, no como cabecera fija de la pregunta. */
 function explainMetaHtml(q){
-  return '<div class="article-tag' + (q.general ? ' general' : '') + '" style="margin-bottom:12px;">' +
+  return '<div class="explain-meta">' +
+    '<div class="article-tag' + (q.general ? ' general' : '') + '">' +
       ICONS.seal + '<span>' + (q.general ? generalTagText(q) : q.art) + '</span>' +
     '</div>' +
     '<div class="fail-history-toggle" role="button" tabindex="0" ' +
@@ -2262,7 +2279,9 @@ function explainMetaHtml(q){
       '<span>Fallada <b>' + (q.failCount || 0) + '</b> veces</span>' +
       '<span class="chev">' + ICONS.chevron + '</span>' +
     '</div>' +
-    '<div class="fail-history-panel"></div>';
+    '<div class="fail-history-panel"></div>' +
+    '</div>' +
+    '<hr class="explain-divider">';
 }
 
 /* Abre/cierra el panel con el historial de intentos de una pregunta (más
@@ -2326,9 +2345,12 @@ async function toggleFailHistory(questionId, toggleEl){
    usa para "Extraer con IA" (se guarda en localStorage, en este navegador). */
 function explainBodyHtml(q){
   return '<div class="explain-body">' +
-    '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
-      ICONS.brain + '<span>IA</span>' +
-    '</button>' +
+    '<div class="explain-section-head">' +
+      '<div class="explain-section-label">' + ICONS.bulb + '<span>Explicación</span></div>' +
+      '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
+        ICONS.brain + '<span>IA</span>' +
+      '</button>' +
+    '</div>' +
     '<div class="explain-text">' + q.explain + '</div>' +
     '<div class="ia-explain-result"></div>' +
   '</div>';
@@ -2401,8 +2423,10 @@ async function explainWithAI(questionId, btnEl){
     const cleanText = text.trim();
     if(!cleanText){ throw new Error('La IA no ha devuelto ninguna explicación.'); }
     const paragraphs = cleanText.split(/\n{2,}/).map(p => '<p>' + esc(p.trim()).replace(/\n/g, '<br>') + '</p>').join('');
-    resultEl.innerHTML = '<div class="ia-explain-label">' + ICONS.brain + '<span>Explicación ampliada con IA</span></div>' +
-      '<div class="ia-explain-text">' + paragraphs + '</div>';
+    resultEl.innerHTML = '<div class="ia-explain-card">' +
+      '<div class="ia-explain-label">' + ICONS.brain + '<span>Explicación ampliada con IA</span></div>' +
+      '<div class="ia-explain-text">' + paragraphs + '</div>' +
+    '</div>';
     resultEl.dataset.loaded = '1';
   } catch(err){
     resultEl.innerHTML = '<div class="ia-explain-empty">No se ha podido generar la explicación: ' + esc(err.message || 'error desconocido') + '</div>';
