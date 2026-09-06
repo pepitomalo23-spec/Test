@@ -48,7 +48,7 @@
   .header-nav{ display:flex; align-items:center; gap:22px; }
   .header-nav span{ display:flex; align-items:center; gap:7px; font-family: var(--title); font-weight:400; font-size:16.5px; letter-spacing:.2px; color: var(--muted-2); cursor:pointer; transition: color .15s; }
   .header-nav span:hover{ color: var(--muted); }
-  .header-nav span.active{ color: var(--text); }
+  .header-nav span.active{ color: var(--coral); }
   .header-nav span svg{ width:17px; height:17px; flex-shrink:0; }
   #navNormativas svg.icon-diagonal{ transform: rotate(-40deg); }
   .header-nav .nav-dot{ width:3px; height:3px; border-radius:50%; background: var(--line); }
@@ -73,9 +73,9 @@
     .header-nav span svg{ width:18px; height:18px; }
     .header-nav span .header-nav-label{ display:none; }
     .header-nav span.active{
-      background: linear-gradient(135deg, rgba(140,125,245,0.22), rgba(47,191,174,0.14));
-      border-color: rgba(140,125,245,0.4); color: var(--text);
-      box-shadow: 0 0 14px rgba(140,125,245,0.18);
+      background: linear-gradient(135deg, rgba(242,102,92,0.22), rgba(242,102,92,0.10));
+      border-color: rgba(242,102,92,0.45); color: var(--coral);
+      box-shadow: 0 0 14px rgba(242,102,92,0.22);
     }
     .header-back{ left:12px; width:32px; height:32px; }
     .header-user{ right:54px; }
@@ -287,6 +287,30 @@
   .mastery-seg.mastery-yellow, .mastery-dot.mastery-yellow{ background: var(--amber); }
   .mastery-seg.mastery-red, .mastery-dot.mastery-red{ background: var(--coral); }
   .mastery-legend{ display:flex; flex-wrap:wrap; gap:16px; }
+
+  /* ---------- ranking de temas (mejor a peor, % real de dominio) ---------- */
+  .ranking-card{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 17px; margin-bottom:28px; }
+  .ranking-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .ranking-title{ font-size:13px; font-weight:600; color: var(--muted); }
+  .ranking-sub{ font-family: var(--mono); font-size:12.5px; color: var(--muted-2); white-space:nowrap; }
+  .ranking-list{ display:flex; flex-direction:column; gap:10px; }
+  .ranking-empty{ font-size:13px; color: var(--muted-2); padding:6px 0; }
+  .ranking-row{ display:flex; align-items:center; gap:12px; }
+  .ranking-pos{
+    width:24px; height:24px; flex-shrink:0; border-radius:50%; background: var(--card-hi);
+    display:flex; align-items:center; justify-content:center;
+    font-family: var(--mono); font-size:11px; font-weight:700; color: var(--muted-2);
+  }
+  .ranking-row:nth-child(1) .ranking-pos{ background: rgba(52,211,153,0.16); color: var(--green); }
+  .ranking-row:nth-child(2) .ranking-pos{ background: rgba(245,192,67,0.16); color: var(--amber); }
+  .ranking-row:nth-child(3) .ranking-pos{ background: rgba(242,102,92,0.14); color: var(--coral); }
+  .ranking-body{ flex:1; min-width:0; }
+  .ranking-name{ font-size:13.5px; font-weight:600; color: var(--text); margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ranking-track{ width:100%; height:6px; border-radius:4px; overflow:hidden; background: var(--line-soft); }
+  .ranking-fill{ height:100%; border-radius:4px; }
+  .ranking-pct{
+    width:46px; flex-shrink:0; text-align:right; font-family: var(--mono); font-size:14px; font-weight:700;
+  }
   .mastery-legend-item{ display:flex; align-items:center; gap:7px; font-size:12.5px; color: var(--muted); }
   .mastery-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
   .mastery-legend-value{ font-family: var(--mono); font-weight:700; color: var(--text); }
@@ -1175,6 +1199,13 @@
           <div class="mastery-legend-item"><span class="mastery-dot mastery-red"></span>Suspendidas <span class="mastery-legend-value" id="masteryRedCount">0</span></div>
         </div>
       </div>
+      <div class="ranking-card">
+        <div class="ranking-head">
+          <div class="ranking-title">Ranking de temas</div>
+          <div class="ranking-sub">De mejor a peor</div>
+        </div>
+        <div class="ranking-list" id="topicRankingList"></div>
+      </div>
     </section>
 
     <!-- ===== ADMIN SCREEN ===== -->
@@ -1849,6 +1880,51 @@ function renderMasteryBar(){
   }
 }
 
+function escapeHtml(str){
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* ---------- ranking de temas (mejor a peor, % real de dominio por tema) ---------- */
+function renderTopicRanking(){
+  const list = document.getElementById('topicRankingList');
+  if(!list) return;
+
+  // Mismo criterio que el "Nivel general": de todas las preguntas de un tema
+  // (incluidas las que aún no se han hecho), qué % está realmente dominado (verde).
+  const ranking = TOPICS.map(t => {
+    const topicQuestions = QUESTIONS_POOL.filter(q => q.topic_id === t.id);
+    const total = topicQuestions.length;
+    const green = topicQuestions.filter(q => q.masteryStatus === 'green').length;
+    const pct = total ? Math.round((green / total) * 100) : null;
+    return { name: t.name, pct };
+  }).filter(r => r.pct !== null);
+
+  ranking.sort((a, b) => b.pct - a.pct);
+
+  if(!ranking.length){
+    list.innerHTML = '<div class="ranking-empty">Todavía no hay datos suficientes para calcular tu ranking de temas.</div>';
+    return;
+  }
+
+  const colorFor = pct => pct >= 70 ? 'var(--green)' : (pct >= 40 ? 'var(--amber)' : 'var(--coral)');
+
+  list.innerHTML = ranking.map((r, i) => {
+    const color = colorFor(r.pct);
+    return (
+      '<div class="ranking-row">' +
+        '<div class="ranking-pos">' + (i + 1) + '</div>' +
+        '<div class="ranking-body">' +
+          '<div class="ranking-name">' + escapeHtml(r.name) + '</div>' +
+          '<div class="ranking-track"><div class="ranking-fill" style="width:' + r.pct + '%; background:' + color + '"></div></div>' +
+        '</div>' +
+        '<div class="ranking-pct" style="color:' + color + '">' + r.pct + '%</div>' +
+      '</div>'
+    );
+  }).join('');
+}
+
 /* ---------- load region content (topics/estructura en árbol/questions) from Supabase ---------- */
 function nodeFullPath(nodeId){
   const parts = [];
@@ -2076,6 +2152,7 @@ async function refreshGlobalStats(){
   if(elFallosLabel) elFallosLabel.textContent = fallosPending + ' pendientes';
 
   renderMasteryBar();
+  renderTopicRanking();
 }
 
 /* ---------- navigation ---------- */
