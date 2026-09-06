@@ -230,7 +230,6 @@
   .region-row.selected .region-check{ border-color: var(--purple); }
   .region-row .region-check svg{ width:10px; height:10px; opacity:0; }
   .region-row.selected .region-check svg{ opacity:1; }
-  .region-select-panel .modal-footer{ background: var(--card); }
 
   /* ---------- topic stats (shared across regions) ---------- */
   .topic-stats-list{ display:flex; flex-direction:column; gap:8px; margin-top:12px; margin-bottom:28px; }
@@ -421,7 +420,7 @@
   #screen-config[data-mode="examen"] .param-opt.selected{ border-color: var(--blue); background: rgba(78,155,247,0.1); color: var(--blue); }
   #screen-config[data-mode="simulacro"] .param-opt.selected{ border-color: var(--teal); background: rgba(47,191,174,0.1); color: var(--teal); }
 
-  .modal-footer{ position:sticky; bottom:0; background: var(--bg); padding:18px 0 4px; margin-top:4px; }
+  .modal-footer{ position:sticky; bottom:0; background: var(--card); padding:18px 0 4px; margin-top:4px; }
 
   /* ---------- option sheet (Minutos / Preguntas / Dificultad / Ayuda / Repaso) ---------- */
   .sheet-overlay{
@@ -1940,11 +1939,21 @@ function buildQuestionsFromTopics(topicIdSet){
   });
 }
 
+/* Baraja un array sin modificar el original (Fisher–Yates). */
+function shuffleArray(arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 function buildQuestionSet(pool, count){
   if(!pool.length) return [];
+  const shuffledPool = shuffleArray(pool);
   const out = [];
-  for(let i = 0; i < count; i++){ out.push(pool[i % pool.length]); }
-  return out;
+  for(let i = 0; i < count; i++){ out.push(shuffledPool[i % shuffledPool.length]); }
+  return shuffleArray(out); // vuelve a barajar por si count > pool.length (evita bloques repetidos en el mismo orden)
 }
 
 function startFromConfig(){
@@ -1992,7 +2001,8 @@ async function startFallosReview(){
 
 /* ---------- quiz ---------- */
 function startQuiz(mode, questions, timeMinutes){
-  ACTIVE_QUESTIONS = (questions && questions.length) ? questions : QUESTIONS_POOL;
+  const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
+  ACTIVE_QUESTIONS = shuffleArray(base); // el orden de las preguntas siempre es aleatorio en cada intento
   quizState = { mode, index:0, correctCount:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), startedAt:Date.now() };
   showScreen('screen-quiz');
   startTimer(timeMinutes);
