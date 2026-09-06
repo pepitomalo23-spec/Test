@@ -2081,10 +2081,12 @@ function startQuiz(mode, questions, timeMinutes){
   const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
   ACTIVE_QUESTIONS = shuffleArray(base); // el orden de las preguntas siempre es aleatorio en cada intento
   const viewMode = QUIZ_LIST_MODES.includes(mode) ? 'list' : 'card';
-  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), startedAt:Date.now() };
+  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now() };
   showScreen('screen-quiz');
   document.getElementById('quizCardView').style.display = (viewMode === 'card') ? 'block' : 'none';
   document.getElementById('quizListView').style.display = (viewMode === 'list') ? 'block' : 'none';
+  // en modo tarjeta (estudio / fallos) no se muestra el contador de preguntas arriba a la derecha
+  document.getElementById('quizCount').style.display = (viewMode === 'card') ? 'none' : '';
   startTimer(timeMinutes);
   if(viewMode === 'card'){
     renderQuestion();
@@ -2126,7 +2128,8 @@ function updateTimerDisplay(s){
 function renderQuestion(){
   const q = ACTIVE_QUESTIONS[quizState.index];
   const existingAnswer = quizState.answers[quizState.index];
-  const isAnswered = existingAnswer !== null && existingAnswer !== undefined;
+  const isBlanked = !!(quizState.blanked && quizState.blanked[quizState.index]);
+  const isAnswered = (existingAnswer !== null && existingAnswer !== undefined) || isBlanked;
   quizState.answered = isAnswered;
 
   document.getElementById('quizCount').textContent = (quizState.index+1) + ' / ' + ACTIVE_QUESTIONS.length;
@@ -2179,8 +2182,8 @@ function renderQuizPill(){
   const pill = document.getElementById('quizPill');
   const explainOpen = document.getElementById('quizExplain').classList.contains('show');
   if(!quizState.answered){
-    pill.className = 'quiz-pill';
-    pill.onclick = null;
+    pill.className = 'quiz-pill clickable';
+    pill.onclick = markBlank;
     pill.innerHTML = 'En blanco';
   } else {
     pill.className = 'quiz-pill clickable' + (explainOpen ? ' open' : '');
@@ -2207,6 +2210,27 @@ function selectOption(i){
     } else if(idx === i){
       el.classList.add('incorrect');
       el.querySelector('.opt-result').innerHTML = ICONS.cross;
+    }
+  });
+  const explainEl = document.getElementById('quizExplain');
+  explainEl.innerHTML = q.explain + '<span class="cite">' + ICONS.seal + (q.general ? generalCiteText(q) : q.art) + '</span>';
+  explainEl.classList.remove('show'); // queda oculta hasta que se pulse "Mostrar explicación"
+  renderQuizPill();
+  document.getElementById('quizNextBtn').disabled = false;
+}
+
+/* "En blanco": deja la pregunta sin respuesta seleccionada pero revela la solución y permite avanzar */
+function markBlank(){
+  if(quizState.answered) return;
+  quizState.answered = true;
+  if(!quizState.blanked) quizState.blanked = new Array(ACTIVE_QUESTIONS.length).fill(false);
+  quizState.blanked[quizState.index] = true;
+  const q = ACTIVE_QUESTIONS[quizState.index];
+  document.querySelectorAll('#quizOptions .option').forEach((el,idx) => {
+    el.onclick = null;
+    if(idx === q.correct){
+      el.classList.add('correct');
+      el.querySelector('.opt-result').innerHTML = ICONS.check;
     }
   });
   const explainEl = document.getElementById('quizExplain');
