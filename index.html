@@ -1689,9 +1689,11 @@ function mapDbQuestionToQuiz(row){
    desincronizado.
    Estado:
    - 'red'    → el intento más reciente de esa pregunta fue un fallo.
-   - 'yellow' → el intento más reciente fue un acierto, pero con menos de
-                3 aciertos seguidos (racha en progreso).
-   - 'green'  → 3 o más aciertos seguidos en los intentos más recientes. */
+   - 'yellow' → se ha fallado alguna vez Y también acertado, pero todavía
+                con menos de 3 aciertos seguidos (racha de recuperación
+                en progreso).
+   - 'green'  → nunca se ha fallado, o se falló alguna vez pero ya hay
+                3 o más aciertos seguidos (pregunta dominada). */
 async function computeQuestionMastery(questionIds){
   const stats = {};
   if(!currentUser || !questionIds || !questionIds.length) return stats;
@@ -1718,7 +1720,11 @@ async function computeQuestionMastery(questionIds){
       if(attempts[i].is_correct) streak++; else break;
     }
     const failCount = attempts.filter(a => !a.is_correct).length;
-    const status = streak >= 3 ? 'green' : (streak >= 1 ? 'yellow' : 'red');
+    let status;
+    if(failCount === 0) status = 'green';           // nunca ha fallado
+    else if(streak >= 3) status = 'green';           // falló antes, ahora dominada
+    else if(streak >= 1) status = 'yellow';          // falló y acertó, racha corta aún
+    else status = 'red';                             // el último intento fue un fallo
     stats[qid] = { timesSeen: attempts.length, failCount, streak, status };
   });
   return stats;
