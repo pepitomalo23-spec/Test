@@ -391,7 +391,10 @@
     width:21px; height:21px; border-radius:6px; border:1px solid var(--line-soft);
     display:flex; align-items:center; justify-content:center; flex-shrink:0;
     color: var(--text); transition: background .12s, border-color .12s;
+    position:relative; cursor:pointer;
   }
+  /* área táctil ampliada (es el único disparador para marcar/desmarcar el tema), sin cambiar el tamaño visual */
+  .topic-check::before{ content:''; position:absolute; top:-9px; left:-9px; right:-9px; bottom:-9px; }
   .topic-check svg{ width:12px; height:12px; opacity:0; transition: opacity .12s; }
   .topic-check.indeterminate{ background: var(--purple); border-color: var(--purple); }
   .topic-check.indeterminate svg{ opacity:1; }
@@ -1838,7 +1841,10 @@ function renderTemas(){
     row.setAttribute('role','checkbox');
     row.setAttribute('aria-checked', configState.topics.has(t.id) ? 'true' : 'false');
     row.setAttribute('tabindex','0');
-    row.onclick = () => toggleTopic(t.id);
+    // Si el tema tiene subtemas, tocar la fila abre/cierra el panel (no marca/desmarca);
+    // solo el cuadradito de check hace eso. Si no tiene subtemas, la fila entera marca/desmarca,
+    // ya que no hay ningún panel que abrir.
+    row.onclick = hasGroups ? ((e) => toggleTopicDetail(t.id, e)) : (() => toggleTopic(t.id));
     const restriction = configState.nodeSelections[t.id];
     const badge = restriction ? ' <span class="topic-node-badge">' + restriction.size + '/' + groups.length + ' ' + topicGroupTypeLabel(t.id).toLowerCase() + '</span>' : '';
     const isPartial = !!(restriction && restriction.size < groups.length);
@@ -1846,6 +1852,7 @@ function renderTemas(){
       '<span class="topic-check' + (isPartial ? ' indeterminate' : '') + '">' + ICONS.check + '</span>' +
       '<span class="topic-text"><span class="topic-name">' + (idx+1) + ' - ' + esc(t.name) + badge + '</span></span>' +
       (hasGroups ? '<span class="topic-row-chevron' + (isOpen ? ' open' : '') + '">' + ICONS.chevron + '</span>' : '');
+    row.querySelector('.topic-check').onclick = (e) => { e.stopPropagation(); toggleTopic(t.id); };
     if(hasGroups){
       row.querySelector('.topic-row-chevron').onclick = (e) => toggleTopicDetail(t.id, e);
     }
