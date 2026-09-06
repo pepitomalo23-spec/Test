@@ -23,6 +23,7 @@
     --blue: #4E9BF7;
     --green: #34D399;
     --orange: #FF7A3D;
+    --amber: #F5C043;
 
     --sans: 'Inter', sans-serif;
     --serif: 'Source Serif 4', serif;
@@ -262,6 +263,8 @@
   .topic-stats-list{ display:flex; flex-direction:column; gap:8px; margin-top:12px; margin-bottom:28px; }
   .topic-stat-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; background: var(--card); border:1px solid var(--line); border-radius:12px; padding:13px 15px; }
   .topic-stat-name{ font-size:13.5px; font-weight:500; }
+  .topic-stat-right{ display:flex; align-items:center; gap:14px; flex-shrink:0; }
+  .topic-stat-seen{ font-family: var(--mono); font-size:12px; color: var(--muted); white-space:nowrap; }
   .topic-stat-regions{ display:flex; align-items:center; gap:5px; margin-top:5px; }
   .topic-stat-regions .landing-flag{ width:16px; height:11px; }
   .topic-stat-fails{ font-family: var(--mono); font-size:13px; color: var(--coral); white-space:nowrap; }
@@ -276,6 +279,21 @@
   .stat-value.teal{ color: var(--teal); }
   .stat-value.coral{ color: var(--coral); }
   .empty{ text-align:center; padding: 60px 20px; color: var(--muted); border:1px dashed var(--line); border-radius:14px; font-size:13.5px; }
+
+  /* ---------- barra de dominio de preguntas (verde/amarillo/rojo) ---------- */
+  .mastery-card{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 17px; margin-bottom:28px; }
+  .mastery-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+  .mastery-title{ font-size:13px; font-weight:600; color: var(--muted); }
+  .mastery-total{ font-family: var(--mono); font-size:12.5px; color: var(--muted-2); white-space:nowrap; }
+  .mastery-bar{ display:flex; width:100%; height:10px; border-radius:6px; overflow:hidden; background: var(--line-soft); margin-bottom:14px; }
+  .mastery-seg{ height:100%; }
+  .mastery-seg.mastery-green, .mastery-dot.mastery-green{ background: var(--green); }
+  .mastery-seg.mastery-yellow, .mastery-dot.mastery-yellow{ background: var(--amber); }
+  .mastery-seg.mastery-red, .mastery-dot.mastery-red{ background: var(--coral); }
+  .mastery-legend{ display:flex; flex-wrap:wrap; gap:16px; }
+  .mastery-legend-item{ display:flex; align-items:center; gap:7px; font-size:12.5px; color: var(--muted); }
+  .mastery-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .mastery-legend-value{ font-family: var(--mono); font-weight:700; color: var(--text); }
 
   main{ max-width: 1080px; margin:0 auto; padding: 32px 24px 76px; }
   h1{ font-family: var(--title); font-size:23px; font-weight:400; letter-spacing:.3px; margin-bottom:20px; }
@@ -1152,7 +1170,18 @@
           <div class="stat-value coral" id="statFallosPending">—</div>
         </div>
       </div>
-      <div class="empty">Aquí irán gráficos y desglose por tema próximamente.</div>
+      <div class="mastery-card">
+        <div class="mastery-head">
+          <div class="mastery-title">Dominio de preguntas</div>
+          <div class="mastery-total"><span id="masteryTotal">0</span> preguntas practicadas</div>
+        </div>
+        <div class="mastery-bar" id="masteryBar"></div>
+        <div class="mastery-legend">
+          <div class="mastery-legend-item"><span class="mastery-dot mastery-green"></span>Aprobadas <span class="mastery-legend-value" id="masteryGreenCount">0</span></div>
+          <div class="mastery-legend-item"><span class="mastery-dot mastery-yellow"></span>En progreso <span class="mastery-legend-value" id="masteryYellowCount">0</span></div>
+          <div class="mastery-legend-item"><span class="mastery-dot mastery-red"></span>Suspendidas <span class="mastery-legend-value" id="masteryRedCount">0</span></div>
+        </div>
+      </div>
 
       <div class="section-row"><div class="section-title">Por tema</div><div class="section-rule"></div></div>
       <div class="topic-stats-list" id="topicStatsList"><!-- filled by JS --></div>
@@ -1645,8 +1674,54 @@ function mapDbQuestionToQuiz(row){
     explain: row.explain,
     ai_explain: row.ai_explain || null,
     failCount: row._failCount || 0,
+    timesSeen: row._timesSeen || 0,
+    masteryStatus: row._status || null, // 'green' | 'yellow' | 'red' | null (nunca respondida)
     avgTime: row._avgTime || "—"
   };
+}
+
+/* Calcula, para cada pregunta, su estado real a partir de session_answers
+   (no de un contador aparte): cuántas veces se ha visto, cuántas se ha
+   fallado, y el color de dominio actual. Como se apoya directamente en
+   session_answers/test_sessions, si el usuario borra un test del historial
+   (deleteHistoryItem borra sus session_answers), esas respuestas dejan de
+   contar aquí automáticamente — no hay ningún contador que se pueda quedar
+   desincronizado.
+   Estado:
+   - 'red'    → el intento más reciente de esa pregunta fue un fallo.
+   - 'yellow' → el intento más reciente fue un acierto, pero con menos de
+                3 aciertos seguidos (racha en progreso).
+   - 'green'  → 3 o más aciertos seguidos en los intentos más recientes. */
+async function computeQuestionMastery(questionIds){
+  const stats = {};
+  if(!currentUser || !questionIds || !questionIds.length) return stats;
+  const { data, error } = await sb
+    .from('session_answers')
+    .select('question_id, is_correct, answer_order, test_sessions!inner(created_at)')
+    .eq('user_id', currentUser.id)
+    .in('question_id', questionIds);
+  if(error){ console.error('Error calculando el dominio de preguntas', error); return stats; }
+
+  const byQuestion = {};
+  (data || []).forEach(row => {
+    if(!row.test_sessions) return; // por seguridad: sin sesión asociada (ya borrada)
+    (byQuestion[row.question_id] = byQuestion[row.question_id] || []).push(row);
+  });
+
+  Object.keys(byQuestion).forEach(qid => {
+    const attempts = byQuestion[qid].slice().sort((a, b) => {
+      const diff = new Date(a.test_sessions.created_at) - new Date(b.test_sessions.created_at);
+      return diff !== 0 ? diff : (a.answer_order - b.answer_order);
+    });
+    let streak = 0;
+    for(let i = attempts.length - 1; i >= 0; i--){
+      if(attempts[i].is_correct) streak++; else break;
+    }
+    const failCount = attempts.filter(a => !a.is_correct).length;
+    const status = streak >= 3 ? 'green' : (streak >= 1 ? 'yellow' : 'red');
+    stats[qid] = { timesSeen: attempts.length, failCount, streak, status };
+  });
+  return stats;
 }
 /* Para preguntas generales, si tienen un nodo (Tema/Título/Capítulo/Sección) mostramos
    también ese ámbito junto al sello "General"; si son de todo el tema (sin nodo), solo "General". */
@@ -1761,9 +1836,39 @@ function renderTopicStats(){
     row.className = 'topic-stat-row';
     row.innerHTML =
       '<div class="topic-stat-name">' + t.name + '</div>' +
-      '<div class="topic-stat-fails">' + t.fails + ' fallos</div>';
+      '<div class="topic-stat-right">' +
+        '<span class="topic-stat-seen">Vista ' + (t.seen || 0) + ' veces</span>' +
+        '<span class="topic-stat-fails">' + t.fails + ' fallos</span>' +
+      '</div>';
     el.appendChild(row);
   });
+}
+
+/* ---------- barra de dominio (verde/amarillo/rojo) de la pantalla Estadísticas ---------- */
+function renderMasteryBar(){
+  const pool = QUESTIONS_POOL.filter(q => q.timesSeen > 0);
+  const total = pool.length;
+  const green = pool.filter(q => q.masteryStatus === 'green').length;
+  const yellow = pool.filter(q => q.masteryStatus === 'yellow').length;
+  const red = pool.filter(q => q.masteryStatus === 'red').length;
+  const pct = n => total ? (n / total * 100) : 0;
+
+  const elTotal = document.getElementById('masteryTotal');
+  const elGreen = document.getElementById('masteryGreenCount');
+  const elYellow = document.getElementById('masteryYellowCount');
+  const elRed = document.getElementById('masteryRedCount');
+  const bar = document.getElementById('masteryBar');
+  if(elTotal) elTotal.textContent = total;
+  if(elGreen) elGreen.textContent = green;
+  if(elYellow) elYellow.textContent = yellow;
+  if(elRed) elRed.textContent = red;
+  if(bar){
+    bar.innerHTML = total ? (
+      '<div class="mastery-seg mastery-green" style="width:' + pct(green) + '%"></div>' +
+      '<div class="mastery-seg mastery-yellow" style="width:' + pct(yellow) + '%"></div>' +
+      '<div class="mastery-seg mastery-red" style="width:' + pct(red) + '%"></div>'
+    ) : '';
+  }
 }
 
 /* ---------- load region content (topics/estructura en árbol/questions) from Supabase ---------- */
@@ -1801,27 +1906,31 @@ async function loadRegionData(regionId){
     TOPIC_GROUPS[topicId] = roots.map(n => ({ id: n.id, label: nodeDisplayName(n) }));
   });
 
-  let failsByQuestion = {};
+  let masteryByQuestion = {};
   if(currentUser){
     const qIds = (questionsData || []).map(q => q.id);
-    if(qIds.length){
-      const { data: fallosData } = await sb.from('fallos').select('question_id, fail_count').eq('user_id', currentUser.id).in('question_id', qIds);
-      (fallosData || []).forEach(f => { failsByQuestion[f.question_id] = f.fail_count; });
-    }
+    if(qIds.length) masteryByQuestion = await computeQuestionMastery(qIds);
   }
   QUESTIONS_POOL = (questionsData || []).map(row => {
-    row._failCount = failsByQuestion[row.id] || 0;
+    const m = masteryByQuestion[row.id];
+    row._failCount = m ? m.failCount : 0;
+    row._timesSeen = m ? m.timesSeen : 0;
+    row._status = m ? m.status : null;
     return mapDbQuestionToQuiz(row);
   });
 
-  const failsByTopic = {};
+  const redByTopic = {};
+  const seenByTopic = {};
   QUESTIONS_POOL.forEach(q => {
-    if(q.failCount > 0 && q.topic_id) failsByTopic[q.topic_id] = (failsByTopic[q.topic_id] || 0) + q.failCount;
+    if(!q.topic_id) return;
+    if(q.timesSeen) seenByTopic[q.topic_id] = (seenByTopic[q.topic_id] || 0) + q.timesSeen;
+    if(q.masteryStatus === 'red') redByTopic[q.topic_id] = (redByTopic[q.topic_id] || 0) + 1;
   });
 
   TOPICS = (topicsData || []).map(t => ({
     id: t.id, category: t.category, name: t.name, desc: t.description, enabled: t.enabled,
-    fails: failsByTopic[t.id] || 0
+    fails: redByTopic[t.id] || 0,
+    seen: seenByTopic[t.id] || 0
   }));
   configState.topics = new Set(TOPICS.filter(t => t.enabled).map(t => t.id));
   configState.nodeSelections = {};
@@ -1977,7 +2086,11 @@ async function refreshGlobalStats(){
     cursor.setDate(cursor.getDate() - 1);
   }
 
-  const { count: fallosPending } = await sb.from('fallos').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id);
+  // "Pendientes" ya no es un contador aparte que se pueda desincronizar del
+  // historial real: es, en cada momento, el número de preguntas cuyo último
+  // intento (dentro de lo que quede en el historial, sin lo borrado) fue un
+  // fallo — calculado en computeQuestionMastery() a partir de session_answers.
+  const fallosPending = QUESTIONS_POOL.filter(q => q.masteryStatus === 'red').length;
 
   const elTests = document.getElementById('statTestsCount');
   const elAvg = document.getElementById('statAvgScore');
@@ -1987,8 +2100,10 @@ async function refreshGlobalStats(){
   if(elTests) elTests.textContent = testsCount;
   if(elAvg) elAvg.textContent = testsCount ? formatNota(avgScore) : '—';
   if(elStreak) elStreak.textContent = streak + (streak === 1 ? ' día' : ' días');
-  if(elFallos) elFallos.textContent = fallosPending || 0;
-  if(elFallosLabel) elFallosLabel.textContent = (fallosPending || 0) + ' pendientes';
+  if(elFallos) elFallos.textContent = fallosPending;
+  if(elFallosLabel) elFallosLabel.textContent = fallosPending + ' pendientes';
+
+  renderMasteryBar();
 }
 
 /* ---------- navigation ---------- */
@@ -2343,15 +2458,12 @@ function openFallos(){
   openOverlay('screen-fallos');
 }
 
-async function startFallosReview(){
+function startFallosReview(){
   if(!currentUser) return;
-  const { data, error } = await sb
-    .from('fallos')
-    .select('question_id, fail_count, questions!inner(*)')
-    .eq('user_id', currentUser.id)
-    .eq('questions.region_id', currentRegion);
-  if(error){ console.error('Error cargando fallos', error); return; }
-  const questions = (data || []).map(row => mapDbQuestionToQuiz({ ...row.questions, _failCount: row.fail_count }));
+  // Las preguntas "en rojo" salen siempre de QUESTIONS_POOL, ya calculado con
+  // computeQuestionMastery() sobre el historial actual: no hace falta ninguna
+  // consulta ni tabla aparte que se pueda quedar desactualizada.
+  const questions = QUESTIONS_POOL.filter(q => q.masteryStatus === 'red');
   startQuiz('fallos', questions, null);
 }
 
@@ -2905,21 +3017,9 @@ async function finishQuiz(){
         if(aErr) throw aErr;
       }
 
-      for(let i = 0; i < ACTIVE_QUESTIONS.length; i++){
-        const q = ACTIVE_QUESTIONS[i];
-        const a = quizState.answers[i];
-        if(a === q.correct){
-          await sb.from('fallos').delete().eq('user_id', currentUser.id).eq('question_id', q.id);
-        } else if(a !== null && a !== undefined){
-          const { data: existing } = await sb.from('fallos').select('fail_count').eq('user_id', currentUser.id).eq('question_id', q.id).maybeSingle();
-          if(existing){
-            await sb.from('fallos').update({ fail_count: existing.fail_count + 1, last_failed_at: new Date().toISOString() }).eq('user_id', currentUser.id).eq('question_id', q.id);
-          } else {
-            await sb.from('fallos').insert({ user_id: currentUser.id, question_id: q.id, fail_count: 1 });
-          }
-        }
-      }
-
+      // El estado de cada pregunta (fallada / en progreso / dominada) ya no
+      // se guarda aparte: loadRegionData() lo recalcula del tirón a partir de
+      // session_answers, que es lo que se acaba de insertar arriba.
       await loadRegionData(currentRegion);
       await refreshGlobalStats();
       renderTopicStats();

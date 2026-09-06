@@ -1,0 +1,14 @@
+-- La tabla `fallos` mantenía un contador (fail_count) que se incrementaba al
+-- fallar una pregunta y se borraba al acertarla, pero NUNCA se corregía si el
+-- usuario borraba un test entero del historial (deleteHistoryItem borra
+-- test_sessions/session_answers, pero nunca tocaba `fallos`). Resultado: filas
+-- de `fallos` que ya no correspondían a ningún intento real (en este proyecto
+-- había 30 filas en `fallos` con test_sessions/session_answers vacíos).
+--
+-- El estado de cada pregunta (fallada / en progreso / dominada, y cuántas
+-- veces se ha visto) se calcula ahora siempre en caliente a partir de
+-- session_answers + test_sessions (ver computeQuestionMastery() en
+-- index.html), que es la fuente de verdad y ya respeta los borrados de
+-- historial de forma automática. La tabla `fallos` deja de usarse en el
+-- código y se elimina.
+drop table if exists public.fallos;
