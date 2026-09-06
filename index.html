@@ -1223,16 +1223,7 @@
       <!-- ===== Vista tarjeta (estudio / fallos): una pregunta, explicación colapsable, navegación con flechas ===== -->
       <div id="quizCardView">
         <div class="quiz-card">
-          <div class="article-tag" id="articleTag">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="7.2"/><circle cx="12" cy="12" r="3"/></svg>
-            <span id="articleTagText">ART. 81.2</span>
-          </div>
-
           <div class="qmeta-row">
-            <div class="qmeta">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><polyline points="4,17 4,12 9,12"/></svg>
-              Fallada <b id="qFailCount">3</b> veces
-            </div>
             <div class="qmeta time">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
               Tu media <b id="qAvgTime">8s</b>
@@ -2206,6 +2197,17 @@ function updateTimerDisplay(s){
   document.getElementById('quizTimerText').textContent = String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
 }
 
+/* Bloque "ubicación (azul) + veces fallada" que se muestra como lo primero
+   dentro de la explicación, no como cabecera fija de la pregunta. */
+function explainMetaHtml(q){
+  return '<div class="article-tag' + (q.general ? ' general' : '') + '" style="margin-bottom:12px;">' +
+      ICONS.seal + '<span>' + (q.general ? generalTagText(q) : q.art) + '</span>' +
+    '</div>' +
+    '<div class="qmeta-row" style="margin-bottom:12px;"><div class="qmeta">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><polyline points="4,17 4,12 9,12"/></svg>' +
+      'Fallada <b>' + (q.failCount || 0) + '</b> veces' +
+    '</div></div>';
+}
 function renderQuestion(){
   const q = ACTIVE_QUESTIONS[quizState.index];
   const existingAnswer = quizState.answers[quizState.index];
@@ -2214,10 +2216,6 @@ function renderQuestion(){
   quizState.answered = isAnswered;
 
   document.getElementById('quizCount').textContent = (quizState.index+1) + ' / ' + ACTIVE_QUESTIONS.length;
-  const tag = document.getElementById('articleTag');
-  document.getElementById('articleTagText').textContent = q.general ? generalTagText(q) : q.art;
-  tag.className = 'article-tag' + (q.general ? ' general' : '');
-  document.getElementById('qFailCount').textContent = q.failCount;
   document.getElementById('qAvgTime').textContent = q.avgTime;
   document.getElementById('quizQuestion').textContent = q.q;
 
@@ -2248,7 +2246,7 @@ function renderQuestion(){
   const explainEl = document.getElementById('quizExplain');
   explainEl.classList.remove('show');
   explainEl.innerHTML = isAnswered
-    ? (q.explain + '<span class="cite">' + ICONS.seal + (q.general ? generalCiteText(q) : q.art) + '</span>')
+    ? (explainMetaHtml(q) + q.explain)
     : '';
 
   renderQuizPill();
@@ -2294,7 +2292,7 @@ function selectOption(i){
     }
   });
   const explainEl = document.getElementById('quizExplain');
-  explainEl.innerHTML = q.explain + '<span class="cite">' + ICONS.seal + (q.general ? generalCiteText(q) : q.art) + '</span>';
+  explainEl.innerHTML = explainMetaHtml(q) + q.explain;
   explainEl.classList.remove('show'); // queda oculta hasta que se pulse "Mostrar explicación"
   renderQuizPill();
   document.getElementById('quizNextBtn').disabled = false;
@@ -2315,7 +2313,7 @@ function markBlank(){
     }
   });
   const explainEl = document.getElementById('quizExplain');
-  explainEl.innerHTML = q.explain + '<span class="cite">' + ICONS.seal + (q.general ? generalCiteText(q) : q.art) + '</span>';
+  explainEl.innerHTML = explainMetaHtml(q) + q.explain;
   explainEl.classList.remove('show'); // queda oculta hasta que se pulse "Mostrar explicación"
   renderQuizPill();
   document.getElementById('quizNextBtn').disabled = false;
@@ -2552,10 +2550,6 @@ function renderReviewQuestion(){
 
   let html = '';
   html += '<div class="review-report" role="button" tabindex="0" onclick="reportReviewQuestion()">' + ICONS.warn + ' Impugnar</div>';
-  html += '<div class="article-tag' + (q.general ? ' general' : '') + '">' + ICONS.seal + '<span>' + (q.general ? generalTagText(q) : q.art) + '</span></div>';
-  html += '<div class="qmeta-row"><div class="qmeta">' +
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><polyline points="4,17 4,12 9,12"/></svg>' +
-    'Fallada <b>' + (q.failCount || 0) + '</b> veces</div></div>';
   html += '<div class="question">' + (qi + 1) + '. ' + q.q + '</div>';
   html += '<div class="options">';
   q.options.forEach((opt, i) => {
@@ -2569,7 +2563,7 @@ function renderReviewQuestion(){
     html += '<div style="font-size:12.5px; color:var(--muted-2); margin-top:12px;">No respondiste esta pregunta.</div>';
   }
   if(showExplain){
-    html += '<div class="explain show">' + q.explain + '<span class="cite">' + ICONS.seal + (q.general ? generalCiteText(q) : q.art) + '</span></div>';
+    html += '<div class="explain show">' + explainMetaHtml(q) + q.explain + '</div>';
   }
   body.innerHTML = html;
 
