@@ -2336,11 +2336,11 @@ function explainBodyHtml(q){
 
 function findQuestionById(questionId){
   if(typeof ACTIVE_QUESTIONS !== 'undefined' && ACTIVE_QUESTIONS){
-    const found = ACTIVE_QUESTIONS.find(q => q.id === questionId);
+    const found = ACTIVE_QUESTIONS.find(q => String(q.id) === String(questionId));
     if(found) return found;
   }
   if(typeof currentReview !== 'undefined' && currentReview && currentReview.questions){
-    const found = currentReview.questions.find(q => q.id === questionId);
+    const found = currentReview.questions.find(q => String(q.id) === String(questionId));
     if(found) return found;
   }
   return null;
