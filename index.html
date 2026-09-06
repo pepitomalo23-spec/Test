@@ -379,12 +379,12 @@
      tarjeta con todos los temas activos, en el orden del panel de admin) ---- */
   .temas-list{ display:flex; flex-direction:column; gap:9px; }
   .topics-card{ border:1px solid var(--line); border-radius:11px; overflow:hidden; background: var(--card); }
+  .topics-card > *:last-child{ border-bottom:none; }
 
   .topic-row{
     display:flex; align-items:center; gap:14px; padding:14px 16px;
     cursor:pointer; transition: background .12s; border-bottom:1px solid var(--line-soft);
   }
-  .topic-row:last-child{ border-bottom:none; }
   .topic-row:hover{ background: rgba(255,255,255,0.03); }
   .topic-row.selected{ background: rgba(140,125,245,0.06); }
   .topic-row.disabled{ cursor:not-allowed; opacity:.48; }
@@ -402,8 +402,9 @@
   .topic-name{ font-family: var(--sans); font-weight:600; font-size:14.5px; }
   .topic-desc{ font-size:11.5px; color: var(--muted); }
   .topic-count{ font-family: var(--mono); font-size:11px; color: var(--muted-2); white-space:nowrap; flex-shrink:0; }
-  .topic-row-chevron{ width:14px; height:14px; color: var(--muted-2); flex-shrink:0; }
+  .topic-row-chevron{ width:14px; height:14px; color: var(--muted-2); flex-shrink:0; cursor:pointer; transition: transform .15s; }
   .topic-row-chevron svg{ width:14px; height:14px; }
+  .topic-row-chevron.open{ transform: rotate(90deg); }
 
   /* examen accent = blue, simulacro accent = teal */
   #screen-config[data-mode="examen"] .topic-row.selected{ background: rgba(78,155,247,0.06); }
@@ -530,23 +531,12 @@
   .question-card-actions{ display:flex; gap:8px; flex-shrink:0; }
   .qloc-path{ font-family:var(--mono); font-size:12px; opacity:0.75; margin:4px 0 14px; padding:8px 10px; background:rgba(255,255,255,0.04); border-radius:8px; }
 
-  /* ---------- detalle de tema (artículos) — recuadro en la misma página ---------- */
-  .topic-detail-overlay{
-    position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:55;
-    display:none; align-items:center; justify-content:center; padding:24px; overflow-y:auto;
-    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  /* ---------- detalle de tema (títulos/capítulos/secciones/artículos) — se despliega
+     debajo de la fila del tema, dentro de la misma tarjeta, en vez de en una ventana ---------- */
+  .topic-detail-inline{
+    padding:2px 16px 16px 51px; background: rgba(255,255,255,0.02); border-bottom:1px solid var(--line-soft);
   }
-  .topic-detail-overlay.show{ display:flex; }
-  .topic-detail-panel{
-    width:100%; max-width:340px; margin:auto; background: #3A3A3C; border:1px solid #4A4A4C;
-    border-radius:18px; padding:22px 20px 20px; max-height:min(560px, calc(100vh - 48px)); overflow-y:auto;
-    animation: detailIn .15s ease-out;
-  }
-  @keyframes detailIn{ from{ opacity:.5; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
-  @media (prefers-reduced-motion: reduce){ .topic-detail-panel{ animation:none; } }
-  .topic-detail-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:20px; }
-  .topic-detail-title{ font-family: var(--title); font-weight:400; font-size:21px; letter-spacing:.3px; }
-  .topic-detail-sub{ font-size:13px; color: var(--muted); margin-top:4px; }
+  .topic-detail-inline-sub{ font-size:12.5px; color: var(--muted); margin:8px 0 10px; line-height:1.45; }
   .article-list{ display:flex; flex-direction:column; gap:8px; }
   .article-row{
     display:flex; align-items:center; gap:13px; padding:13px 15px;
@@ -564,7 +554,7 @@
   .article-row.selected .article-check{ background: var(--purple); border-color: var(--purple); }
   .article-row.selected .article-check svg{ opacity:1; }
   .article-name{ font-size:14px; flex:1; }
-  .article-empty{ font-size:13px; color: var(--muted); padding:26px 4px; text-align:center; }
+  .article-empty{ font-size:13px; color: var(--muted); padding:10px 4px 4px; }
   .topic-node-badge{ font-size:11px; color: var(--purple); background: rgba(140,125,245,0.15); padding:2px 7px; border-radius:8px; margin-left:6px; }
   .btn-block{ width:100%; display:block; text-align:center; padding:14px 20px; font-size:14px; }
   .btn-light{ background: var(--text); color: #0A0A0A; }
@@ -1256,21 +1246,6 @@
       <div class="sheet-options" id="sheetOptions"></div>
     </div>
   </div>
-
-  <div class="topic-detail-overlay" id="topicDetailOverlay" onclick="if(event.target===this) closeTopicDetail()">
-    <div class="topic-detail-panel" role="dialog" aria-modal="true">
-      <div class="topic-detail-head">
-        <div>
-          <div class="topic-detail-title" id="topicDetailTitle">—</div>
-          <div class="topic-detail-sub" id="topicDetailSub"></div>
-        </div>
-        <button class="modal-close" aria-label="Cerrar" onclick="closeTopicDetail()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="article-list" id="articleList"></div>
-    </div>
-  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -1806,45 +1781,40 @@ function topicGroupTypeLabel(topicId){
   const first = NODES_BY_ID[groups[0].id];
   return (first && NODE_TYPE_PLURAL[first.tipo]) || 'Títulos';
 }
-function openTopicDetail(topicId){
-  const t = TOPICS.find(x => x.id === topicId);
-  if(!t) return;
+let expandedTopicIds = new Set(); // temas cuyo desplegable de títulos/capítulos/etc. está abierto (en línea, no en modal)
+function toggleTopicDetail(topicId, event){
+  if(event) event.stopPropagation();
+  if(expandedTopicIds.has(topicId)) expandedTopicIds.delete(topicId); else expandedTopicIds.add(topicId);
+  renderTemas();
+}
+function closeTopicDetail(){
+  if(expandedTopicIds.size){ expandedTopicIds.clear(); renderTemas(); }
+}
+function renderTopicGroupList(topicId){
   const groups = TOPIC_GROUPS[topicId] || [];
-  const groupLabel = topicGroupTypeLabel(topicId);
-  document.getElementById('topicDetailTitle').textContent = t.name;
-  document.getElementById('topicDetailSub').textContent = groups.length
-    ? 'Elige qué ' + groupLabel.toLowerCase() + ' quieres repasar. Se incluyen todas las preguntas de cada uno (también las de sus subniveles).'
-    : t.desc;
-  const el = document.getElementById('articleList');
-  el.innerHTML = '';
-  if(!groups.length){
-    el.innerHTML = '<div class="article-empty">Este tema no tiene subniveles definidos: se incluyen todas sus preguntas.</div>';
-    document.getElementById('topicDetailOverlay').classList.add('show');
-    return;
-  }
   if(!configState.nodeSelections[topicId]){
     configState.nodeSelections[topicId] = new Set(groups.map(g => g.id)); // por defecto, todos incluidos
   }
   const selected = configState.nodeSelections[topicId];
-  groups.forEach(g => {
-    const row = document.createElement('div');
+  return '<div class="article-list">' + groups.map(g => {
     const isSel = selected.has(g.id);
-    row.className = 'article-row' + (isSel ? ' selected' : '');
-    row.setAttribute('role','checkbox'); row.setAttribute('aria-checked', isSel ? 'true' : 'false'); row.setAttribute('tabindex','0');
-    row.innerHTML = '<span class="article-check">' + ICONS.check + '</span><span class="article-name">' + esc(g.label) + '</span>';
-    row.onclick = () => {
-      if(selected.has(g.id)) selected.delete(g.id); else selected.add(g.id);
-      if(selected.size === 0){ groups.forEach(x => selected.add(x.id)); } // no dejar la selección vacía
-      if(selected.size === groups.length) delete configState.nodeSelections[topicId]; // todos = sin restricción
-      openTopicDetail(topicId);
-      renderTemas();
-    };
-    el.appendChild(row);
-  });
-  document.getElementById('topicDetailOverlay').classList.add('show');
+    return '<div class="article-row' + (isSel ? ' selected' : '') + '" role="checkbox" aria-checked="' + isSel + '" tabindex="0" ' +
+      'onclick="toggleTopicGroup(\'' + topicId + '\', \'' + g.id + '\')" ' +
+      'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleTopicGroup(\'' + topicId + '\', \'' + g.id + '\');}">' +
+      '<span class="article-check">' + ICONS.check + '</span><span class="article-name">' + esc(g.label) + '</span>' +
+    '</div>';
+  }).join('') + '</div>';
 }
-function closeTopicDetail(){
-  document.getElementById('topicDetailOverlay').classList.remove('show');
+function toggleTopicGroup(topicId, groupId){
+  const groups = TOPIC_GROUPS[topicId] || [];
+  if(!configState.nodeSelections[topicId]){
+    configState.nodeSelections[topicId] = new Set(groups.map(g => g.id));
+  }
+  const selected = configState.nodeSelections[topicId];
+  if(selected.has(groupId)) selected.delete(groupId); else selected.add(groupId);
+  if(selected.size === 0){ groups.forEach(g => selected.add(g.id)); } // no dejar la selección vacía
+  if(selected.size === groups.length) delete configState.nodeSelections[topicId]; // todos = sin restricción
+  renderTemas();
 }
 
 function renderTemas(){
@@ -1859,6 +1829,9 @@ function renderTemas(){
   const card = document.createElement('div');
   card.className = 'topics-card';
   enabledTopics.forEach((t, idx) => {
+    const groups = TOPIC_GROUPS[t.id] || [];
+    const hasGroups = groups.length > 0;
+    const isOpen = expandedTopicIds.has(t.id);
     const row = document.createElement('div');
     row.className = 'topic-row' + (configState.topics.has(t.id) ? ' selected' : '');
     row.setAttribute('role','checkbox');
@@ -1866,14 +1839,23 @@ function renderTemas(){
     row.setAttribute('tabindex','0');
     row.onclick = () => toggleTopic(t.id);
     const restriction = configState.nodeSelections[t.id];
-    const groupsCount = (TOPIC_GROUPS[t.id] || []).length;
-    const badge = restriction ? ' <span class="topic-node-badge">' + restriction.size + '/' + groupsCount + ' ' + topicGroupTypeLabel(t.id).toLowerCase() + '</span>' : '';
+    const badge = restriction ? ' <span class="topic-node-badge">' + restriction.size + '/' + groups.length + ' ' + topicGroupTypeLabel(t.id).toLowerCase() + '</span>' : '';
     row.innerHTML =
       '<span class="topic-check">' + ICONS.check + '</span>' +
       '<span class="topic-text"><span class="topic-name">' + (idx+1) + ' - ' + esc(t.name) + badge + '</span></span>' +
-      '<span class="topic-row-chevron">' + ICONS.chevron + '</span>';
+      (hasGroups ? '<span class="topic-row-chevron' + (isOpen ? ' open' : '') + '">' + ICONS.chevron + '</span>' : '');
+    if(hasGroups){
+      row.querySelector('.topic-row-chevron').onclick = (e) => toggleTopicDetail(t.id, e);
+    }
     card.appendChild(row);
-    row.querySelector('.topic-row-chevron').onclick = (e) => { e.stopPropagation(); openTopicDetail(t.id); };
+    if(hasGroups && isOpen){
+      const detail = document.createElement('div');
+      detail.className = 'topic-detail-inline';
+      detail.innerHTML =
+        '<div class="topic-detail-inline-sub">Elige qué ' + topicGroupTypeLabel(t.id).toLowerCase() + ' quieres incluir en el test. Se añaden todas las preguntas de cada uno (también las de sus subniveles).</div>' +
+        renderTopicGroupList(t.id);
+      card.appendChild(detail);
+    }
   });
   el.appendChild(card);
   updateConfigFooter();
