@@ -55,6 +55,33 @@
   .header-region-switch:hover{ border-color: var(--muted-2); }
   .header-region-switch .landing-flag{ width:20px; height:14px; }
 
+  /* --- Barra superior en móvil: con los tres nombres completos ("Normativas",
+     "Legislación", "Estadísticas") más los botones de comunidad y cuenta no
+     cabía en el ancho de un teléfono y se solapaba todo. En pantallas
+     pequeñas se muestran solo los iconos, en píldoras compactas, con la
+     pestaña activa resaltada con fondo y color para que se note claramente
+     cuál es la sección seleccionada. --- */
+  @media (max-width:640px){
+    header{ padding:14px 100px 14px 16px; justify-content:flex-start; }
+    .header-nav{ gap:6px; width:100%; justify-content:space-between; }
+    .header-nav .nav-dot{ display:none; }
+    .header-nav span{
+      flex:1; justify-content:center; gap:0; padding:10px 4px; border-radius:12px;
+      background: var(--card); border:1px solid var(--line-soft);
+    }
+    .header-nav span svg{ width:18px; height:18px; }
+    .header-nav-label{ display:none; }
+    .header-nav span.active{
+      background: linear-gradient(135deg, rgba(140,125,245,0.22), rgba(47,191,174,0.14));
+      border-color: rgba(140,125,245,0.4); color: var(--text);
+      box-shadow: 0 0 14px rgba(140,125,245,0.18);
+    }
+    .header-back{ left:12px; width:32px; height:32px; }
+    .header-user{ right:54px; }
+    .header-user-btn{ width:32px; height:32px; }
+    .header-region-switch{ right:12px; width:32px; height:32px; }
+  }
+
   /* ---------- auth screen ---------- */
   .auth-overlay{ position:fixed; inset:0; z-index:300; background: var(--bg); display:flex; align-items:center; justify-content:center; padding:24px; }
   .auth-overlay.hidden{ display:none; }
@@ -991,17 +1018,17 @@
           <path d="M7.5 -3 L12.5 -3"/>
           <path d="M8.5 25.5 A1 1 0 0 1 7.5 26.5"/>
         </svg>
-        Normativas
+        <span class="header-nav-label">Normativas</span>
       </span>
       <div class="nav-dot"></div>
       <span class="active" id="navHome" role="button" tabindex="0" onclick="showScreen('screen-home')" onkeydown="if(event.key==='Enter')showScreen('screen-home')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="m19 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"/><path d="m5 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M7 21h10"/></svg>
-        Legislación
+        <span class="header-nav-label">Legislación</span>
       </span>
       <div class="nav-dot"></div>
       <span id="navStats" role="button" tabindex="0" onclick="showScreen('screen-stats')" onkeydown="if(event.key==='Enter')showScreen('screen-stats')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16v5"/><path d="M16 14.639V21"/><path d="M20 10.656V21"/><path d="m22 3-8.646 8.646a.5.5 0 0 1-.708 0L9.354 8.354a.5.5 0 0 0-.707 0L2 15"/><path d="M4 18.463V21"/><path d="M8 14.656V21"/></svg>
-        Estadísticas
+        <span class="header-nav-label">Estadísticas</span>
       </span>
     </div>
     <div class="header-user" id="headerUser">
