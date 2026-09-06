@@ -690,6 +690,36 @@
   .review-nav button:disabled{ opacity:.35; cursor:not-allowed; }
   .review-nav button svg{ width:15px; height:15px; }
   .review-counter{ font-family: var(--mono); font-size:12.5px; color: var(--muted); min-width:56px; text-align:center; }
+
+  /* ---------- quiz bottom bar (estudio / fallos: tarjeta con navegación) ---------- */
+  .quiz-bottombar{ display:flex; align-items:center; justify-content:center; gap:16px; margin-top:28px; }
+  .quiz-nav-btn{
+    width:34px; height:34px; border-radius:50%; border:1px solid var(--line); background: var(--card);
+    color: var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer;
+    transition: border-color .12s; flex-shrink:0;
+  }
+  .quiz-nav-btn:hover{ border-color: var(--muted-2); }
+  .quiz-nav-btn:disabled{ opacity:.35; cursor:not-allowed; }
+  .quiz-nav-btn svg{ width:15px; height:15px; }
+  .quiz-pill{
+    font-family: var(--sans); font-size:13px; font-weight:600; color: var(--muted);
+    background: var(--card); border:1px solid var(--line); border-radius:20px;
+    padding:9px 18px; display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+  }
+  .quiz-pill.clickable{ cursor:pointer; color: var(--purple); border-color: rgba(140,125,245,0.4); }
+  .quiz-pill.clickable:hover{ border-color: var(--purple); }
+  .quiz-pill .chev{ width:12px; height:12px; transition: transform .15s; }
+  .quiz-pill.open .chev{ transform: rotate(90deg); }
+
+  /* ---------- quiz list view (examen / simulacro: todas las preguntas seguidas) ---------- */
+  .quiz-list-item{
+    border:1px solid var(--line); border-radius:14px; background: var(--card);
+    padding:20px 20px 22px; margin-bottom:16px;
+  }
+  .quiz-list-item .question{ font-size:17px; margin-bottom:18px; }
+  .quiz-list-item .option.selected{ border-color: var(--purple); background: rgba(140,125,245,0.08); }
+  .quiz-list-item .option.selected .opt-badge{ border-color: var(--purple); color: var(--purple); background: rgba(140,125,245,0.12); }
+  .quiz-list-footer{ display:flex; justify-content:center; margin: 10px 0 4px; }
 </style>
 </head>
 <body>
@@ -1176,27 +1206,45 @@
         </div>
       </div>
 
-      <div class="article-tag" id="articleTag">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="7.2"/><circle cx="12" cy="12" r="3"/></svg>
-        <span id="articleTagText">ART. 81.2</span>
+      <!-- ===== Vista tarjeta (estudio / fallos): una pregunta, explicación colapsable, navegación con flechas ===== -->
+      <div id="quizCardView">
+        <div class="article-tag" id="articleTag">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="7.2"/><circle cx="12" cy="12" r="3"/></svg>
+          <span id="articleTagText">ART. 81.2</span>
+        </div>
+
+        <div class="qmeta-row">
+          <div class="qmeta">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><polyline points="4,17 4,12 9,12"/></svg>
+            Fallada <b id="qFailCount">3</b> veces
+          </div>
+          <div class="qmeta time">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
+            Tu media <b id="qAvgTime">8s</b>
+          </div>
+        </div>
+
+        <div class="question" id="quizQuestion">—</div>
+        <div class="options" id="quizOptions"></div>
+        <div class="explain" id="quizExplain"></div>
+
+        <div class="quiz-bottombar" id="quizBottomBar">
+          <button class="quiz-nav-btn" id="quizPrevBtn" aria-label="Anterior" onclick="prevQuestion()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,6 9,12 15,18"/></svg>
+          </button>
+          <span class="quiz-pill" id="quizPill">En blanco</span>
+          <button class="quiz-nav-btn" id="quizNextBtn" aria-label="Siguiente" disabled onclick="nextQuestion()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>
+          </button>
+        </div>
       </div>
 
-      <div class="qmeta-row">
-        <div class="qmeta">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><polyline points="4,17 4,12 9,12"/></svg>
-          Fallada <b id="qFailCount">3</b> veces
+      <!-- ===== Vista lista (examen / simulacro): todas las preguntas seguidas, corrección al final ===== -->
+      <div id="quizListView" style="display:none;">
+        <div id="quizListBody"></div>
+        <div class="quiz-list-footer">
+          <button class="btn btn-primary" id="quizFinishBtn" onclick="confirmFinishQuiz()">Finalizar</button>
         </div>
-        <div class="qmeta time">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
-          Tu media <b id="qAvgTime">8s</b>
-        </div>
-      </div>
-
-      <div class="question" id="quizQuestion">—</div>
-      <div class="options" id="quizOptions"></div>
-      <div class="explain" id="quizExplain"></div>
-      <div class="quiz-actions">
-        <button class="btn btn-primary" id="nextBtn" disabled onclick="nextQuestion()">Siguiente</button>
       </div>
     </section>
 
@@ -2028,13 +2076,21 @@ async function startFallosReview(){
 }
 
 /* ---------- quiz ---------- */
+const QUIZ_LIST_MODES = ['examen', 'simulacro']; // estas modalidades muestran todas las preguntas seguidas, sin corrección inmediata
 function startQuiz(mode, questions, timeMinutes){
   const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
   ACTIVE_QUESTIONS = shuffleArray(base); // el orden de las preguntas siempre es aleatorio en cada intento
-  quizState = { mode, index:0, correctCount:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), startedAt:Date.now() };
+  const viewMode = QUIZ_LIST_MODES.includes(mode) ? 'list' : 'card';
+  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), startedAt:Date.now() };
   showScreen('screen-quiz');
+  document.getElementById('quizCardView').style.display = (viewMode === 'card') ? 'block' : 'none';
+  document.getElementById('quizListView').style.display = (viewMode === 'list') ? 'block' : 'none';
   startTimer(timeMinutes);
-  renderQuestion();
+  if(viewMode === 'card'){
+    renderQuestion();
+  } else {
+    renderQuizList();
+  }
 }
 
 function startTimer(minutes){
@@ -2069,7 +2125,10 @@ function updateTimerDisplay(s){
 
 function renderQuestion(){
   const q = ACTIVE_QUESTIONS[quizState.index];
-  quizState.answered = false;
+  const existingAnswer = quizState.answers[quizState.index];
+  const isAnswered = existingAnswer !== null && existingAnswer !== undefined;
+  quizState.answered = isAnswered;
+
   document.getElementById('quizCount').textContent = (quizState.index+1) + ' / ' + ACTIVE_QUESTIONS.length;
   const tag = document.getElementById('articleTag');
   document.getElementById('articleTagText').textContent = q.general ? generalTagText(q) : q.art;
@@ -2087,13 +2146,52 @@ function renderQuestion(){
     div.setAttribute('role','button');
     div.setAttribute('tabindex','0');
     div.innerHTML = '<span class="opt-badge">' + letters[i] + '</span><span class="opt-text">' + opt + '</span><span class="opt-result"></span>';
-    div.onclick = () => selectOption(i);
+    if(isAnswered){
+      if(i === q.correct){
+        div.classList.add('correct');
+        div.querySelector('.opt-result').innerHTML = ICONS.check;
+      } else if(i === existingAnswer){
+        div.classList.add('incorrect');
+        div.querySelector('.opt-result').innerHTML = ICONS.cross;
+      }
+    } else {
+      div.onclick = () => selectOption(i);
+    }
     optsEl.appendChild(div);
   });
-  document.getElementById('quizExplain').classList.remove('show');
-  document.getElementById('quizExplain').innerHTML = '';
-  document.getElementById('nextBtn').disabled = true;
-  document.getElementById('nextBtn').textContent = (quizState.index === ACTIVE_QUESTIONS.length-1) ? 'Ver resultado' : 'Siguiente';
+
+  // la explicación siempre arranca colapsada al entrar/volver a una pregunta
+  const explainEl = document.getElementById('quizExplain');
+  explainEl.classList.remove('show');
+  explainEl.innerHTML = isAnswered
+    ? (q.explain + '<span class="cite">' + ICONS.seal + (q.general ? generalCiteText(q) : q.art) + '</span>')
+    : '';
+
+  renderQuizPill();
+  document.getElementById('quizPrevBtn').disabled = quizState.index === 0;
+  document.getElementById('quizNextBtn').disabled = !isAnswered;
+  document.getElementById('quizNextBtn').innerHTML = (quizState.index === ACTIVE_QUESTIONS.length - 1)
+    ? ICONS.check
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>';
+}
+
+function renderQuizPill(){
+  const pill = document.getElementById('quizPill');
+  const explainOpen = document.getElementById('quizExplain').classList.contains('show');
+  if(!quizState.answered){
+    pill.className = 'quiz-pill';
+    pill.onclick = null;
+    pill.innerHTML = 'En blanco';
+  } else {
+    pill.className = 'quiz-pill clickable' + (explainOpen ? ' open' : '');
+    pill.onclick = toggleExplain;
+    pill.innerHTML = (explainOpen ? 'Ocultar explicación' : 'Mostrar explicación') + '<span class="chev">' + ICONS.chevron + '</span>';
+  }
+}
+
+function toggleExplain(){
+  document.getElementById('quizExplain').classList.toggle('show');
+  renderQuizPill();
 }
 
 function selectOption(i){
@@ -2111,11 +2209,18 @@ function selectOption(i){
       el.querySelector('.opt-result').innerHTML = ICONS.cross;
     }
   });
-  if(i === q.correct) quizState.correctCount++;
   const explainEl = document.getElementById('quizExplain');
   explainEl.innerHTML = q.explain + '<span class="cite">' + ICONS.seal + (q.general ? generalCiteText(q) : q.art) + '</span>';
-  explainEl.classList.add('show');
-  document.getElementById('nextBtn').disabled = false;
+  explainEl.classList.remove('show'); // queda oculta hasta que se pulse "Mostrar explicación"
+  renderQuizPill();
+  document.getElementById('quizNextBtn').disabled = false;
+}
+
+function prevQuestion(){
+  if(quizState.index > 0){
+    quizState.index--;
+    renderQuestion();
+  }
 }
 
 function nextQuestion(){
@@ -2127,15 +2232,57 @@ function nextQuestion(){
   }
 }
 
+/* ---------- vista lista (examen / simulacro) ---------- */
+function renderQuizList(){
+  const body = document.getElementById('quizListBody');
+  const letters = ['A','B','C','D'];
+  document.getElementById('quizCount').textContent = countAnsweredList() + ' / ' + ACTIVE_QUESTIONS.length;
+  body.innerHTML = ACTIVE_QUESTIONS.map((q, qi) => {
+    const tagText = q.general ? generalTagText(q) : q.art;
+    const optsHtml = q.options.map((opt, i) => {
+      const selected = quizState.answers[qi] === i;
+      return '<div class="option' + (selected ? ' selected' : '') + '" role="button" tabindex="0" onclick="selectListOption(' + qi + ',' + i + ')">' +
+        '<span class="opt-badge">' + letters[i] + '</span><span class="opt-text">' + esc(opt) + '</span><span class="opt-result"></span>' +
+      '</div>';
+    }).join('');
+    return (
+      '<div class="quiz-list-item" data-qi="' + qi + '">' +
+        '<div class="article-tag' + (q.general ? ' general' : '') + '">' + ICONS.seal + '<span>' + esc(tagText) + '</span></div>' +
+        '<div class="question">' + (qi + 1) + '. ' + esc(q.q) + '</div>' +
+        '<div class="options">' + optsHtml + '</div>' +
+      '</div>'
+    );
+  }).join('');
+}
+function countAnsweredList(){
+  return quizState.answers.filter(a => a !== null && a !== undefined).length;
+}
+function selectListOption(qi, i){
+  quizState.answers[qi] = i;
+  const item = document.querySelector('.quiz-list-item[data-qi="' + qi + '"]');
+  item.querySelectorAll('.option').forEach((el, idx) => el.classList.toggle('selected', idx === i));
+  document.getElementById('quizCount').textContent = countAnsweredList() + ' / ' + ACTIVE_QUESTIONS.length;
+}
+function confirmFinishQuiz(){
+  const blank = ACTIVE_QUESTIONS.length - countAnsweredList();
+  if(blank > 0){
+    const label = quizState.mode === 'simulacro' ? 'simulacro' : 'examen';
+    if(!confirm('Tienes ' + blank + ' pregunta' + (blank === 1 ? '' : 's') + ' sin responder. ¿Quieres finalizar el ' + label + ' igualmente?')) return;
+  }
+  finishQuiz();
+}
+
 async function finishQuiz(){
   clearInterval(timerInterval);
   const total = ACTIVE_QUESTIONS.length;
-  document.getElementById('resultScore').textContent = quizState.correctCount;
+  const correctCount = ACTIVE_QUESTIONS.reduce((acc, q, i) => acc + (quizState.answers[i] === q.correct ? 1 : 0), 0);
+  quizState.correctCount = correctCount;
+  document.getElementById('resultScore').textContent = correctCount;
   document.getElementById('resultTotal').textContent = total;
 
   const blank = quizState.answers.filter(a => a === null || a === undefined).length;
-  const bad = total - quizState.correctCount - blank;
-  const notaNum = total ? (quizState.correctCount / total * 10) : 0;
+  const bad = total - correctCount - blank;
+  const notaNum = total ? (correctCount / total * 10) : 0;
   const elapsedSec = quizState.startedAt ? Math.round((Date.now() - quizState.startedAt) / 1000) : 0;
   const MODE_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos' };
 
