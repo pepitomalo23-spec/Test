@@ -2035,7 +2035,12 @@ function buildQuestionSet(pool, count){
 function startFromConfig(){
   const mode = configState.mode;
   if(mode === 'estudio'){
-    const questions = buildQuestionsFromTopics(configState.topics);
+    let questions = buildQuestionsFromTopics(configState.topics);
+    // Respeta el ajuste "Preguntas" (10/20/30/40 o "Sin límite"); antes se
+    // ignoraba y siempre entraban todas las preguntas del tema.
+    if(configState.preguntas){
+      questions = shuffleArray(questions).slice(0, configState.preguntas);
+    }
     startQuiz('estudio', questions, null);
   } else if(mode === 'examen'){
     const pool = buildQuestionsFromTopics(configState.topics);
