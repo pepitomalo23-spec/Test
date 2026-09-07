@@ -3114,7 +3114,23 @@ async function finishQuiz(){
 
   const blank = quizState.answers.filter(a => a === null || a === undefined).length;
   const bad = total - correctCount - blank;
-  const notaNum = total ? (correctCount / total * 10) : 0;
+  // Sistema de puntuación tipo oposición: acertar suma 1 punto, fallar
+  // resta 1/(nº de opciones de esa pregunta - 1) —es decir, lo que en
+  // media "cuesta" un fallo si se responde al azar—, y dejar en blanco
+  // ("no me la juego") no suma ni resta nada. La nota nunca baja de 0.
+  let earnedPoints = 0;
+  ACTIVE_QUESTIONS.forEach((q, i) => {
+    const a = quizState.answers[i];
+    if(a === null || a === undefined) return; // en blanco: no cuenta
+    if(a === q.correct){
+      earnedPoints += 1;
+    } else {
+      const numOptions = (q.options && q.options.length) || 4;
+      const penalty = numOptions > 1 ? 1 / (numOptions - 1) : 0;
+      earnedPoints -= penalty;
+    }
+  });
+  const notaNum = total ? Math.max(0, (earnedPoints / total) * 10) : 0;
   const elapsedSec = quizState.startedAt ? Math.round((Date.now() - quizState.startedAt) / 1000) : 0;
   const MODE_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos' };
 
