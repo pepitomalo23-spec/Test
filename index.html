@@ -238,9 +238,6 @@
   .admin-device-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:8px 10px; border:1px solid var(--line); border-radius:9px; background: var(--card-hi); }
   .admin-device-row.admin-device-warn{ border-color: var(--coral); }
   .admin-device-name{ font-family: var(--sans); font-weight:600; font-size:13px; }
-  .admin-device-ip{ display:flex; align-items:center; font-family: var(--mono); font-size:12px; flex-shrink:0; }
-  .admin-ip-link{ color: var(--muted); text-decoration:underline; }
-  .admin-ip-link:hover{ color: var(--purple); }
   .admin-attempt-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
   .admin-attempt-ok{ color: var(--teal); }
   .admin-attempt-fail{ color: var(--coral); }
@@ -1704,6 +1701,15 @@ function formatRelativeDate(iso){
 function formatNota(n){
   return (Number(n) || 0).toFixed(2).replace('.', ',');
 }
+// Porcentaje EXACTO (sin redondear a entero): se muestran los decimales
+// que hagan falta (hasta 2), quitando ceros sobrantes. Ej: 66.666...% -> "66,67%"
+// solo redondea al 2º decimal para no mostrar infinitos decimales, nunca al entero.
+function formatPctExact(n){
+  if(n === null || n === undefined || isNaN(n)) return '—';
+  const rounded = Math.round(n * 100) / 100; // redondeo a 2 decimales, no a entero
+  const str = (Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/0+$/,'').replace(/\.$/,''));
+  return str.replace('.', ',') + '%';
+}
 function formatMMSS(totalSeconds){
   const s = Math.max(0, Math.round(totalSeconds || 0));
   const m = Math.floor(s / 60), sec = s % 60;
@@ -2106,9 +2112,12 @@ async function loadHistory(){
 /* ---------- global stats screen ---------- */
 async function refreshGlobalStats(){
   if(!currentUser) return;
-  const { data: sessions } = await sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
+  const { data: sessions } = await sb.from('test_sessions').select('score, total, ok, bad, created_at').eq('user_id', currentUser.id);
   const list = sessions || [];
-  const questionsDone = list.reduce((s,r) => s + (r.total || 0), 0);
+  // Solo contamos preguntas que realmente se han visto y respondido
+  // (ok + bad). Si un test se dejó a medias, las preguntas que quedaron
+  // sin ver ("pending"/"total - ok - bad") no cuentan como hechas.
+  const questionsDone = list.reduce((s,r) => s + (r.ok || 0) + (r.bad || 0), 0);
 
   // "Pendientes" (aviso del modo Fallos en el home) se sigue calculando en
   // caliente a partir del historial real, no de ningún contador aparte.
@@ -2122,7 +2131,9 @@ async function refreshGlobalStats(){
   // que tendrías ahora mismo si te examinaran de todo.
   const totalQuestions = QUESTIONS_POOL.length;
   const greenCount = QUESTIONS_POOL.filter(q => q.masteryStatus === 'green').length;
-  const levelPct = totalQuestions ? Math.round((greenCount / totalQuestions) * 100) : null;
+  // Porcentaje exacto (sin redondear al entero) para que "Nivel general"
+  // refleje el dato real, no una aproximación.
+  const levelPct = totalQuestions ? (greenCount / totalQuestions) * 100 : null;
   const notaGeneral = totalQuestions ? (greenCount / totalQuestions) * 10 : null;
 
   const elDone = document.getElementById('statQuestionsDone');
@@ -2133,7 +2144,7 @@ async function refreshGlobalStats(){
   if(elDone) elDone.textContent = questionsDone;
   if(elTotal) elTotal.textContent = totalQuestions;
   if(elAvg) elAvg.textContent = (notaGeneral === null) ? '—' : formatNota(notaGeneral);
-  if(elLevel) elLevel.textContent = (levelPct === null) ? '—' : (levelPct + '%');
+  if(elLevel) elLevel.textContent = formatPctExact(levelPct);
   if(elFallosLabel) elFallosLabel.textContent = fallosPending + ' pendientes';
 
   renderMasteryBar();
@@ -3369,6 +3380,13 @@ async function onLoggedIn(user){
     return;
   }
 
+  if(!currentUserIsAdmin && profile && profile.blocked){
+    currentUser = null;
+    await sb.auth.signOut();
+    showAuthError('Tu cuenta ha sido bloqueada por un administrador. Contacta con el administrador si crees que es un error.');
+    return;
+  }
+
   // Comprobar el límite de dispositivos antes de dar acceso a la app.
   const deviceId = getDeviceId();
   let deviceCheck = null, deviceCheckError = null;
@@ -3530,6 +3548,15 @@ function adminRenderUsers(){
           '<button class="btn btn-confirm" style="padding:8px 14px; font-size:12.5px;" onclick="adminApproveUser(\''+u.id+'\')">Confirmar</button>' +
         '</div>')
       : '';
+    const blockedBadge = (!u.is_admin && u.blocked) ? '<span class="admin-badge over">Bloqueada</span>' : '';
+    const manageRow = u.is_admin
+      ? ''
+      : ('<div class="admin-user-row" style="margin-top:10px; gap:8px;">' +
+          '<button class="btn btn-ghost" style="padding:8px 12px; font-size:12.5px;" onclick="adminToggleBlocked(\''+u.id+'\', '+(!!u.blocked)+')">'+
+            (u.blocked ? 'Desbloquear' : 'Bloquear') +
+          '</button>' +
+          '<button class="btn btn-ghost" style="padding:8px 12px; font-size:12.5px; color: var(--coral); border-color: var(--coral);" onclick="adminDeleteUser(\''+u.id+'\', \''+esc(u.email || '')+'\')">Eliminar cuenta</button>' +
+        '</div>');
     return (
       '<div class="admin-card">' +
         '<div class="admin-user-row">' +
@@ -3539,18 +3566,47 @@ function adminRenderUsers(){
             '<div class="admin-user-badges">' +
               (u.is_admin ? '<span class="admin-badge admin">Administrador</span>' : '') +
               (pending ? '<span class="admin-badge pending">Pendiente</span>' : '') +
+              blockedBadge +
               deviceBadge +
             '</div>' +
           '</div>' +
           (pending ? '' : limitControl) +
         '</div>' +
         pendingRow +
+        manageRow +
         '<div class="admin-status" id="adminStatus-deviceLimit-'+esc(u.id)+'"></div>' +
+        '<div class="admin-status" id="adminStatus-manage-'+esc(u.id)+'"></div>' +
         '<div class="admin-devices-toggle" role="button" tabindex="0" onclick="adminToggleDevices(\''+u.id+'\')">Ver dispositivos</div>' +
         '<div class="admin-devices-list" id="adminDevices-'+esc(u.id)+'" style="display:none;"></div>' +
       '</div>'
     );
   }).join('');
+}
+async function adminToggleBlocked(userId, currentlyBlocked){
+  const nextBlocked = !currentlyBlocked;
+  const statusEl = document.getElementById('adminStatus-manage-'+userId);
+  if(nextBlocked && !confirm('¿Bloquear esta cuenta? No podrá iniciar sesión hasta que la desbloquees.')) return;
+  if(statusEl) statusEl.textContent = 'Guardando…';
+  const { error } = await sb.rpc('admin_set_blocked', { p_user_id: userId, p_blocked: nextBlocked });
+  if(error){
+    if(statusEl){ statusEl.textContent = 'No se pudo actualizar: ' + error.message; statusEl.className = 'admin-status err'; }
+    return;
+  }
+  if(statusEl){ statusEl.textContent = ''; }
+  await adminLoadUsers();
+}
+async function adminDeleteUser(userId, email){
+  const confirmText = email || 'esta cuenta';
+  if(!confirm('¿Eliminar definitivamente ' + confirmText + '? Esta acción no se puede deshacer: se borrará la cuenta, su historial y sus dispositivos.')) return;
+  const statusEl = document.getElementById('adminStatus-manage-'+userId);
+  if(statusEl){ statusEl.textContent = 'Eliminando…'; statusEl.className = 'admin-status'; }
+  const { data, error } = await sb.functions.invoke('admin-delete-user', { body: { user_id: userId } });
+  if(error || (data && data.error)){
+    const msg = (data && data.message) || (error && error.message) || 'Error desconocido.';
+    if(statusEl){ statusEl.textContent = 'No se pudo eliminar: ' + msg; statusEl.className = 'admin-status err'; }
+    return;
+  }
+  await adminLoadUsers();
 }
 function describeUserAgent(ua){
   if(!ua) return 'Dispositivo desconocido';
@@ -3582,16 +3638,13 @@ async function adminToggleDevices(userId){
   const uniqueIps = [...new Set(ips)];
   box.innerHTML = data.map(d => {
     const differs = d.ip_address && uniqueIps.length > 1;
-    const ipLabel = d.ip_address
-      ? '<a href="https://ipinfo.io/'+encodeURIComponent(d.ip_address)+'" target="_blank" rel="noopener" class="admin-ip-link">'+esc(d.ip_address)+'</a>'
-      : 'IP no disponible';
     return (
       '<div class="admin-device-row'+(differs ? ' admin-device-warn' : '')+'">' +
         '<div>' +
           '<div class="admin-device-name">'+esc(describeUserAgent(d.user_agent))+'</div>' +
           '<div class="admin-card-meta">Primera vez: '+formatDateTime(d.first_seen)+' · Última vez: '+formatDateTime(d.last_seen)+'</div>' +
         '</div>' +
-        '<div class="admin-device-ip">'+ipLabel+(differs ? '<span class="admin-badge over" style="margin-left:6px;">IP distinta</span>' : '')+'</div>' +
+        (differs ? '<span class="admin-badge over">IP distinta</span>' : '') +
       '</div>'
     );
   }).join('') + (uniqueIps.length > 1
