@@ -58,9 +58,10 @@
      "Legislación", "Estadísticas") no cabían junto al botón de cuenta en el
      ancho de un teléfono. Ahora en pantallas pequeñas esos accesos se
      muestran como una barra de pestañas fija en la PARTE INFERIOR de la
-     pantalla (solo iconos, en píldoras compactas, con la pestaña activa
-     resaltada con fondo y color), y el botón de cuenta/perfil se queda
-     arriba pero en la esquina IZQUIERDA de la cabecera. --- */
+     pantalla (icono + nombre corto debajo, sin recuadro, con más aire
+     respecto al borde inferior; la pestaña activa se resalta solo con
+     color), y el botón de cuenta/perfil se queda arriba pero en la esquina
+     IZQUIERDA de la cabecera. --- */
   @media (max-width:640px){
     header{ padding:14px 16px; justify-content:flex-start; min-height:60px; }
     .header-back{ left:12px; width:32px; height:32px; }
@@ -69,25 +70,28 @@
 
     .header-nav{
       position:fixed; left:0; right:0; bottom:0; z-index:30;
-      gap:6px; width:100%; justify-content:space-between;
-      padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+      gap:2px; width:100%; justify-content:space-between;
+      padding: 10px 10px calc(18px + env(safe-area-inset-bottom, 0px));
       background: var(--bg); border-top:1px solid var(--line);
     }
     .header-nav .nav-dot{ display:none; }
     .header-nav span{
-      flex:1; justify-content:center; gap:0; padding:10px 4px; border-radius:12px;
-      background: var(--card); border:1px solid var(--line-soft);
+      flex:1; flex-direction:column; justify-content:center; align-items:center;
+      gap:4px; padding:6px 2px; border-radius:10px; background:none; border:none;
+      color: var(--muted-2); transition: color .15s;
     }
-    .header-nav span svg{ width:18px; height:18px; }
-    .header-nav span .header-nav-label{ display:none; }
-    .header-nav span.active{
-      background: linear-gradient(135deg, rgba(242,102,92,0.22), rgba(242,102,92,0.10));
-      border-color: rgba(242,102,92,0.45); color: var(--coral);
-      box-shadow: 0 0 14px rgba(242,102,92,0.22);
+    .header-nav span svg{ width:21px; height:21px; }
+    .header-nav span .header-nav-label{
+      display:block; font-family: var(--sans); font-size:9.5px; font-weight:600;
+      letter-spacing:.01em; color: inherit; max-width:100%; white-space:nowrap;
+      overflow:hidden; text-overflow:ellipsis;
     }
+    .header-nav span.active{ background:none; border:none; box-shadow:none; color: var(--coral); }
+    .header-nav span.active .header-nav-label{ color: var(--coral); }
     /* Deja hueco para que el contenido no quede tapado por la barra inferior fija */
-    main{ padding-bottom: 100px; }
+    main{ padding-bottom: 118px; }
   }
+
 
   /* ---------- auth screen ---------- */
   .auth-overlay{ position:fixed; inset:0; z-index:300; background: var(--bg); display:flex; align-items:center; justify-content:center; padding:24px; }
