@@ -1396,9 +1396,7 @@
         <!-- formulario: importar preguntas en bloque con IA (Gemini / Google AI Studio) -->
         <div class="admin-form hidden" id="adminForm-iaImport">
           <div class="qloc-path" id="iaImportPath"></div>
-          <label>Tu clave de API de Google AI Studio</label>
-          <input id="iaApiKey" type="password" placeholder="AIza… o AQ.Ab8…" onchange="localStorage.setItem('gemini_api_key', this.value)">
-          <div class="admin-card-meta" style="margin:-2px 0 10px;">Se guarda solo en este navegador (localStorage), nunca en el código del repositorio. Consíguela en <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--blue);">aistudio.google.com/apikey</a>.</div>
+          <div class="admin-card-meta" style="margin:-2px 0 10px;">Usa la clave de Gemini configurada en <b>Cambios BOE → Administración</b> (una sola vez, para toda la aplicación).</div>
           <label>Texto extraído (pega aquí el resultado del bookmarklet)</label>
           <textarea id="iaRawText" placeholder="Pega aquí el texto en bruto con las preguntas y opciones" style="min-height:140px;"></textarea>
           <div class="admin-card-meta" style="margin:-2px 0 10px;">La IA intentará detectar a qué Título/Capítulo/Sección/Artículo pertenece cada pregunta a partir del propio texto. Si no lo detecta, tendrás que indicarlo tú antes de guardar — no se guarda nada como "general" sin confirmarlo.</div>
@@ -2684,8 +2682,9 @@ async function toggleFailHistory(questionId, toggleEl){
 
 /* Cuerpo de la explicación: el texto guardado + un botón "IA" en la esquina
    que, al pulsarlo, pide a Gemini una explicación más completa y la añade
-   debajo de todo. Reutiliza la misma clave de API que el panel de admin
-   usa para "Extraer con IA" (se guarda en localStorage, en este navegador). */
+   debajo de todo. Usa la clave única configurada por el administrador en
+   el servidor (Cambios BOE → Administración), vía la Edge Function
+   gemini-proxy: nunca hace falta que el usuario tenga su propia clave. */
 function explainBodyHtml(q){
   const generateBtn = '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
       ICONS.brain + '<span>IA</span>' +
@@ -2765,6 +2764,27 @@ function findQuestionById(questionId){
   return null;
 }
 
+/* Llama a la Edge Function gemini-proxy, que usa la clave única
+   configurada por el administrador en el servidor. Lanza un Error con
+   un mensaje ya listo para mostrar al usuario si algo falla (incluida
+   la falta de clave configurada). */
+async function callGeminiProxy(prompt){
+  const { data, error } = await sb.functions.invoke('gemini-proxy', { body: { prompt } });
+  if(error){
+    let message = error.message || 'Error llamando a la IA.';
+    try{
+      const ctx = error.context;
+      if(ctx && typeof ctx.json === 'function'){
+        const body = await ctx.json();
+        if(body && body.message) message = body.message;
+      }
+    } catch(e){ /* si no se puede leer el cuerpo del error, nos quedamos con el mensaje genérico */ }
+    throw new Error(message);
+  }
+  if(data && data.error){ throw new Error(data.message || 'Error llamando a la IA.'); }
+  return (data && data.text) || '';
+}
+
 async function explainWithAI(questionId, btnEl){
   const body = btnEl.closest('.explain-body');
   const resultEl = body ? body.querySelector('.ia-explain-result') : null;
@@ -2773,13 +2793,6 @@ async function explainWithAI(questionId, btnEl){
   // si ya se generó/cargó antes para esta pregunta, solo mostrar/ocultar sin repetir la llamada
   if(resultEl.dataset.loaded === '1'){
     resultEl.classList.toggle('show');
-    return;
-  }
-
-  const apiKey = localStorage.getItem('gemini_api_key');
-  if(!apiKey){
-    resultEl.innerHTML = '<div class="ia-explain-empty">Falta tu clave de API de Google AI Studio. Añádela una vez en el panel de administración ("Importar con IA") y se reutilizará aquí.</div>';
-    resultEl.classList.add('show');
     return;
   }
 
@@ -2813,15 +2826,7 @@ async function explainWithAI(questionId, btnEl){
     'EXPLICACIÓN BREVE YA EXISTENTE: ' + (q.explain ? q.explain.replace(/<[^>]+>/g, ' ') : '(ninguna)');
 
   try{
-    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' + encodeURIComponent(apiKey), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
-    const data = await resp.json();
-    if(!resp.ok){ throw new Error((data && data.error && data.error.message) || 'Error llamando a la API de Gemini.'); }
-    const text = (data.candidates && data.candidates[0] && data.candidates[0].content &&
-      data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || '';
+    const text = await callGeminiProxy(prompt);
     const cleanText = text.trim().replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
     if(!cleanText){ throw new Error('La IA no ha devuelto ninguna explicación.'); }
 
@@ -4329,7 +4334,6 @@ function adminOpenIAImportForm(){
   document.getElementById('iaSaveRow').classList.add('hidden');
   document.getElementById('iaRawText').value = '';
   document.getElementById('adminStatus-iaImport').textContent = '';
-  document.getElementById('iaApiKey').value = localStorage.getItem('gemini_api_key') || '';
   const topic = adminData.topics.find(t => t.id === adminTreeTopicId);
   document.getElementById('iaImportPath').textContent = 'Tema: ' + (topic ? topic.name : '');
   document.getElementById('adminForm-iaImport').classList.remove('hidden');
@@ -4350,12 +4354,9 @@ function normalizeIALoc(loc){
 }
 function iaLocIsEmpty(loc){ return IA_LOC_LEVELS.every(t => !loc[t]); }
 async function adminExtractWithAI(){
-  const apiKey = document.getElementById('iaApiKey').value.trim();
   const rawText = document.getElementById('iaRawText').value.trim();
   const statusEl = document.getElementById('adminStatus-iaImport');
-  if(!apiKey){ statusEl.textContent = 'Falta tu clave de API de Google AI Studio.'; statusEl.style.color = 'var(--coral)'; return; }
   if(!rawText){ statusEl.textContent = 'Pega antes el texto extraído.'; statusEl.style.color = 'var(--coral)'; return; }
-  localStorage.setItem('gemini_api_key', apiKey);
   const btn = document.getElementById('iaExtractBtn');
   btn.disabled = true; btn.textContent = 'Extrayendo…';
   statusEl.style.color = 'var(--muted)';
@@ -4378,15 +4379,7 @@ async function adminExtractWithAI(){
     'varias preguntas, devuélvelas todas. Si no encuentras ninguna pregunta reconocible, devuelve un array vacío [].' +
     '\n\nTEXTO:\n' + rawText;
   try{
-    const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' + encodeURIComponent(apiKey), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
-    const data = await resp.json();
-    if(!resp.ok){ throw new Error((data && data.error && data.error.message) || 'Error llamando a la API de Gemini.'); }
-    let text = (data.candidates && data.candidates[0] && data.candidates[0].content &&
-      data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || '';
+    let text = await callGeminiProxy(prompt);
     text = text.trim().replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
     let parsed;
     try{ parsed = JSON.parse(text); }
