@@ -1186,28 +1186,6 @@
 
       <div class="section-row"><div class="section-title">Cambios legislativos</div><div class="section-rule"></div></div>
       <div id="boeCambiosList"><div class="empty">Comprobando…</div></div>
-
-      <div id="boeAdminPanel" class="hidden">
-        <div class="section-row"><div class="section-title">Administración del seguimiento BOE</div><div class="section-rule"></div></div>
-        <button class="btn btn-light" style="margin-bottom:12px;" onclick="adminTriggerBoeSyncNow()" id="boeSyncNowBtn">Comprobar ahora</button>
-        <div class="admin-card">
-          <div class="admin-card-meta" style="margin-bottom:10px;">Añade la ley (tema) que quieres seguir y su identificador de la Legislación Consolidada del BOE (formato BOE-A-AAAA-NNNNN). Puedes buscarlo en boe.es/buscar/legislacion.php.</div>
-          <div class="admin-form boe-admin-form">
-            <select id="boeFormTopic"></select>
-            <input id="boeFormId" placeholder="BOE-A-2002-24156" />
-            <input id="boeFormUrl" placeholder="URL en boe.es (opcional)" />
-            <button class="btn btn-primary btn-light" onclick="adminSaveBoeNorma()">Guardar seguimiento</button>
-          </div>
-        </div>
-        <div class="admin-card" style="margin-top:12px;">
-          <div class="admin-card-meta" style="margin-bottom:10px;">Clave de Google AI Studio (Gemini) para generar la explicación en lenguaje sencillo de cada cambio. Sin ella, los cambios se detectan y muestran igual, solo sin ese resumen.</div>
-          <div class="admin-form boe-admin-form">
-            <input id="boeFormGeminiKey" type="password" placeholder="Clave de Gemini" />
-            <button class="btn btn-light" onclick="adminSaveGeminiKey()">Guardar clave</button>
-            <span id="boeGeminiStatus" class="admin-badge">Comprobando…</span>
-          </div>
-        </div>
-      </div>
     </section>
 
     <!-- ===== DETALLE DE CAMBIO BOE (overlay) ===== -->
@@ -1236,7 +1214,7 @@
           <div class="stat-value coral" id="statQuestionsTotal">—</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Nota media</div>
+          <div class="stat-label">Nota actual</div>
           <div class="stat-value blue" id="statAvgScore">—</div>
           <div class="stat-sub">Nivel general: <b id="statLevelPct">—</b></div>
         </div>
@@ -1275,6 +1253,7 @@
         <div class="admin-tab active" id="adminTabBtn-topics" onclick="switchAdminTab('topics')">Temas</div>
         <div class="admin-tab" id="adminTabBtn-articles" onclick="switchAdminTab('articles')">Estructura</div>
         <div class="admin-tab" id="adminTabBtn-users" onclick="switchAdminTab('users')">Usuarios</div>
+        <div class="admin-tab" id="adminTabBtn-boe" onclick="switchAdminTab('boe')">BOE / IA</div>
       </div>
 
       <!-- TOPICS -->
@@ -1424,6 +1403,31 @@
         <div class="section-row" style="margin-top:30px;"><div class="section-title">Intentos de inicio de sesión</div><div class="section-rule"></div></div>
         <div class="admin-card-meta" style="margin-bottom:14px;">Incluye intentos correctos y fallidos, con el dispositivo desde el que se hicieron.</div>
         <div id="adminList-loginAttempts"></div>
+      </div>
+
+      <!-- BOE / IA -->
+      <div class="admin-section" id="adminSection-boe">
+        <div class="admin-card-title" style="margin-bottom:10px;">Seguimiento de cambios en el BOE</div>
+        <button class="btn btn-light" style="margin-bottom:12px;" onclick="adminTriggerBoeSyncNow()" id="boeSyncNowBtn">Comprobar ahora</button>
+        <div class="admin-card">
+          <div class="admin-card-meta" style="margin-bottom:10px;">Añade la ley (tema) que quieres seguir y su identificador de la Legislación Consolidada del BOE (formato BOE-A-AAAA-NNNNN). Puedes buscarlo en boe.es/buscar/legislacion.php.</div>
+          <div class="admin-form boe-admin-form">
+            <select id="boeFormTopic"></select>
+            <input id="boeFormId" placeholder="BOE-A-2002-24156" />
+            <input id="boeFormUrl" placeholder="URL en boe.es (opcional)" />
+            <button class="btn btn-primary btn-light" onclick="adminSaveBoeNorma()">Guardar seguimiento</button>
+          </div>
+        </div>
+
+        <div class="section-row" style="margin-top:30px;"><div class="section-title">Inteligencia artificial (Gemini)</div><div class="section-rule"></div></div>
+        <div class="admin-card">
+          <div class="admin-card-meta" style="margin-bottom:10px;">Clave única de Google AI Studio (Gemini), usada tanto para explicar preguntas e importar preguntas con IA como para resumir los cambios del BOE. Se guarda una sola vez aquí y se queda fija hasta que la cambies.</div>
+          <div class="admin-form boe-admin-form">
+            <input id="boeFormGeminiKey" type="password" placeholder="Clave de Gemini" />
+            <button class="btn btn-light" onclick="adminSaveGeminiKey()">Guardar clave</button>
+            <span id="boeGeminiStatus" class="admin-badge">Comprobando…</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -2103,8 +2107,6 @@ async function refreshGlobalStats(){
   if(!currentUser) return;
   const { data: sessions } = await sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
   const list = sessions || [];
-  const testsCount = list.length;
-  const avgScore = testsCount ? list.reduce((s,r) => s + Number(r.score || 0), 0) / testsCount : 0;
   const questionsDone = list.reduce((s,r) => s + (r.total || 0), 0);
 
   // "Pendientes" (aviso del modo Fallos en el home) se sigue calculando en
@@ -2113,12 +2115,14 @@ async function refreshGlobalStats(){
   const modeCardFallos = document.getElementById('modeCardFallos');
   if(modeCardFallos) modeCardFallos.classList.toggle('disabled', fallosPending === 0);
 
-  // Nivel general: de todo el temario (preguntas sin hacer incluidas), qué
-  // porcentaje está realmente dominado (verde). Las falladas y las que aún
-  // no se han hecho restan por igual, no puntúan.
+  // Nota y nivel general: sobre TODO el temario (preguntas sin hacer
+  // incluidas), no solo sobre los tests que ya has hecho. Las falladas y
+  // las que aún no se han hecho restan por igual, no puntúan: es la nota
+  // que tendrías ahora mismo si te examinaran de todo.
   const totalQuestions = QUESTIONS_POOL.length;
   const greenCount = QUESTIONS_POOL.filter(q => q.masteryStatus === 'green').length;
   const levelPct = totalQuestions ? Math.round((greenCount / totalQuestions) * 100) : null;
+  const notaGeneral = totalQuestions ? (greenCount / totalQuestions) * 10 : null;
 
   const elDone = document.getElementById('statQuestionsDone');
   const elTotal = document.getElementById('statQuestionsTotal');
@@ -2127,7 +2131,7 @@ async function refreshGlobalStats(){
   const elFallosLabel = document.getElementById('fallosPendingLabel');
   if(elDone) elDone.textContent = questionsDone;
   if(elTotal) elTotal.textContent = totalQuestions;
-  if(elAvg) elAvg.textContent = testsCount ? formatNota(avgScore) : '—';
+  if(elAvg) elAvg.textContent = (notaGeneral === null) ? '—' : formatNota(notaGeneral);
   if(elLevel) elLevel.textContent = (levelPct === null) ? '—' : (levelPct + '%');
   if(elFallosLabel) elFallosLabel.textContent = fallosPending + ' pendientes';
 
@@ -3461,10 +3465,13 @@ async function adminLoadAllData(){
   refreshTreeTopicSelect();
 }
 function switchAdminTab(name){
-  ['topics','articles','users'].forEach(t => {
+  ['topics','articles','users','boe'].forEach(t => {
     document.getElementById('adminTabBtn-'+t).classList.toggle('active', t===name);
     document.getElementById('adminSection-'+t).classList.toggle('active', t===name);
   });
+  if(name === 'boe'){
+    initBoeAdminPanel();
+  }
   if(name === 'users'){
     adminLoadUsers();
     adminLoadLoginAttempts();
@@ -3689,12 +3696,6 @@ async function loadNormativas(){
   boeCambiosData = cambios || [];
   renderBoeNormas();
   renderBoeCambios();
-
-  const panel = document.getElementById('boeAdminPanel');
-  if(panel){
-    panel.classList.toggle('hidden', !currentUserIsAdmin);
-    if(currentUserIsAdmin) initBoeAdminPanel();
-  }
 }
 
 function topicTitle(topicId){
