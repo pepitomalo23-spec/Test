@@ -1495,6 +1495,7 @@
         <div class="fallos-breakdown" id="fallosBreakdown"></div>
         <div class="modal-footer">
           <button class="btn btn-primary btn-block btn-light" id="fallosStartBtn" onclick="startFallosReview()">Comenzar repaso</button>
+          <button class="btn btn-ghost btn-block" id="fallosDeleteBtn" style="color: var(--coral); border-color: var(--coral); margin-top:8px;" onclick="eliminarFallosPendientes()">Eliminar preguntas que hay aquí</button>
         </div>
       </div>
     </section>
@@ -2548,6 +2549,48 @@ function startFallosReview(){
   const questions = QUESTIONS_POOL.filter(q => q.masteryStatus === 'red');
   if(!questions.length) return; // sin fallos pendientes no se puede iniciar el repaso
   startQuiz('fallos', questions, null);
+}
+
+// Como el estado "en rojo" se calcula en caliente a partir de session_answers
+// (no hay ningún contador aparte que resetear), la única forma real de dejar
+// Fallos a 0 es borrar del historial las respuestas de esas preguntas
+// concretas. Al hacerlo, esas preguntas vuelven a quedar "sin hacer": no
+// puntúan como falladas ni como dominadas, y podrán volver a fallarse en el
+// futuro. Los tests ya completados que aparecen en el Historial NO se tocan
+// (conservan su nota tal cual se guardó); solo desaparece el rastro de esas
+// preguntas concretas en el cálculo de dominio/Estadísticas.
+async function eliminarFallosPendientes(){
+  if(!currentUser) return;
+  const questions = QUESTIONS_POOL.filter(q => q.masteryStatus === 'red');
+  if(!questions.length) return;
+
+  const n = questions.length;
+  const aviso = 'Vas a borrar del historial las respuestas de estas ' + n + ' pregunta' + (n === 1 ? '' : 's') + ' fallada' + (n === 1 ? '' : 's') + '.\n\n' +
+    'Quedarán como "sin hacer": desaparecerán de Fallos y de las Estadísticas hasta que vuelvas a responderlas (y podrán volver a fallarse).\n\n' +
+    'Esta acción no se puede deshacer. ¿Continuar?';
+  if(!confirm(aviso)) return;
+
+  const btn = document.getElementById('fallosDeleteBtn');
+  if(btn) btn.disabled = true;
+
+  try{
+    const ids = questions.map(q => q.id);
+    // Se comprueba explícitamente user_id, igual que en el resto de borrados
+    // del historial, para no depender solo de las políticas de RLS.
+    const { error } = await sb.from('session_answers').delete()
+      .eq('user_id', currentUser.id).in('question_id', ids);
+    if(error) throw error;
+  } catch(err){
+    console.error('Error eliminando las preguntas falladas', err);
+    alert('No se ha podido completar la operación. Inténtalo de nuevo.');
+    if(btn) btn.disabled = false;
+    return;
+  }
+
+  await loadAppData();
+  await refreshGlobalStats();
+  if(btn) btn.disabled = false;
+  showHome();
 }
 
 /* ---------- quiz ---------- */
