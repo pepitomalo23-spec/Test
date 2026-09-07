@@ -285,6 +285,7 @@
   .mastery-seg.mastery-green, .mastery-dot.mastery-green{ background: var(--green); }
   .mastery-seg.mastery-yellow, .mastery-dot.mastery-yellow{ background: var(--amber); }
   .mastery-seg.mastery-red, .mastery-dot.mastery-red{ background: var(--coral); }
+  .mastery-seg.mastery-blue, .mastery-dot.mastery-blue{ background: var(--blue); }
   .mastery-legend{ display:flex; flex-wrap:wrap; gap:16px; }
 
   /* ---------- ranking de temas (mejor a peor, % real de dominio) ---------- */
@@ -1235,13 +1236,14 @@
       <div class="mastery-card">
         <div class="mastery-head">
           <div class="mastery-title">Dominio de preguntas</div>
-          <div class="mastery-total"><span id="masteryTotal">0</span> preguntas practicadas</div>
+          <div class="mastery-total"><span id="masteryTotal">0</span> preguntas en total</div>
         </div>
         <div class="mastery-bar" id="masteryBar"></div>
         <div class="mastery-legend">
           <div class="mastery-legend-item"><span class="mastery-dot mastery-green"></span>Aprobadas <span class="mastery-legend-value" id="masteryGreenCount">0</span></div>
           <div class="mastery-legend-item"><span class="mastery-dot mastery-yellow"></span>En progreso <span class="mastery-legend-value" id="masteryYellowCount">0</span></div>
           <div class="mastery-legend-item"><span class="mastery-dot mastery-red"></span>Suspendidas <span class="mastery-legend-value" id="masteryRedCount">0</span></div>
+          <div class="mastery-legend-item"><span class="mastery-dot mastery-blue"></span>Sin ver <span class="mastery-legend-value" id="masteryBlueCount">0</span></div>
         </div>
       </div>
       <div class="ranking-card">
@@ -1850,29 +1852,33 @@ function backToLanding(){
   if(landing) landing.classList.remove('hidden');
 }
 
-/* ---------- barra de dominio (verde/amarillo/rojo) de la pantalla Estadísticas ---------- */
+/* ---------- barra de dominio (verde/amarillo/rojo/azul) de la pantalla Estadísticas ---------- */
 function renderMasteryBar(){
-  const pool = QUESTIONS_POOL.filter(q => q.timesSeen > 0);
+  const pool = QUESTIONS_POOL;
   const total = pool.length;
   const green = pool.filter(q => q.masteryStatus === 'green').length;
   const yellow = pool.filter(q => q.masteryStatus === 'yellow').length;
   const red = pool.filter(q => q.masteryStatus === 'red').length;
+  const notSeen = pool.filter(q => q.masteryStatus === null).length;
   const pct = n => total ? (n / total * 100) : 0;
 
   const elTotal = document.getElementById('masteryTotal');
   const elGreen = document.getElementById('masteryGreenCount');
   const elYellow = document.getElementById('masteryYellowCount');
   const elRed = document.getElementById('masteryRedCount');
+  const elBlue = document.getElementById('masteryBlueCount');
   const bar = document.getElementById('masteryBar');
   if(elTotal) elTotal.textContent = total;
   if(elGreen) elGreen.textContent = green;
   if(elYellow) elYellow.textContent = yellow;
   if(elRed) elRed.textContent = red;
+  if(elBlue) elBlue.textContent = notSeen;
   if(bar){
     bar.innerHTML = total ? (
       '<div class="mastery-seg mastery-green" style="width:' + pct(green) + '%"></div>' +
       '<div class="mastery-seg mastery-yellow" style="width:' + pct(yellow) + '%"></div>' +
-      '<div class="mastery-seg mastery-red" style="width:' + pct(red) + '%"></div>'
+      '<div class="mastery-seg mastery-red" style="width:' + pct(red) + '%"></div>' +
+      '<div class="mastery-seg mastery-blue" style="width:' + pct(notSeen) + '%"></div>'
     ) : '';
   }
 }
