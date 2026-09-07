@@ -157,6 +157,26 @@
   .admin-section{ display:none; }
   .admin-section.active{ display:block; }
   .admin-card{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .boe-admin-form{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .boe-admin-form select, .boe-admin-form input{ flex:1 1 160px; margin-bottom:0 !important; }
+  .boe-normas-list{ display:flex; flex-direction:column; gap:10px; margin-bottom:18px; }
+  .boe-norma-card{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .boe-norma-title{ font-weight:600; font-size:14px; }
+  .boe-norma-meta{ font-size:12px; color: var(--muted); margin-top:3px; }
+  .boe-cambio-card{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:10px; cursor:pointer; transition:border-color .15s; }
+  .boe-cambio-card:hover{ border-color: var(--purple); }
+  .boe-cambio-head{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .boe-cambio-title{ font-weight:600; font-size:14px; }
+  .boe-cambio-sub{ font-size:12px; color: var(--muted); margin-top:4px; }
+  .boe-cambio-fecha{ font-size:11px; color: var(--muted); white-space:nowrap; }
+  .boe-badge-nuevo{ font-family: var(--mono); font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--coral); color: var(--coral); background: rgba(242,102,92,0.1); }
+  .boe-badge-revisado{ font-family: var(--mono); font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--line); color: var(--muted); }
+  .boe-detalle-section{ margin-bottom:18px; }
+  .boe-detalle-label{ font-size:12px; color: var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px; }
+  .boe-detalle-antes, .boe-detalle-ahora{ background: var(--card-hi, #1c1c1c); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:13.5px; line-height:1.6; }
+  .boe-detalle-antes{ opacity:.7; text-decoration: line-through; text-decoration-color: var(--coral); }
+  .boe-detalle-ahora{ border-color: var(--green); }
+  .boe-afecta-item{ font-size:13px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:6px; }
   .admin-card-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
   .admin-card-title{ font-size:14.5px; font-weight:700; margin-bottom:4px; }
   .admin-card-meta{ font-size:12px; color: var(--muted); line-height:1.5; }
@@ -1148,7 +1168,47 @@
     <!-- ===== NORMATIVAS SCREEN ===== -->
     <section class="screen" id="screen-normativas">
       <h1>Normativas</h1>
-      <div class="empty">Aquí aparecerán las normativas disponibles.</div>
+      <div class="config-sub">Cambios legislativos detectados automáticamente en el BOE para las leyes de tu temario.</div>
+
+      <div id="boeNormasList" class="boe-normas-list"></div>
+
+      <div class="section-row"><div class="section-title">Cambios legislativos</div><div class="section-rule"></div></div>
+      <div id="boeCambiosList"><div class="empty">Comprobando…</div></div>
+
+      <div id="boeAdminPanel" class="hidden">
+        <div class="section-row"><div class="section-title">Administración del seguimiento BOE</div><div class="section-rule"></div></div>
+        <button class="btn btn-light" style="margin-bottom:12px;" onclick="adminTriggerBoeSyncNow()" id="boeSyncNowBtn">Comprobar ahora</button>
+        <div class="admin-card">
+          <div class="admin-card-meta" style="margin-bottom:10px;">Añade la ley (tema) que quieres seguir y su identificador de la Legislación Consolidada del BOE (formato BOE-A-AAAA-NNNNN). Puedes buscarlo en boe.es/buscar/legislacion.php.</div>
+          <div class="admin-form boe-admin-form">
+            <select id="boeFormTopic"></select>
+            <input id="boeFormId" placeholder="BOE-A-2002-24156" />
+            <input id="boeFormUrl" placeholder="URL en boe.es (opcional)" />
+            <button class="btn btn-primary btn-light" onclick="adminSaveBoeNorma()">Guardar seguimiento</button>
+          </div>
+        </div>
+        <div class="admin-card" style="margin-top:12px;">
+          <div class="admin-card-meta" style="margin-bottom:10px;">Clave de Google AI Studio (Gemini) para generar la explicación en lenguaje sencillo de cada cambio. Sin ella, los cambios se detectan y muestran igual, solo sin ese resumen.</div>
+          <div class="admin-form boe-admin-form">
+            <input id="boeFormGeminiKey" type="password" placeholder="Clave de Gemini" />
+            <button class="btn btn-light" onclick="adminSaveGeminiKey()">Guardar clave</button>
+            <span id="boeGeminiStatus" class="admin-badge">Comprobando…</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== DETALLE DE CAMBIO BOE (overlay) ===== -->
+    <section class="screen overlay" id="screen-boe-detalle">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h1>Cambio legislativo</h1>
+          <button class="modal-close" aria-label="Cerrar" onclick="showScreen('screen-normativas')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <div id="boeDetalleBody"><div class="empty">Cargando…</div></div>
+      </div>
     </section>
 
     <!-- ===== STATS SCREEN ===== -->
@@ -2074,6 +2134,7 @@ function showScreen(id){
   document.getElementById('navHome').classList.toggle('active', id === 'screen-home');
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
   if(id === 'screen-home') updateModeCardsLockState();
+  if(id === 'screen-normativas') loadNormativas();
 }
 function showHome(){ showScreen('screen-home'); }
 
@@ -3589,6 +3650,209 @@ function adminRenderLoginAttempts(){
       '</div>'
     );
   }).join('');
+}
+
+/* ---------- NORMATIVAS / CAMBIOS LEGISLATIVOS (BOE) ---------- */
+let boeCambiosData = [];
+let boeNormasData = [];
+
+async function loadNormativas(){
+  const [{ data: normas, error: errNormas }, { data: cambios, error: errCambios }] = await Promise.all([
+    sb.from('boe_normas_seguimiento').select('*'),
+    sb.from('boe_cambios').select('*').order('created_at', { ascending:false }).limit(100)
+  ]);
+  if(errNormas) console.error(errNormas);
+  if(errCambios) console.error(errCambios);
+  boeNormasData = normas || [];
+  boeCambiosData = cambios || [];
+  renderBoeNormas();
+  renderBoeCambios();
+
+  const panel = document.getElementById('boeAdminPanel');
+  if(panel){
+    panel.classList.toggle('hidden', !currentUserIsAdmin);
+    if(currentUserIsAdmin) initBoeAdminPanel();
+  }
+}
+
+function topicTitle(topicId){
+  const t = TOPICS.find(x => x.id === topicId);
+  return t ? (t.name || t.id) : topicId;
+}
+
+function renderBoeNormas(){
+  const el = document.getElementById('boeNormasList');
+  if(!el) return;
+  if(!boeNormasData.length){
+    el.innerHTML = '<div class="empty">Todavía no hay ninguna ley en seguimiento.</div>';
+    return;
+  }
+  el.innerHTML = boeNormasData.map(n => {
+    const estado = n.ultimo_error
+      ? '<span class="admin-badge over">Error: '+esc(n.ultimo_error)+'</span>'
+      : (n.activo ? '<span class="admin-badge admin">Activo</span>' : '<span class="admin-badge">Pausado</span>');
+    const comprobado = n.ultima_comprobacion ? 'Última comprobación: '+formatDateTime(n.ultima_comprobacion) : 'Todavía sin comprobar';
+    return (
+      '<div class="boe-norma-card">' +
+        '<div>' +
+          '<div class="boe-norma-title">'+esc(n.titulo || n.boe_id)+'</div>' +
+          '<div class="boe-norma-meta">'+esc(n.boe_id)+' · '+comprobado+'</div>' +
+        '</div>' +
+        estado +
+      '</div>'
+    );
+  }).join('');
+}
+
+function renderBoeCambios(){
+  const el = document.getElementById('boeCambiosList');
+  if(!el) return;
+  if(!boeCambiosData.length){
+    el.innerHTML = '<div class="empty">No se ha detectado ningún cambio todavía. En cuanto el BOE publique una modificación de alguno de tus artículos, aparecerá aquí.</div>';
+    return;
+  }
+  el.innerHTML = boeCambiosData.map(c => {
+    const badge = c.estado === 'revisado' ? '<span class="boe-badge-revisado">Revisado</span>' : '<span class="boe-badge-nuevo">Nuevo</span>';
+    const fecha = c.fecha_publicacion ? formatDateOnly(c.fecha_publicacion) : '';
+    return (
+      '<div class="boe-cambio-card" onclick="openBoeDetalle(\''+c.id+'\')">' +
+        '<div class="boe-cambio-head">' +
+          '<div class="boe-cambio-title">'+esc(topicTitle(c.topic_id))+' — '+esc(c.titulo_bloque || '')+'</div>' +
+          badge +
+        '</div>' +
+        '<div class="boe-cambio-sub">'+esc((c.resumen_ia && c.resumen_ia.simple) || c.resumen_oficial || 'Se ha modificado el texto de este artículo.')+'</div>' +
+        '<div class="boe-cambio-fecha">'+fecha+'</div>' +
+      '</div>'
+    );
+  }).join('');
+}
+
+function formatDateOnly(d){
+  if(!d) return '';
+  try{ return new Date(d+'T00:00:00').toLocaleDateString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric' }); }
+  catch(e){ return d; }
+}
+
+async function openBoeDetalle(id){
+  const c = boeCambiosData.find(x => x.id === id);
+  if(!c){ return; }
+  showScreen('screen-boe-detalle');
+  const body = document.getElementById('boeDetalleBody');
+  body.innerHTML = '<div class="empty">Cargando…</div>';
+
+  const { data: preguntas } = c.nodo_id
+    ? await sb.from('questions').select('id, question').eq('nodo_id', c.nodo_id)
+    : { data: [] };
+
+  const ia = c.resumen_ia || null;
+  body.innerHTML =
+    '<div class="boe-detalle-section">' +
+      '<div class="boe-detalle-label">Norma</div>' +
+      '<div>'+esc(topicTitle(c.topic_id))+' — '+esc(c.titulo_bloque || '')+'</div>' +
+    '</div>' +
+    (c.fecha_publicacion || c.fecha_vigencia ? (
+      '<div class="boe-detalle-section">' +
+        '<div class="boe-detalle-label">Fechas</div>' +
+        '<div>' +
+          (c.fecha_publicacion ? 'Publicación de la modificación: '+formatDateOnly(c.fecha_publicacion)+'<br>' : '') +
+          (c.fecha_vigencia ? 'Entrada en vigor: '+formatDateOnly(c.fecha_vigencia) : '') +
+        '</div>' +
+      '</div>'
+    ) : '') +
+    (ia ? (
+      '<div class="boe-detalle-section">' +
+        '<div class="boe-detalle-label">Qué ha cambiado</div>' +
+        '<div>'+esc(ia.simple || '')+'</div>' +
+        (ia.tecnica ? '<div class="boe-cambio-sub" style="margin-top:8px;">'+esc(ia.tecnica)+'</div>' : '') +
+        (ia.afecta ? '<div class="boe-cambio-sub" style="margin-top:8px;"><b>Afecta a:</b> '+esc(ia.afecta)+'</div>' : '') +
+      '</div>'
+    ) : (c.resumen_oficial ? (
+      '<div class="boe-detalle-section">' +
+        '<div class="boe-detalle-label">Nota oficial del BOE</div>' +
+        '<div>'+esc(c.resumen_oficial)+'</div>' +
+      '</div>'
+    ) : '')) +
+    '<div class="boe-detalle-section">' +
+      '<div class="boe-detalle-label">Antes</div>' +
+      '<div class="boe-detalle-antes">'+(c.texto_antes_html || '(sin texto anterior)')+'</div>' +
+    '</div>' +
+    '<div class="boe-detalle-section">' +
+      '<div class="boe-detalle-label">Ahora</div>' +
+      '<div class="boe-detalle-ahora">'+(c.texto_ahora_html || '')+'</div>' +
+    '</div>' +
+    (c.fuente_url ? (
+      '<div class="boe-detalle-section"><a href="'+esc(c.fuente_url)+'" target="_blank" rel="noopener">Ver en boe.es →</a></div>'
+    ) : '') +
+    '<div class="boe-detalle-section">' +
+      '<div class="boe-detalle-label">Contenido de tu web afectado</div>' +
+      (preguntas && preguntas.length
+        ? preguntas.map(p => '<div class="boe-afecta-item">'+esc(p.question)+'</div>').join('')
+        : '<div class="boe-cambio-sub">No hay preguntas ligadas directamente a este artículo.</div>') +
+    '</div>' +
+    (currentUserIsAdmin && c.estado !== 'revisado' ? (
+      '<div class="modal-footer"><button class="btn btn-primary btn-light" onclick="adminMarcarRevisado(\''+c.id+'\')">Marcar como revisado</button></div>'
+    ) : '');
+}
+
+async function adminMarcarRevisado(id){
+  const { error } = await sb.rpc('admin_marcar_cambio_revisado', { p_cambio_id: id });
+  if(error){ alert('No se pudo marcar como revisado: ' + error.message); return; }
+  showScreen('screen-normativas');
+  await loadNormativas();
+}
+
+function initBoeAdminPanel(){
+  const sel = document.getElementById('boeFormTopic');
+  if(sel && !sel.dataset.filled){
+    sel.innerHTML = TOPICS.map(t => '<option value="'+esc(t.id)+'">'+esc(t.name || t.id)+'</option>').join('');
+    sel.dataset.filled = '1';
+  }
+  refreshBoeGeminiStatus();
+}
+
+async function adminSaveBoeNorma(){
+  const topicId = document.getElementById('boeFormTopic').value;
+  const boeId = document.getElementById('boeFormId').value.trim();
+  const url = document.getElementById('boeFormUrl').value.trim() || null;
+  if(!topicId || !boeId){ alert('Elige un tema e introduce el identificador del BOE.'); return; }
+  const { error } = await sb.rpc('admin_upsert_boe_norma', {
+    p_topic_id: topicId, p_boe_id: boeId, p_titulo: topicTitle(topicId), p_url_html: url, p_activo: true
+  });
+  if(error){ alert('No se pudo guardar: ' + error.message); return; }
+  document.getElementById('boeFormId').value = '';
+  document.getElementById('boeFormUrl').value = '';
+  await loadNormativas();
+}
+
+async function refreshBoeGeminiStatus(){
+  const statusEl = document.getElementById('boeGeminiStatus');
+  if(!statusEl) return;
+  const { data, error } = await sb.rpc('admin_app_secret_status', { p_name: 'gemini_api_key' });
+  if(error){ statusEl.textContent = 'No se pudo comprobar'; return; }
+  statusEl.textContent = data ? '✅ Configurada' : 'No configurada';
+  statusEl.className = data ? 'admin-badge admin' : 'admin-badge';
+}
+
+async function adminSaveGeminiKey(){
+  const input = document.getElementById('boeFormGeminiKey');
+  const value = input.value.trim();
+  if(!value){ alert('Introduce una clave.'); return; }
+  const { error } = await sb.rpc('admin_set_app_secret', { p_name: 'gemini_api_key', p_value: value });
+  if(error){ alert('No se pudo guardar: ' + error.message); return; }
+  input.value = '';
+  refreshBoeGeminiStatus();
+}
+
+async function adminTriggerBoeSyncNow(){
+  const btn = document.getElementById('boeSyncNowBtn');
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Comprobando…';
+  const { error } = await sb.rpc('admin_trigger_boe_sync');
+  btn.disabled = false; btn.textContent = original;
+  if(error){ alert('No se pudo lanzar la comprobación: ' + error.message); return; }
+  // La Edge Function tarda unos segundos en recorrer todas las normas;
+  // esperamos un poco antes de refrescar la lista.
+  setTimeout(loadNormativas, 6000);
 }
 
 /* ---------- TOPICS ---------- */
