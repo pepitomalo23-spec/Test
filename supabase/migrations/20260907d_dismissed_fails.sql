@@ -1,9 +1,8 @@
 -- =====================================================================
 -- Migración: "Quitar de Fallos" sin tocar el historial ni las Estadísticas
 -- =====================================================================
--- Ejecuta este script en Supabase → SQL Editor (proyecto de este repo).
--- No se aplica automáticamente: requiere acceso al panel de Supabase,
--- que no se comparte con el asistente.
+-- Ya aplicada en producción (proyecto "Test" de Supabase, 2026-09-07).
+-- Se deja aquí versionada como documentación del cambio.
 --
 -- Contexto:
 --   El botón "Eliminar preguntas que hay aquí" de la pantalla Fallos
@@ -25,7 +24,7 @@
 
 create table if not exists public.dismissed_fails (
   user_id uuid not null references auth.users(id) on delete cascade,
-  question_id uuid not null references public.questions(id) on delete cascade,
+  question_id bigint not null references public.questions(id) on delete cascade,
   dismissed_at timestamptz not null default now(),
   primary key (user_id, question_id)
 );
