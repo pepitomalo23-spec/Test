@@ -959,15 +959,6 @@
   }
   .review-report:hover{ color: var(--coral); }
   .review-report svg{ width:13px; height:13px; }
-  .review-nav{ display:flex; align-items:center; justify-content:center; gap:16px; margin-top:28px; }
-  .review-nav button{
-    width:34px; height:34px; border-radius:50%; border:1px solid var(--line); background: var(--card);
-    color: var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer; transition: border-color .12s;
-  }
-  .review-nav button:hover{ border-color: var(--muted-2); }
-  .review-nav button:disabled{ opacity:.35; cursor:not-allowed; }
-  .review-nav button svg{ width:15px; height:15px; }
-  .review-counter{ font-family: var(--mono); font-size:12.5px; color: var(--muted); min-width:56px; text-align:center; }
 
   /* ---------- quiz bottom bar (estudio / fallos: tarjeta con navegación) ---------- */
   .quiz-bottombar{ display:flex; align-items:center; justify-content:center; gap:16px; margin-top:28px; }
@@ -1589,15 +1580,6 @@
         </span>
       </div>
       <div id="reviewBody"></div>
-      <div class="review-nav" id="reviewNav">
-        <button id="reviewPrev" aria-label="Anterior" onclick="reviewGo(-1)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,6 9,12 15,18"/></svg>
-        </button>
-        <span class="review-counter" id="reviewCounter">1 / 4</span>
-        <button id="reviewNext" aria-label="Siguiente" onclick="reviewGo(1)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>
-        </button>
-      </div>
     </section>
 
   </main>
@@ -3195,7 +3177,6 @@ function openLastReview(){
 /* ---------- review / corrección ---------- */
 let currentReview = null;
 let reviewFilter = 'todas';
-let reviewIndex = 0;
 
 function computeReviewCounts(review){
   let correct = 0, bad = 0, blank = 0;
@@ -3223,10 +3204,9 @@ function reviewFilteredIndexes(){
 function openReview(review, title){
   currentReview = review;
   reviewFilter = 'todas';
-  reviewIndex = 0;
   document.getElementById('reviewTitle').textContent = title || 'Corrección';
   renderReviewFilters();
-  renderReviewQuestion();
+  renderReviewList();
   showScreen('screen-review');
 }
 function renderReviewFilters(){
@@ -3244,60 +3224,54 @@ function renderReviewFilters(){
     el.className = 'param-opt' + (reviewFilter === d.id ? ' selected' : '');
     el.setAttribute('role','button'); el.setAttribute('tabindex','0');
     el.textContent = d.label + ' · ' + d.count;
-    el.onclick = () => { reviewFilter = d.id; reviewIndex = 0; renderReviewFilters(); renderReviewQuestion(); };
+    el.onclick = () => { reviewFilter = d.id; renderReviewFilters(); renderReviewList(); };
     el.onkeydown = (e) => { if(e.key === 'Enter') el.onclick(); };
     wrap.appendChild(el);
   });
 }
-function renderReviewQuestion(){
+/* Pinta TODAS las preguntas del filtro seguidas, una tarjeta debajo de otra
+   (igual que la vista de lista de examen/simulacro), en vez de tener que
+   pasarlas de una en una con "Anterior/Siguiente". */
+function renderReviewList(){
   const idxs = reviewFilteredIndexes();
   const body = document.getElementById('reviewBody');
-  const nav = document.getElementById('reviewNav');
   if(idxs.length === 0){
     body.innerHTML = '<div class="empty">No hay preguntas en este filtro.</div>';
-    nav.style.display = 'none';
     return;
   }
-  nav.style.display = 'flex';
-  if(reviewIndex >= idxs.length) reviewIndex = 0;
-  const qi = idxs[reviewIndex];
-  const q = currentReview.questions[qi];
-  const userAnswer = currentReview.answers[qi];
   const showExplain = document.getElementById('reviewExplainToggle').classList.contains('on');
   const letters = ['A','B','C','D'];
 
-  let html = '';
-  html += '<div class="review-report" role="button" tabindex="0" onclick="reportReviewQuestion()">' + ICONS.warn + ' Impugnar</div>';
-  html += '<div class="question">' + (qi + 1) + '. ' + q.q + '</div>';
-  html += '<div class="options">';
-  q.options.forEach((opt, i) => {
-    let cls = 'option', icon = '';
-    if(i === q.correct){ cls += ' correct'; icon = '<span class="opt-result" style="display:block">' + ICONS.check + '</span>'; }
-    else if(i === userAnswer){ cls += ' incorrect'; icon = '<span class="opt-result" style="display:block">' + ICONS.cross + '</span>'; }
-    html += '<div class="' + cls + '"><span class="opt-badge">' + letters[i] + '</span><span class="opt-text">' + opt + '</span>' + icon + '</div>';
-  });
-  html += '</div>';
-  if(userAnswer === null || userAnswer === undefined){
-    html += '<div style="font-size:12.5px; color:var(--muted-2); margin-top:12px;">No respondiste esta pregunta.</div>';
-  }
-  if(showExplain){
-    html += '<div class="explain show">' + explainMetaHtml(q) + explainBodyHtml(q) + '</div>';
-  }
-  body.innerHTML = html;
+  body.innerHTML = idxs.map(qi => {
+    const q = currentReview.questions[qi];
+    const userAnswer = currentReview.answers[qi];
 
-  document.getElementById('reviewCounter').textContent = (reviewIndex + 1) + ' / ' + idxs.length;
-  document.getElementById('reviewPrev').disabled = reviewIndex === 0;
-  document.getElementById('reviewNext').disabled = reviewIndex === idxs.length - 1;
-}
-function reviewGo(delta){
-  reviewIndex += delta;
-  renderReviewQuestion();
+    let html = '<div class="quiz-list-item">';
+    html += '<div class="review-report" role="button" tabindex="0" onclick="reportReviewQuestion(' + qi + ')">' + ICONS.warn + ' Impugnar</div>';
+    html += '<div class="question">' + (qi + 1) + '. ' + q.q + '</div>';
+    html += '<div class="options">';
+    q.options.forEach((opt, i) => {
+      let cls = 'option', icon = '';
+      if(i === q.correct){ cls += ' correct'; icon = '<span class="opt-result" style="display:block">' + ICONS.check + '</span>'; }
+      else if(i === userAnswer){ cls += ' incorrect'; icon = '<span class="opt-result" style="display:block">' + ICONS.cross + '</span>'; }
+      html += '<div class="' + cls + '"><span class="opt-badge">' + letters[i] + '</span><span class="opt-text">' + opt + '</span>' + icon + '</div>';
+    });
+    html += '</div>';
+    if(userAnswer === null || userAnswer === undefined){
+      html += '<div style="font-size:12.5px; color:var(--muted-2); margin-top:12px;">No respondiste esta pregunta.</div>';
+    }
+    if(showExplain){
+      html += '<div class="explain show">' + explainMetaHtml(q) + explainBodyHtml(q) + '</div>';
+    }
+    html += '</div>';
+    return html;
+  }).join('');
 }
 function toggleReviewExplain(){
   document.getElementById('reviewExplainToggle').classList.toggle('on');
-  renderReviewQuestion();
+  renderReviewList();
 }
-function reportReviewQuestion(){
+function reportReviewQuestion(qi){
   alert('Gracias, hemos recibido tu impugnación de esta pregunta.');
 }
 
