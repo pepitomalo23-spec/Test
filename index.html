@@ -4548,19 +4548,60 @@ function parseBookmarkletBlock(block){
   if(correctHits.length > 1) warnings.push('Hay más de una opción marcada como [CORRECTA]; se ha usado la última.');
   if(!explainText) warnings.push('No se ha detectado explicación.');
 
+  const location = emptyIALoc();
+  let autoDetected = false;
+  const detected = autoDetectUbicacion(explainText) || autoDetectUbicacion(questionText);
+  if(detected){
+    IA_LOC_LEVELS.forEach(tipo => {
+      if(detected[tipo]){
+        const nombreExistente = findExistingNodeNombre(tipo, detected[tipo]);
+        location[tipo] = { numero: detected[tipo], nombre: nombreExistente || '' };
+      }
+    });
+    autoDetected = true;
+  }
+
   return {
     number,
     question: questionText,
     options: cleanOptions.slice(0, 4),
     correct_index: correct_index != null ? correct_index : 0,
     explain: explainText,
-    location: emptyIALoc(),
+    location,
+    autoDetected,
     confirmedGeneral: false,
     include: true, // preseleccionada; el admin desmarca si al revisar decide descartarla
     warnings,
     issues: [],
     reviewedByAI: false
   };
+}
+/* Detección determinista (sin IA) de a qué nivel del temario pertenece un
+   texto, buscando menciones explícitas tipo "Artículo 9.1", "TÍTULO I",
+   "Capítulo II", "Sección 1ª". Solo rellena lo que el propio texto indica
+   literalmente; nunca inventa. Devuelve null si no encuentra nada. */
+function autoDetectUbicacion(text){
+  if(!text) return null;
+  const out = {};
+  let found = false;
+  const artMatch = text.match(/Art(?:í|i)culo\s+(\d+)/i) || text.match(/\bart\.\s*(\d+)/i);
+  if(artMatch){ out.articulo = artMatch[1]; found = true; }
+  const capMatch = text.match(/Cap(?:í|i)tulo\s+([IVXLCDM]+|\d+)/i);
+  if(capMatch){ out.capitulo = capMatch[1]; found = true; }
+  const titMatch = text.match(/T(?:í|i)tulo\s+([IVXLCDM]+|\d+)(?!\s*B[aá]sico)/i);
+  if(titMatch){ out.titulo = titMatch[1]; found = true; }
+  const secMatch = text.match(/Secci[oó]n\s+(\d+\s*[ªº]?|[IVXLCDM]+)/i);
+  if(secMatch){ out.seccion = secMatch[1].trim(); found = true; }
+  return found ? out : null;
+}
+/* Si ya existe un nodo con ese tipo+número en el tema actual, reutiliza su
+   nombre para que el admin no tenga que volver a escribirlo (y para que
+   ensureIANodePath encaje con el nodo existente en vez de crear uno nuevo). */
+function findExistingNodeNombre(tipo, numero){
+  if(!numero || !adminTreeTopicId || !adminData || !adminData.nodes) return '';
+  const found = adminData.nodes.find(n => n.topic_id === adminTreeTopicId && n.tipo === tipo &&
+    n.numero && String(n.numero).trim().toLowerCase() === String(numero).trim().toLowerCase());
+  return found ? (found.nombre || '') : '';
 }
 function adminExtractDeterministic(){
   const rawText = document.getElementById('iaRawText').value.trim();
@@ -4571,10 +4612,13 @@ function adminExtractDeterministic(){
   iaPreviewData = blocks.map(parseBookmarkletBlock);
   renderIAPreview();
   const conProblemas = iaPreviewData.filter(q => q.warnings.length).length;
+  const sinUbicar = iaPreviewData.filter(q => iaLocIsEmpty(q.location)).length;
   statusEl.style.color = conProblemas ? 'var(--amber)' : 'var(--green)';
   statusEl.textContent = iaPreviewData.length + ' pregunta' + (iaPreviewData.length===1?'':'s') + ' extraída' + (iaPreviewData.length===1?'':'s') + ' del texto' +
-    (conProblemas ? ', ' + conProblemas + ' con avisos de formato — revísalas.' : '.') +
-    ' Indica el artículo de cada una (o revísalo con IA) antes de guardar.';
+    (conProblemas ? ', ' + conProblemas + ' con avisos de formato' : '') + '. ' +
+    (sinUbicar
+      ? sinUbicar + ' sin artículo detectado automáticamente: indícalo a mano o usa "Revisar y ubicar con IA".'
+      : 'Artículo detectado automáticamente en todas — revísalos y guarda.');
   document.getElementById('iaSaveRow').classList.remove('hidden');
   document.getElementById('iaReviewRow').classList.remove('hidden');
 }
@@ -4671,6 +4715,7 @@ function renderIAPreview(){
       '<label>Explicación</label>' +
       '<textarea onchange="iaPreviewData['+i+'].explain=this.value">'+esc(q.explain)+'</textarea>' +
       '<label>Ubicación en el temario</label>' +
+      (q.autoDetected && !noLoc ? '<div class="ia-notreviewed" style="color:var(--green);">📍 Detectado automáticamente del texto — revisa que sea correcto.</div>' : '') +
       (needsAttention ? '<div class="ia-warn">⚠ No se ha detectado artículo/capítulo para esta pregunta. Indícalo abajo o márcala como general a propósito.</div>' : '') +
       IA_LOC_LEVELS.map(tipo => (
         '<div class="ia-loc-row">' +
