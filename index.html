@@ -2112,12 +2112,9 @@ async function loadHistory(){
 /* ---------- global stats screen ---------- */
 async function refreshGlobalStats(){
   if(!currentUser) return;
-  const { data: sessions } = await sb.from('test_sessions').select('score, total, ok, bad, created_at').eq('user_id', currentUser.id);
+  const { data: sessions } = await sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
   const list = sessions || [];
-  // Solo contamos preguntas que realmente se han visto y respondido
-  // (ok + bad). Si un test se dejó a medias, las preguntas que quedaron
-  // sin ver ("pending"/"total - ok - bad") no cuentan como hechas.
-  const questionsDone = list.reduce((s,r) => s + (r.ok || 0) + (r.bad || 0), 0);
+  const questionsDone = list.reduce((s,r) => s + (r.total || 0), 0);
 
   // "Pendientes" (aviso del modo Fallos en el home) se sigue calculando en
   // caliente a partir del historial real, no de ningún contador aparte.
