@@ -1048,6 +1048,11 @@
         <span class="header-nav-label">Normativas</span>
       </span>
       <div class="nav-dot"></div>
+      <span id="navBoeCambios" role="button" tabindex="0" onclick="showScreen('screen-boe-cambios')" onkeydown="if(event.key==='Enter')showScreen('screen-boe-cambios')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
+        <span class="header-nav-label">Cambios BOE</span>
+      </span>
+      <div class="nav-dot"></div>
       <span class="active" id="navHome" role="button" tabindex="0" onclick="showScreen('screen-home')" onkeydown="if(event.key==='Enter')showScreen('screen-home')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="m19 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"/><path d="m5 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M7 21h10"/></svg>
         <span class="header-nav-label">Legislación</span>
@@ -1168,6 +1173,12 @@
     <!-- ===== NORMATIVAS SCREEN ===== -->
     <section class="screen" id="screen-normativas">
       <h1>Normativas</h1>
+      <div class="empty">Aquí aparecerán las normativas disponibles.</div>
+    </section>
+
+    <!-- ===== CAMBIOS BOE SCREEN ===== -->
+    <section class="screen" id="screen-boe-cambios">
+      <h1>Cambios BOE</h1>
       <div class="config-sub">Cambios legislativos detectados automáticamente en el BOE para las leyes de tu temario.</div>
 
       <div id="boeNormasList" class="boe-normas-list"></div>
@@ -1203,7 +1214,7 @@
       <div class="modal-panel">
         <div class="modal-head">
           <h1>Cambio legislativo</h1>
-          <button class="modal-close" aria-label="Cerrar" onclick="showScreen('screen-normativas')">
+          <button class="modal-close" aria-label="Cerrar" onclick="showScreen('screen-boe-cambios')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
           </button>
         </div>
@@ -2131,10 +2142,11 @@ function showScreen(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   document.getElementById('navNormativas').classList.toggle('active', id === 'screen-normativas');
+  document.getElementById('navBoeCambios').classList.toggle('active', id === 'screen-boe-cambios');
   document.getElementById('navHome').classList.toggle('active', id === 'screen-home');
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
   if(id === 'screen-home') updateModeCardsLockState();
-  if(id === 'screen-normativas') loadNormativas();
+  if(id === 'screen-boe-cambios') loadNormativas();
 }
 function showHome(){ showScreen('screen-home'); }
 
@@ -3797,7 +3809,7 @@ async function openBoeDetalle(id){
 async function adminMarcarRevisado(id){
   const { error } = await sb.rpc('admin_marcar_cambio_revisado', { p_cambio_id: id });
   if(error){ alert('No se pudo marcar como revisado: ' + error.message); return; }
-  showScreen('screen-normativas');
+  showScreen('screen-boe-cambios');
   await loadNormativas();
 }
 
