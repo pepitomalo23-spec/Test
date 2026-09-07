@@ -82,6 +82,7 @@
 
   /* ---------- auth screen ---------- */
   .auth-overlay{ position:fixed; inset:0; z-index:300; background: var(--bg); display:flex; align-items:center; justify-content:center; padding:24px; }
+  .hidden{ display:none !important; }
   .auth-overlay.hidden{ display:none; }
   .auth-panel{ width:100%; max-width:380px; background: var(--card); border:1px solid var(--line); border-radius:18px; padding:30px 26px 26px; }
   .auth-title{ font-family: var(--title); font-size:26px; letter-spacing:.3px; margin-bottom:8px; }
@@ -2135,6 +2136,7 @@ async function refreshGlobalStats(){
 }
 
 /* ---------- navigation ---------- */
+const TOP_LEVEL_SCREENS = ['screen-normativas', 'screen-boe-cambios', 'screen-home', 'screen-stats'];
 function showScreen(id){
   if(id !== 'screen-quiz'){ clearInterval(timerInterval); }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -2143,6 +2145,9 @@ function showScreen(id){
   document.getElementById('navBoeCambios').classList.toggle('active', id === 'screen-boe-cambios');
   document.getElementById('navHome').classList.toggle('active', id === 'screen-home');
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
+  const isTopLevel = TOP_LEVEL_SCREENS.includes(id);
+  const headerNav = document.querySelector('.header-nav');
+  if(headerNav) headerNav.classList.toggle('hidden', !isTopLevel);
   if(id === 'screen-home') updateModeCardsLockState();
   if(id === 'screen-boe-cambios') loadNormativas();
 }
