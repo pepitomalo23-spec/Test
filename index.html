@@ -756,7 +756,7 @@
   /* Vista tarjeta de Estudio/Fallos: recuadro más visible (fondo más gris y
      borde más marcado sobre el negro de fondo), más estrecha y con letra
      algo más pequeña que en el resto de la app. */
-  #quizCardView{ max-width:600px; margin:0 auto; }
+  #quizCardView{ max-width:600px; margin:0 auto; padding-bottom:76px; }
   #quizCardView .quiz-card{
     background:#202020; border:1px solid rgba(255,255,255,0.14);
   }
@@ -1098,7 +1098,17 @@
   .review-report svg{ width:13px; height:13px; }
 
   /* ---------- quiz bottom bar (estudio / fallos: tarjeta con navegación) ---------- */
-  .quiz-bottombar{ display:flex; align-items:center; justify-content:center; gap:16px; margin-top:28px; }
+  /* Fija en la parte inferior de la PANTALLA (no dentro de la tarjeta): así
+     al deslizar/hacer scroll por la pregunta o la explicación, los botones
+     de anterior/siguiente y el pill de "en blanco"/"mostrar explicación"
+     se siguen viendo siempre abajo. */
+  .quiz-bottombar{
+    display:flex; align-items:center; justify-content:center; gap:16px;
+    position:fixed; left:0; right:0; bottom:0; z-index:25;
+    width:100%; max-width:600px; margin:0 auto;
+    padding:14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg); border-top:1px solid var(--line);
+  }
   .quiz-nav-btn{
     width:34px; height:34px; border-radius:50%; border:1px solid var(--line); background: var(--card);
     color: var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer;
