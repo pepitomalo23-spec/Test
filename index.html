@@ -2968,7 +2968,7 @@ function ownNoteCardHtml(note, questionId){
   if(!note) return '';
   const textHtml = note.text ? '<div class="own-note-text">' + esc(note.text) + '</div>' : '';
   const imgHtml = note.image_url
-    ? '<div class="own-note-image-wrap"><img class="own-note-image" src="' + esc(note.image_url) + '" alt="Imagen añadida por vosotros" onclick="event.stopPropagation();window.open(this.src, \'_blank\')"></div>'
+    ? '<div class="own-note-image-wrap"><img class="own-note-image" src="' + esc(note.image_url) + '" alt="Imagen añadida por vosotros" onclick="event.stopPropagation();"></div>'
     : '';
   return '<div class="own-note-card">' +
     '<div class="own-note-label">' +
@@ -3243,11 +3243,13 @@ function renderMyAdditionsList(){
       (q.own_note ? '<span class="addition-badge addition-badge-note">' + ICONS.pencil + '<span>Nota</span></span>' : '') +
       (q.ai_explain ? '<span class="addition-badge addition-badge-ia">' + ICONS.brain + '<span>IA</span></span>' : '');
     const location = q.art || 'General';
+    const editedAt = q.own_note && q.own_note.updated_at ? formatDateTime(q.own_note.updated_at) : '';
+    const metaHtml = editedAt ? (esc(location) + ' · Editada: ' + editedAt) : esc(location);
     return '<div class="admin-card" role="button" tabindex="0" onclick="openMyAddition(\'' + q.id + '\')" onkeydown="if(event.key===\'Enter\')openMyAddition(\'' + q.id + '\')">' +
       '<div class="admin-card-row">' +
         '<div>' +
           '<div class="admin-card-title">' + esc(q.q) + '</div>' +
-          '<div class="admin-card-meta">' + esc(location) + '</div>' +
+          '<div class="admin-card-meta">' + metaHtml + '</div>' +
         '</div>' +
         '<div class="admin-card-actions">' + badges + '</div>' +
       '</div>' +
