@@ -3093,6 +3093,7 @@ async function saveOwnNote(questionId, btnEl){
 
     const note = { text: text || null, image_url: imageUrl || null, updated_at: new Date().toISOString() };
     if(q) q.own_note = note;
+    if(document.getElementById('myAdditionsList')) renderMyAdditionsList();
 
     const slot = body.querySelector('.own-note-editor-slot');
     if(slot){ slot.innerHTML = ''; slot.dataset.open = ''; }
@@ -3130,6 +3131,7 @@ async function removeOwnNote(questionId, btnEl){
     if(error) throw error;
 
     if(q) q.own_note = null;
+    if(document.getElementById('myAdditionsList')) renderMyAdditionsList();
     if(resultEl){ resultEl.innerHTML = ''; resultEl.classList.remove('show'); }
 
     const actions = body ? body.querySelector('.explain-section-actions') : null;
@@ -3243,7 +3245,7 @@ function renderMyAdditionsList(){
       (q.own_note ? '<span class="addition-badge addition-badge-note">' + ICONS.pencil + '<span>Nota</span></span>' : '') +
       (q.ai_explain ? '<span class="addition-badge addition-badge-ia">' + ICONS.brain + '<span>IA</span></span>' : '');
     const location = q.art || 'General';
-    const editedAt = q.own_note && q.own_note.updated_at ? formatDateTime(q.own_note.updated_at) : '';
+    const editedAt = q.own_note ? formatDateTime(q.own_note.updated_at) : '';
     const metaHtml = editedAt ? (esc(location) + ' · Editada: ' + editedAt) : esc(location);
     return '<div class="admin-card" role="button" tabindex="0" onclick="openMyAddition(\'' + q.id + '\')" onkeydown="if(event.key===\'Enter\')openMyAddition(\'' + q.id + '\')">' +
       '<div class="admin-card-row">' +
