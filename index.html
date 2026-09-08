@@ -2898,7 +2898,12 @@ function startQuiz(mode, questions, timeMinutes){
   const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
   ACTIVE_QUESTIONS = shuffleArray(base); // el orden de las preguntas siempre es aleatorio en cada intento
   const viewMode = QUIZ_LIST_MODES.includes(mode) ? 'list' : 'card';
-  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes };
+  // "visited" marca qué preguntas ha llegado a ver realmente el usuario (se
+  // rellena en renderQuestion). Es clave en modo tarjeta (estudio/fallos):
+  // si se finaliza el test antes de llegar al final, las preguntas
+  // posteriores que nunca se mostraron no deben contar en absoluto (ni
+  // como falladas ni como pendientes) en las Estadísticas.
+  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), visited:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes };
   showScreen('screen-quiz');
   document.getElementById('quizCardView').style.display = (viewMode === 'card') ? 'block' : 'none';
   document.getElementById('quizListView').style.display = (viewMode === 'list') ? 'block' : 'none';
@@ -3535,6 +3540,10 @@ async function removeAIExplain(questionId, btnEl){
 }
 
 function renderQuestion(){
+  // defensivo: si el quizState viene de una versión antigua sin "visited"
+  // (p. ej. un test dejado a medias antes de este cambio), se crea aquí.
+  if(!quizState.visited) quizState.visited = new Array(ACTIVE_QUESTIONS.length).fill(false);
+  quizState.visited[quizState.index] = true;
   const q = ACTIVE_QUESTIONS[quizState.index];
   const existingAnswer = quizState.answers[quizState.index];
   const isBlanked = !!(quizState.blanked && quizState.blanked[quizState.index]);
@@ -3692,14 +3701,20 @@ function selectListOption(qi, i){
 const QUIZ_FINISH_LABELS = { examen:'examen', simulacro:'simulacro', estudio:'test de estudio', fallos:'repaso de fallos' };
 function confirmFinishQuiz(){
   if(quizState.viewMode === 'card'){
-    // En tarjeta (estudio/fallos) también cuentan como "sin responder" las preguntas
-    // que aún no se han visitado ni marcado como en blanco.
-    const answeredOrBlanked = ACTIVE_QUESTIONS.reduce((acc, _, i) => {
+    // En tarjeta (estudio/fallos), las preguntas que nunca se han llegado a
+    // ver (más allá de donde se ha navegado) NO cuentan como "sin
+    // responder": directamente no forman parte de esta sesión, así que no
+    // avisamos por ellas. Solo avisamos si, de las que SÍ se han visto,
+    // alguna se quedó sin responder ni marcar "en blanco" (normalmente,
+    // como mucho, la pregunta actual).
+    const visited = quizState.visited || [];
+    const visitedIndices = ACTIVE_QUESTIONS.map((_, i) => i).filter(i => visited[i]);
+    const answeredOrBlanked = visitedIndices.reduce((acc, i) => {
       const a = quizState.answers[i];
       const isBlanked = !!(quizState.blanked && quizState.blanked[i]);
       return acc + (((a !== null && a !== undefined) || isBlanked) ? 1 : 0);
     }, 0);
-    const blank = ACTIVE_QUESTIONS.length - answeredOrBlanked;
+    const blank = visitedIndices.length - answeredOrBlanked;
     if(blank > 0){
       const label = QUIZ_FINISH_LABELS[quizState.mode] || 'test';
       if(!confirm('Tienes ' + blank + ' pregunta' + (blank === 1 ? '' : 's') + ' sin responder. ¿Quieres finalizar el ' + label + ' igualmente?')) return;
@@ -3728,21 +3743,36 @@ async function finishQuiz(){
   if(nextBtn) nextBtn.disabled = true;
 
   clearInterval(timerInterval);
-  const total = ACTIVE_QUESTIONS.length;
-  const correctCount = ACTIVE_QUESTIONS.reduce((acc, q, i) => acc + (quizState.answers[i] === q.correct ? 1 : 0), 0);
+
+  // En modo tarjeta (estudio/fallos), si se finaliza antes de tiempo, las
+  // preguntas posteriores que nunca se llegaron a ver (quizState.visited)
+  // no forman parte de esta sesión: no cuentan como falladas, ni como
+  // pendientes, ni en el total. Es como si el test hubiera tenido desde el
+  // principio solo las preguntas que de verdad se han visto. En modo lista
+  // (examen/simulacro) no cambia nada: ahí todas las preguntas están
+  // visibles desde el principio.
+  const visited = quizState.visited;
+  const sessionIndices = (quizState.viewMode === 'card' && visited)
+    ? ACTIVE_QUESTIONS.map((_, i) => i).filter(i => visited[i])
+    : ACTIVE_QUESTIONS.map((_, i) => i);
+  const SESSION_QUESTIONS = sessionIndices.map(i => ACTIVE_QUESTIONS[i]);
+  const SESSION_ANSWERS = sessionIndices.map(i => quizState.answers[i]);
+
+  const total = SESSION_QUESTIONS.length;
+  const correctCount = SESSION_QUESTIONS.reduce((acc, q, j) => acc + (SESSION_ANSWERS[j] === q.correct ? 1 : 0), 0);
   quizState.correctCount = correctCount;
   document.getElementById('resultScore').textContent = correctCount;
   document.getElementById('resultTotal').textContent = total;
 
-  const blank = quizState.answers.filter(a => a === null || a === undefined).length;
+  const blank = SESSION_ANSWERS.filter(a => a === null || a === undefined).length;
   const bad = total - correctCount - blank;
   // Sistema de puntuación tipo oposición: acertar suma 1 punto, fallar
   // resta 1/(nº de opciones de esa pregunta - 1) —es decir, lo que en
   // media "cuesta" un fallo si se responde al azar—, y dejar en blanco
   // ("no me la juego") no suma ni resta nada. La nota nunca baja de 0.
   let earnedPoints = 0;
-  ACTIVE_QUESTIONS.forEach((q, i) => {
-    const a = quizState.answers[i];
+  SESSION_QUESTIONS.forEach((q, j) => {
+    const a = SESSION_ANSWERS[j];
     if(a === null || a === undefined) return; // en blanco: no cuenta
     if(a === q.correct){
       earnedPoints += 1;
@@ -3770,12 +3800,12 @@ async function finishQuiz(){
       if(sErr) throw sErr;
       sessionId = sessionRow.id;
 
-      const answerRows = ACTIVE_QUESTIONS.map((q, i) => {
-        const a = quizState.answers[i];
+      const answerRows = SESSION_QUESTIONS.map((q, j) => {
+        const a = SESSION_ANSWERS[j];
         return {
           session_id: sessionId, user_id: currentUser.id, question_id: q.id,
           selected_index: (a === null || a === undefined) ? null : a,
-          is_correct: a === q.correct, answer_order: i
+          is_correct: a === q.correct, answer_order: j
         };
       });
       if(answerRows.length){
@@ -3803,7 +3833,7 @@ async function finishQuiz(){
     ok: quizState.correctCount,
     bad: bad,
     pending: blank,
-    review: { questions: ACTIVE_QUESTIONS.slice(), answers: quizState.answers.slice() }
+    review: { questions: SESSION_QUESTIONS.slice(), answers: SESSION_ANSWERS.slice() }
   };
   HISTORY.unshift(entry);
   renderHistory();
