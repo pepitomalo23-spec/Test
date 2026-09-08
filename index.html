@@ -2243,7 +2243,7 @@ function renderMasteryBar(){
   const yellow = pool.filter(q => q.masteryStatus === 'yellow').length;
   const red = pool.filter(q => q.masteryStatus === 'red').length;
   const notSeen = pool.filter(q => q.masteryStatus === null).length;
-  const pct = n => total ? Math.round(n / total * 100) : 0;
+  const pct = n => total ? (n / total * 100) : 0; // valor exacto, sin redondear a entero
 
   const elTotal = document.getElementById('masteryTotal');
   const elGreen = document.getElementById('masteryGreenCount');
@@ -2262,11 +2262,11 @@ function renderMasteryBar(){
   if(elYellow) elYellow.textContent = yellow;
   if(elRed) elRed.textContent = red;
   if(elBlue) elBlue.textContent = notSeen;
-  if(elGreenPct) elGreenPct.textContent = total ? '(' + pct(green) + '%)' : '';
-  if(elYellowPct) elYellowPct.textContent = total ? '(' + pct(yellow) + '%)' : '';
-  if(elRedPct) elRedPct.textContent = total ? '(' + pct(red) + '%)' : '';
-  if(elBluePct) elBluePct.textContent = total ? '(' + pct(notSeen) + '%)' : '';
-  if(elDonutPct) elDonutPct.textContent = total ? pct(green) + '%' : '0%';
+  if(elGreenPct) elGreenPct.textContent = total ? '(' + formatPctExact(pct(green)) + ')' : '';
+  if(elYellowPct) elYellowPct.textContent = total ? '(' + formatPctExact(pct(yellow)) + ')' : '';
+  if(elRedPct) elRedPct.textContent = total ? '(' + formatPctExact(pct(red)) + ')' : '';
+  if(elBluePct) elBluePct.textContent = total ? '(' + formatPctExact(pct(notSeen)) + ')' : '';
+  if(elDonutPct) elDonutPct.textContent = total ? formatPctExact(pct(green)) : formatPctExact(0);
 
   if(!svg) return;
   if(!total){
@@ -2299,7 +2299,7 @@ function renderMasteryBar(){
       const labelR = (rOuter + rInner) / 2;
       const lx = (cx + labelR * Math.cos(midRad)).toFixed(2);
       const ly = (cy - labelR * Math.sin(midRad)).toFixed(2);
-      html += '<text class="mastery-donut-pctlabel" x="' + lx + '" y="' + ly + '" text-anchor="middle" dominant-baseline="middle">' + Math.round(seg.value / total * 100) + '%</text>';
+      html += '<text class="mastery-donut-pctlabel" x="' + lx + '" y="' + ly + '" text-anchor="middle" dominant-baseline="middle">' + formatPctExact(seg.value / total * 100) + '</text>';
     }
   });
   svg.innerHTML = html;
@@ -2322,7 +2322,7 @@ function renderTopicRanking(){
     const topicQuestions = QUESTIONS_POOL.filter(q => q.topic_id === t.id);
     const total = topicQuestions.length;
     const green = topicQuestions.filter(q => q.masteryStatus === 'green').length;
-    const pct = total ? Math.round((green / total) * 100) : null;
+    const pct = total ? (green / total * 100) : null; // valor exacto, sin redondear a entero
     return { name: t.name, pct };
   }).filter(r => r.pct !== null);
 
@@ -2344,7 +2344,7 @@ function renderTopicRanking(){
           '<div class="ranking-name">' + escapeHtml(r.name) + '</div>' +
           '<div class="ranking-track"><div class="ranking-fill" style="width:' + r.pct + '%; background:' + color + '"></div></div>' +
         '</div>' +
-        '<div class="ranking-pct" style="color:' + color + '">' + r.pct + '%</div>' +
+        '<div class="ranking-pct" style="color:' + color + '">' + formatPctExact(r.pct) + '</div>' +
       '</div>'
     );
   }).join('');
