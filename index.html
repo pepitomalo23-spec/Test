@@ -5931,15 +5931,32 @@ async function adminDeleteQuestion(id){
   renderTree();
 }
 
+// Evita que los refrescos de token en segundo plano (silenciosos y
+// automáticos) reinicien la app: solo deben disparar el flujo completo
+// de login (comprobación de dispositivo, recarga de datos, ir a inicio)
+// los eventos que representan un inicio de sesión real.
+let authInitialized = false;
 sb.auth.onAuthStateChange((event, session) => {
-  if(session && session.user){ onLoggedIn(session.user); }
-  else { onLoggedOut(); }
-});
+  if(event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED'){
+    // El token se ha renovado en segundo plano: solo actualizamos el
+    // usuario en memoria, sin tocar la pantalla ni recargar nada.
+    if(session && session.user) currentUser = session.user;
+    return;
+  }
 
-// initial check (also handles magic-link redirect sessions)
-sb.auth.getSession().then(({ data }) => {
-  if(data && data.session && data.session.user){ onLoggedIn(data.session.user); }
-  else { onLoggedOut(); }
+  if(event === 'INITIAL_SESSION'){
+    if(authInitialized) return; // ya se procesó (evita doble carga inicial)
+    authInitialized = true;
+  }
+
+  if(session && session.user){
+    // Si ya estábamos logueados con este mismo usuario, no repetir todo
+    // el flujo (comprobación de dispositivo incluida) sin necesidad.
+    if(currentUser && currentUser.id === session.user.id && event !== 'SIGNED_IN'){ return; }
+    onLoggedIn(session.user);
+  } else {
+    onLoggedOut();
+  }
 });
 </script>
 </body>
