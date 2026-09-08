@@ -320,6 +320,22 @@
   .mastery-legend-item{ display:flex; align-items:center; gap:7px; font-size:12.5px; color: var(--muted); }
   .mastery-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
   .mastery-legend-value{ font-family: var(--mono); font-weight:700; color: var(--text); }
+  .mastery-title-row{ display:flex; align-items:center; gap:6px; }
+  .mastery-info-btn{
+    width:20px; height:20px; border-radius:50%; border:1px solid var(--line); background: var(--card-hi); color: var(--muted);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; padding:0;
+  }
+  .mastery-info-btn:hover, .mastery-info-btn.active{ border-color: var(--purple); color: var(--purple); }
+  .mastery-info-btn svg{ width:13px; height:13px; }
+  .mastery-info-box{
+    display:none; background: var(--card-hi); border:1px solid var(--line); border-radius:10px; padding:12px 13px;
+    margin-bottom:14px; font-size:12.5px; line-height:1.55; color: var(--muted);
+  }
+  .mastery-info-box.show{ display:block; }
+  .mastery-info-box div{ display:flex; align-items:flex-start; gap:8px; margin-bottom:7px; }
+  .mastery-info-box div:last-child{ margin-bottom:0; }
+  .mastery-info-box .mastery-dot{ margin-top:4px; }
+  .mastery-info-box b{ color: var(--text); }
 
   main{ max-width: 1080px; margin:0 auto; padding: 32px 24px 76px; }
   h1{ font-family: var(--title); font-size:23px; font-weight:400; letter-spacing:.3px; margin-bottom:20px; }
@@ -1360,8 +1376,17 @@
       </div>
       <div class="mastery-card">
         <div class="mastery-head">
-          <div class="mastery-title">Dominio de preguntas</div>
+          <div class="mastery-title-row">
+            <div class="mastery-title">Dominio de preguntas</div>
+            <button type="button" class="mastery-info-btn" id="masteryInfoBtn" title="¿Qué significa cada color?" onclick="toggleMasteryInfo()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"/></svg></button>
+          </div>
           <div class="mastery-total"><span id="masteryTotal">0</span> preguntas en total</div>
+        </div>
+        <div class="mastery-info-box" id="masteryInfoBox">
+          <div><span class="mastery-dot mastery-green"></span><span><b>Aprobada (verde):</b> nunca la has fallado, o la fallaste alguna vez pero ya llevas 3 aciertos seguidos: se considera dominada.</span></div>
+          <div><span class="mastery-dot mastery-yellow"></span><span><b>En progreso (amarillo):</b> la has fallado alguna vez y la estás recuperando, pero todavía llevas solo 1 o 2 aciertos seguidos (aún no 3).</span></div>
+          <div><span class="mastery-dot mastery-red"></span><span><b>Suspendida (roja):</b> tu último intento con esa pregunta fue un fallo.</span></div>
+          <div><span class="mastery-dot mastery-blue"></span><span><b>Sin ver (azul):</b> todavía no la has respondido nunca.</span></div>
         </div>
         <div class="mastery-bar" id="masteryBar"></div>
         <div class="mastery-legend">
@@ -2014,6 +2039,16 @@ function backToLanding(){
 }
 
 /* ---------- barra de dominio (verde/amarillo/rojo/azul) de la pantalla Estadísticas ---------- */
+/* Muestra/oculta la mini explicación de qué significa cada color en
+   "Dominio de preguntas" (verde/amarillo/rojo/azul). */
+function toggleMasteryInfo(){
+  const box = document.getElementById('masteryInfoBox');
+  const btn = document.getElementById('masteryInfoBtn');
+  if(!box) return;
+  box.classList.toggle('show');
+  if(btn) btn.classList.toggle('active', box.classList.contains('show'));
+}
+
 function renderMasteryBar(){
   const pool = QUESTIONS_POOL;
   const total = pool.length;
