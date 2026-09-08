@@ -2184,6 +2184,62 @@ let ACTIVE_QUESTIONS = SAMPLE_QUESTIONS;
 let configState = { mode:null, topics:new Set(), nodeSelections:{}, count:20, time:30, minutos:null, preguntas:null, dificultad:'aleatoria', ayuda:'ocultar', repaso:false };
 let timerInterval = null;
 
+/* ---------- persistencia local del test en curso ----------
+   Guarda en localStorage el test que se está haciendo (preguntas
+   barajadas, respuestas dadas, pregunta por la que vas...) para que, si
+   se cierra la app/el navegador o se apaga el móvil a medias de un test,
+   al volver a abrir se pueda seguir exactamente por donde se dejó, en
+   vez de reiniciar en la pantalla de inicio. Va aparte del guardado en
+   Supabase, que solo ocurre al FINALIZAR el test. */
+function quizProgressKey(){
+  return 'legis_quiz_progress_' + (currentUser ? currentUser.id : 'anon');
+}
+function saveQuizProgress(){
+  try{
+    if(!quizState || !quizState.mode){
+      localStorage.removeItem(quizProgressKey());
+      return;
+    }
+    localStorage.setItem(quizProgressKey(), JSON.stringify({
+      quizState, activeQuestions: ACTIVE_QUESTIONS, quizSecondsLeft, savedAt: Date.now()
+    }));
+  }catch(e){ /* localStorage no disponible: seguimos sin persistir */ }
+}
+function clearQuizProgress(){
+  try{ localStorage.removeItem(quizProgressKey()); }catch(e){}
+}
+/* Se llama una vez al arrancar/loguearse: si hay un test guardado del
+   usuario actual, lo recupera en memoria (no cambia de pantalla; el
+   usuario lo retoma pulsando "Reanudar" en la tarjeta correspondiente,
+   igual que ya podía hacer sin cerrar la app). */
+function restoreQuizProgress(){
+  try{
+    const raw = localStorage.getItem(quizProgressKey());
+    if(!raw) return;
+    const saved = JSON.parse(raw);
+    if(!saved || !saved.quizState || !saved.quizState.mode || !saved.activeQuestions) return;
+    quizState = saved.quizState;
+    ACTIVE_QUESTIONS = saved.activeQuestions;
+    quizSecondsLeft = (typeof saved.quizSecondsLeft === 'number') ? saved.quizSecondsLeft : null;
+    // Si el test tenía tiempo límite, descontamos el tiempo que ha pasado
+    // realmente mientras la app estaba cerrada, no solo lo que marcaba el
+    // contador al guardar.
+    if(quizState.timeMinutes && quizState.startedAt){
+      const elapsed = Math.floor((Date.now() - quizState.startedAt) / 1000);
+      const secondsLeft = (quizState.timeMinutes * 60) - elapsed;
+      quizSecondsLeft = secondsLeft;
+      if(secondsLeft <= 0){
+        // el tiempo ya se agotó mientras el usuario no estaba: no hay
+        // nada que reanudar, se descarta el test guardado.
+        quizState = { mode:null, index:0, correctCount:0, answered:false };
+        ACTIVE_QUESTIONS = SAMPLE_QUESTIONS;
+        quizSecondsLeft = null;
+        clearQuizProgress();
+      }
+    }
+  }catch(e){ /* si el dato guardado está corrupto, se ignora sin romper la app */ }
+}
+
 /* ---------- landing ---------- */
 function enterApp(screenId){
   const landing = document.getElementById('landingScreen');
@@ -2595,6 +2651,14 @@ async function refreshGlobalStats(){
 
 /* ---------- navigation ---------- */
 const TOP_LEVEL_SCREENS = ['screen-normativas', 'screen-home', 'screen-stats'];
+const LAST_SCREEN_KEY = 'legis_last_screen';
+function getLastScreen(){
+  try{
+    const saved = localStorage.getItem(LAST_SCREEN_KEY);
+    if(saved && TOP_LEVEL_SCREENS.includes(saved)) return saved;
+  }catch(e){}
+  return 'screen-home';
+}
 function showScreen(id){
   if(id !== 'screen-quiz'){ clearInterval(timerInterval); }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -2603,6 +2667,13 @@ function showScreen(id){
   document.getElementById('navHome').classList.toggle('active', id === 'screen-home');
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
   const isTopLevel = TOP_LEVEL_SCREENS.includes(id);
+  // Recordamos la última pestaña principal (Normativas / Inicio /
+  // Estadísticas) visitada, para poder volver a ella si la app se
+  // recarga (p. ej. tras dejarla en segundo plano y que el sistema la
+  // "mate"), en vez de aterrizar siempre en Inicio.
+  if(isTopLevel){
+    try{ localStorage.setItem(LAST_SCREEN_KEY, id); }catch(e){}
+  }
   const headerNav = document.querySelector('.header-nav');
   if(headerNav) headerNav.classList.toggle('hidden', !isTopLevel);
   const headerUser = document.getElementById('headerUser');
@@ -3098,6 +3169,7 @@ function startQuiz(mode, questions, timeMinutes){
   // posteriores que nunca se mostraron no deben contar en absoluto (ni
   // como falladas ni como pendientes) en las Estadísticas.
   quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), visited:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes };
+  saveQuizProgress();
   showScreen('screen-quiz');
   document.getElementById('quizCardView').style.display = (viewMode === 'card') ? 'block' : 'none';
   document.getElementById('quizListView').style.display = (viewMode === 'list') ? 'block' : 'none';
@@ -3906,6 +3978,7 @@ function selectOption(i){
   explainEl.classList.remove('show'); // queda oculta hasta que se pulse "Mostrar explicación"
   renderQuizPill();
   document.getElementById('quizNextBtn').disabled = false;
+  saveQuizProgress();
 }
 
 /* "En blanco": deja la pregunta sin respuesta seleccionada pero revela la solución y permite avanzar */
@@ -3927,12 +4000,14 @@ function markBlank(){
   explainEl.classList.remove('show'); // queda oculta hasta que se pulse "Mostrar explicación"
   renderQuizPill();
   document.getElementById('quizNextBtn').disabled = false;
+  saveQuizProgress();
 }
 
 function prevQuestion(){
   if(quizState.index > 0){
     quizState.index--;
     renderQuestion();
+    saveQuizProgress();
   }
 }
 
@@ -3940,6 +4015,7 @@ function nextQuestion(){
   if(quizState.index < ACTIVE_QUESTIONS.length - 1){
     quizState.index++;
     renderQuestion();
+    saveQuizProgress();
   }
   // en la última pregunta no se hace nada más aquí: el botón queda
   // deshabilitado/grisáceo y para terminar hay que usar "Finalizar"
@@ -3974,6 +4050,7 @@ function selectListOption(qi, i){
   const item = document.querySelector('.quiz-list-item[data-qi="' + qi + '"]');
   item.querySelectorAll('.option').forEach((el, idx) => el.classList.toggle('selected', idx === i));
   document.getElementById('quizCount').textContent = countAnsweredList() + ' / ' + ACTIVE_QUESTIONS.length;
+  saveQuizProgress();
 }
 const QUIZ_FINISH_LABELS = { examen:'examen', simulacro:'simulacro', estudio:'test de estudio', fallos:'repaso de fallos' };
 function confirmFinishQuiz(){
@@ -4129,6 +4206,7 @@ async function finishQuiz(){
   // el test ya ha terminado: se libera el bloqueo de las demás tarjetas de home
   quizState.mode = null;
   quizSecondsLeft = null;
+  clearQuizProgress();
 
   showScreen('screen-result');
 }
@@ -4315,6 +4393,14 @@ async function handleLogout(){
 async function onLoggedIn(user){
   currentUser = user;
 
+  // Si había un test a medias guardado localmente (p. ej. se cerró la
+  // app, se apagó el móvil o se perdió la sesión con el test empezado),
+  // lo recuperamos aquí en memoria. No cambia de pantalla por sí solo:
+  // simplemente hace que la tarjeta correspondiente en inicio aparezca
+  // como "en curso" con su botón "Reanudar", igual que si nunca se
+  // hubiera cerrado la app.
+  restoreQuizProgress();
+
   // Cargamos el perfil primero para saber si la cuenta ya está
   // aprobada por un administrador (sustituye a la confirmación por
   // correo electrónico).
@@ -4382,7 +4468,10 @@ async function onLoggedIn(user){
 
   await loadHistory();
   await refreshGlobalStats();
-  showScreen('screen-home');
+  // Al entrar (incluido tras recargar la app), volvemos a la pestaña
+  // principal en la que estaba el usuario la última vez, en vez de ir
+  // siempre a Inicio.
+  showScreen(getLastScreen());
 }
 function onLoggedOut(){
   currentUser = null;
@@ -5931,15 +6020,32 @@ async function adminDeleteQuestion(id){
   renderTree();
 }
 
+// Evita que los refrescos de token en segundo plano (silenciosos y
+// automáticos) reinicien la app: solo deben disparar el flujo completo
+// de login (comprobación de dispositivo, recarga de datos, ir a inicio)
+// los eventos que representan un inicio de sesión real.
+let authInitialized = false;
 sb.auth.onAuthStateChange((event, session) => {
-  if(session && session.user){ onLoggedIn(session.user); }
-  else { onLoggedOut(); }
-});
+  if(event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED'){
+    // El token se ha renovado en segundo plano: solo actualizamos el
+    // usuario en memoria, sin tocar la pantalla ni recargar nada.
+    if(session && session.user) currentUser = session.user;
+    return;
+  }
 
-// initial check (also handles magic-link redirect sessions)
-sb.auth.getSession().then(({ data }) => {
-  if(data && data.session && data.session.user){ onLoggedIn(data.session.user); }
-  else { onLoggedOut(); }
+  if(event === 'INITIAL_SESSION'){
+    if(authInitialized) return; // ya se procesó (evita doble carga inicial)
+    authInitialized = true;
+  }
+
+  if(session && session.user){
+    // Si ya estábamos logueados con este mismo usuario, no repetir todo
+    // el flujo (comprobación de dispositivo incluida) sin necesidad.
+    if(currentUser && currentUser.id === session.user.id && event !== 'SIGNED_IN'){ return; }
+    onLoggedIn(session.user);
+  } else {
+    onLoggedOut();
+  }
 });
 </script>
 </body>
