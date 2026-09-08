@@ -969,6 +969,18 @@
   .own-note-editor-actions{ display:flex; gap:10px; margin-top:6px; }
   .own-note-editor-actions .btn{ flex:1; }
 
+  /* ---------- Lista "Notas y explicaciones IA" (Tu cuenta) ---------- */
+  .admin-card[role="button"]{ cursor:pointer; transition: border-color .12s, background .12s; }
+  .admin-card[role="button"]:hover{ border-color: var(--muted-2); background: var(--card-hi); }
+  .addition-badge{
+    display:flex; align-items:center; gap:5px; flex-shrink:0;
+    font-family: var(--sans); font-weight:700; font-size:10.5px; color:#0A0A0A;
+    padding:5px 10px 5px 8px; border-radius:20px;
+  }
+  .addition-badge svg{ width:11px; height:11px; }
+  .addition-badge-note{ background: linear-gradient(90deg, var(--amber), var(--orange)); }
+  .addition-badge-ia{ background: linear-gradient(90deg, var(--purple), var(--teal)); }
+
   .question{ font-family: 'Source Serif 4', serif; font-size:20px; font-weight:600; line-height:1.5; margin-bottom:24px; }
 
   .options{ display:flex; flex-direction:column; gap:9px; }
@@ -1167,6 +1179,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
         Cambios BOE
       </button>
+      <button class="header-user-boe" id="headerMyAdditionsBtn" onclick="closeUserMenu(); showScreen('screen-my-additions');">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        Notas y explicaciones IA
+      </button>
       <button class="header-user-admin hidden" id="headerAdminBtn" onclick="openAdminPanel()">
         <span class="header-user-admin-label">
           <video class="header-admin-logo" src="assets/admin-logo.mp4" autoplay loop muted playsinline></video>
@@ -1291,6 +1307,36 @@
           </button>
         </div>
         <div id="boeDetalleBody"><div class="empty">Cargando…</div></div>
+      </div>
+    </section>
+
+    <!-- ===== MIS NOTAS Y EXPLICACIONES IA (accesible desde Tu cuenta) =====
+         Lista todas las preguntas de QUESTIONS_POOL que tengan own_note y/o
+         ai_explain, para poder encontrarlas y editarlas aunque no se
+         recuerde en qué tema/artículo estaban. ===== -->
+    <section class="screen overlay" id="screen-my-additions">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h1>Notas y explicaciones IA</h1>
+          <button class="modal-close" aria-label="Cerrar" onclick="showHome()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="config-sub">Todas las preguntas donde habéis escrito una nota propia o generado una explicación con IA, para encontrarlas y editarlas aunque no recordéis cuál era.</div>
+        <div id="myAdditionsList"><div class="empty">Cargando…</div></div>
+      </div>
+    </section>
+
+    <!-- ===== DETALLE DE UNA NOTA / EXPLICACIÓN IA (overlay) ===== -->
+    <section class="screen overlay" id="screen-my-addition-detail">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h1>Pregunta</h1>
+          <button class="modal-close" aria-label="Cerrar" onclick="showScreen('screen-my-additions')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <div id="myAdditionDetailBody"><div class="empty">Cargando…</div></div>
       </div>
     </section>
 
@@ -2304,6 +2350,7 @@ function showScreen(id){
   if(headerNav) headerNav.classList.toggle('hidden', !isTopLevel);
   if(id === 'screen-home') updateModeCardsLockState();
   if(id === 'screen-boe-cambios') loadNormativas();
+  if(id === 'screen-my-additions') renderMyAdditionsList();
 }
 function showHome(){ showScreen('screen-home'); }
 
@@ -3158,7 +3205,87 @@ function findQuestionById(questionId){
     const found = currentReview.questions.find(q => String(q.id) === String(questionId));
     if(found) return found;
   }
+  // último recurso: el conjunto completo de preguntas cargado al entrar en
+  // la app (cubre, por ejemplo, la pantalla "Notas y explicaciones IA",
+  // que no pasa por un test/revisión en curso).
+  if(typeof QUESTIONS_POOL !== 'undefined' && QUESTIONS_POOL){
+    const found = QUESTIONS_POOL.find(q => String(q.id) === String(questionId));
+    if(found) return found;
+  }
   return null;
+}
+
+/* ---------- Pantalla "Notas y explicaciones IA" (Tu cuenta) ----------
+   Recorre QUESTIONS_POOL (ya cargado al entrar en la app) buscando toda
+   pregunta con own_note y/o ai_explain, para poder encontrarlas y
+   editarlas/quitarlas sin tener que acordarse de en qué test o artículo
+   estaban. Las notas propias (con updated_at) van primero y más
+   recientes arriba; las que solo tienen explicación IA van después. */
+function renderMyAdditionsList(){
+  const listEl = document.getElementById('myAdditionsList');
+  if(!listEl) return;
+
+  const items = (QUESTIONS_POOL || []).filter(q => q.own_note || q.ai_explain);
+
+  if(!items.length){
+    listEl.innerHTML = '<div class="empty">Todavía no habéis añadido ninguna nota ni ninguna explicación con IA. Aparecerán aquí en cuanto uséis los botones "Nota" o "IA" en la explicación de una pregunta.</div>';
+    return;
+  }
+
+  items.sort((a, b) => {
+    const ta = a.own_note && a.own_note.updated_at ? new Date(a.own_note.updated_at).getTime() : 0;
+    const tb = b.own_note && b.own_note.updated_at ? new Date(b.own_note.updated_at).getTime() : 0;
+    return tb - ta;
+  });
+
+  listEl.innerHTML = items.map(q => {
+    const badges =
+      (q.own_note ? '<span class="addition-badge addition-badge-note">' + ICONS.pencil + '<span>Nota</span></span>' : '') +
+      (q.ai_explain ? '<span class="addition-badge addition-badge-ia">' + ICONS.brain + '<span>IA</span></span>' : '');
+    const location = q.art || 'General';
+    return '<div class="admin-card" role="button" tabindex="0" onclick="openMyAddition(\'' + q.id + '\')" onkeydown="if(event.key===\'Enter\')openMyAddition(\'' + q.id + '\')">' +
+      '<div class="admin-card-row">' +
+        '<div>' +
+          '<div class="admin-card-title">' + esc(q.q) + '</div>' +
+          '<div class="admin-card-meta">' + esc(location) + '</div>' +
+        '</div>' +
+        '<div class="admin-card-actions">' + badges + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+/* Abre el detalle de una pregunta desde "Notas y explicaciones IA": la
+   pregunta con sus opciones (la correcta marcada) y, debajo, el mismo
+   bloque de explicación que se ve al hacer el test (con sus botones de
+   editar/quitar Nota e IA), para poder gestionarla sin tener que volver
+   a responder ningún test. */
+function openMyAddition(questionId){
+  const q = findQuestionById(questionId);
+  const body = document.getElementById('myAdditionDetailBody');
+  if(!body) return;
+  if(!q){
+    body.innerHTML = '<div class="empty">No se ha podido encontrar esta pregunta.</div>';
+    showScreen('screen-my-addition-detail');
+    return;
+  }
+
+  const letters = ['A','B','C','D'];
+  const optionsHtml = q.options.map((opt, i) =>
+    '<div class="option' + (i === q.correct ? ' correct' : '') + '">' +
+      '<span class="opt-badge">' + letters[i] + '</span><span class="opt-text">' + opt + '</span>' +
+      (i === q.correct ? '<span class="opt-result" style="display:block">' + ICONS.check + '</span>' : '') +
+    '</div>'
+  ).join('');
+
+  body.innerHTML =
+    '<div class="quiz-card" style="margin-bottom:0;">' +
+      '<div class="question">' + q.q + '</div>' +
+      '<div class="options">' + optionsHtml + '</div>' +
+    '</div>' +
+    '<div class="explain show">' + explainMetaHtml(q) + explainBodyHtml(q) + '</div>';
+
+  showScreen('screen-my-addition-detail');
 }
 
 /* Llama a la Edge Function gemini-proxy, que usa la clave única
