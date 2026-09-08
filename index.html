@@ -741,7 +741,7 @@
      <header>, que cambia según el ancho de pantalla. */
   .quiz-head{
     display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
-    position:sticky; top: var(--header-h, 68px); z-index:35;
+    position:sticky; top: calc(var(--header-h, 68px) - 1px); z-index:35;
     background: var(--bg); padding:12px 0; margin-bottom:10px; border-bottom:1px solid var(--line);
   }
   .back-link{ display:flex; align-items:center; gap:7px; font-size:13px; color: var(--muted); cursor:pointer; }
@@ -1845,15 +1845,27 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ---------- Altura real de <header>, usada por .quiz-head (sticky) para
    quedar pegada justo debajo, tanto en la barra superior de escritorio
-   como en la cabecera compacta de móvil. ---------- */
+   como en la cabecera compacta de móvil.
+   Se usa ResizeObserver (en vez de solo resize/load) porque la altura de
+   <header> puede cambiar por motivos que esos eventos no detectan (la
+   fuente tarda en cargar, cambia el zoom, el viewport del navegador móvil
+   se contrae/expande al hacer scroll, etc.). Si --header-h se queda
+   desajustada aunque sea 1px, se abre un hueco por el que se cuela el
+   contenido de la pregunta al hacer scroll; con ResizeObserver se
+   recalcula al instante cada vez que el tamaño real cambia. ---------- */
 function updateHeaderHeightVar(){
   const header = document.querySelector('header');
   if(!header) return;
   document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
 }
-window.addEventListener('resize', updateHeaderHeightVar);
-window.addEventListener('orientationchange', updateHeaderHeightVar);
-window.addEventListener('load', updateHeaderHeightVar);
+const headerEl = document.querySelector('header');
+if(headerEl && 'ResizeObserver' in window){
+  new ResizeObserver(updateHeaderHeightVar).observe(headerEl);
+} else {
+  window.addEventListener('resize', updateHeaderHeightVar);
+  window.addEventListener('orientationchange', updateHeaderHeightVar);
+  window.addEventListener('load', updateHeaderHeightVar);
+}
 updateHeaderHeightVar();
 if(document.fonts && document.fonts.ready){ document.fonts.ready.then(updateHeaderHeightVar); }
 
