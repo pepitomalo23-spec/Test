@@ -2143,7 +2143,7 @@ function renderMasteryBar(){
     cumAngle = endAngle;
     const midAngle = (startAngle + endAngle) / 2;
     const path = masteryDonutSegPath(cx, cy, rOuter, rInner, startAngle, endAngle);
-    html += '<path class="mastery-donut-seg" d="' + path + '" fill="' + seg.colorVar + '"></path>';
+    html += '<path class="mastery-donut-seg" d="' + path + '" fill="' + seg.color + '"></path>';
     // porcentaje sobre el propio segmento, solo si hay hueco suficiente para que se lea
     if(sweep >= 18){
       const midRad = midAngle * Math.PI / 180;
