@@ -999,7 +999,9 @@
   .own-note-edit:hover{ background: rgba(245,192,67,0.16); border-color: rgba(245,192,67,0.45); color: var(--amber); }
   .own-note-remove:hover{ background: rgba(242,102,92,0.16); border-color: rgba(242,102,92,0.45); color: var(--coral); }
   .own-note-text{ font-size:13.5px; line-height:1.8; color: var(--muted); white-space:pre-wrap; }
-  .own-note-image-wrap{ margin-top:14px; }
+  /* Hasta 5 imágenes, todas visibles, una debajo de otra con separación
+     clara entre ellas. */
+  .own-note-image-wrap{ margin-top:14px; display:flex; flex-direction:column; gap:12px; }
   .own-note-image{
     display:block; max-width:100%; border-radius:12px; border:1px solid var(--line-soft); cursor:zoom-in;
   }
@@ -1015,8 +1017,16 @@
     color: var(--text); background: var(--card-hi); border:1px solid var(--line-soft); border-radius:10px; padding:10px 12px;
   }
   .own-note-file-input{ font-family: var(--sans); font-size:12.5px; color: var(--muted); }
-  .own-note-editor-preview{ display:flex; flex-direction:column; gap:8px; }
-  .own-note-editor-preview img{ max-width:160px; border-radius:10px; border:1px solid var(--line-soft); }
+  /* Rejilla de miniaturas de las imágenes ya guardadas, cada una con su
+     propia casilla "Quitar" (para poder quitar solo una sin tocar las
+     demás). */
+  .own-note-editor-preview-grid{
+    display:grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap:10px;
+  }
+  .own-note-editor-preview-item{ display:flex; flex-direction:column; gap:6px; }
+  .own-note-editor-preview-item img{
+    width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; border:1px solid var(--line-soft);
+  }
   .own-note-remove-image-row{ display:flex; align-items:center; gap:7px; font-size:12px; color: var(--muted); cursor:pointer; }
   .own-note-editor-status{ font-family: var(--mono); font-size:11.5px; color: var(--coral); min-height:14px; }
   .own-note-editor-actions{ display:flex; gap:10px; margin-top:6px; }
@@ -1113,11 +1123,12 @@
      de anterior/siguiente y el pill de "en blanco"/"mostrar explicación"
      se siguen viendo siempre abajo. */
   .quiz-bottombar{
-    display:flex; align-items:center; justify-content:center; gap:16px;
+    display:flex; align-items:center; justify-content:center;
     position:fixed; left:0; right:0; bottom:0; z-index:25;
     width:100%; max-width:600px; margin:0 auto;
     padding:14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
     background: var(--bg); border-top:1px solid var(--line);
+    min-height:68px;
     /* Fuerza su propia capa de composición: evita que algunos navegadores
        móviles la "recoloquen"/parpadeen al expandir la explicación o al
        ocultarse/mostrarse la barra de direcciones durante el scroll. */
@@ -1126,13 +1137,22 @@
     will-change: transform;
   }
   .quiz-nav-btn{
-    width:34px; height:34px; border-radius:50%; border:1px solid var(--line); background: var(--card);
+    /* Ancladas con posición absoluta a un borde fijo de la barra (no al
+       pill central): así, aunque el pill cambie de texto/ancho ("En
+       blanco" / "Mostrar explicación" / "Ocultar explicación"), las
+       flechas se quedan siempre en el mismo sitio, bien separadas de él. */
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:40px; height:40px; border-radius:50%; border:1.5px solid var(--purple); background: var(--card-hi);
     color: var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer;
-    transition: border-color .12s; flex-shrink:0;
+    transition: border-color .12s, background .12s; flex-shrink:0;
+    box-shadow: 0 0 0 4px rgba(140,125,245,0.10);
   }
-  .quiz-nav-btn:hover{ border-color: var(--muted-2); }
-  .quiz-nav-btn:disabled{ opacity:.35; cursor:not-allowed; }
-  .quiz-nav-btn svg{ width:15px; height:15px; }
+  #quizPrevBtn{ left:22px; }
+  #quizNextBtn{ right:22px; }
+  .quiz-nav-btn:hover{ border-color: var(--purple); background: rgba(140,125,245,0.16); }
+  .quiz-nav-btn:hover:not(:disabled){ transform: translateY(-52%); }
+  .quiz-nav-btn:disabled{ opacity:.35; cursor:not-allowed; border-color: var(--line); box-shadow:none; }
+  .quiz-nav-btn svg{ width:17px; height:17px; }
   .quiz-pill{
     font-family: var(--sans); font-size:13px; font-weight:600; color: var(--muted);
     background: var(--card); border:1px solid var(--line); border-radius:20px;
@@ -3187,7 +3207,7 @@ function explainBodyHtml(q){
   const generateBtn = '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
       ICONS.brain + '<span>IA</span>' +
     '</button>';
-  const noteBtn = '<button type="button" class="own-note-btn" onclick="event.stopPropagation();openOwnNoteEditor(\'' + q.id + '\', this)" title="Escribir vuestra propia explicación o añadir una imagen">' +
+  const noteBtn = '<button type="button" class="own-note-btn" onclick="event.stopPropagation();openOwnNoteEditor(\'' + q.id + '\', this)" title="Escribir vuestra propia explicación o añadir imágenes">' +
       ICONS.pencil + '<span>Nota</span>' +
     '</button>';
   return '<div class="explain-body">' +
@@ -3209,16 +3229,31 @@ function explainBodyHtml(q){
   '</div>';
 }
 
-/* Tarjeta de "nuestra" nota (texto y/o imagen escritos a mano por vosotros,
-   no generados por IA). Mismo hueco que ocupaba antes solo la IA, pero con
-   su propio botón "Nota": en cuanto alguien escribe texto o sube una
-   imagen, ese botón desaparece y en su lugar queda esta tarjeta siempre
-   visible (con lápiz para editar y aspa para quitarla del todo). */
+/* Devuelve la lista de URLs de imagen de una nota propia, sin importar si
+   viene en el formato nuevo (image_urls: array, hasta 5) o en el formato
+   antiguo (image_url: una sola cadena) de notas guardadas antes del cambio
+   a múltiples imágenes. */
+function ownNoteImageUrls(note){
+  if(!note) return [];
+  if(Array.isArray(note.image_urls)) return note.image_urls.filter(Boolean);
+  if(note.image_url) return [note.image_url];
+  return [];
+}
+
+/* Tarjeta de "nuestra" nota (texto y/o hasta 5 imágenes escritas/subidas a
+   mano por vosotros, no generadas por IA). Mismo hueco que ocupaba antes
+   solo la IA, pero con su propio botón "Nota": en cuanto alguien escribe
+   texto o sube una imagen, ese botón desaparece y en su lugar queda esta
+   tarjeta siempre visible (con lápiz para editar y aspa para quitarla del
+   todo). Las imágenes se muestran todas, una debajo de otra. */
 function ownNoteCardHtml(note, questionId){
   if(!note) return '';
+  const images = ownNoteImageUrls(note);
   const textHtml = note.text ? '<div class="own-note-text">' + esc(note.text) + '</div>' : '';
-  const imgHtml = note.image_url
-    ? '<div class="own-note-image-wrap"><img class="own-note-image" src="' + esc(note.image_url) + '" alt="Imagen añadida por vosotros" onclick="event.stopPropagation();"></div>'
+  const imagesHtml = images.length
+    ? '<div class="own-note-image-wrap">' +
+        images.map(url => '<img class="own-note-image" src="' + esc(url) + '" alt="Imagen añadida por vosotros" onclick="event.stopPropagation();">').join('') +
+      '</div>'
     : '';
   return '<div class="own-note-card">' +
     '<div class="own-note-label">' +
@@ -3226,7 +3261,7 @@ function ownNoteCardHtml(note, questionId){
       '<button type="button" class="own-note-edit" onclick="event.stopPropagation();openOwnNoteEditor(\'' + questionId + '\', this)" title="Editar esta nota">' + ICONS.pencil + '</button>' +
       '<button type="button" class="own-note-remove" onclick="event.stopPropagation();removeOwnNote(\'' + questionId + '\', this)" title="Quitar esta nota">' + ICONS.cross + '</button>' +
     '</div>' +
-    textHtml + imgHtml +
+    textHtml + imagesHtml +
   '</div>';
 }
 
@@ -3243,21 +3278,27 @@ function openOwnNoteEditor(questionId, btnEl){
   const q = findQuestionById(questionId);
   const existing = q && q.own_note ? q.own_note : null;
   const existingText = existing && existing.text ? existing.text : '';
-  const existingImageUrl = existing && existing.image_url ? existing.image_url : '';
+  const existingImages = ownNoteImageUrls(existing);
+
+  const previewHtml = existingImages.length
+    ? '<div class="own-note-editor-preview-grid">' +
+        existingImages.map((url, i) =>
+          '<div class="own-note-editor-preview-item">' +
+            '<img src="' + esc(url) + '" alt="Imagen ' + (i+1) + '">' +
+            '<label class="own-note-remove-image-row"><input type="checkbox" class="own-note-remove-image-check" value="' + esc(url) + '"> Quitar</label>' +
+          '</div>'
+        ).join('') +
+      '</div>'
+    : '';
 
   slot.dataset.open = '1';
   slot.innerHTML =
     '<div class="own-note-editor">' +
       '<div class="own-note-editor-label">Escribid aquí vuestra propia explicación (opcional)</div>' +
       '<textarea class="own-note-textarea" placeholder="Lo que queráis explicar con vuestras palabras…">' + esc(existingText) + '</textarea>' +
-      '<div class="own-note-editor-label">Imagen (opcional)</div>' +
-      (existingImageUrl
-        ? '<div class="own-note-editor-preview">' +
-            '<img src="' + esc(existingImageUrl) + '" alt="Imagen actual">' +
-            '<label class="own-note-remove-image-row"><input type="checkbox" class="own-note-remove-image-check"> Quitar la imagen actual</label>' +
-          '</div>'
-        : '') +
-      '<input type="file" accept="image/*" class="own-note-file-input">' +
+      '<div class="own-note-editor-label">Imágenes (opcional, hasta 5 en total)</div>' +
+      previewHtml +
+      '<input type="file" accept="image/*" multiple class="own-note-file-input" onchange="ownNoteFileInputChanged(this)">' +
       '<div class="own-note-editor-status"></div>' +
       '<div class="own-note-editor-actions">' +
         '<button type="button" class="btn btn-ghost" onclick="event.stopPropagation();closeOwnNoteEditor(this, \'' + questionId + '\')">Cancelar</button>' +
@@ -3267,6 +3308,27 @@ function openOwnNoteEditor(questionId, btnEl){
 
   const addBtn = body.querySelector('.own-note-btn');
   if(addBtn) addBtn.style.display = 'none';
+}
+
+/* Avisa en vivo, mientras se eligen archivos, si el total (imágenes que se
+   quedan + nuevas seleccionadas) supera el máximo de 5. No bloquea la
+   selección: la comprobación real y definitiva se hace en saveOwnNote. */
+function ownNoteFileInputChanged(inputEl){
+  const editor = inputEl.closest('.own-note-editor');
+  if(!editor) return;
+  const statusEl = editor.querySelector('.own-note-editor-status');
+  const existingCount = editor.querySelectorAll('.own-note-editor-preview-item').length;
+  const removedCount = editor.querySelectorAll('.own-note-remove-image-check:checked').length;
+  const kept = existingCount - removedCount;
+  const selected = inputEl.files ? inputEl.files.length : 0;
+  const available = 5 - kept;
+  if(selected > available){
+    statusEl.style.color = 'var(--coral)';
+    statusEl.textContent = 'Has seleccionado ' + selected + ' imagen' + (selected===1?'':'es') + ', pero solo caben ' + Math.max(available,0) + ' más (máximo 5 en total).';
+  } else {
+    statusEl.style.color = '';
+    statusEl.textContent = selected ? selected + ' imagen' + (selected===1?'':'es') + ' nueva' + (selected===1?'':'s') + ' seleccionada' + (selected===1?'':'s') + '.' : '';
+  }
 }
 
 /* Cierra el editor sin guardar. Si la pregunta no tenía nota, vuelve a
@@ -3296,10 +3358,11 @@ async function uploadOwnNoteImage(questionId, file){
   return data.publicUrl;
 }
 
-/* Guarda la nota (texto y/o imagen) de forma permanente para todo el
-   mundo, vía la RPC set_question_own_note (solo toca esa columna).
-   Sigue el mismo patrón que explainWithAI: al guardar, sustituye el
-   editor por la tarjeta ya renderizada y quita el botón "Nota". */
+/* Guarda la nota (texto y/o hasta 5 imágenes) de forma permanente para
+   todo el mundo, vía la RPC set_question_own_note (solo toca esa
+   columna). Sigue el mismo patrón que explainWithAI: al guardar,
+   sustituye el editor por la tarjeta ya renderizada y quita el botón
+   "Nota" (o lo vuelve a mostrar si la nota se queda totalmente vacía). */
 async function saveOwnNote(questionId, btnEl){
   const editor = btnEl.closest('.own-note-editor');
   const body = btnEl.closest('.explain-body');
@@ -3308,15 +3371,22 @@ async function saveOwnNote(questionId, btnEl){
   const statusEl = editor.querySelector('.own-note-editor-status');
   const text = editor.querySelector('.own-note-textarea').value.trim();
   const fileInput = editor.querySelector('.own-note-file-input');
-  const removeImageCheck = editor.querySelector('.own-note-remove-image-check');
-  const file = (fileInput && fileInput.files && fileInput.files[0]) ? fileInput.files[0] : null;
+  const newFiles = (fileInput && fileInput.files) ? Array.from(fileInput.files) : [];
+  const removeUrls = Array.from(editor.querySelectorAll('.own-note-remove-image-check:checked')).map(c => c.value);
 
   const q = findQuestionById(questionId);
-  let imageUrl = (q && q.own_note && q.own_note.image_url) ? q.own_note.image_url : null;
-  if(removeImageCheck && removeImageCheck.checked) imageUrl = null;
+  const existingImages = ownNoteImageUrls(q && q.own_note);
+  const keptImages = existingImages.filter(url => !removeUrls.includes(url));
 
-  if(!text && !file && !imageUrl){
-    statusEl.textContent = 'Escribe algo o añade una imagen antes de guardar.';
+  const availableSlots = 5 - keptImages.length;
+  if(newFiles.length > availableSlots){
+    statusEl.style.color = 'var(--coral)';
+    statusEl.textContent = 'Máximo 5 imágenes por nota: te caben ' + Math.max(availableSlots, 0) + ' más. Quita alguna imagen o selecciona menos.';
+    return;
+  }
+
+  if(!text && !keptImages.length && !newFiles.length){
+    statusEl.textContent = 'Escribe algo o añade al menos una imagen antes de guardar.';
     return;
   }
 
@@ -3327,21 +3397,26 @@ async function saveOwnNote(questionId, btnEl){
   statusEl.textContent = '';
 
   try{
-    if(file){
-      saveBtn.textContent = 'Subiendo imagen…';
-      statusEl.textContent = 'Subiendo imagen…';
-      imageUrl = await uploadOwnNoteImage(questionId, file);
+    const uploadedUrls = [];
+    if(newFiles.length){
+      saveBtn.textContent = 'Subiendo imágenes…';
+      for(let i = 0; i < newFiles.length; i++){
+        statusEl.textContent = 'Subiendo imagen ' + (i+1) + ' de ' + newFiles.length + '…';
+        uploadedUrls.push(await uploadOwnNoteImage(questionId, newFiles[i]));
+      }
     }
+    const finalImages = keptImages.concat(uploadedUrls).slice(0, 5);
     saveBtn.textContent = 'Guardando…';
 
     const { error } = await sb.rpc('set_question_own_note', {
       p_question_id: questionId,
       p_text: text || null,
-      p_image_url: imageUrl || null
+      p_image_urls: finalImages
     });
     if(error) throw error;
 
-    const note = { text: text || null, image_url: imageUrl || null, updated_at: new Date().toISOString() };
+    const hasContent = !!text || finalImages.length > 0;
+    const note = hasContent ? { text: text || null, image_urls: finalImages, updated_at: new Date().toISOString() } : null;
     if(q) q.own_note = note;
     if(document.getElementById('myAdditionsList')) renderMyAdditionsList();
 
@@ -3350,11 +3425,21 @@ async function saveOwnNote(questionId, btnEl){
 
     const resultEl = body.querySelector('.own-note-result');
     if(resultEl){
-      resultEl.innerHTML = ownNoteCardHtml(note, questionId);
-      resultEl.classList.add('show');
+      resultEl.innerHTML = note ? ownNoteCardHtml(note, questionId) : '';
+      resultEl.classList.toggle('show', !!note);
     }
     const addBtn = body.querySelector('.own-note-btn');
-    if(addBtn) addBtn.remove();
+    if(note){
+      if(addBtn) addBtn.remove();
+    } else if(!addBtn){
+      const actions = body.querySelector('.explain-section-actions');
+      if(actions){
+        actions.insertAdjacentHTML('beforeend',
+          '<button type="button" class="own-note-btn" onclick="event.stopPropagation();openOwnNoteEditor(\'' + questionId + '\', this)" title="Escribir vuestra propia explicación o añadir imágenes">' +
+            ICONS.pencil + '<span>Nota</span>' +
+          '</button>');
+      }
+    }
   } catch(err){
     statusEl.style.color = 'var(--coral)';
     statusEl.textContent = 'No se ha podido guardar: ' + (err.message || 'error desconocido');
@@ -3387,7 +3472,7 @@ async function removeOwnNote(questionId, btnEl){
     const actions = body ? body.querySelector('.explain-section-actions') : null;
     if(actions && !actions.querySelector('.own-note-btn')){
       actions.insertAdjacentHTML('beforeend',
-        '<button type="button" class="own-note-btn" onclick="event.stopPropagation();openOwnNoteEditor(\'' + questionId + '\', this)" title="Escribir vuestra propia explicación o añadir una imagen">' +
+        '<button type="button" class="own-note-btn" onclick="event.stopPropagation();openOwnNoteEditor(\'' + questionId + '\', this)" title="Escribir vuestra propia explicación o añadir imágenes">' +
           ICONS.pencil + '<span>Nota</span>' +
         '</button>');
     }
