@@ -557,7 +557,15 @@
     border:1px solid transparent; transition: border-color .12s, background .12s;
   }
   .tree-node-row:hover{ border-color: var(--line); background: var(--card-hi); }
+  .tree-node-row.selected{ border-color: var(--purple); background: rgba(168,132,255,0.10); }
   .tree-node-main{ display:flex; align-items:center; gap:8px; min-width:0; flex:1; }
+  .node-checkbox, .qcard-checkbox{ width:16px; height:16px; flex-shrink:0; accent-color: var(--purple); cursor:pointer; }
+  .qcard-checkbox{ margin-top:2px; }
+  .bulk-select-bar{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px; margin-bottom:14px;
+    border-radius:10px; background: rgba(168,132,255,0.10); border:1px solid var(--purple);
+  }
+  .bulk-select-bar span{ font-size:12.5px; font-weight:600; color: var(--text); margin-right:auto; }
   .tree-node-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13.5px; }
   .tree-chevron-btn{
     width:22px; height:22px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
@@ -1300,6 +1308,27 @@
         <div class="tree-toolbar-row2">
           <span class="tree-toolbar-link" onclick="adminExpandAllTree()">Expandir todo</span>
           <span class="tree-toolbar-link" onclick="adminCollapseAllTree()">Colapsar todo</span>
+          <span class="tree-toolbar-link" id="selectionToggleLink" onclick="toggleSelectionMode()">Seleccionar varios</span>
+        </div>
+
+        <!-- barra flotante: cuántas preguntas/niveles hay seleccionados, y acciones sobre la selección -->
+        <div class="bulk-select-bar hidden" id="bulkSelectBar">
+          <span id="bulkSelectCount"></span>
+          <button class="btn btn-ghost" onclick="clearSelection()">Cancelar selección</button>
+          <button class="btn btn-block" onclick="adminOpenBulkMove()">Mover selección…</button>
+        </div>
+
+        <!-- formulario: mover en bloque varias preguntas, o varios niveles del mismo tipo, a la vez -->
+        <div class="admin-form hidden" id="adminForm-bulkMove">
+          <div class="qloc-path" id="bulkMovePath"></div>
+          <label>Nueva ubicación</label>
+          <select id="bulkMoveTarget"></select>
+          <div class="admin-card-meta" style="margin-top:6px;">Si has seleccionado preguntas, se moverán a la ubicación elegida (o quedarán como generales de todo el tema). Si has seleccionado niveles (por ejemplo varios artículos), se moverán junto con las preguntas que cuelguen de ellos.</div>
+          <div class="admin-form-actions">
+            <button class="btn btn-ghost" onclick="adminCancelBulkMove()">Cancelar</button>
+            <button class="btn btn-block" onclick="adminConfirmBulkMove()">Mover aquí</button>
+          </div>
+          <div class="admin-status" id="adminStatus-bulkMove"></div>
         </div>
 
         <!-- formulario: mover un nivel (título/capítulo/sección/artículo) a otro sitio -->
@@ -4135,7 +4164,7 @@ function onAdminTreeTopicChange(){
   adminTreeTopicId = document.getElementById('adminTreeTopic').value;
   adminCancelNodeForm();
   adminCancelTreeQuestionForm();
-  adminCancelMoveNode();
+  adminCancelMoveNode(); adminCancelBulkMove();
   treeNodeMenuOpen = null;
   adminLoadTree();
 }
@@ -4163,8 +4192,13 @@ function renderTree(){
   const el = document.getElementById('adminTreeContainer');
   const roots = nodeChildren(null);
   const temaHtml = renderTemaGeneralRow();
-  if(!roots.length){ el.innerHTML = temaHtml + '<div class="tree-empty">Este tema todavía no tiene estructura. Añade un nivel raíz (Título, Capítulo, Sección o Artículo, el que necesites).</div>'; return; }
+  if(!roots.length){
+    el.innerHTML = temaHtml + '<div class="tree-empty">Este tema todavía no tiene estructura. Añade un nivel raíz (Título, Capítulo, Sección o Artículo, el que necesites).</div>';
+    updateBulkSelectBar();
+    return;
+  }
   el.innerHTML = temaHtml + roots.map(n => renderNode(n)).join('');
+  updateBulkSelectBar();
 }
 const TEMA_GENERAL_KEY = '__tema_general__';
 function temaGeneralQuestions(){
@@ -4198,24 +4232,163 @@ function renderTemaGeneralQuestionsList(){
    borrar corta la propagación para no abrir el editor al pulsarlo. */
 function renderQuestionCard(q){
   const diff = q.difficulty || 'media';
+  const selected = selectedQuestionIds.has(q.id);
+  const clickAction = selectionMode ? "toggleQuestionSelected('"+q.id+"', event)" : "adminEditQuestionInTree('"+q.id+"')";
   return (
-    '<div class="question-card" data-qid="'+q.id+'" role="button" tabindex="0" ' +
-      'onclick="adminEditQuestionInTree(\''+q.id+'\')" ' +
-      'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();adminEditQuestionInTree(\''+q.id+'\');}">' +
+    '<div class="question-card'+(selected?' selected':'')+'" data-qid="'+q.id+'" role="button" tabindex="0" ' +
+      'onclick="'+clickAction+'" ' +
+      'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();'+clickAction+';}">' +
+      (selectionMode ? '<input type="checkbox" class="qcard-checkbox" '+(selected?'checked':'')+' onclick="event.stopPropagation();toggleQuestionSelected(\''+q.id+'\')">' : '') +
       '<div class="question-card-body">' +
         '<div class="question-card-text">'+esc(q.question)+'</div>' +
         '<div class="question-card-meta"><span class="q-diff q-diff-'+esc(diff)+'">'+esc(DIFICULTAD_LABELS[diff]||diff)+'</span></div>' +
       '</div>' +
+      (!selectionMode ? (
       '<div class="question-card-actions">' +
         '<div class="admin-icon-btn" onclick="event.stopPropagation();adminEditQuestionInTree(\''+q.id+'\')" title="Editar">'+ICONS.check+'</div>' +
         '<div class="admin-icon-btn" onclick="event.stopPropagation();adminDeleteQuestion(\''+q.id+'\')" title="Borrar">'+ICONS.cross+'</div>' +
-      '</div>' +
+      '</div>') : '') +
     '</div>'
   );
 }
 let expandedTreeNodes = new Set();   // nodos con el listado de preguntas desplegado
 let expandedTreeBranches = new Set(); // nodos con sus subniveles (hijos) desplegados — colapsado por defecto para que no se vea todo de golpe
 let treeNodeMenuOpen = null;          // id del nodo cuyo menú de acciones (⋮) está abierto
+
+/* ---------- Selección múltiple: elegir varias preguntas y/o varios niveles
+   (títulos/capítulos/secciones/artículos) a la vez para moverlos juntos ---------- */
+let selectionMode = false;
+let selectedQuestionIds = new Set();
+let selectedNodeIds = new Set();
+function toggleSelectionMode(){
+  selectionMode = !selectionMode;
+  if(!selectionMode){ selectedQuestionIds.clear(); selectedNodeIds.clear(); adminCancelBulkMove(); }
+  else { treeNodeMenuOpen = null; adminCancelNodeForm(); adminCancelTreeQuestionForm(); adminCancelGeneralPicker(); adminCancelMoveNode(); adminCancelBulkMove(); adminCancelIAImportForm(); }
+  renderTree();
+}
+function toggleQuestionSelected(id, event){
+  if(event) event.stopPropagation();
+  if(selectedQuestionIds.has(id)) selectedQuestionIds.delete(id); else selectedQuestionIds.add(id);
+  renderTree();
+}
+function toggleNodeSelected(id, event){
+  if(event) event.stopPropagation();
+  if(selectedNodeIds.has(id)) selectedNodeIds.delete(id); else selectedNodeIds.add(id);
+  renderTree();
+}
+function clearSelection(){
+  selectedQuestionIds.clear();
+  selectedNodeIds.clear();
+  adminCancelBulkMove();
+  renderTree();
+}
+function updateBulkSelectBar(){
+  const link = document.getElementById('selectionToggleLink');
+  if(link) link.textContent = selectionMode ? 'Salir de selección' : 'Seleccionar varios';
+  const bar = document.getElementById('bulkSelectBar');
+  if(!bar) return;
+  const total = selectedQuestionIds.size + selectedNodeIds.size;
+  if(!selectionMode || total === 0){ bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  const parts = [];
+  if(selectedQuestionIds.size) parts.push(selectedQuestionIds.size + ' pregunta' + (selectedQuestionIds.size===1?'':'s'));
+  if(selectedNodeIds.size) parts.push(selectedNodeIds.size + ' nivel' + (selectedNodeIds.size===1?'':'es'));
+  document.getElementById('bulkSelectCount').textContent = parts.join(' y ') + ' seleccionado' + (total===1?'':'s');
+}
+/* Todas las ubicaciones posibles del árbol (de cualquier tipo), para elegir dónde
+   mover preguntas — a diferencia de un nivel, una pregunta puede ir directamente
+   a un Artículo o quedar "general" en cualquier Título/Capítulo/Sección. */
+function buildAnyNodeOptions(){
+  const options = [];
+  (function walk(parentId, depth){
+    nodeChildren(parentId).forEach(n => {
+      options.push({ id: n.id, label: '—'.repeat(depth) + ' ' + NODE_TYPE_LABEL[n.tipo] + ' ' + nodeDisplayName(n) });
+      walk(n.id, depth + 1);
+    });
+  })(null, 0);
+  return options;
+}
+/* Ubicaciones válidas para mover varios niveles seleccionados a la vez: todos deben
+   ser del mismo tipo (se valida en adminOpenBulkMove), y el destino debe quedar por
+   encima de ese tipo en la jerarquía, sin colarse dentro de sí mismos ni de sus propios
+   descendientes. */
+function buildBulkNodeTargetOptions(){
+  const ids = [...selectedNodeIds];
+  const level = Math.min(...ids.map(id => NODE_TYPE_LEVEL[(adminData.nodes.find(n => n.id === id) || {}).tipo]));
+  const excluded = new Set(ids);
+  ids.forEach(id => nodeDescendantIds(id).forEach(d => excluded.add(d)));
+  const options = [];
+  (function walk(parentId, depth){
+    nodeChildren(parentId).forEach(n => {
+      if(excluded.has(n.id)) return; // ni como destino, ni se explora lo que cuelga de él
+      if(NODE_TYPE_LEVEL[n.tipo] < level){
+        options.push({ id: n.id, label: '—'.repeat(depth) + ' ' + nodeDisplayName(n) });
+      }
+      walk(n.id, depth + 1);
+    });
+  })(null, 0);
+  return options;
+}
+function adminOpenBulkMove(){
+  if(!selectedQuestionIds.size && !selectedNodeIds.size){ alert('No has seleccionado nada todavía.'); return; }
+  if(selectedQuestionIds.size && selectedNodeIds.size){
+    alert('Selecciona solo preguntas, o solo niveles (títulos/capítulos/secciones/artículos), para moverlos juntos — no se pueden mezclar en el mismo movimiento.');
+    return;
+  }
+  const sel = document.getElementById('bulkMoveTarget');
+  const statusEl = document.getElementById('adminStatus-bulkMove');
+  statusEl.textContent = '';
+  let options, rootLabel;
+  if(selectedQuestionIds.size){
+    rootLabel = 'Todo el tema (pregunta general, sin artículo)';
+    options = buildAnyNodeOptions();
+    document.getElementById('bulkMovePath').textContent = 'Mover ' + selectedQuestionIds.size + ' pregunta' + (selectedQuestionIds.size===1?'':'s') + ' seleccionada' + (selectedQuestionIds.size===1?'':'s') + ' a:';
+  } else {
+    const tipos = new Set([...selectedNodeIds].map(id => (adminData.nodes.find(n => n.id === id) || {}).tipo));
+    if(tipos.size > 1){ alert('Selecciona niveles del mismo tipo (por ejemplo, solo artículos, o solo capítulos) para moverlos juntos.'); return; }
+    rootLabel = 'Nivel raíz del tema (directamente bajo el tema)';
+    options = buildBulkNodeTargetOptions();
+    document.getElementById('bulkMovePath').textContent = 'Mover ' + selectedNodeIds.size + ' nivel' + (selectedNodeIds.size===1?'':'es') + ' seleccionado' + (selectedNodeIds.size===1?'':'s') + ' a:';
+  }
+  sel.innerHTML = '<option value="">' + rootLabel + '</option>' + options.map(o => '<option value="'+o.id+'">'+esc(o.label)+'</option>').join('');
+  document.getElementById('adminForm-bulkMove').classList.remove('hidden');
+  document.getElementById('adminForm-bulkMove').scrollIntoView({ behavior:'smooth', block:'center' });
+}
+function adminCancelBulkMove(){
+  const form = document.getElementById('adminForm-bulkMove');
+  if(form) form.classList.add('hidden');
+}
+async function adminConfirmBulkMove(){
+  const val = document.getElementById('bulkMoveTarget').value;
+  const targetId = val || null;
+  const statusEl = document.getElementById('adminStatus-bulkMove');
+  try{
+    if(selectedQuestionIds.size){
+      const ids = [...selectedQuestionIds];
+      const { error } = await sb.from('questions').update({ nodo_id: targetId }).in('id', ids);
+      if(error) throw new Error(error.message);
+      statusEl.style.color = 'var(--green)';
+      statusEl.textContent = ids.length + ' pregunta' + (ids.length===1?'':'s') + ' movida' + (ids.length===1?'':'s') + ' correctamente.';
+    } else {
+      const ids = [...selectedNodeIds];
+      const { error } = await sb.from('nodos_temario').update({ padre_id: targetId }).in('id', ids);
+      if(error) throw new Error(error.message);
+      statusEl.style.color = 'var(--green)';
+      statusEl.textContent = ids.length + ' nivel' + (ids.length===1?'':'es') + ' movido' + (ids.length===1?'':'s') + ' correctamente.';
+      if(targetId) expandedTreeBranches.add(targetId);
+    }
+    selectedQuestionIds.clear();
+    selectedNodeIds.clear();
+    selectionMode = false;
+    await adminLoadTree();
+    await adminLoadQuestions();
+    renderTree();
+    setTimeout(adminCancelBulkMove, 900);
+  } catch(err){
+    statusEl.style.color = 'var(--coral)';
+    statusEl.textContent = err.message || 'Ha ocurrido un error al mover la selección.';
+  }
+}
 function toggleNodeBranch(id, event){
   if(event) event.stopPropagation();
   if(expandedTreeBranches.has(id)) expandedTreeBranches.delete(id); else expandedTreeBranches.add(id);
@@ -4261,22 +4434,26 @@ function renderNode(n){
   const hasBranch = children.length > 0;
   const menuOpen = treeNodeMenuOpen === n.id;
   const questionLabel = n.tipo === 'articulo' ? '+ Pregunta aquí' : '+ Pregunta general aquí';
+  const nodeSelected = selectedNodeIds.has(n.id);
+  const mainClick = selectionMode ? "toggleNodeSelected('"+n.id+"', event)" : (hasBranch ? "toggleNodeBranch('"+n.id+"')" : '');
   return (
     '<div class="tree-node">' +
-      '<div class="tree-node-row">' +
-        '<div class="tree-node-main" style="cursor:'+(hasBranch?'pointer':'default')+';" '+(hasBranch?'onclick="toggleNodeBranch(\''+n.id+'\')"':'')+'>' +
-          (hasBranch
-            ? '<span class="tree-chevron-btn'+(branchOpen?' open':'')+'" onclick="toggleNodeBranch(\''+n.id+'\', event)">'+ICONS.chevron+'</span>'
-            : '<span class="tree-chevron-spacer"></span>') +
+      '<div class="tree-node-row'+(nodeSelected?' selected':'')+'">' +
+        '<div class="tree-node-main" style="cursor:pointer;" '+(mainClick?'onclick="'+mainClick+'"':'')+'>' +
+          (selectionMode
+            ? '<input type="checkbox" class="node-checkbox" '+(nodeSelected?'checked':'')+' onclick="event.stopPropagation();toggleNodeSelected(\''+n.id+'\')">'
+            : (hasBranch
+              ? '<span class="tree-chevron-btn'+(branchOpen?' open':'')+'" onclick="toggleNodeBranch(\''+n.id+'\', event)">'+ICONS.chevron+'</span>'
+              : '<span class="tree-chevron-spacer"></span>')) +
           '<span class="node-badge '+(isGeneralNode(n) ? 'general-node' : n.tipo)+'">'+(isGeneralNode(n) ? 'General' : NODE_TYPE_LABEL[n.tipo])+'</span>' +
           (isGeneralNode(n) ? '' : '<span class="tree-node-name">'+esc(nodeDisplayName(n))+'</span>') +
           (directGeneral ? '<span class="node-general-badge" onclick="event.stopPropagation();toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+directGeneral+' general'+(directGeneral===1?'':'es')+' aquí</span>' : '') +
           (count && !directGeneral ? '<span class="node-qcount" onclick="event.stopPropagation();toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+count+' preg.</span>' : '') +
           (count && directGeneral && count > directGeneral ? '<span class="node-qcount" onclick="event.stopPropagation();toggleNodeQuestions(\''+n.id+'\')">'+count+' en total</span>' : '') +
         '</div>' +
-        '<div class="tree-node-actions">' +
+        (!selectionMode ? '<div class="tree-node-actions">' +
           '<div class="tree-kebab-btn" onclick="toggleNodeMenu(\''+n.id+'\', event)" title="Más acciones">'+ICONS.kebab+'</div>' +
-        '</div>' +
+        '</div>' : '') +
       '</div>' +
       (menuOpen ? (
         '<div class="tree-node-menu">' +
@@ -4301,7 +4478,7 @@ function adminOpenNodeForm(parentId){
   treeAddParentId = parentId || null;
   adminEditing.node = null;
   adminCancelIAImportForm();
-  adminCancelMoveNode();
+  adminCancelMoveNode(); adminCancelBulkMove();
   treeNodeMenuOpen = null;
   document.getElementById('adminForm-node').classList.remove('hidden');
   document.getElementById('adminForm-treeQuestion').classList.add('hidden');
@@ -4319,7 +4496,7 @@ function adminEditNode(id){
   if(!n) return;
   treeAddParentId = n.padre_id || null;
   adminEditing.node = id;
-  adminCancelMoveNode();
+  adminCancelMoveNode(); adminCancelBulkMove();
   treeNodeMenuOpen = null;
   document.getElementById('adminForm-node').classList.remove('hidden');
   document.getElementById('adminForm-treeQuestion').classList.add('hidden');
@@ -4431,7 +4608,7 @@ function adminOpenGeneralQuestionPicker(){
   adminCancelNodeForm();
   adminCancelTreeQuestionForm();
   adminCancelIAImportForm();
-  adminCancelMoveNode();
+  adminCancelMoveNode(); adminCancelBulkMove();
   treeNodeMenuOpen = null;
   renderTree();
   document.getElementById('adminForm-generalPicker').classList.remove('hidden');
@@ -4463,7 +4640,7 @@ function adminOpenIAImportForm(){
   adminCancelNodeForm();
   adminCancelTreeQuestionForm();
   adminCancelGeneralPicker();
-  adminCancelMoveNode();
+  adminCancelMoveNode(); adminCancelBulkMove();
   treeNodeMenuOpen = null;
   renderTree();
   iaPreviewData = [];
@@ -4819,7 +4996,7 @@ function adminOpenTreeQuestionForm(nodeId){
   adminCancelNodeForm();
   adminCancelGeneralPicker();
   adminCancelIAImportForm();
-  adminCancelMoveNode();
+  adminCancelMoveNode(); adminCancelBulkMove();
   treeNodeMenuOpen = null;
   renderTree();
   document.getElementById('adminForm-treeQuestion').classList.remove('hidden');
@@ -4851,7 +5028,7 @@ function adminEditQuestionInTree(id){
   adminCancelNodeForm();
   adminCancelGeneralPicker();
   adminCancelIAImportForm();
-  adminCancelMoveNode();
+  adminCancelMoveNode(); adminCancelBulkMove();
   treeNodeMenuOpen = null;
   renderTree();
   const form = document.getElementById('adminForm-treeQuestion');
