@@ -2651,6 +2651,14 @@ async function refreshGlobalStats(){
 
 /* ---------- navigation ---------- */
 const TOP_LEVEL_SCREENS = ['screen-normativas', 'screen-home', 'screen-stats'];
+const LAST_SCREEN_KEY = 'legis_last_screen';
+function getLastScreen(){
+  try{
+    const saved = localStorage.getItem(LAST_SCREEN_KEY);
+    if(saved && TOP_LEVEL_SCREENS.includes(saved)) return saved;
+  }catch(e){}
+  return 'screen-home';
+}
 function showScreen(id){
   if(id !== 'screen-quiz'){ clearInterval(timerInterval); }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -2659,6 +2667,13 @@ function showScreen(id){
   document.getElementById('navHome').classList.toggle('active', id === 'screen-home');
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
   const isTopLevel = TOP_LEVEL_SCREENS.includes(id);
+  // Recordamos la última pestaña principal (Normativas / Inicio /
+  // Estadísticas) visitada, para poder volver a ella si la app se
+  // recarga (p. ej. tras dejarla en segundo plano y que el sistema la
+  // "mate"), en vez de aterrizar siempre en Inicio.
+  if(isTopLevel){
+    try{ localStorage.setItem(LAST_SCREEN_KEY, id); }catch(e){}
+  }
   const headerNav = document.querySelector('.header-nav');
   if(headerNav) headerNav.classList.toggle('hidden', !isTopLevel);
   const headerUser = document.getElementById('headerUser');
@@ -4453,7 +4468,10 @@ async function onLoggedIn(user){
 
   await loadHistory();
   await refreshGlobalStats();
-  showScreen('screen-home');
+  // Al entrar (incluido tras recargar la app), volvemos a la pestaña
+  // principal en la que estaba el usuario la última vez, en vez de ir
+  // siempre a Inicio.
+  showScreen(getLastScreen());
 }
 function onLoggedOut(){
   currentUser = null;
