@@ -286,12 +286,20 @@
   .mastery-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
   .mastery-title{ font-size:13px; font-weight:600; color: var(--muted); }
   .mastery-total{ font-family: var(--mono); font-size:12.5px; color: var(--muted-2); white-space:nowrap; }
-  .mastery-bar{ display:flex; width:100%; height:10px; border-radius:6px; overflow:hidden; background: var(--line-soft); margin-bottom:14px; }
-  .mastery-seg{ height:100%; }
-  .mastery-seg.mastery-green, .mastery-dot.mastery-green{ background: var(--green); }
-  .mastery-seg.mastery-yellow, .mastery-dot.mastery-yellow{ background: var(--amber); }
-  .mastery-seg.mastery-red, .mastery-dot.mastery-red{ background: var(--coral); }
-  .mastery-seg.mastery-blue, .mastery-dot.mastery-blue{ background: var(--blue); }
+  .mastery-dot.mastery-green{ background: var(--green); }
+  .mastery-dot.mastery-yellow{ background: var(--amber); }
+  .mastery-dot.mastery-red{ background: var(--coral); }
+  .mastery-dot.mastery-blue{ background: var(--blue); }
+  .mastery-donut-wrap{ position:relative; width:100%; max-width:320px; margin:4px auto 6px; }
+  .mastery-donut{ display:block; width:100%; height:auto; }
+  .mastery-donut-seg{ transition: opacity .15s; }
+  .mastery-donut-pctlabel{ font-family: var(--mono); font-size:10.5px; font-weight:700; fill: #fff; }
+  .mastery-donut-center{
+    position:absolute; left:50%; bottom:6px; transform:translateX(-50%); text-align:center; display:flex; flex-direction:column; align-items:center;
+  }
+  .mastery-donut-pct{ font-family: var(--mono); font-size:30px; font-weight:800; color: var(--text); line-height:1; }
+  .mastery-donut-sublabel{ font-size:11.5px; color: var(--muted); margin-top:2px; }
+  .mastery-legend-pct{ color: var(--muted-2); }
   .mastery-legend{ display:flex; flex-wrap:wrap; gap:16px; }
 
   /* ---------- ranking de temas (mejor a peor, % real de dominio) ---------- */
@@ -1359,21 +1367,6 @@
     <!-- ===== STATS SCREEN ===== -->
     <section class="screen" id="screen-stats">
       <h1>Estadísticas</h1>
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-label">Preguntas hechas</div>
-          <div class="stat-value purple" id="statQuestionsDone">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Preguntas totales</div>
-          <div class="stat-value coral" id="statQuestionsTotal">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Nota actual</div>
-          <div class="stat-value blue" id="statAvgScore">—</div>
-          <div class="stat-sub">Nivel general: <b id="statLevelPct">—</b></div>
-        </div>
-      </div>
       <div class="mastery-card">
         <div class="mastery-head">
           <div class="mastery-title-row">
@@ -1388,12 +1381,33 @@
           <div><span class="mastery-dot mastery-red"></span><span><b>Suspendida (roja):</b> tu último intento con esa pregunta fue un fallo, ya sea que la hayas fallado por primera vez o que ya la hayas fallado 3 o más veces; mientras no vuelvas a acertarla, se queda en rojo.</span></div>
           <div><span class="mastery-dot mastery-blue"></span><span><b>Sin ver (azul):</b> todavía no la has respondido nunca.</span></div>
         </div>
-        <div class="mastery-bar" id="masteryBar"></div>
+        <div class="mastery-donut-wrap">
+          <svg class="mastery-donut" id="masteryDonut" viewBox="0 0 220 125"></svg>
+          <div class="mastery-donut-center">
+            <span class="mastery-donut-pct" id="masteryDonutPct">0%</span>
+            <span class="mastery-donut-sublabel">dominadas</span>
+          </div>
+        </div>
         <div class="mastery-legend">
-          <div class="mastery-legend-item"><span class="mastery-dot mastery-green"></span>Aprobadas <span class="mastery-legend-value" id="masteryGreenCount">0</span></div>
-          <div class="mastery-legend-item"><span class="mastery-dot mastery-yellow"></span>En progreso <span class="mastery-legend-value" id="masteryYellowCount">0</span></div>
-          <div class="mastery-legend-item"><span class="mastery-dot mastery-red"></span>Suspendidas <span class="mastery-legend-value" id="masteryRedCount">0</span></div>
-          <div class="mastery-legend-item"><span class="mastery-dot mastery-blue"></span>Sin ver <span class="mastery-legend-value" id="masteryBlueCount">0</span></div>
+          <div class="mastery-legend-item"><span class="mastery-dot mastery-green"></span>Aprobadas <span class="mastery-legend-value" id="masteryGreenCount">0</span> <span class="mastery-legend-pct" id="masteryGreenPct"></span></div>
+          <div class="mastery-legend-item"><span class="mastery-dot mastery-yellow"></span>En progreso <span class="mastery-legend-value" id="masteryYellowCount">0</span> <span class="mastery-legend-pct" id="masteryYellowPct"></span></div>
+          <div class="mastery-legend-item"><span class="mastery-dot mastery-red"></span>Suspendidas <span class="mastery-legend-value" id="masteryRedCount">0</span> <span class="mastery-legend-pct" id="masteryRedPct"></span></div>
+          <div class="mastery-legend-item"><span class="mastery-dot mastery-blue"></span>Sin ver <span class="mastery-legend-value" id="masteryBlueCount">0</span> <span class="mastery-legend-pct" id="masteryBluePct"></span></div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Preguntas hechas</div>
+          <div class="stat-value purple" id="statQuestionsDone">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Preguntas totales</div>
+          <div class="stat-value coral" id="statQuestionsTotal">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Nota actual</div>
+          <div class="stat-value blue" id="statAvgScore">—</div>
+          <div class="stat-sub">Nivel general: <b id="statLevelPct">—</b></div>
         </div>
       </div>
       <div class="ranking-card">
@@ -2049,6 +2063,30 @@ function toggleMasteryInfo(){
   if(btn) btn.classList.toggle('active', box.classList.contains('show'));
 }
 
+/* Construye el path SVG de un segmento de "donut" (anillo) entre dos
+   ángulos, sobre la mitad superior de un círculo (de 180° en el punto
+   izquierdo a 0° en el punto derecho, pasando por arriba). */
+function masteryDonutSegPath(cx, cy, rOuter, rInner, startAngle, endAngle){
+  const toXY = (r, angleDeg) => {
+    const rad = angleDeg * Math.PI / 180;
+    return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
+  };
+  const largeArc = (startAngle - endAngle) > 180 ? 1 : 0;
+  const oStart = toXY(rOuter, startAngle);
+  const oEnd = toXY(rOuter, endAngle);
+  const iEnd = toXY(rInner, endAngle);
+  const iStart = toXY(rInner, startAngle);
+  return 'M ' + oStart.x.toFixed(2) + ' ' + oStart.y.toFixed(2) +
+    ' A ' + rOuter + ' ' + rOuter + ' 0 ' + largeArc + ' 1 ' + oEnd.x.toFixed(2) + ' ' + oEnd.y.toFixed(2) +
+    ' L ' + iEnd.x.toFixed(2) + ' ' + iEnd.y.toFixed(2) +
+    ' A ' + rInner + ' ' + rInner + ' 0 ' + largeArc + ' 0 ' + iStart.x.toFixed(2) + ' ' + iStart.y.toFixed(2) +
+    ' Z';
+}
+
+/* Dibuja "Dominio de preguntas" como un medio-donut (media pizza, media
+   esfera vista de perfil) en vez de la barra horizontal de antes: un
+   segmento de color por cada estado (verde/amarillo/rojo/azul), con su
+   porcentaje, más el porcentaje de dominadas en grande en el centro. */
 function renderMasteryBar(){
   const pool = QUESTIONS_POOL;
   const total = pool.length;
@@ -2056,27 +2094,66 @@ function renderMasteryBar(){
   const yellow = pool.filter(q => q.masteryStatus === 'yellow').length;
   const red = pool.filter(q => q.masteryStatus === 'red').length;
   const notSeen = pool.filter(q => q.masteryStatus === null).length;
-  const pct = n => total ? (n / total * 100) : 0;
+  const pct = n => total ? Math.round(n / total * 100) : 0;
 
   const elTotal = document.getElementById('masteryTotal');
   const elGreen = document.getElementById('masteryGreenCount');
   const elYellow = document.getElementById('masteryYellowCount');
   const elRed = document.getElementById('masteryRedCount');
   const elBlue = document.getElementById('masteryBlueCount');
-  const bar = document.getElementById('masteryBar');
+  const elGreenPct = document.getElementById('masteryGreenPct');
+  const elYellowPct = document.getElementById('masteryYellowPct');
+  const elRedPct = document.getElementById('masteryRedPct');
+  const elBluePct = document.getElementById('masteryBluePct');
+  const elDonutPct = document.getElementById('masteryDonutPct');
+  const svg = document.getElementById('masteryDonut');
+
   if(elTotal) elTotal.textContent = total;
   if(elGreen) elGreen.textContent = green;
   if(elYellow) elYellow.textContent = yellow;
   if(elRed) elRed.textContent = red;
   if(elBlue) elBlue.textContent = notSeen;
-  if(bar){
-    bar.innerHTML = total ? (
-      '<div class="mastery-seg mastery-green" style="width:' + pct(green) + '%"></div>' +
-      '<div class="mastery-seg mastery-yellow" style="width:' + pct(yellow) + '%"></div>' +
-      '<div class="mastery-seg mastery-red" style="width:' + pct(red) + '%"></div>' +
-      '<div class="mastery-seg mastery-blue" style="width:' + pct(notSeen) + '%"></div>'
-    ) : '';
+  if(elGreenPct) elGreenPct.textContent = total ? '(' + pct(green) + '%)' : '';
+  if(elYellowPct) elYellowPct.textContent = total ? '(' + pct(yellow) + '%)' : '';
+  if(elRedPct) elRedPct.textContent = total ? '(' + pct(red) + '%)' : '';
+  if(elBluePct) elBluePct.textContent = total ? '(' + pct(notSeen) + '%)' : '';
+  if(elDonutPct) elDonutPct.textContent = total ? pct(green) + '%' : '0%';
+
+  if(!svg) return;
+  if(!total){
+    svg.innerHTML = '<path d="' + masteryDonutSegPath(110, 110, 100, 62, 180, 0) + '" fill="#1E1E1E"></path>';
+    return;
   }
+
+  const segments = [
+    { value: green, color: '#34D399' },
+    { value: yellow, color: '#F5C043' },
+    { value: red, color: '#F2665C' },
+    { value: notSeen, color: '#4E9BF7' }
+  ];
+
+  const cx = 110, cy = 110, rOuter = 100, rInner = 62;
+  let cumAngle = 180; // arranca en el punto izquierdo y avanza hacia la derecha por arriba
+  let html = '';
+  segments.forEach(seg => {
+    if(seg.value <= 0) return;
+    const sweep = (seg.value / total) * 180;
+    const startAngle = cumAngle;
+    const endAngle = cumAngle - sweep;
+    cumAngle = endAngle;
+    const midAngle = (startAngle + endAngle) / 2;
+    const path = masteryDonutSegPath(cx, cy, rOuter, rInner, startAngle, endAngle);
+    html += '<path class="mastery-donut-seg" d="' + path + '" fill="' + seg.colorVar + '"></path>';
+    // porcentaje sobre el propio segmento, solo si hay hueco suficiente para que se lea
+    if(sweep >= 18){
+      const midRad = midAngle * Math.PI / 180;
+      const labelR = (rOuter + rInner) / 2;
+      const lx = (cx + labelR * Math.cos(midRad)).toFixed(2);
+      const ly = (cy - labelR * Math.sin(midRad)).toFixed(2);
+      html += '<text class="mastery-donut-pctlabel" x="' + lx + '" y="' + ly + '" text-anchor="middle" dominant-baseline="middle">' + Math.round(seg.value / total * 100) + '%</text>';
+    }
+  });
+  svg.innerHTML = html;
 }
 
 function escapeHtml(str){
