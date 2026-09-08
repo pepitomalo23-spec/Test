@@ -128,6 +128,12 @@
   }
   .header-user-admin:hover{ background: var(--card-hi); color: var(--purple); }
   .header-user-admin.hidden{ display:none; }
+  .header-user-boe{
+    display:flex; align-items:center; gap:9px; width:100%; padding:12px; border-radius:11px; border:none; background:transparent;
+    color: var(--text); font-family: var(--sans); font-size:13.5px; font-weight:600; cursor:pointer; text-align:left; margin-bottom:6px;
+  }
+  .header-user-boe:hover{ background: var(--card-hi); color: var(--purple); }
+  .header-user-boe svg{ width:18px; height:18px; flex-shrink:0; }
   .header-user-btn{ position:relative; }
   .header-pending-dot{
     position:absolute; top:-2px; right:-2px; min-width:15px; height:15px; padding:0 3px; border-radius:20px;
@@ -1062,11 +1068,6 @@
         <span class="header-nav-label">Normativas</span>
       </span>
       <div class="nav-dot"></div>
-      <span id="navBoeCambios" role="button" tabindex="0" onclick="showScreen('screen-boe-cambios')" onkeydown="if(event.key==='Enter')showScreen('screen-boe-cambios')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
-        <span class="header-nav-label">Cambios BOE</span>
-      </span>
-      <div class="nav-dot"></div>
       <span class="active" id="navHome" role="button" tabindex="0" onclick="showScreen('screen-home')" onkeydown="if(event.key==='Enter')showScreen('screen-home')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="m19 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"/><path d="m5 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M7 21h10"/></svg>
         <span class="header-nav-label">Legislación</span>
@@ -1094,6 +1095,10 @@
         </div>
       </div>
       <div class="header-user-email" id="headerUserEmail"></div>
+      <button class="header-user-boe" id="headerBoeBtn" onclick="closeUserMenu(); showScreen('screen-boe-cambios');">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
+        Cambios BOE
+      </button>
       <button class="header-user-admin hidden" id="headerAdminBtn" onclick="openAdminPanel()">
         <span class="header-user-admin-label">
           <video class="header-admin-logo" src="assets/admin-logo.mp4" autoplay loop muted playsinline></video>
@@ -1190,15 +1195,22 @@
       <div class="empty">Aquí aparecerán las normativas disponibles.</div>
     </section>
 
-    <!-- ===== CAMBIOS BOE SCREEN ===== -->
-    <section class="screen" id="screen-boe-cambios">
-      <h1>Cambios BOE</h1>
-      <div class="config-sub">Cambios legislativos detectados automáticamente en el BOE para las leyes de tu temario.</div>
+    <!-- ===== CAMBIOS BOE SCREEN (accesible desde Tu cuenta) ===== -->
+    <section class="screen overlay" id="screen-boe-cambios">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h1>Cambios BOE</h1>
+          <button class="modal-close" aria-label="Cerrar" onclick="showHome()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="config-sub">Cambios legislativos detectados automáticamente en el BOE para las leyes de tu temario.</div>
 
-      <div id="boeNormasList" class="boe-normas-list"></div>
+        <div id="boeNormasList" class="boe-normas-list"></div>
 
-      <div class="section-row"><div class="section-title">Cambios legislativos</div><div class="section-rule"></div></div>
-      <div id="boeCambiosList"><div class="empty">Comprobando…</div></div>
+        <div class="section-row"><div class="section-title">Cambios legislativos</div><div class="section-rule"></div></div>
+        <div id="boeCambiosList"><div class="empty">Comprobando…</div></div>
+      </div>
     </section>
 
     <!-- ===== DETALLE DE CAMBIO BOE (overlay) ===== -->
@@ -2208,13 +2220,12 @@ async function refreshGlobalStats(){
 }
 
 /* ---------- navigation ---------- */
-const TOP_LEVEL_SCREENS = ['screen-normativas', 'screen-boe-cambios', 'screen-home', 'screen-stats'];
+const TOP_LEVEL_SCREENS = ['screen-normativas', 'screen-home', 'screen-stats'];
 function showScreen(id){
   if(id !== 'screen-quiz'){ clearInterval(timerInterval); }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   document.getElementById('navNormativas').classList.toggle('active', id === 'screen-normativas');
-  document.getElementById('navBoeCambios').classList.toggle('active', id === 'screen-boe-cambios');
   document.getElementById('navHome').classList.toggle('active', id === 'screen-home');
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
   const isTopLevel = TOP_LEVEL_SCREENS.includes(id);
