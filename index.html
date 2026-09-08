@@ -2879,6 +2879,47 @@ function shuffleArray(arr){
   }
   return a;
 }
+
+/* ---------- Barajado de las opciones (A/B/C/D) por intento ----------
+   Objetivo: que memorizar "la respuesta es la B" no sirva de nada. En
+   cada intento se reordena al azar la posición de las opciones de cada
+   pregunta — el contenido que es correcto sigue siendo el mismo, solo
+   cambia qué letra le toca esta vez.
+
+   Se detectan (de forma heurística, por el texto) las preguntas cuyo
+   enunciado o cuyas opciones dependen de la posición/letra —del tipo
+   "A y B son correctas", "todas las anteriores", "solo la C es
+   correcta"— y esas NO se barajan: reordenarlas rompería el sentido de
+   la pregunta. */
+const LETTER_DEPENDENT_PATTERNS = [
+  /todas\s+las\s+anteriores/i,
+  /ninguna\s+(de\s+las\s+)?anteriores/i,
+  /todas\s+(ellas\s+)?(son|resultan)\s+correctas?/i,
+  /ninguna\s+(de\s+ellas\s+)?(es|resulta)\s+correcta/i,
+  /\b(opci[oó]n(es)?|respuesta(s)?|letra(s)?|apartado(s)?)\b/i,
+  /\b(solo|s[oó]lo|salvo|excepto|menos)\s+la\s+[a-dA-D]\b/i,
+  // Dos (o más) letras mayúsculas sueltas unidas por "y"/"o"/comas, del
+  // tipo "A y B", "B, C y D": en prosa normal en español no aparecen
+  // letras mayúsculas sueltas así, por lo que es una señal fiable de que
+  // el texto está referenciando otras opciones por su letra.
+  /\b[A-D]\s*(?:,\s*[A-D]\s*)*(?:y|o)\s*[A-D]\b/
+];
+function isLetterDependentQuestion(q){
+  const text = [q.q || '', ...((q.options || []))].join(' \n ');
+  return LETTER_DEPENDENT_PATTERNS.some(re => re.test(text));
+}
+function shuffleQuestionOptions(q){
+  if(!q.options || q.options.length < 2) return q;
+  if(isLetterDependentQuestion(q)) return q; // se deja tal cual: no se puede reordenar sin romper el sentido
+  const order = shuffleArray(q.options.map((_, i) => i)); // order[posición mostrada] = índice original en la BD
+  const newOptions = order.map(i => q.options[i]);
+  const newCorrect = order.indexOf(q.correct);
+  if(newCorrect === -1) return q; // por seguridad: si algo no cuadra, no se toca
+  // _optionOrder se guarda en la propia pregunta para poder "deshacer" el
+  // barajado al guardar la respuesta en la base de datos (ver finishQuiz):
+  // así el histórico sigue siendo correcto aunque se recargue la página.
+  return Object.assign({}, q, { options: newOptions, correct: newCorrect, _optionOrder: order });
+}
 function buildQuestionSet(pool, count){
   if(!pool.length) return [];
   const shuffledPool = shuffleArray(pool);
@@ -2983,7 +3024,7 @@ async function eliminarFallosPendientes(){
 const QUIZ_LIST_MODES = ['examen', 'simulacro']; // estas modalidades muestran todas las preguntas seguidas, sin corrección inmediata
 function startQuiz(mode, questions, timeMinutes){
   const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
-  ACTIVE_QUESTIONS = shuffleArray(base); // el orden de las preguntas siempre es aleatorio en cada intento
+  ACTIVE_QUESTIONS = shuffleArray(base).map(shuffleQuestionOptions); // el orden de las preguntas Y de sus opciones A/B/C/D es aleatorio en cada intento (salvo preguntas del tipo "A y B son correctas")
   const viewMode = QUIZ_LIST_MODES.includes(mode) ? 'list' : 'card';
   // "visited" marca qué preguntas ha llegado a ver realmente el usuario (se
   // rellena en renderQuestion). Es clave en modo tarjeta (estudio/fallos):
@@ -3907,9 +3948,19 @@ async function finishQuiz(){
 
       const answerRows = SESSION_QUESTIONS.map((q, j) => {
         const a = SESSION_ANSWERS[j];
+        // Si esta pregunta se barajó para este intento (q._optionOrder),
+        // lo que se guarda es el índice de la opción en su orden
+        // ORIGINAL de la base de datos, no la posición en la que se
+        // mostró aquí. Así, si más adelante se revisa este test desde el
+        // historial (p. ej. tras recargar la página, cuando la pregunta
+        // se vuelve a pedir a la BD en su orden canónico), la corrección
+        // sigue siendo exacta.
+        const canonicalIndex = (a === null || a === undefined)
+          ? null
+          : (q._optionOrder ? q._optionOrder[a] : a);
         return {
           session_id: sessionId, user_id: currentUser.id, question_id: q.id,
-          selected_index: (a === null || a === undefined) ? null : a,
+          selected_index: canonicalIndex,
           is_correct: a === q.correct, answer_order: j
         };
       });
