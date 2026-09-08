@@ -48,8 +48,9 @@
 
   /* ---------- topbar ---------- */
   header{
-    display:flex; align-items:center; justify-content:center; position:relative;
+    display:flex; align-items:center; justify-content:center; position:sticky; top:0;
     padding: 18px 24px; border-bottom:1px solid var(--line);
+    background: var(--bg); z-index:40;
   }
   .header-back{ position:absolute; left:20px; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; color: var(--muted); cursor:pointer; }
   .header-back:hover{ color: var(--text); background: var(--card); }
@@ -733,7 +734,16 @@
     display:none; align-items:flex-start; justify-content:center; overflow-y:auto; padding:56px 20px 30px;
   }
   .screen.overlay.active{ display:flex; }
-  .quiz-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; gap:14px; flex-wrap:wrap; }
+  /* Igual que el botón "Siguiente" (quiz-bottombar), esta cabecera se queda
+     fija en pantalla al hacer scroll dentro de una pregunta del test, justo
+     debajo de la cabecera general (Volver, Finalizar y el acceso a Usuario
+     siempre visibles). --header-h se calcula por JS con la altura real de
+     <header>, que cambia según el ancho de pantalla. */
+  .quiz-head{
+    display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+    position:sticky; top: var(--header-h, 68px); z-index:35;
+    background: var(--bg); padding:12px 0; margin-bottom:10px; border-bottom:1px solid var(--line);
+  }
   .back-link{ display:flex; align-items:center; gap:7px; font-size:13px; color: var(--muted); cursor:pointer; }
   .back-link svg{ width:14px; height:14px; }
   .quiz-head-right{ display:flex; align-items:center; gap:12px; }
@@ -1832,6 +1842,21 @@
 const SUPABASE_URL = 'https://tsjaaqkvncgxqtpmlugv.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_F9-gdlx34vn7FQ_1hSHwcQ__L5EGMOS';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ---------- Altura real de <header>, usada por .quiz-head (sticky) para
+   quedar pegada justo debajo, tanto en la barra superior de escritorio
+   como en la cabecera compacta de móvil. ---------- */
+function updateHeaderHeightVar(){
+  const header = document.querySelector('header');
+  if(!header) return;
+  document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
+}
+window.addEventListener('resize', updateHeaderHeightVar);
+window.addEventListener('orientationchange', updateHeaderHeightVar);
+window.addEventListener('load', updateHeaderHeightVar);
+updateHeaderHeightVar();
+if(document.fonts && document.fonts.ready){ document.fonts.ready.then(updateHeaderHeightVar); }
+
 let currentUser = null;
 let currentUserIsAdmin = false;
 
