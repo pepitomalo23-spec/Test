@@ -4584,7 +4584,7 @@ function autoDetectUbicacion(text){
   if(!text) return null;
   const out = {};
   let found = false;
-  const artMatch = text.match(/Art(?:í|i)culo\s+(\d+)/i) || text.match(/\bart\.\s*(\d+)/i);
+  const artMatch = text.match(/Art(?:í|i)culos?\.?\s+(\d+)/i) || text.match(/\bart\.\s*(\d+)/i);
   if(artMatch){ out.articulo = artMatch[1]; found = true; }
   const capMatch = text.match(/Cap(?:í|i)tulo\s+([IVXLCDM]+|\d+)/i);
   if(capMatch){ out.capitulo = capMatch[1]; found = true; }
@@ -4667,7 +4667,12 @@ async function adminReviewWithAI(){
       const i = Number.isInteger(r.index) ? r.index : -1;
       if(i < 0 || i >= iaPreviewData.length) return;
       iaPreviewData[i].issues = Array.isArray(r.issues) ? r.issues.filter(x => typeof x === 'string' && x.trim()) : [];
-      iaPreviewData[i].location = normalizeIALoc(r.location);
+      // No pisar una ubicación ya detectada de forma determinista (fiable, porque
+      // viene de una cita literal en el texto) con una respuesta de la IA vacía o
+      // menos completa. Si la IA no aporta nada, se conserva lo que ya había.
+      const detLoc = iaPreviewData[i].location;
+      const aiLoc = normalizeIALoc(r.location);
+      iaPreviewData[i].location = iaLocIsEmpty(detLoc) ? aiLoc : detLoc;
       iaPreviewData[i].reviewedByAI = true;
     });
     renderIAPreview();
@@ -4738,10 +4743,19 @@ async function ensureIANodePath(topicId, loc){
   for(const tipo of IA_LOC_LEVELS){
     const spec = loc[tipo];
     if(!spec || (!spec.numero && !spec.nombre)) continue;
-    let existing = adminData.nodes.find(n => n.topic_id === topicId && (n.padre_id||null) === parentId && n.tipo === tipo &&
-      ((spec.numero && n.numero && String(n.numero).trim().toLowerCase() === String(spec.numero).trim().toLowerCase()) ||
-       (!spec.numero && spec.nombre && n.nombre && n.nombre.trim().toLowerCase() === spec.nombre.trim().toLowerCase())));
+    const numeroMatches = n => (spec.numero && n.numero && String(n.numero).trim().toLowerCase() === String(spec.numero).trim().toLowerCase()) ||
+       (!spec.numero && spec.nombre && n.nombre && n.nombre.trim().toLowerCase() === spec.nombre.trim().toLowerCase());
+    let existing = adminData.nodes.find(n => n.topic_id === topicId && (n.padre_id||null) === parentId && n.tipo === tipo && numeroMatches(n));
     if(!existing){
+      // Ya existe un nodo con el mismo tipo+número en este tema pero colgando de un
+      // padre distinto: probablemente es el mismo artículo mal ubicado (p.ej. por una
+      // ubicación de título/capítulo distinta propuesta por la IA), no uno nuevo.
+      // Se avisa en vez de crear un duplicado silencioso.
+      const sameNumberElsewhere = adminData.nodes.find(n => n.topic_id === topicId && n.tipo === tipo && numeroMatches(n));
+      if(sameNumberElsewhere){
+        throw new Error('Ya existe "' + IA_LOC_TITLE[tipo] + ' ' + (spec.numero||spec.nombre) + '" en otra parte del árbol de este tema. ' +
+          'Revisa la ubicación de esta pregunta a mano (probablemente la IA le asignó un título/capítulo distinto al del nodo existente) en vez de crear uno nuevo.');
+      }
       const payload = { topic_id: topicId, padre_id: parentId, tipo, numero: spec.numero || null, nombre: spec.nombre || null };
       const { data, error } = await sb.from('nodos_temario').insert(payload).select().single();
       if(error) throw new Error('No se pudo crear "'+(IA_LOC_TITLE[tipo])+' '+(spec.numero||spec.nombre)+'": ' + error.message);
