@@ -2421,7 +2421,9 @@ async function loadAppData(){
     id: t.id, category: t.category, name: t.name, desc: t.description, enabled: t.enabled,
     fails: redByTopic[t.id] || 0
   }));
-  configState.topics = new Set(TOPICS.filter(t => t.enabled).map(t => t.id));
+  // Antes esto marcaba todos los temas como seleccionados nada más cargar
+  // la app. Ahora se deja vacío: nada preseleccionado hasta que el
+  // usuario elija temas o pulse "Seleccionar todo" él mismo.
   configState.nodeSelections = {};
 }
 
