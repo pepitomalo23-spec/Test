@@ -753,6 +753,16 @@
     padding:28px 26px 30px;
   }
 
+  /* Vista tarjeta de Estudio/Fallos: recuadro más visible (fondo más gris y
+     borde más marcado sobre el negro de fondo), más estrecha y con letra
+     algo más pequeña que en el resto de la app. */
+  #quizCardView{ max-width:600px; margin:0 auto; }
+  #quizCardView .quiz-card{
+    background:#202020; border:1px solid rgba(255,255,255,0.14);
+  }
+  #quizCardView .question{ font-size:17px; }
+  #quizCardView .option{ font-size:13px; }
+
   .article-tag{
     display:inline-flex; gap:7px; align-items:center;
     font-family: var(--mono); font-size:11.5px; color: var(--blue);
