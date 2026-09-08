@@ -901,6 +901,74 @@
   }
   @keyframes dotPulse{ 0%,100%{ opacity:.3; transform:scale(.8); } 50%{ opacity:1; transform:scale(1.15); } }
 
+  /* ---------- Nota propia (texto/imagen añadidos por vosotros) ----------
+     Mismo patrón que la explicación IA (botón para generar/añadir, tarjeta
+     con botón de quitar) pero en tonos ámbar/naranja para distinguirla de
+     la IA (morado/teal) de un vistazo, y sin acordeón: siempre es un único
+     bloque simple con texto y/o imagen. */
+  .explain-section-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+  .own-note-btn{
+    position:relative; display:flex; align-items:center; gap:6px; flex-shrink:0;
+    font-family: var(--sans); font-weight:700; font-size:11px; color:#0A0A0A;
+    background: linear-gradient(90deg, var(--amber), var(--orange));
+    border:1px solid transparent;
+    padding:6px 13px 6px 10px; border-radius:20px; cursor:pointer;
+    box-shadow: 0 0 14px rgba(245,192,67,0.35);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .own-note-btn:hover{ transform: translateY(-1px); box-shadow: 0 0 20px rgba(255,122,61,0.55); }
+  .own-note-btn:active{ transform: translateY(0); }
+  .own-note-btn svg{ width:13px; height:13px; }
+  .own-note-result{ display:none; margin-top:20px; }
+  .own-note-result.show{ display:block; animation: failPanelIn .16s ease; }
+  .own-note-card{
+    position:relative; overflow:hidden;
+    background: linear-gradient(160deg, rgba(245,192,67,0.14), rgba(255,122,61,0.05) 55%, rgba(20,20,20,0.4));
+    border:1px solid rgba(245,192,67,0.32); border-radius:16px; padding:18px 20px 20px;
+  }
+  .own-note-label{
+    display:flex; align-items:center; gap:8px; font-family: var(--sans); font-weight:800; font-size:11px;
+    letter-spacing:.08em; text-transform:uppercase; color: var(--text); margin-bottom:14px;
+  }
+  .own-note-icon-badge{
+    width:22px; height:22px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(135deg, var(--amber), var(--orange));
+  }
+  .own-note-icon-badge svg{ width:12px; height:12px; color:#0A0A0A; }
+  .own-note-edit, .own-note-remove{
+    width:24px; height:24px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    background: rgba(255,255,255,0.05); border:1px solid var(--line-soft); color: var(--muted-2);
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  .own-note-edit{ margin-left:auto; }
+  .own-note-edit svg, .own-note-remove svg{ width:11px; height:11px; }
+  .own-note-edit:hover{ background: rgba(245,192,67,0.16); border-color: rgba(245,192,67,0.45); color: var(--amber); }
+  .own-note-remove:hover{ background: rgba(242,102,92,0.16); border-color: rgba(242,102,92,0.45); color: var(--coral); }
+  .own-note-text{ font-size:13.5px; line-height:1.8; color: var(--muted); white-space:pre-wrap; }
+  .own-note-image-wrap{ margin-top:14px; }
+  .own-note-image{
+    display:block; max-width:100%; border-radius:12px; border:1px solid var(--line-soft); cursor:zoom-in;
+  }
+  .own-note-editor{
+    margin-top:16px; padding:16px 16px 18px; border-radius:14px;
+    background: rgba(255,255,255,0.03); border:1px dashed rgba(245,192,67,0.4);
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .own-note-editor-label{ font-family: var(--sans); font-weight:700; font-size:11px; color: var(--muted-2); text-transform:uppercase; letter-spacing:.05em; margin-top:6px; }
+  .own-note-editor-label:first-child{ margin-top:0; }
+  .own-note-textarea{
+    width:100%; min-height:90px; resize:vertical; font-family: var(--sans); font-size:13.5px; line-height:1.6;
+    color: var(--text); background: var(--card-hi); border:1px solid var(--line-soft); border-radius:10px; padding:10px 12px;
+  }
+  .own-note-file-input{ font-family: var(--sans); font-size:12.5px; color: var(--muted); }
+  .own-note-editor-preview{ display:flex; flex-direction:column; gap:8px; }
+  .own-note-editor-preview img{ max-width:160px; border-radius:10px; border:1px solid var(--line-soft); }
+  .own-note-remove-image-row{ display:flex; align-items:center; gap:7px; font-size:12px; color: var(--muted); cursor:pointer; }
+  .own-note-editor-status{ font-family: var(--mono); font-size:11.5px; color: var(--coral); min-height:14px; }
+  .own-note-editor-actions{ display:flex; gap:10px; margin-top:6px; }
+  .own-note-editor-actions .btn{ flex:1; }
+
   .question{ font-family: 'Source Serif 4', serif; font-size:20px; font-weight:600; line-height:1.5; margin-bottom:24px; }
 
   .options{ display:flex; flex-direction:column; gap:9px; }
@@ -1777,6 +1845,7 @@ function mapDbQuestionToQuiz(row){
     correct: row.correct_index,
     explain: row.explain,
     ai_explain: row.ai_explain || null,
+    own_note: row.own_note || null,
     failCount: row._failCount || 0,
     timesSeen: row._timesSeen || 0,
     masteryStatus: row._status || null, // 'green' | 'yellow' | 'red' | null (nunca respondida)
@@ -1877,7 +1946,9 @@ const ICONS = {
   bulb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2Z"/></svg>',
   smile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
   graduation: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12.5V17c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.5"/><path d="M22 10v6"/></svg>',
-  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13.5v15H6a2 2 0 0 0-2 2Z"/><path d="M19.5 18H6a2 2 0 0 0-2 2"/><path d="M8 7h8"/><path d="M8 10.5h8"/></svg>'
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13.5v15H6a2 2 0 0 0-2 2Z"/><path d="M19.5 18H6a2 2 0 0 0-2 2"/><path d="M8 7h8"/><path d="M8 10.5h8"/></svg>',
+  pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15l-5-5L5 20"/></svg>'
 };
 
 let quizState = { mode:null, index:0, correctCount:0, answered:false };
@@ -2819,16 +2890,212 @@ function explainBodyHtml(q){
   const generateBtn = '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
       ICONS.brain + '<span>IA</span>' +
     '</button>';
+  const noteBtn = '<button type="button" class="own-note-btn" onclick="event.stopPropagation();openOwnNoteEditor(\'' + q.id + '\', this)" title="Escribir vuestra propia explicación o añadir una imagen">' +
+      ICONS.pencil + '<span>Nota</span>' +
+    '</button>';
   return '<div class="explain-body">' +
     '<div class="explain-section-head">' +
       '<div class="explain-section-label"><span class="explain-icon-badge">' + ICONS.bulb + '</span><span>Explicación</span></div>' +
-      (q.ai_explain ? '' : generateBtn) +
+      '<div class="explain-section-actions">' +
+        (q.ai_explain ? '' : generateBtn) +
+        (q.own_note ? '' : noteBtn) +
+      '</div>' +
     '</div>' +
     '<div class="explain-text">' + q.explain + '</div>' +
+    '<div class="own-note-editor-slot"></div>' +
+    '<div class="own-note-result' + (q.own_note ? ' show' : '') + '">' +
+      (q.own_note ? ownNoteCardHtml(q.own_note, q.id) : '') +
+    '</div>' +
     '<div class="ia-explain-result' + (q.ai_explain ? ' show' : '') + '"' + (q.ai_explain ? ' data-loaded="1"' : '') + '>' +
       (q.ai_explain ? aiExplainCardHtml(q.ai_explain, q.id) : '') +
     '</div>' +
   '</div>';
+}
+
+/* Tarjeta de "nuestra" nota (texto y/o imagen escritos a mano por vosotros,
+   no generados por IA). Mismo hueco que ocupaba antes solo la IA, pero con
+   su propio botón "Nota": en cuanto alguien escribe texto o sube una
+   imagen, ese botón desaparece y en su lugar queda esta tarjeta siempre
+   visible (con lápiz para editar y aspa para quitarla del todo). */
+function ownNoteCardHtml(note, questionId){
+  if(!note) return '';
+  const textHtml = note.text ? '<div class="own-note-text">' + esc(note.text) + '</div>' : '';
+  const imgHtml = note.image_url
+    ? '<div class="own-note-image-wrap"><img class="own-note-image" src="' + esc(note.image_url) + '" alt="Imagen añadida por vosotros" onclick="event.stopPropagation();window.open(this.src, \'_blank\')"></div>'
+    : '';
+  return '<div class="own-note-card">' +
+    '<div class="own-note-label">' +
+      '<span class="own-note-icon-badge">' + ICONS.pencil + '</span><span>Nuestra explicación</span>' +
+      '<button type="button" class="own-note-edit" onclick="event.stopPropagation();openOwnNoteEditor(\'' + questionId + '\', this)" title="Editar esta nota">' + ICONS.pencil + '</button>' +
+      '<button type="button" class="own-note-remove" onclick="event.stopPropagation();removeOwnNote(\'' + questionId + '\', this)" title="Quitar esta nota">' + ICONS.cross + '</button>' +
+    '</div>' +
+    textHtml + imgHtml +
+  '</div>';
+}
+
+/* Abre el editor inline (textarea + input de imagen) para escribir o
+   cambiar la nota propia de una pregunta. Se usa tanto desde el botón
+   "Nota" (nota nueva) como desde el lápiz de una nota ya guardada
+   (editarla). Precarga el texto y la imagen actuales si ya había algo. */
+function openOwnNoteEditor(questionId, btnEl){
+  const body = btnEl.closest('.explain-body');
+  if(!body) return;
+  const slot = body.querySelector('.own-note-editor-slot');
+  if(!slot || slot.dataset.open === '1') return;
+
+  const q = findQuestionById(questionId);
+  const existing = q && q.own_note ? q.own_note : null;
+  const existingText = existing && existing.text ? existing.text : '';
+  const existingImageUrl = existing && existing.image_url ? existing.image_url : '';
+
+  slot.dataset.open = '1';
+  slot.innerHTML =
+    '<div class="own-note-editor">' +
+      '<div class="own-note-editor-label">Escribid aquí vuestra propia explicación (opcional)</div>' +
+      '<textarea class="own-note-textarea" placeholder="Lo que queráis explicar con vuestras palabras…">' + esc(existingText) + '</textarea>' +
+      '<div class="own-note-editor-label">Imagen (opcional)</div>' +
+      (existingImageUrl
+        ? '<div class="own-note-editor-preview">' +
+            '<img src="' + esc(existingImageUrl) + '" alt="Imagen actual">' +
+            '<label class="own-note-remove-image-row"><input type="checkbox" class="own-note-remove-image-check"> Quitar la imagen actual</label>' +
+          '</div>'
+        : '') +
+      '<input type="file" accept="image/*" class="own-note-file-input">' +
+      '<div class="own-note-editor-status"></div>' +
+      '<div class="own-note-editor-actions">' +
+        '<button type="button" class="btn btn-ghost" onclick="event.stopPropagation();closeOwnNoteEditor(this, \'' + questionId + '\')">Cancelar</button>' +
+        '<button type="button" class="btn btn-block own-note-save-btn" onclick="event.stopPropagation();saveOwnNote(\'' + questionId + '\', this)">Guardar</button>' +
+      '</div>' +
+    '</div>';
+
+  const addBtn = body.querySelector('.own-note-btn');
+  if(addBtn) addBtn.style.display = 'none';
+}
+
+/* Cierra el editor sin guardar. Si la pregunta no tenía nota, vuelve a
+   mostrar el botón "Nota" para poder abrirlo de nuevo. */
+function closeOwnNoteEditor(btnEl, questionId){
+  const body = btnEl.closest('.explain-body');
+  if(!body) return;
+  const slot = body.querySelector('.own-note-editor-slot');
+  if(slot){ slot.innerHTML = ''; slot.dataset.open = ''; }
+  const q = findQuestionById(questionId);
+  if(!q || !q.own_note){
+    const addBtn = body.querySelector('.own-note-btn');
+    if(addBtn) addBtn.style.display = '';
+  }
+}
+
+/* Sube la imagen al bucket público "question-notes" (organizado por
+   pregunta: question-notes/<id>/<timestamp>.<ext>) y devuelve su URL
+   pública permanente. */
+async function uploadOwnNoteImage(questionId, file){
+  const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'') : 'jpg';
+  const path = questionId + '/' + Date.now() + '_' + Math.random().toString(36).slice(2,8) + '.' + (ext || 'jpg');
+  const { error } = await sb.storage.from('question-notes').upload(path, file, { upsert: false, contentType: file.type || 'image/jpeg' });
+  if(error) throw new Error(error.message || 'No se ha podido subir la imagen.');
+  const { data } = sb.storage.from('question-notes').getPublicUrl(path);
+  if(!data || !data.publicUrl) throw new Error('No se ha podido obtener la URL de la imagen.');
+  return data.publicUrl;
+}
+
+/* Guarda la nota (texto y/o imagen) de forma permanente para todo el
+   mundo, vía la RPC set_question_own_note (solo toca esa columna).
+   Sigue el mismo patrón que explainWithAI: al guardar, sustituye el
+   editor por la tarjeta ya renderizada y quita el botón "Nota". */
+async function saveOwnNote(questionId, btnEl){
+  const editor = btnEl.closest('.own-note-editor');
+  const body = btnEl.closest('.explain-body');
+  if(!editor || !body) return;
+
+  const statusEl = editor.querySelector('.own-note-editor-status');
+  const text = editor.querySelector('.own-note-textarea').value.trim();
+  const fileInput = editor.querySelector('.own-note-file-input');
+  const removeImageCheck = editor.querySelector('.own-note-remove-image-check');
+  const file = (fileInput && fileInput.files && fileInput.files[0]) ? fileInput.files[0] : null;
+
+  const q = findQuestionById(questionId);
+  let imageUrl = (q && q.own_note && q.own_note.image_url) ? q.own_note.image_url : null;
+  if(removeImageCheck && removeImageCheck.checked) imageUrl = null;
+
+  if(!text && !file && !imageUrl){
+    statusEl.textContent = 'Escribe algo o añade una imagen antes de guardar.';
+    return;
+  }
+
+  const saveBtn = editor.querySelector('.own-note-save-btn');
+  saveBtn.disabled = true;
+  const originalBtnText = saveBtn.textContent;
+  statusEl.style.color = '';
+  statusEl.textContent = '';
+
+  try{
+    if(file){
+      saveBtn.textContent = 'Subiendo imagen…';
+      statusEl.textContent = 'Subiendo imagen…';
+      imageUrl = await uploadOwnNoteImage(questionId, file);
+    }
+    saveBtn.textContent = 'Guardando…';
+
+    const { error } = await sb.rpc('set_question_own_note', {
+      p_question_id: questionId,
+      p_text: text || null,
+      p_image_url: imageUrl || null
+    });
+    if(error) throw error;
+
+    const note = { text: text || null, image_url: imageUrl || null, updated_at: new Date().toISOString() };
+    if(q) q.own_note = note;
+
+    const slot = body.querySelector('.own-note-editor-slot');
+    if(slot){ slot.innerHTML = ''; slot.dataset.open = ''; }
+
+    const resultEl = body.querySelector('.own-note-result');
+    if(resultEl){
+      resultEl.innerHTML = ownNoteCardHtml(note, questionId);
+      resultEl.classList.add('show');
+    }
+    const addBtn = body.querySelector('.own-note-btn');
+    if(addBtn) addBtn.remove();
+  } catch(err){
+    statusEl.style.color = 'var(--coral)';
+    statusEl.textContent = 'No se ha podido guardar: ' + (err.message || 'error desconocido');
+    saveBtn.disabled = false;
+    saveBtn.textContent = originalBtnText;
+  }
+}
+
+/* Quita la nota propia (texto e imagen) de una pregunta, de forma
+   permanente para todo el mundo, y vuelve a mostrar el botón "Nota" por
+   si se quiere escribir otra distinta. El archivo de imagen en el bucket
+   se queda huérfano (no se borra) para no complicar el flujo; ocupa poco
+   y no afecta a nada más. */
+async function removeOwnNote(questionId, btnEl){
+  if(!confirm('¿Quitar esta nota (texto e imagen)?\n\nSe borrará de forma permanente y habrá que escribirla de nuevo si se quiere volver a ver.')) return;
+
+  const resultEl = btnEl.closest('.own-note-result');
+  const body = btnEl.closest('.explain-body');
+  const q = findQuestionById(questionId);
+
+  btnEl.disabled = true;
+  try{
+    const { error } = await sb.rpc('clear_question_own_note', { p_question_id: questionId });
+    if(error) throw error;
+
+    if(q) q.own_note = null;
+    if(resultEl){ resultEl.innerHTML = ''; resultEl.classList.remove('show'); }
+
+    const actions = body ? body.querySelector('.explain-section-actions') : null;
+    if(actions && !actions.querySelector('.own-note-btn')){
+      actions.insertAdjacentHTML('beforeend',
+        '<button type="button" class="own-note-btn" onclick="event.stopPropagation();openOwnNoteEditor(\'' + questionId + '\', this)" title="Escribir vuestra propia explicación o añadir una imagen">' +
+          ICONS.pencil + '<span>Nota</span>' +
+        '</button>');
+    }
+  } catch(err){
+    alert('No se ha podido quitar la nota: ' + (err.message || 'error desconocido'));
+    btnEl.disabled = false;
+  }
 }
 
 /* Construye la tarjeta de la explicación ampliada por IA a partir del objeto
