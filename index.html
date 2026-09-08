@@ -2652,10 +2652,31 @@ async function refreshGlobalStats(){
 /* ---------- navigation ---------- */
 const TOP_LEVEL_SCREENS = ['screen-normativas', 'screen-home', 'screen-stats'];
 const LAST_SCREEN_KEY = 'legis_last_screen';
+// Pantallas de "detalle" o de proceso (un artículo concreto, el
+// configurador de un test, la revisión de un test ya hecho...) no se
+// pueden reabrir tal cual tras recargar la app, porque el dato concreto
+// que mostraban (qué artículo, qué test) vive solo en memoria y se
+// pierde. En vez de mandar siempre a Inicio, cada una cae en la pantalla
+// "padre" desde la que se llegó a ella, que sí es segura de reabrir.
+const SCREEN_RESTORE_TARGET = {
+  'screen-normativas': 'screen-normativas',
+  'screen-home': 'screen-home',
+  'screen-stats': 'screen-stats',
+  'screen-boe-cambios': 'screen-boe-cambios',
+  'screen-my-additions': 'screen-my-additions',
+  'screen-admin': 'screen-admin',
+  'screen-boe-detalle': 'screen-boe-cambios',
+  'screen-my-addition-detail': 'screen-my-additions',
+  'screen-review': 'screen-home',
+  'screen-config': 'screen-home',
+  'screen-quiz': 'screen-home',
+  'screen-result': 'screen-home'
+};
 function getLastScreen(){
   try{
     const saved = localStorage.getItem(LAST_SCREEN_KEY);
-    if(saved && TOP_LEVEL_SCREENS.includes(saved)) return saved;
+    const target = saved && SCREEN_RESTORE_TARGET[saved];
+    if(target) return target;
   }catch(e){}
   return 'screen-home';
 }
@@ -2667,11 +2688,11 @@ function showScreen(id){
   document.getElementById('navHome').classList.toggle('active', id === 'screen-home');
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
   const isTopLevel = TOP_LEVEL_SCREENS.includes(id);
-  // Recordamos la última pestaña principal (Normativas / Inicio /
-  // Estadísticas) visitada, para poder volver a ella si la app se
-  // recarga (p. ej. tras dejarla en segundo plano y que el sistema la
-  // "mate"), en vez de aterrizar siempre en Inicio.
-  if(isTopLevel){
+  // Recordamos la última pantalla visitada, para poder volver a ella (o a
+  // su pantalla padre, ver SCREEN_RESTORE_TARGET) si la app se recarga
+  // (p. ej. tras dejarla en segundo plano y que el sistema la "mate"),
+  // en vez de aterrizar siempre en Inicio.
+  if(SCREEN_RESTORE_TARGET[id]){
     try{ localStorage.setItem(LAST_SCREEN_KEY, id); }catch(e){}
   }
   const headerNav = document.querySelector('.header-nav');
@@ -4468,10 +4489,15 @@ async function onLoggedIn(user){
 
   await loadHistory();
   await refreshGlobalStats();
-  // Al entrar (incluido tras recargar la app), volvemos a la pestaña
-  // principal en la que estaba el usuario la última vez, en vez de ir
-  // siempre a Inicio.
-  showScreen(getLastScreen());
+  // Al entrar (incluido tras recargar la app), volvemos a la pantalla en
+  // la que estaba el usuario la última vez (o a su pantalla padre si era
+  // una de detalle/proceso), en vez de ir siempre a Inicio.
+  const lastScreen = getLastScreen();
+  if(lastScreen === 'screen-admin' && currentUserIsAdmin){
+    await openAdminPanel(); // hace showScreen + carga los datos del panel
+  } else {
+    showScreen(lastScreen);
+  }
 }
 function onLoggedOut(){
   currentUser = null;
