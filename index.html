@@ -1126,9 +1126,17 @@
   .quiz-pill.clickable:hover{ border-color: var(--purple); }
   .quiz-pill .chev{ width:12px; height:12px; transition: transform .15s; }
   .quiz-pill.open .chev{ transform: rotate(90deg); }
-  .quiz-finish-row{ display:flex; justify-content:center; margin-top:14px; }
-  .quiz-finish-link{ font-family: var(--sans); font-weight:600; font-size:12.5px; color: var(--muted); cursor:pointer; padding:6px 10px; border-radius:8px; }
-  .quiz-finish-link:hover{ color: var(--coral); background: rgba(242,102,92,0.08); }
+  .quiz-finish-btn{
+    font-family: var(--sans); font-weight:600; font-size:12px; color: var(--muted);
+    background: var(--card); border:1px solid var(--line); border-radius:20px;
+    padding:7px 15px; cursor:pointer; flex-shrink:0;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .quiz-finish-btn:hover{ border-color: var(--muted-2); color: var(--text); }
+  /* Cuando se llega a la última pregunta ya respondida, "Finalizar" se
+     pone en blanco para invitar a terminar el test (ver renderQuestion). */
+  .quiz-finish-btn.ready{ background:#fff; color:#0A0A0A; border-color:#fff; }
+  .quiz-finish-btn.ready:hover{ background:#EDEDED; }
 
   /* ---------- quiz list view (examen / simulacro: todas las preguntas seguidas) ---------- */
   .quiz-list-item{
@@ -1742,6 +1750,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
             <span id="quizTimerText">30:00</span>
           </span>
+          <button class="quiz-finish-btn" id="quizFinishTopBtn" onclick="confirmFinishQuiz()">Finalizar</button>
         </div>
       </div>
 
@@ -1762,9 +1771,6 @@
           <button class="quiz-nav-btn" id="quizNextBtn" aria-label="Siguiente" disabled onclick="nextQuestion()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>
           </button>
-        </div>
-        <div class="quiz-finish-row">
-          <span class="quiz-finish-link" role="button" tabindex="0" onclick="confirmFinishQuiz()" onkeydown="if(event.key==='Enter')confirmFinishQuiz()">Finalizar</span>
         </div>
       </div>
 
@@ -2938,6 +2944,10 @@ function startQuiz(mode, questions, timeMinutes){
   document.getElementById('quizListView').style.display = (viewMode === 'list') ? 'block' : 'none';
   // en modo tarjeta (estudio / fallos) no se muestra el contador de preguntas arriba a la derecha
   document.getElementById('quizCount').style.display = (viewMode === 'card') ? 'none' : '';
+  // el botón "Finalizar" de la esquina es propio de la vista tarjeta: en
+  // examen/simulacro (vista lista) ya existe su propio botón "Finalizar"
+  // al final del listado.
+  document.getElementById('quizFinishTopBtn').style.display = (viewMode === 'card') ? '' : 'none';
   startTimer(timeMinutes);
   if(viewMode === 'card'){
     renderQuestion();
@@ -2953,6 +2963,7 @@ function resumeQuiz(){
   document.getElementById('quizCardView').style.display = (quizState.viewMode === 'card') ? 'block' : 'none';
   document.getElementById('quizListView').style.display = (quizState.viewMode === 'list') ? 'block' : 'none';
   document.getElementById('quizCount').style.display = (quizState.viewMode === 'card') ? 'none' : '';
+  document.getElementById('quizFinishTopBtn').style.display = (quizState.viewMode === 'card') ? '' : 'none';
   if(quizState.viewMode === 'card'){
     renderQuestion();
   } else {
@@ -3614,10 +3625,15 @@ function renderQuestion(){
 
   renderQuizPill();
   document.getElementById('quizPrevBtn').disabled = quizState.index === 0;
-  document.getElementById('quizNextBtn').disabled = !isAnswered;
-  document.getElementById('quizNextBtn').innerHTML = (quizState.index === ACTIVE_QUESTIONS.length - 1)
-    ? ICONS.check
-    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>';
+  const isLastQuestion = quizState.index === ACTIVE_QUESTIONS.length - 1;
+  // En la última pregunta, "siguiente" ya no sirve para nada (no hay más
+  // preguntas) y se queda deshabilitado/grisáceo; para terminar el test
+  // hay que usar el botón "Finalizar" de la esquina superior derecha, que
+  // se pone en blanco para indicar que ya se puede pulsar.
+  document.getElementById('quizNextBtn').disabled = isLastQuestion ? true : !isAnswered;
+  document.getElementById('quizNextBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>';
+  const finishTopBtn = document.getElementById('quizFinishTopBtn');
+  if(finishTopBtn) finishTopBtn.classList.toggle('ready', isLastQuestion && isAnswered);
 }
 
 function renderQuizPill(){
@@ -3693,9 +3709,10 @@ function nextQuestion(){
   if(quizState.index < ACTIVE_QUESTIONS.length - 1){
     quizState.index++;
     renderQuestion();
-  } else {
-    finishQuiz();
   }
+  // en la última pregunta no se hace nada más aquí: el botón queda
+  // deshabilitado/grisáceo y para terminar hay que usar "Finalizar"
+  // (esquina superior derecha).
 }
 
 /* ---------- vista lista (examen / simulacro) ---------- */
