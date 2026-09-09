@@ -1174,20 +1174,20 @@
   .quiz-pill.clickable:hover{ border-color: var(--purple); }
   .quiz-pill .chev{ width:12px; height:12px; transition: transform .15s; }
   .quiz-pill.open .chev{ transform: rotate(90deg); }
-  /* Botón "acerté de chorra": deja el acierto tal cual en pantalla (no
-     cambia lo que se ve de la pregunta), pero al guardar el intento se
-     cuenta como fallo para el dominio/estadísticas y para que la
-     pregunta vuelva a aparecer en Fallos. Solo se muestra cuando la
-     pregunta actual está respondida Y acertada (si ya has fallado, no
-     hace falta marcarla: ya cuenta como fallo). */
-  .quiz-bottombar{ gap:10px; }
+  /* Botón "acerté de chorra" (en la cabecera del test, junto a
+     "Finalizar"): deja el acierto tal cual en pantalla (no cambia lo
+     que se ve de la pregunta), pero al guardar el intento se cuenta
+     como fallo para el dominio/estadísticas y para que la pregunta
+     vuelva a aparecer en Fallos. Solo se muestra cuando la pregunta
+     actual está respondida Y acertada (si ya has fallado, no hace
+     falta marcarla: ya cuenta como fallo). */
   .quiz-luck-btn{
-    width:34px; height:34px; border-radius:50%; flex-shrink:0;
+    width:28px; height:28px; border-radius:50%; flex-shrink:0;
     border:1.5px solid var(--line); background: var(--card); color: var(--muted-2);
     display:flex; align-items:center; justify-content:center; cursor:pointer;
     transition: border-color .15s, background .15s, color .15s, transform .18s cubic-bezier(.34,1.56,.64,1);
   }
-  .quiz-luck-btn svg{ width:16px; height:16px; transition: fill .15s; }
+  .quiz-luck-btn svg{ width:14px; height:14px; transition: fill .15s; }
   .quiz-luck-btn:hover{ border-color: var(--coral); color: var(--coral); }
   /* Estado activo bien diferenciado del inactivo: además del color,
      crece ligeramente ("pop") y el icono se rellena, para que se note
@@ -1345,7 +1345,7 @@
     <section class="screen active" id="screen-home">
       <h1>Elige un tipo de test</h1>
       <div class="modes">
-        <div class="mode-card estudio" id="modeCardEstudio" role="button" tabindex="0" onclick="openConfig('estudio')">
+        <div class="mode-card estudio" id="modeCardEstudio" role="button" tabindex="0" onclick="handleModeCardClick('estudio')">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 7v14"/>
@@ -1362,7 +1362,7 @@
             Reanudar
           </div>
         </div>
-        <div class="mode-card fallos" id="modeCardFallos" role="button" tabindex="0" onclick="openFallos()">
+        <div class="mode-card fallos" id="modeCardFallos" role="button" tabindex="0" onclick="handleFallosCardClick()">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
               <path d="m15 7-6 6"/>
@@ -1376,7 +1376,7 @@
             Reanudar
           </div>
         </div>
-        <div class="mode-card simulacro" id="modeCardSimulacro" role="button" tabindex="0" onclick="openConfig('simulacro')">
+        <div class="mode-card simulacro" id="modeCardSimulacro" role="button" tabindex="0" onclick="handleModeCardClick('simulacro')">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85"/>
@@ -1391,7 +1391,7 @@
             Reanudar
           </div>
         </div>
-        <div class="mode-card examen" id="modeCardExamen" role="button" tabindex="0" onclick="openConfig('examen')">
+        <div class="mode-card examen" id="modeCardExamen" role="button" tabindex="0" onclick="handleModeCardClick('examen')">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/>
@@ -1832,6 +1832,9 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
             <span id="quizTimerText">30:00</span>
           </span>
+          <button class="quiz-luck-btn" id="quizLuckBtn" hidden aria-pressed="false" aria-label="He acertado de chorra: contar esta pregunta como fallo" title="Acerté de chorra: contar como fallo" onclick="toggleLuckyGuess()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+          </button>
           <button class="quiz-finish-btn" id="quizFinishTopBtn" onclick="confirmFinishQuiz()">Finalizar</button>
         </div>
       </div>
@@ -1850,9 +1853,6 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,6 9,12 15,18"/></svg>
           </button>
           <span class="quiz-pill" id="quizPill">En blanco</span>
-          <button class="quiz-luck-btn" id="quizLuckBtn" hidden aria-pressed="false" aria-label="He acertado de chorra: contar esta pregunta como fallo" title="Acerté de chorra: contar como fallo" onclick="toggleLuckyGuess()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
-          </button>
           <button class="quiz-nav-btn" id="quizNextBtn" aria-label="Siguiente" disabled onclick="nextQuestion()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>
           </button>
@@ -2773,6 +2773,15 @@ function openOverlay(id){
 }
 
 /* ---------- config screen (estudio / examen / simulacro) ---------- */
+// Al pulsar una tarjeta de modo en Inicio: si ese modo es justo el que
+// tiene un test a medias, se reanuda (toda la tarjeta hace de botón
+// "Reanudar", no solo el pill pequeño); si no, se abre su configurador
+// normal como siempre. openConfig() ya se encarga de bloquear el acceso
+// si hay un test en curso en OTRO modo distinto.
+function handleModeCardClick(mode){
+  if(quizState && quizState.mode === mode){ resumeQuiz(); return; }
+  openConfig(mode);
+}
 function openConfig(mode){
   if(quizState && quizState.mode && quizState.mode !== mode) return; // hay un test en curso en otro apartado
   configState.mode = mode;
@@ -3137,6 +3146,12 @@ function startFromConfig(){
 }
 
 /* ---------- fallos intro screen ---------- */
+// Igual que handleModeCardClick: si Fallos es el modo con un test a
+// medias, la tarjeta entera reanuda en vez de abrir la intro de Fallos.
+function handleFallosCardClick(){
+  if(quizState && quizState.mode === 'fallos'){ resumeQuiz(); return; }
+  openFallos();
+}
 function openFallos(){
   if(quizState && quizState.mode && quizState.mode !== 'fallos') return; // hay un test en curso en otro apartado
   const total = TOPICS.filter(t => t.enabled).reduce((s,t) => s + t.fails, 0);
