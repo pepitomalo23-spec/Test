@@ -1120,6 +1120,8 @@
   /* ---------- review / corrección screen ---------- */
   .review-topbar{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
   .review-toggle-row{ display:flex; align-items:center; margin-bottom:26px; }
+  .review-explain-row{ margin-top:14px; }
+  .review-explain-row .quiz-pill{ font-size:12.5px; padding:7px 14px; }
   .review-report{
     font-size:12px; color: var(--muted-2); display:inline-flex; align-items:center; gap:6px;
     cursor:pointer; margin-bottom:16px; transition: color .12s;
@@ -1882,9 +1884,9 @@
       <h1 id="reviewTitle">Corrección</h1>
       <div class="review-topbar" id="reviewFilters"></div>
       <div class="review-toggle-row">
-        <span class="switch-row" role="button" tabindex="0" onclick="toggleReviewExplain()">
+        <span class="switch-row" role="button" tabindex="0" onclick="toggleReviewExplainAll()">
           <span class="switch" id="reviewExplainToggle"><span class="knob"></span></span>
-          <span class="switch-label">Mostrar explicaciones</span>
+          <span class="switch-label">Mostrar todas las explicaciones</span>
         </span>
       </div>
       <div id="reviewBody"></div>
@@ -4294,6 +4296,11 @@ function openLastReview(){
 /* ---------- review / corrección ---------- */
 let currentReview = null;
 let reviewFilter = 'todas';
+// Qué preguntas de la corrección tienen la explicación desplegada. Es un
+// Set de índices (no un booleano global): cada pregunta se abre/cierra de
+// forma independiente con su propio botón, en vez de mostrarlas todas de
+// golpe.
+let reviewVisibleExplain = new Set();
 
 function computeReviewCounts(review){
   let correct = 0, bad = 0, blank = 0;
@@ -4321,6 +4328,7 @@ function reviewFilteredIndexes(){
 function openReview(review, title){
   currentReview = review;
   reviewFilter = 'todas';
+  reviewVisibleExplain = new Set();
   document.getElementById('reviewTitle').textContent = title || 'Corrección';
   renderReviewFilters();
   renderReviewList();
@@ -4356,12 +4364,12 @@ function renderReviewList(){
     body.innerHTML = '<div class="empty">No hay preguntas en este filtro.</div>';
     return;
   }
-  const showExplain = document.getElementById('reviewExplainToggle').classList.contains('on');
   const letters = ['A','B','C','D'];
 
   body.innerHTML = idxs.map(qi => {
     const q = currentReview.questions[qi];
     const userAnswer = currentReview.answers[qi];
+    const isOpen = reviewVisibleExplain.has(qi);
 
     let html = '<div class="quiz-list-item">';
     html += '<div class="review-report" role="button" tabindex="0" onclick="reportReviewQuestion(' + qi + ')">' + ICONS.warn + ' Impugnar</div>';
@@ -4377,15 +4385,40 @@ function renderReviewList(){
     if(userAnswer === null || userAnswer === undefined){
       html += '<div style="font-size:12.5px; color:var(--muted-2); margin-top:12px;">No respondiste esta pregunta.</div>';
     }
-    if(showExplain){
+    // Botón individual: cada pregunta despliega/oculta su propia
+    // explicación de forma independiente, en vez de mostrarlas todas
+    // a la vez.
+    html += '<div class="review-explain-row">' +
+      '<span class="quiz-pill clickable' + (isOpen ? ' open' : '') + '" role="button" tabindex="0" onclick="toggleReviewQuestionExplain(' + qi + ')">' +
+        (isOpen ? 'Ocultar explicación' : 'Mostrar explicación') + '<span class="chev">' + ICONS.chevron + '</span>' +
+      '</span>' +
+    '</div>';
+    if(isOpen){
       html += '<div class="explain show">' + explainMetaHtml(q) + explainBodyHtml(q) + '</div>';
     }
     html += '</div>';
     return html;
   }).join('');
 }
-function toggleReviewExplain(){
-  document.getElementById('reviewExplainToggle').classList.toggle('on');
+function toggleReviewQuestionExplain(qi){
+  if(reviewVisibleExplain.has(qi)) reviewVisibleExplain.delete(qi);
+  else reviewVisibleExplain.add(qi);
+  renderReviewList();
+}
+/* Interruptor superior: atajo para desplegar o plegar TODAS las
+   preguntas del filtro actual de golpe, sin perder la posibilidad de
+   abrir/cerrar cada una por separado con su propio botón. */
+function toggleReviewExplainAll(){
+  const idxs = reviewFilteredIndexes();
+  const allOpen = idxs.length > 0 && idxs.every(qi => reviewVisibleExplain.has(qi));
+  const toggle = document.getElementById('reviewExplainToggle');
+  if(allOpen){
+    idxs.forEach(qi => reviewVisibleExplain.delete(qi));
+    toggle.classList.remove('on');
+  } else {
+    idxs.forEach(qi => reviewVisibleExplain.add(qi));
+    toggle.classList.add('on');
+  }
   renderReviewList();
 }
 function reportReviewQuestion(qi){
