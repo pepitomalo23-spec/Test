@@ -116,18 +116,20 @@
 
   /* ---------- auth screen ---------- */
   .auth-overlay{
-    position:fixed; z-index:300; background: var(--bg); display:flex;
-    align-items:center; justify-content:center; padding:24px;
+    /* "inset:0" NUNCA se toca: es lo único que garantiza que este overlay
+       cubra el 100% de la pantalla pase lo que pase (con o sin notch, con
+       o sin soporte de env() en el navegador). El ajuste fino de centrado
+       para compensar la barra de estado / home indicator se hace SOLO con
+       padding (ver abajo), que nunca puede dejar huecos: como mucho hace
+       que el contenido interior se centre un poco más arriba o abajo,
+       pero el fondo negro del overlay lo sigue tapando todo. */
+    position:fixed; inset:0; z-index:300; background: var(--bg); display:flex;
+    align-items:center; justify-content:center;
+    padding: calc(24px + env(safe-area-inset-top, 0px))
+             calc(24px + env(safe-area-inset-right, 0px))
+             calc(24px + env(safe-area-inset-bottom, 0px))
+             calc(24px + env(safe-area-inset-left, 0px));
     opacity:1; transition: opacity .5s cubic-bezier(.4,0,.2,1);
-    /* En vez de "inset:0" (que centra sobre el alto FÍSICO total de la
-       pantalla, incluida la franja de la barra de estado arriba y la
-       barra/home-indicator de abajo), se ancla a los límites del área seg
-       ura real. Así el logo queda centrado en lo que el ojo percibe como
-       "la pantalla" y no ligeramente descuadrado hacia arriba o abajo. */
-    top: env(safe-area-inset-top, 0px);
-    bottom: env(safe-area-inset-bottom, 0px);
-    left: env(safe-area-inset-left, 0px);
-    right: env(safe-area-inset-right, 0px);
   }
   .hidden{ display:none !important; }
   .auth-overlay.hidden{ display:none; }
