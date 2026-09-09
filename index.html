@@ -114,9 +114,18 @@
 
 
   /* ---------- auth screen ---------- */
-  .auth-overlay{ position:fixed; inset:0; z-index:300; background: var(--bg); display:flex; align-items:center; justify-content:center; padding:24px; }
+  .auth-overlay{
+    position:fixed; inset:0; z-index:300; background: var(--bg); display:flex;
+    align-items:center; justify-content:center; padding:24px;
+    opacity:1; transition: opacity .5s cubic-bezier(.4,0,.2,1);
+  }
   .hidden{ display:none !important; }
   .auth-overlay.hidden{ display:none; }
+  /* Paso intermedio antes de display:none: en vez de desaparecer de golpe
+     (el "flashazo" al pasar del splash a la app), esto atenúa el overlay
+     a negro transparente durante .5s. El JS añade esta clase primero y,
+     cuando termina la transición, añade .hidden para sacarlo del layout. */
+  .auth-overlay.fade-out{ opacity:0; pointer-events:none; }
   /* Logo con "loading" mientras se decide si hay sesión o no, sin la
      tarjeta del login detrás (solo el fondo negro del overlay). */
   .auth-splash{ display:flex; flex-direction:column; align-items:center; gap:18px; }
@@ -4779,8 +4788,13 @@ async function onLoggedIn(user){
 
   // Hasta aquí la pantalla de login/carga sigue tapando la app: no se
   // enseña nada a medio cargar. Solo la quitamos cuando ya hay datos
-  // reales listos para pintar.
-  document.getElementById('authOverlay').classList.add('hidden');
+  // reales listos para pintar. En vez de un corte seco (display:none
+  // instantáneo, que se veía como un "flashazo"), primero se atenúa
+  // suavemente (fade-out) y solo al terminar la transición se saca del
+  // todo del layout con .hidden.
+  const authOverlayEl = document.getElementById('authOverlay');
+  authOverlayEl.classList.add('fade-out');
+  setTimeout(() => authOverlayEl.classList.add('hidden'), 500);
 
   // Si pullDeviceSyncState ha traído algo más reciente de otro
   // dispositivo, lo aplicamos ahora (ya ha tenido tiempo de sobra para
@@ -4817,7 +4831,9 @@ function onLoggedOut(){
   quizState = { mode:null, index:0, correctCount:0, answered:false };
   quizSecondsLeft = null;
   renderHistory();
-  document.getElementById('authOverlay').classList.remove('hidden');
+  const authOverlayEl2 = document.getElementById('authOverlay');
+  authOverlayEl2.classList.remove('hidden');
+  authOverlayEl2.classList.remove('fade-out');
   document.getElementById('authSplash').classList.add('hidden');
   document.getElementById('authLoginForm').classList.remove('hidden');
   showAuthError(''); showAuthStatus('');
