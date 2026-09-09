@@ -104,7 +104,16 @@
   /* ---------- topbar ---------- */
   header{
     display:flex; align-items:center; justify-content:center; position:sticky; top:0;
-    padding: 26px 24px; min-height:78px; border-bottom:1px solid var(--line);
+    /* "apple-mobile-web-app-status-bar-style: black-translucent" (ver <head>)
+       hace que la web se dibuje POR DEBAJO de la barra de estado del
+       sistema (hora/batería) en vez de dejarle su propio espacio reservado.
+       Sin compensar eso aquí, todo el contenido de la cabecera (y por
+       tanto de la página entera, que cuelga de su alto real vía
+       --header-h) queda desplazado hacia arriba, metido debajo de esa
+       barra. env(safe-area-inset-top) añade justo el hueco que antes
+       reservaba el sistema. */
+    padding: calc(26px + env(safe-area-inset-top, 0px)) 24px 26px;
+    min-height:78px; border-bottom:1px solid var(--line);
     background: var(--bg); z-index:40;
   }
   .header-back{ position:absolute; left:20px; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; color: var(--muted); cursor:pointer; }
@@ -132,7 +141,7 @@
      color), y el botón de cuenta/perfil se queda arriba pero en la esquina
      IZQUIERDA de la cabecera. --- */
   @media (max-width:640px){
-    header{ padding:14px 16px; justify-content:flex-start; min-height:60px; }
+    header{ padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px; justify-content:flex-start; min-height:60px; }
     .header-back{ left:12px; width:32px; height:32px; }
     .header-user{ left:16px; right:auto; }
     .header-user-btn{ width:32px; height:32px; }
