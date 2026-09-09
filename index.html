@@ -41,6 +41,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<!-- El SDK de Supabase se cargaba desde un CDN externo (jsdelivr) con un
+     <script src> clásico, sin defer/async, casi al final del body: eso
+     bloqueaba la ejecución de todo el código de la app hasta que
+     terminaba esa descarga por red. Como la pantalla de login/carga
+     (authOverlay) no se quita hasta que ese código corre y confirma la
+     sesión, el tiempo de esa descarga externa era justo lo que se veía
+     como pantalla negra al abrir la app, incluso cuando el usuario ya
+     tenía sesión guardada. Ahora el archivo vive dentro del propio sitio
+     (assets/vendor/supabase.min.js, build UMD tal cual de la versión
+     2.116.0 de @supabase/supabase-js), así que se sirve del mismo origen
+     junto con el resto de la app, sin depender de la latencia ni
+     disponibilidad de un servicio externo. Al actualizar la librería más
+     adelante, hay que volver a copiar el nuevo dist/umd/supabase.js aquí
+     (con "npm view @supabase/supabase-js version" se ve la última
+     versión disponible). -->
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&display=swap"></noscript>
 <style>
   :root{
@@ -1959,7 +1974,7 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/vendor/supabase.min.js"></script>
 <script>
 /* ==================== SUPABASE SETUP ==================== */
 const SUPABASE_URL = 'https://tsjaaqkvncgxqtpmlugv.supabase.co';
@@ -4696,7 +4711,18 @@ async function handleLogout(){
   await sb.auth.signOut();
 }
 
-async function onLoggedIn(user){
+async function onLoggedIn(user, opts){
+  // isRestoredSession = true cuando la sesión ya existía de antes (se
+  // recupera al abrir/recargar la app) y no es un inicio de sesión
+  // interactivo recién hecho por el usuario. En ese caso no tiene sentido
+  // hacer esperar a nadie detrás de la pantalla de carga: se entra
+  // directo a la última pantalla y todo lo de abajo (comprobación de
+  // perfil/dispositivo, carga de datos) sigue en segundo plano. Si algo
+  // falla (cuenta bloqueada, límite de dispositivos...) el signOut()
+  // de más abajo dispara onLoggedOut(), que vuelve a tapar la app con el
+  // login y el aviso correspondiente, igual que si hubiera pasado antes
+  // de entrar.
+  const isRestoredSession = !!(opts && opts.isRestoredSession);
   currentUser = user;
 
   // Si había un test a medias guardado localmente (p. ej. se cerró la
@@ -4713,6 +4739,18 @@ async function onLoggedIn(user){
   // los mismos vengas de donde vengas. Se resuelve más abajo, justo
   // antes de decidir a qué pantalla ir.
   const deviceSyncPromise = pullDeviceSyncState(user.id).catch(() => false);
+
+  if(isRestoredSession){
+    const authOverlayEl0 = document.getElementById('authOverlay');
+    authOverlayEl0.classList.add('fade-out');
+    setTimeout(() => authOverlayEl0.classList.add('hidden'), 500);
+    // Si la última pantalla era el panel de admin, aún no sabemos si este
+    // usuario sigue siendo admin (eso se confirma más abajo): entramos a
+    // Inicio de momento y, si procede, el panel se abrirá solo cuando se
+    // confirme, sin que el usuario tenga que esperar aquí.
+    const lastScreen0 = getLastScreen();
+    showScreen(lastScreen0 === 'screen-admin' ? 'screen-home' : lastScreen0);
+  }
 
   // Cargamos el perfil primero para saber si la cuenta ya está
   // aprobada por un administrador (sustituye a la confirmación por
@@ -4783,15 +4821,19 @@ async function onLoggedIn(user){
   await Promise.all([loadAppData(), loadHistory()]);
   await refreshGlobalStats();
 
-  // Hasta aquí la pantalla de login/carga sigue tapando la app: no se
-  // enseña nada a medio cargar. Solo la quitamos cuando ya hay datos
-  // reales listos para pintar. En vez de un corte seco (display:none
-  // instantáneo, que se veía como un "flashazo"), primero se atenúa
-  // suavemente (fade-out) y solo al terminar la transición se saca del
-  // todo del layout con .hidden.
-  const authOverlayEl = document.getElementById('authOverlay');
-  authOverlayEl.classList.add('fade-out');
-  setTimeout(() => authOverlayEl.classList.add('hidden'), 500);
+  // Si esto es un login interactivo real (no una sesión restaurada), la
+  // pantalla de login/carga sigue tapando la app hasta aquí: no se enseña
+  // nada a medio cargar, y solo la quitamos cuando ya hay datos reales
+  // listos para pintar. En vez de un corte seco (display:none instantáneo,
+  // que se veía como un "flashazo"), primero se atenúa suavemente
+  // (fade-out) y solo al terminar la transición se saca del todo del
+  // layout con .hidden. Si es una sesión restaurada, esto ya se hizo al
+  // principio de la función y aquí no hay que repetirlo.
+  if(!isRestoredSession){
+    const authOverlayEl = document.getElementById('authOverlay');
+    authOverlayEl.classList.add('fade-out');
+    setTimeout(() => authOverlayEl.classList.add('hidden'), 500);
+  }
 
   // Si pullDeviceSyncState ha traído algo más reciente de otro
   // dispositivo, lo aplicamos ahora (ya ha tenido tiempo de sobra para
@@ -4809,9 +4851,11 @@ async function onLoggedIn(user){
   const lastScreen = getLastScreen();
   if(lastScreen === 'screen-admin' && currentUserIsAdmin){
     await openAdminPanel(); // hace showScreen + carga los datos del panel
-  } else {
+  } else if(!isRestoredSession){
     showScreen(lastScreen);
   }
+  // Si isRestoredSession y la pantalla no era la de admin, ya se mostró
+  // al principio de la función: no hace falta volver a navegar aquí.
 }
 function onLoggedOut(){
   currentUser = null;
@@ -6376,7 +6420,8 @@ sb.auth.onAuthStateChange((event, session) => {
     return;
   }
 
-  if(event === 'INITIAL_SESSION'){
+  const isInitialSession = event === 'INITIAL_SESSION';
+  if(isInitialSession){
     if(authInitialized) return; // ya se procesó (evita doble carga inicial)
     authInitialized = true;
   }
@@ -6385,7 +6430,10 @@ sb.auth.onAuthStateChange((event, session) => {
     // Si ya estábamos logueados con este mismo usuario, no repetir todo
     // el flujo (comprobación de dispositivo incluida) sin necesidad.
     if(currentUser && currentUser.id === session.user.id && event !== 'SIGNED_IN'){ return; }
-    onLoggedIn(session.user);
+    // INITIAL_SESSION con sesión ya existente = se recupera una sesión
+    // guardada (no es un login interactivo recién hecho): se entra
+    // directo, sin esperar el overlay de carga.
+    onLoggedIn(session.user, { isRestoredSession: isInitialSession });
   } else {
     onLoggedOut();
   }
