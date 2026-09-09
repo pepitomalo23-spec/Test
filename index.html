@@ -120,21 +120,18 @@
   /* Logo con "loading" mientras se decide si hay sesión o no, sin la
      tarjeta del login detrás (solo el fondo negro del overlay). */
   .auth-splash{ display:flex; flex-direction:column; align-items:center; gap:18px; }
-  /* Aparición inicial muy suave (fade-in + leve escala) y, a partir de ahí,
-     una respiración lenta y continua sin saltos ni sensación de "prisa". */
+  /* Aparece ya a tamaño/opacidad completos desde el primer fotograma (justo
+     detrás de la pantalla de arranque nativa de iOS, que ya muestra el icono
+     "creciendo"; si aquí lo hacemos crecer también, se ve como si el logo
+     "saltara" dos veces). Solo respira, muy lento y con poca amplitud, para
+     que se note vivo sin sensación de prisa. */
   .auth-splash-logo{
-    width:88px; height:88px; border-radius:22px; opacity:0;
-    animation:
-      authSplashAppear .9s cubic-bezier(.22,.7,.32,1) forwards,
-      authSplashPulse 3.2s cubic-bezier(.45,0,.55,1) 0.9s infinite;
-  }
-  @keyframes authSplashAppear{
-    0%{ opacity:0; transform:scale(.92); }
-    100%{ opacity:1; transform:scale(1); }
+    width:88px; height:88px; border-radius:22px;
+    animation: authSplashPulse 3.2s cubic-bezier(.45,0,.55,1) infinite;
   }
   @keyframes authSplashPulse{
     0%, 100%{ opacity:1; transform:scale(1); }
-    50%{ opacity:.82; transform:scale(.97); }
+    50%{ opacity:.85; transform:scale(.98); }
   }
   .auth-splash.hidden{ display:none; }
   .auth-login-form.hidden{ display:none; }
