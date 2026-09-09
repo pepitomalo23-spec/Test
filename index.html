@@ -147,15 +147,9 @@
              calc(24px + env(safe-area-inset-right, 0px))
              calc(24px + env(safe-area-inset-bottom, 0px))
              calc(24px + env(safe-area-inset-left, 0px));
-    opacity:1; transition: opacity .5s cubic-bezier(.4,0,.2,1);
   }
   .hidden{ display:none !important; }
   .auth-overlay.hidden{ display:none; }
-  /* Paso intermedio antes de display:none: en vez de desaparecer de golpe
-     (el "flashazo" al pasar del splash a la app), esto atenúa el overlay
-     a negro transparente durante .5s. El JS añade esta clase primero y,
-     cuando termina la transición, añade .hidden para sacarlo del layout. */
-  .auth-overlay.fade-out{ opacity:0; pointer-events:none; }
   .auth-login-form.hidden{ display:none; }
   .auth-panel{ width:100%; max-width:380px; background: var(--card); border:1px solid var(--line); border-radius:18px; padding:30px 26px 26px; }
   .auth-title{ font-family: var(--title); font-size:26px; letter-spacing:.3px; margin-bottom:8px; }
@@ -1285,7 +1279,7 @@
 <div id="app">
 
   <div class="auth-overlay" id="authOverlay">
-    <div class="auth-panel auth-login-form" id="authLoginForm">
+    <div class="auth-panel auth-login-form hidden" id="authLoginForm">
       <div class="auth-title">Legislación</div>
       <div class="auth-sub">Inicia sesión para guardar tu progreso, tu historial y tus estadísticas en la nube.</div>
       <input class="auth-input" id="authEmail" type="email" placeholder="Correo electrónico" autocomplete="email" />
@@ -4798,13 +4792,10 @@ async function onLoggedIn(user){
 
   // Hasta aquí la pantalla de login/carga sigue tapando la app: no se
   // enseña nada a medio cargar. Solo la quitamos cuando ya hay datos
-  // reales listos para pintar. En vez de un corte seco (display:none
-  // instantáneo, que se veía como un "flashazo"), primero se atenúa
-  // suavemente (fade-out) y solo al terminar la transición se saca del
-  // todo del layout con .hidden.
+  // reales listos para pintar, y lo hacemos de golpe (sin fundido) para
+  // que la entrada sea directa.
   const authOverlayEl = document.getElementById('authOverlay');
-  authOverlayEl.classList.add('fade-out');
-  setTimeout(() => authOverlayEl.classList.add('hidden'), 500);
+  authOverlayEl.classList.add('hidden');
 
   // Si pullDeviceSyncState ha traído algo más reciente de otro
   // dispositivo, lo aplicamos ahora (ya ha tenido tiempo de sobra para
@@ -4843,7 +4834,6 @@ function onLoggedOut(){
   renderHistory();
   const authOverlayEl2 = document.getElementById('authOverlay');
   authOverlayEl2.classList.remove('hidden');
-  authOverlayEl2.classList.remove('fade-out');
   document.getElementById('authLoginForm').classList.remove('hidden');
   showAuthError(''); showAuthStatus('');
   const emailEl = document.getElementById('headerUserEmail');
