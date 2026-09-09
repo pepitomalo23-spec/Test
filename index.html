@@ -142,24 +142,20 @@
      IZQUIERDA de la cabecera. --- */
   @media (max-width:640px){
     header{ padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px; justify-content:flex-start; min-height:60px; }
-    .header-back{ left:12px; width:32px; height:32px; }
-    .header-user{ left:16px; right:auto; }
+    .header-back{ left: calc(12px + env(safe-area-inset-left, 0px)); width:32px; height:32px; }
+    .header-user{ left: calc(16px + env(safe-area-inset-left, 0px)); right:auto; }
     .header-user-btn{ width:32px; height:32px; }
 
     .header-nav{
-      /* El 7 de septiembre se aumentó el padding inferior de 8px a 18px
-         ("más aire respecto al borde") y se usaba var(--bg), el mismo negro
-         que el fondo de toda la página. En modo standalone (PWA añadida a
-         pantalla de inicio, sin barra de direcciones que aparezca/
-         desaparezca) esos ~18px + la zona segura del home indicator suman
-         una franja considerable que, al ser del mismo color que el fondo,
-         se leía como un hueco vacío en vez de parte de la barra. Se vuelve
-         al padding original (8px) y se usa var(--card), ligeramente más
-         claro que el fondo, para que la barra se distinga como tal. */
+      /* La barra ya no debe notarse como tal: mismo color que el fondo
+         (var(--bg), no var(--card)) y sin borde superior. Los botones se
+         pegan lo más abajo posible: el único hueco por debajo de los
+         iconos/etiquetas es env(safe-area-inset-bottom) (la zona real del
+         home indicator), sin padding extra de "aire" añadido a mayores. */
       position:fixed; left:0; right:0; bottom:0; z-index:30;
       gap:2px; width:100%; justify-content:space-between;
-      padding: 10px 10px calc(8px + env(safe-area-inset-bottom, 0px));
-      background: var(--card); border-top:1px solid var(--line);
+      padding: 6px 10px calc(4px + env(safe-area-inset-bottom, 0px));
+      background: var(--bg); border-top:none;
     }
     .header-nav .nav-dot{ display:none; }
     .header-nav span{
@@ -176,7 +172,7 @@
     .header-nav span.active{ background:none; border:none; box-shadow:none; color: var(--coral); }
     .header-nav span.active .header-nav-label{ color: var(--coral); }
     /* Reservado en el contenido: ajustado al nuevo alto (más bajo) de la barra */
-    main{ padding-bottom: 100px; }
+    main{ padding-bottom: 88px; }
   }
 
 
