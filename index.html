@@ -1172,6 +1172,23 @@
   .quiz-pill.clickable:hover{ border-color: var(--purple); }
   .quiz-pill .chev{ width:12px; height:12px; transition: transform .15s; }
   .quiz-pill.open .chev{ transform: rotate(90deg); }
+  /* Botón "acerté de chorra": deja el acierto tal cual en pantalla (no
+     cambia lo que se ve de la pregunta), pero al guardar el intento se
+     cuenta como fallo para el dominio/estadísticas y para que la
+     pregunta vuelva a aparecer en Fallos. Solo se muestra cuando la
+     pregunta actual está respondida Y acertada (si ya has fallado, no
+     hace falta marcarla: ya cuenta como fallo). */
+  .quiz-bottombar{ gap:10px; }
+  .quiz-luck-btn{
+    width:34px; height:34px; border-radius:50%; flex-shrink:0;
+    border:1.5px solid var(--line); background: var(--card); color: var(--muted-2);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    transition: border-color .12s, background .12s, color .12s;
+  }
+  .quiz-luck-btn svg{ width:16px; height:16px; }
+  .quiz-luck-btn:hover{ border-color: var(--coral); color: var(--coral); }
+  .quiz-luck-btn.active{ border-color: var(--coral); background: rgba(242,102,92,0.16); color: var(--coral); }
+  .quiz-luck-btn[hidden]{ display:none; }
   .quiz-finish-btn{
     font-family: var(--sans); font-weight:600; font-size:12px; color: var(--muted);
     background: var(--card); border:1px solid var(--line); border-radius:20px;
@@ -1823,6 +1840,9 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,6 9,12 15,18"/></svg>
           </button>
           <span class="quiz-pill" id="quizPill">En blanco</span>
+          <button class="quiz-luck-btn" id="quizLuckBtn" hidden aria-pressed="false" aria-label="He acertado de chorra: contar esta pregunta como fallo" title="Acerté de chorra: contar como fallo" onclick="toggleLuckyGuess()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+          </button>
           <button class="quiz-nav-btn" id="quizNextBtn" aria-label="Siguiente" disabled onclick="nextQuestion()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>
           </button>
@@ -3189,7 +3209,7 @@ function startQuiz(mode, questions, timeMinutes){
   // si se finaliza el test antes de llegar al final, las preguntas
   // posteriores que nunca se mostraron no deben contar en absoluto (ni
   // como falladas ni como pendientes) en las Estadísticas.
-  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), visited:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes };
+  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), visited:new Array(ACTIVE_QUESTIONS.length).fill(false), luckyWrong:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes };
   saveQuizProgress();
   showScreen('screen-quiz');
   document.getElementById('quizCardView').style.display = (viewMode === 'card') ? 'block' : 'none';
@@ -3900,6 +3920,7 @@ function renderQuestion(){
   // defensivo: si el quizState viene de una versión antigua sin "visited"
   // (p. ej. un test dejado a medias antes de este cambio), se crea aquí.
   if(!quizState.visited) quizState.visited = new Array(ACTIVE_QUESTIONS.length).fill(false);
+  if(!quizState.luckyWrong) quizState.luckyWrong = new Array(ACTIVE_QUESTIONS.length).fill(false);
   quizState.visited[quizState.index] = true;
   const q = ACTIVE_QUESTIONS[quizState.index];
   const existingAnswer = quizState.answers[quizState.index];
@@ -3941,6 +3962,7 @@ function renderQuestion(){
     : '';
 
   renderQuizPill();
+  updateLuckyBtn(q, existingAnswer, isAnswered);
   document.getElementById('quizPrevBtn').disabled = quizState.index === 0;
   const isLastQuestion = quizState.index === ACTIVE_QUESTIONS.length - 1;
   // En la última pregunta, "siguiente" ya no sirve para nada (no hay más
@@ -3998,7 +4020,34 @@ function selectOption(i){
   explainEl.innerHTML = explainMetaHtml(q) + explainBodyHtml(q);
   explainEl.classList.remove('show'); // queda oculta hasta que se pulse "Mostrar explicación"
   renderQuizPill();
+  updateLuckyBtn(q, i, true);
   document.getElementById('quizNextBtn').disabled = false;
+  saveQuizProgress();
+}
+
+/* Botón "acerté de chorra" del bottom bar: solo tiene sentido (y solo se
+   muestra) cuando la pregunta actual está respondida y la respuesta dada
+   es la correcta. Al activarlo no cambia nada visualmente en la
+   pregunta (sigue viéndose como acertada); lo único que hace es que, al
+   guardar el intento (ver finishQuiz), esa pregunta se cuenta como
+   fallo: baja en la nota, en el dominio de la pregunta y hace que
+   vuelva a aparecer en Fallos. */
+function updateLuckyBtn(q, existingAnswer, isAnswered){
+  const btn = document.getElementById('quizLuckBtn');
+  if(!btn) return;
+  const wasCorrectPick = isAnswered && existingAnswer === q.correct;
+  btn.hidden = !wasCorrectPick;
+  const isActive = wasCorrectPick && !!(quizState.luckyWrong && quizState.luckyWrong[quizState.index]);
+  btn.classList.toggle('active', isActive);
+  btn.setAttribute('aria-pressed', String(isActive));
+}
+function toggleLuckyGuess(){
+  const btn = document.getElementById('quizLuckBtn');
+  if(!btn || btn.hidden) return;
+  if(!quizState.luckyWrong) quizState.luckyWrong = new Array(ACTIVE_QUESTIONS.length).fill(false);
+  quizState.luckyWrong[quizState.index] = !quizState.luckyWrong[quizState.index];
+  btn.classList.toggle('active', quizState.luckyWrong[quizState.index]);
+  btn.setAttribute('aria-pressed', String(quizState.luckyWrong[quizState.index]));
   saveQuizProgress();
 }
 
@@ -4020,6 +4069,7 @@ function markBlank(){
   explainEl.innerHTML = explainMetaHtml(q) + explainBodyHtml(q);
   explainEl.classList.remove('show'); // queda oculta hasta que se pulse "Mostrar explicación"
   renderQuizPill();
+  updateLuckyBtn(q, null, true); // en blanco: nunca "acertada", el botón se queda oculto
   document.getElementById('quizNextBtn').disabled = false;
   saveQuizProgress();
 }
@@ -4132,9 +4182,14 @@ async function finishQuiz(){
     : ACTIVE_QUESTIONS.map((_, i) => i);
   const SESSION_QUESTIONS = sessionIndices.map(i => ACTIVE_QUESTIONS[i]);
   const SESSION_ANSWERS = sessionIndices.map(i => quizState.answers[i]);
+  // "Acerté de chorra": preguntas marcadas con el botón del bottom bar
+  // (ver toggleLuckyGuess). Aunque la opción elegida sea la correcta, se
+  // tratan como falladas a todos los efectos: nota, dominio y Fallos.
+  const SESSION_LUCKY = sessionIndices.map(i => !!(quizState.luckyWrong && quizState.luckyWrong[i]));
+  const isEffectivelyCorrect = (a, q, j) => !SESSION_LUCKY[j] && a === q.correct;
 
   const total = SESSION_QUESTIONS.length;
-  const correctCount = SESSION_QUESTIONS.reduce((acc, q, j) => acc + (SESSION_ANSWERS[j] === q.correct ? 1 : 0), 0);
+  const correctCount = SESSION_QUESTIONS.reduce((acc, q, j) => acc + (isEffectivelyCorrect(SESSION_ANSWERS[j], q, j) ? 1 : 0), 0);
   quizState.correctCount = correctCount;
   document.getElementById('resultScore').textContent = correctCount;
   document.getElementById('resultTotal').textContent = total;
@@ -4149,7 +4204,7 @@ async function finishQuiz(){
   SESSION_QUESTIONS.forEach((q, j) => {
     const a = SESSION_ANSWERS[j];
     if(a === null || a === undefined) return; // en blanco: no cuenta
-    if(a === q.correct){
+    if(isEffectivelyCorrect(a, q, j)){
       earnedPoints += 1;
     } else {
       const numOptions = (q.options && q.options.length) || 4;
@@ -4190,7 +4245,7 @@ async function finishQuiz(){
         return {
           session_id: sessionId, user_id: currentUser.id, question_id: q.id,
           selected_index: canonicalIndex,
-          is_correct: a === q.correct, answer_order: j
+          is_correct: isEffectivelyCorrect(a, q, j), answer_order: j
         };
       });
       if(answerRows.length){
