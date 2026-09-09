@@ -12,24 +12,22 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000000">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/ipadpro129-p.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/ipadpro129-l.png" media="(device-width: 1366px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/ipadpro11-p.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/ipadpro11-l.png" media="(device-width: 1194px) and (device-height: 834px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/ipadair109-p.png" media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/ipadair109-l.png" media="(device-width: 1180px) and (device-height: 820px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/ipad102-p.png" media="(device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/ipad102-l.png" media="(device-width: 1080px) and (device-height: 810px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/ipadmini-p.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/ipadmini-l.png" media="(device-width: 1024px) and (device-height: 768px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/iphone67-p.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/iphone67-l.png" media="(device-width: 932px) and (device-height: 430px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/iphone61-p.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/iphone61-l.png" media="(device-width: 852px) and (device-height: 393px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/iphone58-p.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/iphone58-l.png" media="(device-width: 812px) and (device-height: 375px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/iphonese-p.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="assets/icons/splash/iphonese-l.png" media="(device-width: 667px) and (device-height: 375px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+<!-- Antes había aquí 18 <link rel="apple-touch-startup-image"> (una imagen de
+     arranque distinta por cada modelo exacto de iPhone/iPad, combinando
+     ancho, alto, densidad de píxel y orientación). Ese listado es la causa
+     más probable del "flashazo" al entrar: solo cubre los modelos que
+     existían cuando se creó, así que cualquier dispositivo que no encaje
+     con NINGUNA de esas combinaciones exactas (p. ej. los iPad Pro con
+     pantalla M4, o cualquier iPhone/iPad más nuevo) no encuentra imagen de
+     arranque y Safari muestra su splash por defecto en blanco durante un
+     instante, antes de que llegue a pintarse el negro de esta página.
+     En vez de mantener esa lista a mano por cada dispositivo nuevo que
+     saca Apple, dejamos que Safari/iOS genere el splash automáticamente a
+     partir del manifest (nombre, icono y background_color/theme_color en
+     #000000, ver manifest.json y las etiquetas de abajo): es la vía básica
+     y soportada, funciona en cualquier tamaño de pantalla sin listar cada
+     modelo, y coincide con el negro que ya se pinta aquí desde el primer
+     instante. -->
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
