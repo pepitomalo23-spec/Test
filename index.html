@@ -116,9 +116,18 @@
 
   /* ---------- auth screen ---------- */
   .auth-overlay{
-    position:fixed; inset:0; z-index:300; background: var(--bg); display:flex;
+    position:fixed; z-index:300; background: var(--bg); display:flex;
     align-items:center; justify-content:center; padding:24px;
     opacity:1; transition: opacity .5s cubic-bezier(.4,0,.2,1);
+    /* En vez de "inset:0" (que centra sobre el alto FÍSICO total de la
+       pantalla, incluida la franja de la barra de estado arriba y la
+       barra/home-indicator de abajo), se ancla a los límites del área seg
+       ura real. Así el logo queda centrado en lo que el ojo percibe como
+       "la pantalla" y no ligeramente descuadrado hacia arriba o abajo. */
+    top: env(safe-area-inset-top, 0px);
+    bottom: env(safe-area-inset-bottom, 0px);
+    left: env(safe-area-inset-left, 0px);
+    right: env(safe-area-inset-right, 0px);
   }
   .hidden{ display:none !important; }
   .auth-overlay.hidden{ display:none; }
@@ -130,14 +139,20 @@
   /* Logo con "loading" mientras se decide si hay sesión o no, sin la
      tarjeta del login detrás (solo el fondo negro del overlay). */
   .auth-splash{ display:flex; flex-direction:column; align-items:center; gap:18px; }
-  /* Aparece ya a tamaño/opacidad completos desde el primer fotograma (justo
-     detrás de la pantalla de arranque nativa de iOS, que ya muestra el icono
-     "creciendo"; si aquí lo hacemos crecer también, se ve como si el logo
-     "saltara" dos veces). Solo respira, muy lento y con poca amplitud, para
-     que se note vivo sin sensación de prisa. */
+  /* Entrada suave: en vez de aparecer de golpe en cuanto el HTML/CSS
+     termina de cargar (un "pop" seco), se funde y crece muy ligeramente
+     hasta su tamaño final en .45s. Es sutil a propósito: la pantalla de
+     arranque nativa de iOS ya mostró el icono creciendo justo antes, así
+     que esto solo debe leerse como una continuación fluida, no como una
+     segunda animación separada. */
   .auth-splash-logo{
     width:112px; height:112px; border-radius:26px;
-    animation: authSplashPulse 3.2s cubic-bezier(.45,0,.55,1) infinite;
+    animation: authSplashIn .45s cubic-bezier(.2,.8,.2,1) both,
+               authSplashPulse 3.2s cubic-bezier(.45,0,.55,1) .45s infinite;
+  }
+  @keyframes authSplashIn{
+    from{ opacity:0; transform:scale(.92); }
+    to{ opacity:1; transform:scale(1); }
   }
   @keyframes authSplashPulse{
     0%, 100%{ opacity:1; transform:scale(1); }
