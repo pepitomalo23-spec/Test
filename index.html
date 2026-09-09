@@ -169,17 +169,6 @@
      a negro transparente durante .5s. El JS añade esta clase primero y,
      cuando termina la transición, añade .hidden para sacarlo del layout. */
   .auth-overlay.fade-out{ opacity:0; pointer-events:none; }
-  /* Logo mientras se decide si hay sesión o no, sin la tarjeta de login
-     detrás (solo el fondo negro del overlay). A propósito 100% estático:
-     sin fade-in, sin scale-in, sin "respiración". Cualquier animación
-     propia aquí -por sutil que sea- se solapa con la animación nativa de
-     iOS al abrir la app (el icono ya crece solo) y se percibe como un
-     salto o un segundo movimiento. Dejándolo quieto desde el primer
-     fotograma, el único movimiento que puede verse es el del propio
-     sistema operativo, no el nuestro. */
-  .auth-splash{ display:flex; flex-direction:column; align-items:center; gap:18px; }
-  .auth-splash-logo{ width:112px; height:112px; border-radius:26px; }
-  .auth-splash.hidden{ display:none; }
   .auth-login-form.hidden{ display:none; }
   .auth-panel{ width:100%; max-width:380px; background: var(--card); border:1px solid var(--line); border-radius:18px; padding:30px 26px 26px; }
   .auth-title{ font-family: var(--title); font-size:26px; letter-spacing:.3px; margin-bottom:8px; }
@@ -1309,9 +1298,6 @@
 <div id="app">
 
   <div class="auth-overlay" id="authOverlay">
-    <div class="auth-splash" id="authSplash">
-      <img class="auth-splash-logo" src="assets/icons/icon-512.png" alt="pj.fire" width="112" height="112" />
-    </div>
     <div class="auth-panel auth-login-form hidden" id="authLoginForm">
       <div class="auth-title">Legislación</div>
       <div class="auth-sub">Inicia sesión para guardar tu progreso, tu historial y tus estadísticas en la nube.</div>
@@ -4889,7 +4875,6 @@ function onLoggedOut(){
   const authOverlayEl2 = document.getElementById('authOverlay');
   authOverlayEl2.classList.remove('hidden');
   authOverlayEl2.classList.remove('fade-out');
-  document.getElementById('authSplash').classList.add('hidden');
   document.getElementById('authLoginForm').classList.remove('hidden');
   showAuthError(''); showAuthStatus('');
   const emailEl = document.getElementById('headerUserEmail');
