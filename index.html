@@ -84,25 +84,42 @@
   *{ box-sizing:border-box; margin:0; padding:0; }
   html{ background: var(--bg); height:100%; overflow:hidden; }
   body{ background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing:antialiased; height:100%; overflow:hidden; }
-  #app{ position:fixed; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; background: var(--bg); }
+  /* --- Alto real visible en móvil: "height:100%"/"100vh" en algunos
+     navegadores/webviews se calcula sobre el viewport "grande" (como si la
+     barra de direcciones estuviera oculta), más alto que lo que realmente
+     se ve en pantalla. Eso deja un hueco negro debajo de la barra inferior
+     fija (parece que "flota" por encima del borde real). "100dvh" (dynamic
+     viewport height) se ajusta al alto visible real; --vh es el fallback
+     para navegadores/webviews sin soporte de dvh (ver script al final). --- */
+  #app{
+    position:fixed; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; background: var(--bg);
+    height: calc(var(--vh, 1vh) * 100);
+  }
+  @supports (height:100dvh){
+    #app{ height:100dvh; }
+  }
   svg{ display:block; }
   :focus-visible{ outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
 
   /* ---------- topbar ---------- */
   header{
     display:flex; align-items:center; justify-content:center; position:sticky; top:0;
-    padding: 18px 24px; border-bottom:1px solid var(--line);
+    padding: 26px 24px; min-height:78px; border-bottom:1px solid var(--line);
     background: var(--bg); z-index:40;
   }
   .header-back{ position:absolute; left:20px; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; color: var(--muted); cursor:pointer; }
   .header-back:hover{ color: var(--text); background: var(--card); }
   .header-back svg{ width:19px; height:19px; }
-  .header-nav{ display:flex; align-items:center; gap:22px; }
-  .header-nav span{ display:flex; align-items:center; gap:7px; font-family: var(--title); font-weight:400; font-size:16.5px; letter-spacing:.2px; color: var(--muted-2); cursor:pointer; transition: color .15s; }
+  /* En escritorio los accesos ("Normativas", "Legislación", "Estadísticas")
+     se veían muy pegados a la parte de arriba y con texto/iconos pequeños,
+     dando sensación de barra fina. Se agranda texto e icono y se separan
+     más entre sí (la cabecera ya tiene más alto arriba, min-height:78px). */
+  .header-nav{ display:flex; align-items:center; gap:30px; }
+  .header-nav span{ display:flex; align-items:center; gap:8px; font-family: var(--title); font-weight:400; font-size:18.5px; letter-spacing:.2px; color: var(--muted-2); cursor:pointer; transition: color .15s; }
   .header-nav span:hover{ color: var(--muted); }
   .header-nav span.active{ color: var(--coral); }
   .header-nav span.active .header-nav-label{ color: var(--coral); }
-  .header-nav span svg{ width:17px; height:17px; flex-shrink:0; }
+  .header-nav span svg{ width:20px; height:20px; flex-shrink:0; }
   #navNormativas svg.icon-diagonal{ transform: rotate(-40deg); }
   .header-nav .nav-dot{ width:3px; height:3px; border-radius:50%; background: var(--line); }
 
@@ -6438,6 +6455,27 @@ sb.auth.onAuthStateChange((event, session) => {
     onLoggedOut();
   }
 });
+</script>
+<script>
+// --- Alto real de viewport en móvil (fallback para navegadores/webviews sin
+// soporte de "100dvh"): fija --vh = 1% del alto visible real, para que #app
+// (y por tanto la barra inferior fija) siempre termine justo en el borde
+// inferior real de la pantalla, sin hueco. Se recalcula ante cambios reales
+// de tamaño (rotación, aparición/desaparición de barra de direcciones,
+// teclado), usando visualViewport cuando está disponible por ser más
+// preciso que window.innerHeight en esos casos. ---
+(function(){
+  function setRealVH(){
+    var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    document.documentElement.style.setProperty('--vh', (h * 0.01) + 'px');
+  }
+  setRealVH();
+  window.addEventListener('resize', setRealVH);
+  window.addEventListener('orientationchange', setRealVH);
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', setRealVH);
+  }
+})();
 </script>
 </body>
 </html>
