@@ -129,7 +129,6 @@
   .header-nav span.active{ color: var(--coral); }
   .header-nav span.active .header-nav-label{ color: var(--coral); }
   .header-nav span svg{ width:20px; height:20px; flex-shrink:0; }
-  #navNormativas svg.icon-diagonal{ transform: rotate(-40deg); }
   .header-nav .nav-dot{ width:3px; height:3px; border-radius:50%; background: var(--line); }
 
   /* --- Barra superior/inferior en móvil: los tres accesos ("Normativas",
@@ -215,7 +214,7 @@
   .auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background: var(--line); }
   .btn[disabled]{ opacity:.55; cursor:not-allowed; }
   .header-user{ position:absolute; right:64px; top:50%; transform:translateY(-50%); }
-  .header-user-btn{ width:36px; height:36px; border-radius:50%; background: var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; color: var(--muted); transition: border-color .15s, color .15s; }
+  .header-user-btn{ width:36px; height:36px; border-radius:50%; background: var(--card-hi); border:1px solid var(--muted-2); display:flex; align-items:center; justify-content:center; cursor:pointer; color: var(--muted); transition: border-color .15s, color .15s; }
   .header-user-btn:hover{ border-color: var(--purple); color: var(--text); }
   .header-user-btn svg{ width:17px; height:17px; }
   .profile-sheet-panel{ max-width:260px; padding:28px 22px 24px; }
@@ -1348,39 +1347,12 @@
   <header>
     <div class="header-nav">
       <span id="navNormativas" role="button" tabindex="0" onclick="showScreen('screen-normativas')" onkeydown="if(event.key==='Enter')showScreen('screen-normativas')">
-        <svg class="icon-diagonal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M10 9.5 L10 15.5"/>
-          <path d="M10.5 -2 A1 1 0 0 1 11.5 -1"/>
-          <path d="M12 26 A1 1 0 0 1 13 25"/>
-          <path d="M14 15.5 L10 9.5"/>
-          <path d="M14 9.5 L14 15.5"/>
-          <path d="M17.5 -4 L22.5 -4"/>
-          <path d="M18 15.5 L18 9.5"/>
-          <path d="M18 15.5 L22 15.5"/>
-          <path d="M18 9.5 L22 9.5"/>
-          <path d="M2 14.5 L2 9.5"/>
-          <path d="M20.5 12.5 L18 12.5"/>
-          <path d="M24 -3 L19 -3"/>
-          <path d="M27.5 13 A1 1 0 0 1 28.5 14"/>
-          <path d="M28 13.134 A1 1 0 0 1 28.5 13.995"/>
-          <path d="M28.5 12.5 A1 1 0 0 1 29.5 11.5"/>
-          <path d="M29 15.5 A1 1 0 0 1 28 16.5"/>
-          <path d="M3 15.5 A1 1 0 0 1 2 14.5"/>
-          <path d="M30.5 13.5 A1 1 0 0 1 29.5 12.5"/>
-          <path d="M31.5 11 A1 1 0 0 1 30.5 10"/>
-          <path d="M32.366 9.5 A1 1 0 0 1 31.495 11"/>
-          <path d="M32.5 8 L32.5 3"/>
-          <path d="M33 3.5 A1 1 0 0 1 34 4.5"/>
-          <path d="M33 4.5 L33 9.5"/>
-          <path d="M33.5 6 A1 1 0 0 1 34.5 5"/>
-          <path d="M34 5 L34 10"/>
-          <path d="M4.5 27.5 A1 1 0 0 1 3.5 26.5"/>
-          <path d="M5 15.5 L3 15.5"/>
-          <path d="M6 -1.5 A1 1 0 0 1 7 -2.5"/>
-          <path d="M6 14.5 A1 1 0 0 1 5 15.5"/>
-          <path d="M6 14.5 L6 9.5"/>
-          <path d="M7.5 -3 L12.5 -3"/>
-          <path d="M8.5 25.5 A1 1 0 0 1 7.5 26.5"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 2h9l3 3v17H6z"/>
+          <path d="M15 2v3h3"/>
+          <path d="M9 11h6"/>
+          <path d="M9 14.5h6"/>
+          <path d="M9 18h4"/>
         </svg>
         <span class="header-nav-label">Normativas</span>
       </span>
@@ -2692,6 +2664,10 @@ async function loadAppData(){
 function renderHistory(){
   const el = document.getElementById('historyList');
   el.innerHTML = '';
+  if(!HISTORY.length){
+    el.innerHTML = '<div class="empty">Todavía no has hecho ningún test. En cuanto termines uno, aparecerá aquí.</div>';
+    return;
+  }
   HISTORY.forEach(h => {
     const dateEl = document.createElement('div');
     dateEl.className = 'hist-date';
@@ -6489,6 +6465,15 @@ sb.auth.onAuthStateChange((event, session) => {
   if(window.visualViewport){
     window.visualViewport.addEventListener('resize', setRealVH);
   }
+  // Al abrir la app como icono de pantalla de inicio en iOS (modo standalone),
+  // el alto que devuelve el sistema justo en el primer instante puede no ser
+  // todavía el definitivo (deja un hueco negro bajo la barra fija, como si
+  // "flotara"). "pageshow" cubre volver a la app desde el multitarea; los
+  // dos reintentos con retardo cubren el primer arranque desde el icono.
+  window.addEventListener('pageshow', setRealVH);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) setRealVH(); });
+  setTimeout(setRealVH, 300);
+  setTimeout(setRealVH, 1000);
 })();
 </script>
 </body>
