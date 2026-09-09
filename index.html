@@ -1,63 +1,21 @@
 <!DOCTYPE html>
-<html lang="es" style="background:#000000">
+<html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="color-scheme" content="dark">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>pj.fire</title>
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-title" content="pj.fire">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000000">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-<!-- Antes había aquí 18 <link rel="apple-touch-startup-image"> (una imagen de
-     arranque distinta por cada modelo exacto de iPhone/iPad, combinando
-     ancho, alto, densidad de píxel y orientación). Ese listado es la causa
-     más probable del "flashazo" al entrar: solo cubre los modelos que
-     existían cuando se creó, así que cualquier dispositivo que no encaje
-     con NINGUNA de esas combinaciones exactas (p. ej. los iPad Pro con
-     pantalla M4, o cualquier iPhone/iPad más nuevo) no encuentra imagen de
-     arranque y Safari muestra su splash por defecto en blanco durante un
-     instante, antes de que llegue a pintarse el negro de esta página.
-     En vez de mantener esa lista a mano por cada dispositivo nuevo que
-     saca Apple, dejamos que Safari/iOS genere el splash automáticamente a
-     partir del manifest (nombre, icono y background_color/theme_color en
-     #000000, ver manifest.json y las etiquetas de abajo): es la vía básica
-     y soportada, funciona en cualquier tamaño de pantalla sin listar cada
-     modelo, y coincide con el negro que ya se pinta aquí desde el primer
-     instante. -->
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
-<!-- Las tipografías se cargaban con @import dentro del <style>, lo que
-     bloquea el primer pintado de TODA la página hasta que Google Fonts
-     responde: mientras tanto se ve el blanco por defecto del navegador
-     en vez del negro de la app. Con preload+swap el pintado inicial (ya
-     negro, gracias al style inline de <html> de arriba) no espera a la
-     fuente; el texto usa una tipografía de sistema un instante y salta
-     a la definitiva en cuanto llega. -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
-<!-- El SDK de Supabase se cargaba desde un CDN externo (jsdelivr) con un
-     <script src> clásico, sin defer/async, casi al final del body: eso
-     bloqueaba la ejecución de todo el código de la app hasta que
-     terminaba esa descarga por red. Como la pantalla de login/carga
-     (authOverlay) no se quita hasta que ese código corre y confirma la
-     sesión, el tiempo de esa descarga externa era justo lo que se veía
-     como pantalla negra al abrir la app, incluso cuando el usuario ya
-     tenía sesión guardada. Ahora el archivo vive dentro del propio sitio
-     (assets/vendor/supabase.min.js, build UMD tal cual de la versión
-     2.116.0 de @supabase/supabase-js), así que se sirve del mismo origen
-     junto con el resto de la app, sin depender de la latencia ni
-     disponibilidad de un servicio externo. Al actualizar la librería más
-     adelante, hay que volver a copiar el nuevo dist/umd/supabase.js aquí
-     (con "npm view @supabase/supabase-js version" se ve la última
-     versión disponible). -->
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&display=swap"></noscript>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
   :root{
     --bg: #000000;
     --card: #141414;
@@ -84,51 +42,26 @@
   *{ box-sizing:border-box; margin:0; padding:0; }
   html{ background: var(--bg); height:100%; overflow:hidden; }
   body{ background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing:antialiased; height:100%; overflow:hidden; }
-  /* --- Alto real visible en móvil: "height:100%"/"100vh" en algunos
-     navegadores/webviews se calcula sobre el viewport "grande" (como si la
-     barra de direcciones estuviera oculta), más alto que lo que realmente
-     se ve en pantalla. Eso deja un hueco negro debajo de la barra inferior
-     fija (parece que "flota" por encima del borde real). "100dvh" (dynamic
-     viewport height) se ajusta al alto visible real; --vh es el fallback
-     para navegadores/webviews sin soporte de dvh (ver script al final). --- */
-  #app{
-    position:fixed; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; background: var(--bg);
-    height: calc(var(--vh, 1vh) * 100);
-  }
-  @supports (height:100dvh){
-    #app{ height:100dvh; }
-  }
+  #app{ position:fixed; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; background: var(--bg); }
   svg{ display:block; }
   :focus-visible{ outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
 
   /* ---------- topbar ---------- */
   header{
     display:flex; align-items:center; justify-content:center; position:sticky; top:0;
-    /* "apple-mobile-web-app-status-bar-style: black-translucent" (ver <head>)
-       hace que la web se dibuje POR DEBAJO de la barra de estado del
-       sistema (hora/batería) en vez de dejarle su propio espacio reservado.
-       Sin compensar eso aquí, todo el contenido de la cabecera (y por
-       tanto de la página entera, que cuelga de su alto real vía
-       --header-h) queda desplazado hacia arriba, metido debajo de esa
-       barra. env(safe-area-inset-top) añade justo el hueco que antes
-       reservaba el sistema. */
-    padding: calc(26px + env(safe-area-inset-top, 0px)) 24px 26px;
-    min-height:78px; border-bottom:1px solid var(--line);
+    padding: 18px 24px; border-bottom:1px solid var(--line);
     background: var(--bg); z-index:40;
   }
   .header-back{ position:absolute; left:20px; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; color: var(--muted); cursor:pointer; }
   .header-back:hover{ color: var(--text); background: var(--card); }
   .header-back svg{ width:19px; height:19px; }
-  /* En escritorio los accesos ("Normativas", "Legislación", "Estadísticas")
-     se veían muy pegados a la parte de arriba y con texto/iconos pequeños,
-     dando sensación de barra fina. Se agranda texto e icono y se separan
-     más entre sí (la cabecera ya tiene más alto arriba, min-height:78px). */
-  .header-nav{ display:flex; align-items:center; gap:30px; }
-  .header-nav span{ display:flex; align-items:center; gap:8px; font-family: var(--title); font-weight:400; font-size:18.5px; letter-spacing:.2px; color: var(--muted-2); cursor:pointer; transition: color .15s; }
+  .header-nav{ display:flex; align-items:center; gap:22px; }
+  .header-nav span{ display:flex; align-items:center; gap:7px; font-family: var(--title); font-weight:400; font-size:16.5px; letter-spacing:.2px; color: var(--muted-2); cursor:pointer; transition: color .15s; }
   .header-nav span:hover{ color: var(--muted); }
   .header-nav span.active{ color: var(--coral); }
   .header-nav span.active .header-nav-label{ color: var(--coral); }
-  .header-nav span svg{ width:20px; height:20px; flex-shrink:0; }
+  .header-nav span svg{ width:17px; height:17px; flex-shrink:0; }
+  #navNormativas svg.icon-diagonal{ transform: rotate(-40deg); }
   .header-nav .nav-dot{ width:3px; height:3px; border-radius:50%; background: var(--line); }
 
   /* --- Barra superior/inferior en móvil: los tres accesos ("Normativas",
@@ -140,21 +73,16 @@
      color), y el botón de cuenta/perfil se queda arriba pero en la esquina
      IZQUIERDA de la cabecera. --- */
   @media (max-width:640px){
-    header{ padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px; justify-content:flex-start; min-height:60px; }
-    .header-back{ left: calc(12px + env(safe-area-inset-left, 0px)); width:32px; height:32px; }
-    .header-user{ left: calc(16px + env(safe-area-inset-left, 0px)); right:auto; }
+    header{ padding:14px 16px; justify-content:flex-start; min-height:60px; }
+    .header-back{ left:12px; width:32px; height:32px; }
+    .header-user{ left:16px; right:auto; }
     .header-user-btn{ width:32px; height:32px; }
 
     .header-nav{
-      /* La barra ya no debe notarse como tal: mismo color que el fondo
-         (var(--bg), no var(--card)) y sin borde superior. Los botones se
-         pegan lo más abajo posible: el único hueco por debajo de los
-         iconos/etiquetas es env(safe-area-inset-bottom) (la zona real del
-         home indicator), sin padding extra de "aire" añadido a mayores. */
       position:fixed; left:0; right:0; bottom:0; z-index:30;
       gap:2px; width:100%; justify-content:space-between;
-      padding: 6px 10px calc(4px + env(safe-area-inset-bottom, 0px));
-      background: var(--bg); border-top:none;
+      padding: 10px 10px calc(18px + env(safe-area-inset-bottom, 0px));
+      background: var(--bg); border-top:1px solid var(--line);
     }
     .header-nav .nav-dot{ display:none; }
     .header-nav span{
@@ -170,36 +98,15 @@
     }
     .header-nav span.active{ background:none; border:none; box-shadow:none; color: var(--coral); }
     .header-nav span.active .header-nav-label{ color: var(--coral); }
-    /* Reservado en el contenido: ajustado al nuevo alto (más bajo) de la barra */
-    main{ padding-bottom: 88px; }
+    /* Deja hueco para que el contenido no quede tapado por la barra inferior fija */
+    main{ padding-bottom: 118px; }
   }
 
 
   /* ---------- auth screen ---------- */
-  .auth-overlay{
-    /* "inset:0" NUNCA se toca: es lo único que garantiza que este overlay
-       cubra el 100% de la pantalla pase lo que pase (con o sin notch, con
-       o sin soporte de env() en el navegador). El ajuste fino de centrado
-       para compensar la barra de estado / home indicator se hace SOLO con
-       padding (ver abajo), que nunca puede dejar huecos: como mucho hace
-       que el contenido interior se centre un poco más arriba o abajo,
-       pero el fondo negro del overlay lo sigue tapando todo. */
-    position:fixed; inset:0; z-index:300; background: var(--bg); display:flex;
-    align-items:center; justify-content:center;
-    padding: calc(24px + env(safe-area-inset-top, 0px))
-             calc(24px + env(safe-area-inset-right, 0px))
-             calc(24px + env(safe-area-inset-bottom, 0px))
-             calc(24px + env(safe-area-inset-left, 0px));
-    opacity:1; transition: opacity .5s cubic-bezier(.4,0,.2,1);
-  }
+  .auth-overlay{ position:fixed; inset:0; z-index:300; background: var(--bg); display:flex; align-items:center; justify-content:center; padding:24px; }
   .hidden{ display:none !important; }
   .auth-overlay.hidden{ display:none; }
-  /* Paso intermedio antes de display:none: en vez de desaparecer de golpe
-     (el "flashazo" al pasar del overlay a la app), esto atenúa el overlay
-     a negro transparente durante .5s. El JS añade esta clase primero y,
-     cuando termina la transición, añade .hidden para sacarlo del layout. */
-  .auth-overlay.fade-out{ opacity:0; pointer-events:none; }
-  .auth-login-form.hidden{ display:none; }
   .auth-panel{ width:100%; max-width:380px; background: var(--card); border:1px solid var(--line); border-radius:18px; padding:30px 26px 26px; }
   .auth-title{ font-family: var(--title); font-size:26px; letter-spacing:.3px; margin-bottom:8px; }
   .auth-sub{ font-size:13.5px; color: var(--muted); line-height:1.5; margin-bottom:24px; }
@@ -214,7 +121,7 @@
   .auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background: var(--line); }
   .btn[disabled]{ opacity:.55; cursor:not-allowed; }
   .header-user{ position:absolute; right:64px; top:50%; transform:translateY(-50%); }
-  .header-user-btn{ width:36px; height:36px; border-radius:50%; background: var(--card-hi); border:1px solid var(--muted-2); display:flex; align-items:center; justify-content:center; cursor:pointer; color: var(--muted); transition: border-color .15s, color .15s; }
+  .header-user-btn{ width:36px; height:36px; border-radius:50%; background: var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; color: var(--muted); transition: border-color .15s, color .15s; }
   .header-user-btn:hover{ border-color: var(--purple); color: var(--text); }
   .header-user-btn svg{ width:17px; height:17px; }
   .profile-sheet-panel{ max-width:260px; padding:28px 22px 24px; }
@@ -1213,8 +1120,6 @@
   /* ---------- review / corrección screen ---------- */
   .review-topbar{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
   .review-toggle-row{ display:flex; align-items:center; margin-bottom:26px; }
-  .review-explain-row{ margin-top:14px; }
-  .review-explain-row .quiz-pill{ font-size:12.5px; padding:7px 14px; }
   .review-report{
     font-size:12px; color: var(--muted-2); display:inline-flex; align-items:center; gap:6px;
     cursor:pointer; margin-bottom:16px; transition: color .12s;
@@ -1267,31 +1172,6 @@
   .quiz-pill.clickable:hover{ border-color: var(--purple); }
   .quiz-pill .chev{ width:12px; height:12px; transition: transform .15s; }
   .quiz-pill.open .chev{ transform: rotate(90deg); }
-  /* Botón "acerté de chorra" (en la cabecera del test, junto a
-     "Finalizar"): deja el acierto tal cual en pantalla (no cambia lo
-     que se ve de la pregunta), pero al guardar el intento se cuenta
-     como fallo para el dominio/estadísticas y para que la pregunta
-     vuelva a aparecer en Fallos. Solo se muestra cuando la pregunta
-     actual está respondida Y acertada (si ya has fallado, no hace
-     falta marcarla: ya cuenta como fallo). */
-  .quiz-luck-btn{
-    width:28px; height:28px; border-radius:50%; flex-shrink:0;
-    border:1.5px solid var(--line); background: var(--card); color: var(--muted-2);
-    display:flex; align-items:center; justify-content:center; cursor:pointer;
-    transition: border-color .15s, background .15s, color .15s, transform .18s cubic-bezier(.34,1.56,.64,1);
-  }
-  .quiz-luck-btn svg{ width:14px; height:14px; transition: fill .15s; }
-  .quiz-luck-btn:hover{ border-color: var(--coral); color: var(--coral); }
-  /* Estado activo bien diferenciado del inactivo: además del color,
-     crece ligeramente ("pop") y el icono se rellena, para que se note
-     claramente el cambio al pulsar y al volver a pulsar. */
-  .quiz-luck-btn.active{
-    border-color: var(--coral); background: var(--coral); color: #1A0908;
-    transform: scale(1.12);
-    box-shadow: 0 0 0 4px rgba(242,102,92,0.18);
-  }
-  .quiz-luck-btn.active svg{ fill: #1A0908; }
-  .quiz-luck-btn[hidden]{ display:none; }
   .quiz-finish-btn{
     font-family: var(--sans); font-weight:600; font-size:12px; color: var(--muted);
     background: var(--card); border:1px solid var(--line); border-radius:20px;
@@ -1327,8 +1207,8 @@
 <body>
 <div id="app">
 
-  <div class="auth-overlay" id="authOverlay">
-    <div class="auth-panel auth-login-form hidden" id="authLoginForm">
+  <div class="auth-overlay hidden" id="authOverlay">
+    <div class="auth-panel">
       <div class="auth-title">Legislación</div>
       <div class="auth-sub">Inicia sesión para guardar tu progreso, tu historial y tus estadísticas en la nube.</div>
       <input class="auth-input" id="authEmail" type="email" placeholder="Correo electrónico" autocomplete="email" />
@@ -1347,12 +1227,39 @@
   <header>
     <div class="header-nav">
       <span id="navNormativas" role="button" tabindex="0" onclick="showScreen('screen-normativas')" onkeydown="if(event.key==='Enter')showScreen('screen-normativas')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M6 2h9l3 3v17H6z"/>
-          <path d="M15 2v3h3"/>
-          <path d="M9 11h6"/>
-          <path d="M9 14.5h6"/>
-          <path d="M9 18h4"/>
+        <svg class="icon-diagonal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 9.5 L10 15.5"/>
+          <path d="M10.5 -2 A1 1 0 0 1 11.5 -1"/>
+          <path d="M12 26 A1 1 0 0 1 13 25"/>
+          <path d="M14 15.5 L10 9.5"/>
+          <path d="M14 9.5 L14 15.5"/>
+          <path d="M17.5 -4 L22.5 -4"/>
+          <path d="M18 15.5 L18 9.5"/>
+          <path d="M18 15.5 L22 15.5"/>
+          <path d="M18 9.5 L22 9.5"/>
+          <path d="M2 14.5 L2 9.5"/>
+          <path d="M20.5 12.5 L18 12.5"/>
+          <path d="M24 -3 L19 -3"/>
+          <path d="M27.5 13 A1 1 0 0 1 28.5 14"/>
+          <path d="M28 13.134 A1 1 0 0 1 28.5 13.995"/>
+          <path d="M28.5 12.5 A1 1 0 0 1 29.5 11.5"/>
+          <path d="M29 15.5 A1 1 0 0 1 28 16.5"/>
+          <path d="M3 15.5 A1 1 0 0 1 2 14.5"/>
+          <path d="M30.5 13.5 A1 1 0 0 1 29.5 12.5"/>
+          <path d="M31.5 11 A1 1 0 0 1 30.5 10"/>
+          <path d="M32.366 9.5 A1 1 0 0 1 31.495 11"/>
+          <path d="M32.5 8 L32.5 3"/>
+          <path d="M33 3.5 A1 1 0 0 1 34 4.5"/>
+          <path d="M33 4.5 L33 9.5"/>
+          <path d="M33.5 6 A1 1 0 0 1 34.5 5"/>
+          <path d="M34 5 L34 10"/>
+          <path d="M4.5 27.5 A1 1 0 0 1 3.5 26.5"/>
+          <path d="M5 15.5 L3 15.5"/>
+          <path d="M6 -1.5 A1 1 0 0 1 7 -2.5"/>
+          <path d="M6 14.5 A1 1 0 0 1 5 15.5"/>
+          <path d="M6 14.5 L6 9.5"/>
+          <path d="M7.5 -3 L12.5 -3"/>
+          <path d="M8.5 25.5 A1 1 0 0 1 7.5 26.5"/>
         </svg>
         <span class="header-nav-label">Normativas</span>
       </span>
@@ -1411,7 +1318,7 @@
     <section class="screen active" id="screen-home">
       <h1>Elige un tipo de test</h1>
       <div class="modes">
-        <div class="mode-card estudio" id="modeCardEstudio" role="button" tabindex="0" onclick="handleModeCardClick('estudio')">
+        <div class="mode-card estudio" id="modeCardEstudio" role="button" tabindex="0" onclick="openConfig('estudio')">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 7v14"/>
@@ -1428,7 +1335,7 @@
             Reanudar
           </div>
         </div>
-        <div class="mode-card fallos" id="modeCardFallos" role="button" tabindex="0" onclick="handleFallosCardClick()">
+        <div class="mode-card fallos" id="modeCardFallos" role="button" tabindex="0" onclick="openFallos()">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
               <path d="m15 7-6 6"/>
@@ -1442,7 +1349,7 @@
             Reanudar
           </div>
         </div>
-        <div class="mode-card simulacro" id="modeCardSimulacro" role="button" tabindex="0" onclick="handleModeCardClick('simulacro')">
+        <div class="mode-card simulacro" id="modeCardSimulacro" role="button" tabindex="0" onclick="openConfig('simulacro')">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85"/>
@@ -1457,7 +1364,7 @@
             Reanudar
           </div>
         </div>
-        <div class="mode-card examen" id="modeCardExamen" role="button" tabindex="0" onclick="handleModeCardClick('examen')">
+        <div class="mode-card examen" id="modeCardExamen" role="button" tabindex="0" onclick="openConfig('examen')">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/>
@@ -1898,9 +1805,6 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
             <span id="quizTimerText">30:00</span>
           </span>
-          <button class="quiz-luck-btn" id="quizLuckBtn" hidden aria-pressed="false" aria-label="He acertado de chorra: contar esta pregunta como fallo" title="Acerté de chorra: contar como fallo" onclick="toggleLuckyGuess()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
-          </button>
           <button class="quiz-finish-btn" id="quizFinishTopBtn" onclick="confirmFinishQuiz()">Finalizar</button>
         </div>
       </div>
@@ -1958,9 +1862,9 @@
       <h1 id="reviewTitle">Corrección</h1>
       <div class="review-topbar" id="reviewFilters"></div>
       <div class="review-toggle-row">
-        <span class="switch-row" role="button" tabindex="0" onclick="toggleReviewExplainAll()">
+        <span class="switch-row" role="button" tabindex="0" onclick="toggleReviewExplain()">
           <span class="switch" id="reviewExplainToggle"><span class="knob"></span></span>
-          <span class="switch-label">Mostrar todas las explicaciones</span>
+          <span class="switch-label">Mostrar explicaciones</span>
         </span>
       </div>
       <div id="reviewBody"></div>
@@ -1977,7 +1881,7 @@
   </div>
 </div>
 
-<script src="assets/vendor/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 /* ==================== SUPABASE SETUP ==================== */
 const SUPABASE_URL = 'https://tsjaaqkvncgxqtpmlugv.supabase.co';
@@ -2120,7 +2024,7 @@ const DIFICULTAD_OPTIONS = ["aleatoria", "facil", "media", "dificil"];
 const DIFICULTAD_LABELS = { aleatoria:"Aleatoria", facil:"Fácil", media:"Media", dificil:"Difícil" };
 const AYUDA_OPTIONS = ["ocultar", "mostrar"];
 const AYUDA_LABELS = { ocultar:"Ocultar tema", mostrar:"Mostrar tema" };
-const REPASO_OPTIONS = [true, false]; // "Vuelta" primero: es el modo activo por defecto
+const REPASO_OPTIONS = [false, true];
 
 let HISTORY = [];
 let lastFinishedReviewId = null;
@@ -2277,7 +2181,7 @@ const ICONS = {
 
 let quizState = { mode:null, index:0, correctCount:0, answered:false };
 let ACTIVE_QUESTIONS = SAMPLE_QUESTIONS;
-let configState = { mode:null, topics:new Set(), nodeSelections:{}, count:20, time:30, minutos:null, preguntas:null, dificultad:'aleatoria', ayuda:'ocultar', repaso:true };
+let configState = { mode:null, topics:new Set(), nodeSelections:{}, count:20, time:30, minutos:null, preguntas:null, dificultad:'aleatoria', ayuda:'ocultar', repaso:false };
 let timerInterval = null;
 
 /* ---------- persistencia local del test en curso ----------
@@ -2286,13 +2190,7 @@ let timerInterval = null;
    se cierra la app/el navegador o se apaga el móvil a medias de un test,
    al volver a abrir se pueda seguir exactamente por donde se dejó, en
    vez de reiniciar en la pantalla de inicio. Va aparte del guardado en
-   Supabase, que solo ocurre al FINALIZAR el test.
-
-   Además, para que el mismo test/pantalla en curso se pueda continuar
-   desde OTRO dispositivo (p. ej. lo dejas en el móvil y sigues en la
-   web), este estado se replica en la tabla device_sync_state, en
-   segundo plano y sin bloquear la interfaz (ver pushDeviceSyncState /
-   pullDeviceSyncState más abajo). */
+   Supabase, que solo ocurre al FINALIZAR el test. */
 function quizProgressKey(){
   return 'legis_quiz_progress_' + (currentUser ? currentUser.id : 'anon');
 }
@@ -2306,101 +2204,9 @@ function saveQuizProgress(){
       quizState, activeQuestions: ACTIVE_QUESTIONS, quizSecondsLeft, savedAt: Date.now()
     }));
   }catch(e){ /* localStorage no disponible: seguimos sin persistir */ }
-  scheduleDeviceSyncPush();
 }
 function clearQuizProgress(){
   try{ localStorage.removeItem(quizProgressKey()); }catch(e){}
-  scheduleDeviceSyncPush();
-}
-
-/* ---------- sincronización entre dispositivos (device_sync_state) ----------
-   Una única fila por usuario en Supabase con la última pantalla y el
-   test en curso. Se sube con un pequeño retraso (debounce) para no
-   disparar una petición de red por cada respuesta del test, y se baja
-   al iniciar sesión para comparar con lo que ya hay en este mismo
-   dispositivo, quedándonos siempre con lo más reciente. Nunca bloquea
-   la interfaz: si falla (sin conexión, etc.) la app sigue funcionando
-   solo con lo local, como hacía antes. */
-let deviceSyncPushTimer = null;
-function syncMetaKey(){
-  return 'legis_sync_meta_' + (currentUser ? currentUser.id : 'anon');
-}
-function scheduleDeviceSyncPush(){
-  if(!currentUser) return;
-  clearTimeout(deviceSyncPushTimer);
-  deviceSyncPushTimer = setTimeout(pushDeviceSyncState, 800);
-}
-// Si el usuario cambia de pestaña/app o la cierra antes de que salte el
-// debounce de arriba, no queremos perder ese último cambio: lo mandamos
-// ya mismo (sigue sin bloquear nada, es fire-and-forget).
-document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'hidden' && deviceSyncPushTimer){
-    clearTimeout(deviceSyncPushTimer);
-    pushDeviceSyncState();
-  }
-});
-async function pushDeviceSyncState(){
-  if(!currentUser) return;
-  let quizProgressRaw = null;
-  try{ quizProgressRaw = JSON.parse(localStorage.getItem(quizProgressKey()) || 'null'); }catch(e){}
-  const lastScreenRaw = (function(){ try{ return localStorage.getItem(LAST_SCREEN_KEY); }catch(e){ return null; } })();
-  const updatedAt = new Date().toISOString();
-  try{
-    const { error } = await sb.from('device_sync_state').upsert({
-      user_id: currentUser.id,
-      last_screen: lastScreenRaw,
-      quiz_progress: quizProgressRaw,
-      updated_at: updatedAt
-    });
-    if(error) return; // sin conexión u otro fallo: seguimos solo con lo local
-    try{ localStorage.setItem(syncMetaKey(), JSON.stringify({ updatedAt })); }catch(e){}
-  }catch(e){ /* sin conexión: no pasa nada, se reintentará en el próximo guardado */ }
-}
-/* Se llama una vez al iniciar sesión. Devuelve true si había datos del
-   servidor más recientes que los de este dispositivo y los ha aplicado
-   (en cuyo caso hay que volver a llamar a restoreQuizProgress() para
-   que se reflejen en memoria). */
-async function pullDeviceSyncState(userId){
-  try{
-    const { data, error } = await sb.from('device_sync_state').select('*').eq('user_id', userId).maybeSingle();
-    if(error || !data) return false;
-    let localUpdatedAt = 0;
-    try{
-      const meta = JSON.parse(localStorage.getItem(syncMetaKey()) || 'null');
-      if(meta && meta.updatedAt) localUpdatedAt = new Date(meta.updatedAt).getTime();
-    }catch(e){}
-    const serverUpdatedAt = new Date(data.updated_at).getTime();
-    if(serverUpdatedAt <= localUpdatedAt) return false; // este dispositivo ya tiene lo último
-    if(data.quiz_progress){
-      localStorage.setItem(quizProgressKey(), JSON.stringify(data.quiz_progress));
-    } else {
-      localStorage.removeItem(quizProgressKey());
-    }
-    if(data.last_screen){
-      localStorage.setItem(LAST_SCREEN_KEY, data.last_screen);
-    }
-    localStorage.setItem(syncMetaKey(), JSON.stringify({ updatedAt: data.updated_at }));
-    return true;
-  }catch(e){ return false; }
-}
-/* Comprobación "en caliente" al entrar en Inicio (no solo al loguearse):
-   si hay un test más reciente empezado desde otro dispositivo, refresca
-   la tarjeta "Reanudar" sin recargar la app ni tocar la pantalla actual.
-   Se ignora si el test en curso EN ESTE dispositivo está más avanzado
-   (pullDeviceSyncState ya descarta el caso en que lo local es más
-   reciente). Nunca bloquea: si no hay usuario o falla, no hace nada. */
-let homeSyncCheckInFlight = false;
-async function refreshDeviceSyncOnHome(){
-  if(!currentUser || homeSyncCheckInFlight) return;
-  homeSyncCheckInFlight = true;
-  try{
-    const changed = await pullDeviceSyncState(currentUser.id);
-    if(changed){
-      restoreQuizProgress();
-      updateModeCardsLockState();
-    }
-  }catch(e){ /* sin conexión: se queda como estaba */ }
-  homeSyncCheckInFlight = false;
 }
 /* Se llama una vez al arrancar/loguearse: si hay un test guardado del
    usuario actual, lo recupera en memoria (no cambia de pantalla; el
@@ -2432,6 +2238,17 @@ function restoreQuizProgress(){
       }
     }
   }catch(e){ /* si el dato guardado está corrupto, se ignora sin romper la app */ }
+}
+
+/* ---------- landing ---------- */
+function enterApp(screenId){
+  const landing = document.getElementById('landingScreen');
+  if(landing) landing.classList.add('hidden');
+  showScreen(screenId);
+}
+function backToLanding(){
+  const landing = document.getElementById('landingScreen');
+  if(landing) landing.classList.remove('hidden');
 }
 
 /* ---------- barra de dominio (verde/amarillo/rojo/azul) de la pantalla Estadísticas ---------- */
@@ -2664,10 +2481,6 @@ async function loadAppData(){
 function renderHistory(){
   const el = document.getElementById('historyList');
   el.innerHTML = '';
-  if(!HISTORY.length){
-    el.innerHTML = '<div class="empty">Todavía no has hecho ningún test. En cuanto termines uno, aparecerá aquí.</div>';
-    return;
-  }
   HISTORY.forEach(h => {
     const dateEl = document.createElement('div');
     dateEl.className = 'hist-date';
@@ -2881,7 +2694,6 @@ function showScreen(id){
   // en vez de aterrizar siempre en Inicio.
   if(SCREEN_RESTORE_TARGET[id]){
     try{ localStorage.setItem(LAST_SCREEN_KEY, id); }catch(e){}
-    scheduleDeviceSyncPush();
   }
   const headerNav = document.querySelector('.header-nav');
   if(headerNav) headerNav.classList.toggle('hidden', !isTopLevel);
@@ -2893,15 +2705,7 @@ function showScreen(id){
     quizHeadObserver.disconnect();
     quizHeadObserver = null;
   }
-  if(id === 'screen-home'){
-    updateModeCardsLockState();
-    // El pull de sincronización solo se hacía al iniciar sesión: si la
-    // pestaña/app ya estaba abierta (no se ha vuelto a loguear) y desde
-    // otro dispositivo se ha empezado o avanzado un test, no se veía
-    // hasta recargar. Al entrar en Inicio comprobamos también aquí, sin
-    // bloquear la pantalla (si hay algo nuevo, se refresca la tarjeta).
-    refreshDeviceSyncOnHome();
-  }
+  if(id === 'screen-home') updateModeCardsLockState();
   if(id === 'screen-boe-cambios') loadNormativas();
   if(id === 'screen-my-additions') renderMyAdditionsList();
 }
@@ -2939,15 +2743,6 @@ function openOverlay(id){
 }
 
 /* ---------- config screen (estudio / examen / simulacro) ---------- */
-// Al pulsar una tarjeta de modo en Inicio: si ese modo es justo el que
-// tiene un test a medias, se reanuda (toda la tarjeta hace de botón
-// "Reanudar", no solo el pill pequeño); si no, se abre su configurador
-// normal como siempre. openConfig() ya se encarga de bloquear el acceso
-// si hay un test en curso en OTRO modo distinto.
-function handleModeCardClick(mode){
-  if(quizState && quizState.mode === mode){ resumeQuiz(); return; }
-  openConfig(mode);
-}
 function openConfig(mode){
   if(quizState && quizState.mode && quizState.mode !== mode) return; // hay un test en curso en otro apartado
   configState.mode = mode;
@@ -2995,7 +2790,7 @@ function renderSettings(){
     { key:'ayuda', icon: ICONS.info, label:'Ayuda',
       options: AYUDA_OPTIONS.map(v => ({ value:v, label: AYUDA_LABELS[v] })) },
     { key:'repaso', icon: ICONS.brain, label:'Repaso Inteligente',
-      options: REPASO_OPTIONS.map(v => ({ value:v, label: v ? 'Vuelta' : 'Normal' })) }
+      options: REPASO_OPTIONS.map(v => ({ value:v, label: v ? 'Sí' : 'No' })) }
   ];
   const el = document.getElementById('settingsList');
   el.innerHTML = '';
@@ -3291,45 +3086,15 @@ function buildQuestionSet(pool, count){
   return shuffleArray(out); // vuelve a barajar por si count > pool.length (evita bloques repetidos en el mismo orden)
 }
 
-/* ---------- Repaso Inteligente ("Vuelta" vs "Normal") ----------
-   "Vuelta" (configState.repaso === true): antes de barajar, las preguntas
-   se ordenan por timesSeen ascendente (las que menos se han visto primero,
-   con orden aleatorio entre las que empatan). Así, si el test se limita a
-   N preguntas, entran primero las menos vistas —como una "vuelta" que no
-   repite una pregunta hasta que las demás también han salido—.
-   "Normal" (configState.repaso === false): selección puramente aleatoria,
-   sin mirar timesSeen; una pregunta puede volver a tocarte aunque hayan
-   quedado otras por ver, pero nunca se repite dos veces DENTRO del mismo
-   test (eso ya lo garantiza tomar el slice de un array sin reemplazo). */
-function selectStudyQuestions(pool, limit){
-  let ordered;
-  if(configState.repaso){
-    // Agrupa por timesSeen y baraja dentro de cada grupo, para que el
-    // criterio sea "menos vistas primero" pero sin orden fijo entre
-    // preguntas con el mismo número de veces vistas.
-    const byTimesSeen = {};
-    pool.forEach(q => {
-      const n = q.timesSeen || 0;
-      (byTimesSeen[n] = byTimesSeen[n] || []).push(q);
-    });
-    ordered = Object.keys(byTimesSeen)
-      .map(Number)
-      .sort((a, b) => a - b)
-      .flatMap(n => shuffleArray(byTimesSeen[n]));
-  } else {
-    ordered = shuffleArray(pool);
-  }
-  const selected = limit ? ordered.slice(0, limit) : ordered;
-  return shuffleArray(selected); // el orden de presentación siempre se baraja
-}
-
 function startFromConfig(){
   const mode = configState.mode;
   if(mode === 'estudio'){
     let questions = buildQuestionsFromTopics(configState.topics);
     // Respeta el ajuste "Preguntas" (10/20/30/40 o "Sin límite"); antes se
     // ignoraba y siempre entraban todas las preguntas del tema.
-    questions = selectStudyQuestions(questions, configState.preguntas);
+    if(configState.preguntas){
+      questions = shuffleArray(questions).slice(0, configState.preguntas);
+    }
     startQuiz('estudio', questions, null);
   } else if(mode === 'examen'){
     const pool = buildQuestionsFromTopics(configState.topics);
@@ -3342,12 +3107,6 @@ function startFromConfig(){
 }
 
 /* ---------- fallos intro screen ---------- */
-// Igual que handleModeCardClick: si Fallos es el modo con un test a
-// medias, la tarjeta entera reanuda en vez de abrir la intro de Fallos.
-function handleFallosCardClick(){
-  if(quizState && quizState.mode === 'fallos'){ resumeQuiz(); return; }
-  openFallos();
-}
 function openFallos(){
   if(quizState && quizState.mode && quizState.mode !== 'fallos') return; // hay un test en curso en otro apartado
   const total = TOPICS.filter(t => t.enabled).reduce((s,t) => s + t.fails, 0);
@@ -3430,7 +3189,7 @@ function startQuiz(mode, questions, timeMinutes){
   // si se finaliza el test antes de llegar al final, las preguntas
   // posteriores que nunca se mostraron no deben contar en absoluto (ni
   // como falladas ni como pendientes) en las Estadísticas.
-  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), visited:new Array(ACTIVE_QUESTIONS.length).fill(false), luckyWrong:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes };
+  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), visited:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes };
   saveQuizProgress();
   showScreen('screen-quiz');
   document.getElementById('quizCardView').style.display = (viewMode === 'card') ? 'block' : 'none';
@@ -4141,7 +3900,6 @@ function renderQuestion(){
   // defensivo: si el quizState viene de una versión antigua sin "visited"
   // (p. ej. un test dejado a medias antes de este cambio), se crea aquí.
   if(!quizState.visited) quizState.visited = new Array(ACTIVE_QUESTIONS.length).fill(false);
-  if(!quizState.luckyWrong) quizState.luckyWrong = new Array(ACTIVE_QUESTIONS.length).fill(false);
   quizState.visited[quizState.index] = true;
   const q = ACTIVE_QUESTIONS[quizState.index];
   const existingAnswer = quizState.answers[quizState.index];
@@ -4183,7 +3941,6 @@ function renderQuestion(){
     : '';
 
   renderQuizPill();
-  updateLuckyBtn(q, existingAnswer, isAnswered);
   document.getElementById('quizPrevBtn').disabled = quizState.index === 0;
   const isLastQuestion = quizState.index === ACTIVE_QUESTIONS.length - 1;
   // En la última pregunta, "siguiente" ya no sirve para nada (no hay más
@@ -4241,34 +3998,7 @@ function selectOption(i){
   explainEl.innerHTML = explainMetaHtml(q) + explainBodyHtml(q);
   explainEl.classList.remove('show'); // queda oculta hasta que se pulse "Mostrar explicación"
   renderQuizPill();
-  updateLuckyBtn(q, i, true);
   document.getElementById('quizNextBtn').disabled = false;
-  saveQuizProgress();
-}
-
-/* Botón "acerté de chorra" del bottom bar: solo tiene sentido (y solo se
-   muestra) cuando la pregunta actual está respondida y la respuesta dada
-   es la correcta. Al activarlo no cambia nada visualmente en la
-   pregunta (sigue viéndose como acertada); lo único que hace es que, al
-   guardar el intento (ver finishQuiz), esa pregunta se cuenta como
-   fallo: baja en la nota, en el dominio de la pregunta y hace que
-   vuelva a aparecer en Fallos. */
-function updateLuckyBtn(q, existingAnswer, isAnswered){
-  const btn = document.getElementById('quizLuckBtn');
-  if(!btn) return;
-  const wasCorrectPick = isAnswered && existingAnswer === q.correct;
-  btn.hidden = !wasCorrectPick;
-  const isActive = wasCorrectPick && !!(quizState.luckyWrong && quizState.luckyWrong[quizState.index]);
-  btn.classList.toggle('active', isActive);
-  btn.setAttribute('aria-pressed', String(isActive));
-}
-function toggleLuckyGuess(){
-  const btn = document.getElementById('quizLuckBtn');
-  if(!btn || btn.hidden) return;
-  if(!quizState.luckyWrong) quizState.luckyWrong = new Array(ACTIVE_QUESTIONS.length).fill(false);
-  quizState.luckyWrong[quizState.index] = !quizState.luckyWrong[quizState.index];
-  btn.classList.toggle('active', quizState.luckyWrong[quizState.index]);
-  btn.setAttribute('aria-pressed', String(quizState.luckyWrong[quizState.index]));
   saveQuizProgress();
 }
 
@@ -4290,7 +4020,6 @@ function markBlank(){
   explainEl.innerHTML = explainMetaHtml(q) + explainBodyHtml(q);
   explainEl.classList.remove('show'); // queda oculta hasta que se pulse "Mostrar explicación"
   renderQuizPill();
-  updateLuckyBtn(q, null, true); // en blanco: nunca "acertada", el botón se queda oculto
   document.getElementById('quizNextBtn').disabled = false;
   saveQuizProgress();
 }
@@ -4403,14 +4132,9 @@ async function finishQuiz(){
     : ACTIVE_QUESTIONS.map((_, i) => i);
   const SESSION_QUESTIONS = sessionIndices.map(i => ACTIVE_QUESTIONS[i]);
   const SESSION_ANSWERS = sessionIndices.map(i => quizState.answers[i]);
-  // "Acerté de chorra": preguntas marcadas con el botón del bottom bar
-  // (ver toggleLuckyGuess). Aunque la opción elegida sea la correcta, se
-  // tratan como falladas a todos los efectos: nota, dominio y Fallos.
-  const SESSION_LUCKY = sessionIndices.map(i => !!(quizState.luckyWrong && quizState.luckyWrong[i]));
-  const isEffectivelyCorrect = (a, q, j) => !SESSION_LUCKY[j] && a === q.correct;
 
   const total = SESSION_QUESTIONS.length;
-  const correctCount = SESSION_QUESTIONS.reduce((acc, q, j) => acc + (isEffectivelyCorrect(SESSION_ANSWERS[j], q, j) ? 1 : 0), 0);
+  const correctCount = SESSION_QUESTIONS.reduce((acc, q, j) => acc + (SESSION_ANSWERS[j] === q.correct ? 1 : 0), 0);
   quizState.correctCount = correctCount;
   document.getElementById('resultScore').textContent = correctCount;
   document.getElementById('resultTotal').textContent = total;
@@ -4425,7 +4149,7 @@ async function finishQuiz(){
   SESSION_QUESTIONS.forEach((q, j) => {
     const a = SESSION_ANSWERS[j];
     if(a === null || a === undefined) return; // en blanco: no cuenta
-    if(isEffectivelyCorrect(a, q, j)){
+    if(a === q.correct){
       earnedPoints += 1;
     } else {
       const numOptions = (q.options && q.options.length) || 4;
@@ -4466,7 +4190,7 @@ async function finishQuiz(){
         return {
           session_id: sessionId, user_id: currentUser.id, question_id: q.id,
           selected_index: canonicalIndex,
-          is_correct: isEffectivelyCorrect(a, q, j), answer_order: j
+          is_correct: a === q.correct, answer_order: j
         };
       });
       if(answerRows.length){
@@ -4515,11 +4239,6 @@ function openLastReview(){
 /* ---------- review / corrección ---------- */
 let currentReview = null;
 let reviewFilter = 'todas';
-// Qué preguntas de la corrección tienen la explicación desplegada. Es un
-// Set de índices (no un booleano global): cada pregunta se abre/cierra de
-// forma independiente con su propio botón, en vez de mostrarlas todas de
-// golpe.
-let reviewVisibleExplain = new Set();
 
 function computeReviewCounts(review){
   let correct = 0, bad = 0, blank = 0;
@@ -4547,7 +4266,6 @@ function reviewFilteredIndexes(){
 function openReview(review, title){
   currentReview = review;
   reviewFilter = 'todas';
-  reviewVisibleExplain = new Set();
   document.getElementById('reviewTitle').textContent = title || 'Corrección';
   renderReviewFilters();
   renderReviewList();
@@ -4583,12 +4301,12 @@ function renderReviewList(){
     body.innerHTML = '<div class="empty">No hay preguntas en este filtro.</div>';
     return;
   }
+  const showExplain = document.getElementById('reviewExplainToggle').classList.contains('on');
   const letters = ['A','B','C','D'];
 
   body.innerHTML = idxs.map(qi => {
     const q = currentReview.questions[qi];
     const userAnswer = currentReview.answers[qi];
-    const isOpen = reviewVisibleExplain.has(qi);
 
     let html = '<div class="quiz-list-item">';
     html += '<div class="review-report" role="button" tabindex="0" onclick="reportReviewQuestion(' + qi + ')">' + ICONS.warn + ' Impugnar</div>';
@@ -4604,40 +4322,15 @@ function renderReviewList(){
     if(userAnswer === null || userAnswer === undefined){
       html += '<div style="font-size:12.5px; color:var(--muted-2); margin-top:12px;">No respondiste esta pregunta.</div>';
     }
-    // Botón individual: cada pregunta despliega/oculta su propia
-    // explicación de forma independiente, en vez de mostrarlas todas
-    // a la vez.
-    html += '<div class="review-explain-row">' +
-      '<span class="quiz-pill clickable' + (isOpen ? ' open' : '') + '" role="button" tabindex="0" onclick="toggleReviewQuestionExplain(' + qi + ')">' +
-        (isOpen ? 'Ocultar explicación' : 'Mostrar explicación') + '<span class="chev">' + ICONS.chevron + '</span>' +
-      '</span>' +
-    '</div>';
-    if(isOpen){
+    if(showExplain){
       html += '<div class="explain show">' + explainMetaHtml(q) + explainBodyHtml(q) + '</div>';
     }
     html += '</div>';
     return html;
   }).join('');
 }
-function toggleReviewQuestionExplain(qi){
-  if(reviewVisibleExplain.has(qi)) reviewVisibleExplain.delete(qi);
-  else reviewVisibleExplain.add(qi);
-  renderReviewList();
-}
-/* Interruptor superior: atajo para desplegar o plegar TODAS las
-   preguntas del filtro actual de golpe, sin perder la posibilidad de
-   abrir/cerrar cada una por separado con su propio botón. */
-function toggleReviewExplainAll(){
-  const idxs = reviewFilteredIndexes();
-  const allOpen = idxs.length > 0 && idxs.every(qi => reviewVisibleExplain.has(qi));
-  const toggle = document.getElementById('reviewExplainToggle');
-  if(allOpen){
-    idxs.forEach(qi => reviewVisibleExplain.delete(qi));
-    toggle.classList.remove('on');
-  } else {
-    idxs.forEach(qi => reviewVisibleExplain.add(qi));
-    toggle.classList.add('on');
-  }
+function toggleReviewExplain(){
+  document.getElementById('reviewExplainToggle').classList.toggle('on');
   renderReviewList();
 }
 function reportReviewQuestion(qi){
@@ -4718,18 +4411,7 @@ async function handleLogout(){
   await sb.auth.signOut();
 }
 
-async function onLoggedIn(user, opts){
-  // isRestoredSession = true cuando la sesión ya existía de antes (se
-  // recupera al abrir/recargar la app) y no es un inicio de sesión
-  // interactivo recién hecho por el usuario. En ese caso no tiene sentido
-  // hacer esperar a nadie detrás de la pantalla de carga: se entra
-  // directo a la última pantalla y todo lo de abajo (comprobación de
-  // perfil/dispositivo, carga de datos) sigue en segundo plano. Si algo
-  // falla (cuenta bloqueada, límite de dispositivos...) el signOut()
-  // de más abajo dispara onLoggedOut(), que vuelve a tapar la app con el
-  // login y el aviso correspondiente, igual que si hubiera pasado antes
-  // de entrar.
-  const isRestoredSession = !!(opts && opts.isRestoredSession);
+async function onLoggedIn(user){
   currentUser = user;
 
   // Si había un test a medias guardado localmente (p. ej. se cerró la
@@ -4739,25 +4421,6 @@ async function onLoggedIn(user, opts){
   // como "en curso" con su botón "Reanudar", igual que si nunca se
   // hubiera cerrado la app.
   restoreQuizProgress();
-
-  // En paralelo (no bloquea nada de lo de abajo) comprobamos si desde
-  // OTRO dispositivo se dejó un test más reciente o una pantalla
-  // distinta, para que el orden "reanudar" / la pantalla de vuelta sean
-  // los mismos vengas de donde vengas. Se resuelve más abajo, justo
-  // antes de decidir a qué pantalla ir.
-  const deviceSyncPromise = pullDeviceSyncState(user.id).catch(() => false);
-
-  if(isRestoredSession){
-    const authOverlayEl0 = document.getElementById('authOverlay');
-    authOverlayEl0.classList.add('fade-out');
-    setTimeout(() => authOverlayEl0.classList.add('hidden'), 500);
-    // Si la última pantalla era el panel de admin, aún no sabemos si este
-    // usuario sigue siendo admin (eso se confirma más abajo): entramos a
-    // Inicio de momento y, si procede, el panel se abrirá solo cuando se
-    // confirme, sin que el usuario tenga que esperar aquí.
-    const lastScreen0 = getLastScreen();
-    showScreen(lastScreen0 === 'screen-admin' ? 'screen-home' : lastScreen0);
-  }
 
   // Cargamos el perfil primero para saber si la cuenta ya está
   // aprobada por un administrador (sustituye a la confirmación por
@@ -4814,6 +4477,7 @@ async function onLoggedIn(user, opts){
     return;
   }
 
+  document.getElementById('authOverlay').classList.add('hidden');
   const emailEl = document.getElementById('headerUserEmail');
   if(emailEl) emailEl.textContent = user.email || '';
 
@@ -4821,48 +4485,19 @@ async function onLoggedIn(user, opts){
   if(adminBtn) adminBtn.classList.toggle('hidden', !currentUserIsAdmin);
   if(currentUserIsAdmin) refreshAdminPendingBadge();
 
-  // loadHistory no depende de loadAppData (leen tablas distintas): las
-  // lanzamos a la vez para que sus tiempos de red se solapen en vez de
-  // sumarse. refreshGlobalStats sí necesita QUESTIONS_POOL, que deja
-  // listo loadAppData, así que esa va después.
-  await Promise.all([loadAppData(), loadHistory()]);
+  await loadAppData();
+
+  await loadHistory();
   await refreshGlobalStats();
-
-  // Si esto es un login interactivo real (no una sesión restaurada), la
-  // pantalla de login/carga sigue tapando la app hasta aquí: no se enseña
-  // nada a medio cargar, y solo la quitamos cuando ya hay datos reales
-  // listos para pintar. En vez de un corte seco (display:none instantáneo,
-  // que se veía como un "flashazo"), primero se atenúa suavemente
-  // (fade-out) y solo al terminar la transición se saca del todo del
-  // layout con .hidden. Si es una sesión restaurada, esto ya se hizo al
-  // principio de la función y aquí no hay que repetirlo.
-  if(!isRestoredSession){
-    const authOverlayEl = document.getElementById('authOverlay');
-    authOverlayEl.classList.add('fade-out');
-    setTimeout(() => authOverlayEl.classList.add('hidden'), 500);
-  }
-
-  // Si pullDeviceSyncState ha traído algo más reciente de otro
-  // dispositivo, lo aplicamos ahora (ya ha tenido tiempo de sobra para
-  // resolverse mientras cargaban temas/preguntas/historial).
-  const gotNewerFromOtherDevice = await deviceSyncPromise;
-  if(gotNewerFromOtherDevice){
-    restoreQuizProgress();
-    updateModeCardsLockState();
-  }
-
   // Al entrar (incluido tras recargar la app), volvemos a la pantalla en
   // la que estaba el usuario la última vez (o a su pantalla padre si era
-  // una de detalle/proceso), en vez de ir siempre a Inicio. Si el dato
-  // venía de otro dispositivo, esto ya refleja esa pantalla.
+  // una de detalle/proceso), en vez de ir siempre a Inicio.
   const lastScreen = getLastScreen();
   if(lastScreen === 'screen-admin' && currentUserIsAdmin){
     await openAdminPanel(); // hace showScreen + carga los datos del panel
-  } else if(!isRestoredSession){
+  } else {
     showScreen(lastScreen);
   }
-  // Si isRestoredSession y la pantalla no era la de admin, ya se mostró
-  // al principio de la función: no hace falta volver a navegar aquí.
 }
 function onLoggedOut(){
   currentUser = null;
@@ -4879,10 +4514,7 @@ function onLoggedOut(){
   quizState = { mode:null, index:0, correctCount:0, answered:false };
   quizSecondsLeft = null;
   renderHistory();
-  const authOverlayEl2 = document.getElementById('authOverlay');
-  authOverlayEl2.classList.remove('hidden');
-  authOverlayEl2.classList.remove('fade-out');
-  document.getElementById('authLoginForm').classList.remove('hidden');
+  document.getElementById('authOverlay').classList.remove('hidden');
   showAuthError(''); showAuthStatus('');
   const emailEl = document.getElementById('headerUserEmail');
   if(emailEl) emailEl.textContent = '';
@@ -6427,8 +6059,7 @@ sb.auth.onAuthStateChange((event, session) => {
     return;
   }
 
-  const isInitialSession = event === 'INITIAL_SESSION';
-  if(isInitialSession){
+  if(event === 'INITIAL_SESSION'){
     if(authInitialized) return; // ya se procesó (evita doble carga inicial)
     authInitialized = true;
   }
@@ -6437,44 +6068,11 @@ sb.auth.onAuthStateChange((event, session) => {
     // Si ya estábamos logueados con este mismo usuario, no repetir todo
     // el flujo (comprobación de dispositivo incluida) sin necesidad.
     if(currentUser && currentUser.id === session.user.id && event !== 'SIGNED_IN'){ return; }
-    // INITIAL_SESSION con sesión ya existente = se recupera una sesión
-    // guardada (no es un login interactivo recién hecho): se entra
-    // directo, sin esperar el overlay de carga.
-    onLoggedIn(session.user, { isRestoredSession: isInitialSession });
+    onLoggedIn(session.user);
   } else {
     onLoggedOut();
   }
 });
-</script>
-<script>
-// --- Alto real de viewport en móvil (fallback para navegadores/webviews sin
-// soporte de "100dvh"): fija --vh = 1% del alto visible real, para que #app
-// (y por tanto la barra inferior fija) siempre termine justo en el borde
-// inferior real de la pantalla, sin hueco. Se recalcula ante cambios reales
-// de tamaño (rotación, aparición/desaparición de barra de direcciones,
-// teclado), usando visualViewport cuando está disponible por ser más
-// preciso que window.innerHeight en esos casos. ---
-(function(){
-  function setRealVH(){
-    var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-    document.documentElement.style.setProperty('--vh', (h * 0.01) + 'px');
-  }
-  setRealVH();
-  window.addEventListener('resize', setRealVH);
-  window.addEventListener('orientationchange', setRealVH);
-  if(window.visualViewport){
-    window.visualViewport.addEventListener('resize', setRealVH);
-  }
-  // Al abrir la app como icono de pantalla de inicio en iOS (modo standalone),
-  // el alto que devuelve el sistema justo en el primer instante puede no ser
-  // todavía el definitivo (deja un hueco negro bajo la barra fija, como si
-  // "flotara"). "pageshow" cubre volver a la app desde el multitarea; los
-  // dos reintentos con retardo cubren el primer arranque desde el icono.
-  window.addEventListener('pageshow', setRealVH);
-  document.addEventListener('visibilitychange', function(){ if(!document.hidden) setRealVH(); });
-  setTimeout(setRealVH, 300);
-  setTimeout(setRealVH, 1000);
-})();
 </script>
 </body>
 </html>
