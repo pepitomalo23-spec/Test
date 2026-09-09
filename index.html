@@ -2220,7 +2220,13 @@ let timerInterval = null;
    se cierra la app/el navegador o se apaga el móvil a medias de un test,
    al volver a abrir se pueda seguir exactamente por donde se dejó, en
    vez de reiniciar en la pantalla de inicio. Va aparte del guardado en
-   Supabase, que solo ocurre al FINALIZAR el test. */
+   Supabase, que solo ocurre al FINALIZAR el test.
+
+   Además, para que el mismo test/pantalla en curso se pueda continuar
+   desde OTRO dispositivo (p. ej. lo dejas en el móvil y sigues en la
+   web), este estado se replica en la tabla device_sync_state, en
+   segundo plano y sin bloquear la interfaz (ver pushDeviceSyncState /
+   pullDeviceSyncState más abajo). */
 function quizProgressKey(){
   return 'legis_quiz_progress_' + (currentUser ? currentUser.id : 'anon');
 }
@@ -2234,9 +2240,73 @@ function saveQuizProgress(){
       quizState, activeQuestions: ACTIVE_QUESTIONS, quizSecondsLeft, savedAt: Date.now()
     }));
   }catch(e){ /* localStorage no disponible: seguimos sin persistir */ }
+  scheduleDeviceSyncPush();
 }
 function clearQuizProgress(){
   try{ localStorage.removeItem(quizProgressKey()); }catch(e){}
+  scheduleDeviceSyncPush();
+}
+
+/* ---------- sincronización entre dispositivos (device_sync_state) ----------
+   Una única fila por usuario en Supabase con la última pantalla y el
+   test en curso. Se sube con un pequeño retraso (debounce) para no
+   disparar una petición de red por cada respuesta del test, y se baja
+   al iniciar sesión para comparar con lo que ya hay en este mismo
+   dispositivo, quedándonos siempre con lo más reciente. Nunca bloquea
+   la interfaz: si falla (sin conexión, etc.) la app sigue funcionando
+   solo con lo local, como hacía antes. */
+let deviceSyncPushTimer = null;
+function syncMetaKey(){
+  return 'legis_sync_meta_' + (currentUser ? currentUser.id : 'anon');
+}
+function scheduleDeviceSyncPush(){
+  if(!currentUser) return;
+  clearTimeout(deviceSyncPushTimer);
+  deviceSyncPushTimer = setTimeout(pushDeviceSyncState, 800);
+}
+async function pushDeviceSyncState(){
+  if(!currentUser) return;
+  let quizProgressRaw = null;
+  try{ quizProgressRaw = JSON.parse(localStorage.getItem(quizProgressKey()) || 'null'); }catch(e){}
+  const lastScreenRaw = (function(){ try{ return localStorage.getItem(LAST_SCREEN_KEY); }catch(e){ return null; } })();
+  const updatedAt = new Date().toISOString();
+  try{
+    const { error } = await sb.from('device_sync_state').upsert({
+      user_id: currentUser.id,
+      last_screen: lastScreenRaw,
+      quiz_progress: quizProgressRaw,
+      updated_at: updatedAt
+    });
+    if(error) return; // sin conexión u otro fallo: seguimos solo con lo local
+    try{ localStorage.setItem(syncMetaKey(), JSON.stringify({ updatedAt })); }catch(e){}
+  }catch(e){ /* sin conexión: no pasa nada, se reintentará en el próximo guardado */ }
+}
+/* Se llama una vez al iniciar sesión. Devuelve true si había datos del
+   servidor más recientes que los de este dispositivo y los ha aplicado
+   (en cuyo caso hay que volver a llamar a restoreQuizProgress() para
+   que se reflejen en memoria). */
+async function pullDeviceSyncState(userId){
+  try{
+    const { data, error } = await sb.from('device_sync_state').select('*').eq('user_id', userId).maybeSingle();
+    if(error || !data) return false;
+    let localUpdatedAt = 0;
+    try{
+      const meta = JSON.parse(localStorage.getItem(syncMetaKey()) || 'null');
+      if(meta && meta.updatedAt) localUpdatedAt = new Date(meta.updatedAt).getTime();
+    }catch(e){}
+    const serverUpdatedAt = new Date(data.updated_at).getTime();
+    if(serverUpdatedAt <= localUpdatedAt) return false; // este dispositivo ya tiene lo último
+    if(data.quiz_progress){
+      localStorage.setItem(quizProgressKey(), JSON.stringify(data.quiz_progress));
+    } else {
+      localStorage.removeItem(quizProgressKey());
+    }
+    if(data.last_screen){
+      localStorage.setItem(LAST_SCREEN_KEY, data.last_screen);
+    }
+    localStorage.setItem(syncMetaKey(), JSON.stringify({ updatedAt: data.updated_at }));
+    return true;
+  }catch(e){ return false; }
 }
 /* Se llama una vez al arrancar/loguearse: si hay un test guardado del
    usuario actual, lo recupera en memoria (no cambia de pantalla; el
@@ -2724,6 +2794,7 @@ function showScreen(id){
   // en vez de aterrizar siempre en Inicio.
   if(SCREEN_RESTORE_TARGET[id]){
     try{ localStorage.setItem(LAST_SCREEN_KEY, id); }catch(e){}
+    scheduleDeviceSyncPush();
   }
   const headerNav = document.querySelector('.header-nav');
   if(headerNav) headerNav.classList.toggle('hidden', !isTopLevel);
@@ -4533,6 +4604,13 @@ async function onLoggedIn(user){
   // hubiera cerrado la app.
   restoreQuizProgress();
 
+  // En paralelo (no bloquea nada de lo de abajo) comprobamos si desde
+  // OTRO dispositivo se dejó un test más reciente o una pantalla
+  // distinta, para que el orden "reanudar" / la pantalla de vuelta sean
+  // los mismos vengas de donde vengas. Se resuelve más abajo, justo
+  // antes de decidir a qué pantalla ir.
+  const deviceSyncPromise = pullDeviceSyncState(user.id).catch(() => false);
+
   // Cargamos el perfil primero para saber si la cuenta ya está
   // aprobada por un administrador (sustituye a la confirmación por
   // correo electrónico).
@@ -4588,7 +4666,6 @@ async function onLoggedIn(user){
     return;
   }
 
-  document.getElementById('authOverlay').classList.add('hidden');
   const emailEl = document.getElementById('headerUserEmail');
   if(emailEl) emailEl.textContent = user.email || '';
 
@@ -4596,13 +4673,31 @@ async function onLoggedIn(user){
   if(adminBtn) adminBtn.classList.toggle('hidden', !currentUserIsAdmin);
   if(currentUserIsAdmin) refreshAdminPendingBadge();
 
-  await loadAppData();
-
-  await loadHistory();
+  // loadHistory no depende de loadAppData (leen tablas distintas): las
+  // lanzamos a la vez para que sus tiempos de red se solapen en vez de
+  // sumarse. refreshGlobalStats sí necesita QUESTIONS_POOL, que deja
+  // listo loadAppData, así que esa va después.
+  await Promise.all([loadAppData(), loadHistory()]);
   await refreshGlobalStats();
+
+  // Hasta aquí la pantalla de login/carga sigue tapando la app: no se
+  // enseña nada a medio cargar. Solo la quitamos cuando ya hay datos
+  // reales listos para pintar.
+  document.getElementById('authOverlay').classList.add('hidden');
+
+  // Si pullDeviceSyncState ha traído algo más reciente de otro
+  // dispositivo, lo aplicamos ahora (ya ha tenido tiempo de sobra para
+  // resolverse mientras cargaban temas/preguntas/historial).
+  const gotNewerFromOtherDevice = await deviceSyncPromise;
+  if(gotNewerFromOtherDevice){
+    restoreQuizProgress();
+    updateModeCardsLockState();
+  }
+
   // Al entrar (incluido tras recargar la app), volvemos a la pantalla en
   // la que estaba el usuario la última vez (o a su pantalla padre si era
-  // una de detalle/proceso), en vez de ir siempre a Inicio.
+  // una de detalle/proceso), en vez de ir siempre a Inicio. Si el dato
+  // venía de otro dispositivo, esto ya refleja esa pantalla.
   const lastScreen = getLastScreen();
   if(lastScreen === 'screen-admin' && currentUserIsAdmin){
     await openAdminPanel(); // hace showScreen + carga los datos del panel
