@@ -2264,6 +2264,15 @@ function scheduleDeviceSyncPush(){
   clearTimeout(deviceSyncPushTimer);
   deviceSyncPushTimer = setTimeout(pushDeviceSyncState, 800);
 }
+// Si el usuario cambia de pestaña/app o la cierra antes de que salte el
+// debounce de arriba, no queremos perder ese último cambio: lo mandamos
+// ya mismo (sigue sin bloquear nada, es fire-and-forget).
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden' && deviceSyncPushTimer){
+    clearTimeout(deviceSyncPushTimer);
+    pushDeviceSyncState();
+  }
+});
 async function pushDeviceSyncState(){
   if(!currentUser) return;
   let quizProgressRaw = null;
@@ -2307,6 +2316,25 @@ async function pullDeviceSyncState(userId){
     localStorage.setItem(syncMetaKey(), JSON.stringify({ updatedAt: data.updated_at }));
     return true;
   }catch(e){ return false; }
+}
+/* Comprobación "en caliente" al entrar en Inicio (no solo al loguearse):
+   si hay un test más reciente empezado desde otro dispositivo, refresca
+   la tarjeta "Reanudar" sin recargar la app ni tocar la pantalla actual.
+   Se ignora si el test en curso EN ESTE dispositivo está más avanzado
+   (pullDeviceSyncState ya descarta el caso en que lo local es más
+   reciente). Nunca bloquea: si no hay usuario o falla, no hace nada. */
+let homeSyncCheckInFlight = false;
+async function refreshDeviceSyncOnHome(){
+  if(!currentUser || homeSyncCheckInFlight) return;
+  homeSyncCheckInFlight = true;
+  try{
+    const changed = await pullDeviceSyncState(currentUser.id);
+    if(changed){
+      restoreQuizProgress();
+      updateModeCardsLockState();
+    }
+  }catch(e){ /* sin conexión: se queda como estaba */ }
+  homeSyncCheckInFlight = false;
 }
 /* Se llama una vez al arrancar/loguearse: si hay un test guardado del
    usuario actual, lo recupera en memoria (no cambia de pantalla; el
@@ -2806,7 +2834,15 @@ function showScreen(id){
     quizHeadObserver.disconnect();
     quizHeadObserver = null;
   }
-  if(id === 'screen-home') updateModeCardsLockState();
+  if(id === 'screen-home'){
+    updateModeCardsLockState();
+    // El pull de sincronización solo se hacía al iniciar sesión: si la
+    // pestaña/app ya estaba abierta (no se ha vuelto a loguear) y desde
+    // otro dispositivo se ha empezado o avanzado un test, no se veía
+    // hasta recargar. Al entrar en Inicio comprobamos también aquí, sin
+    // bloquear la pantalla (si hay algo nuevo, se refresca la tarjeta).
+    refreshDeviceSyncOnHome();
+  }
   if(id === 'screen-boe-cambios') loadNormativas();
   if(id === 'screen-my-additions') renderMyAdditionsList();
 }
