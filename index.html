@@ -120,10 +120,21 @@
   /* Logo con "loading" mientras se decide si hay sesión o no, sin la
      tarjeta del login detrás (solo el fondo negro del overlay). */
   .auth-splash{ display:flex; flex-direction:column; align-items:center; gap:18px; }
-  .auth-splash-logo{ width:88px; height:88px; border-radius:22px; animation: authSplashPulse 1.6s ease-in-out infinite; }
+  /* Aparición inicial muy suave (fade-in + leve escala) y, a partir de ahí,
+     una respiración lenta y continua sin saltos ni sensación de "prisa". */
+  .auth-splash-logo{
+    width:88px; height:88px; border-radius:22px; opacity:0;
+    animation:
+      authSplashAppear .9s cubic-bezier(.22,.7,.32,1) forwards,
+      authSplashPulse 3.2s cubic-bezier(.45,0,.55,1) 0.9s infinite;
+  }
+  @keyframes authSplashAppear{
+    0%{ opacity:0; transform:scale(.92); }
+    100%{ opacity:1; transform:scale(1); }
+  }
   @keyframes authSplashPulse{
     0%, 100%{ opacity:1; transform:scale(1); }
-    50%{ opacity:.55; transform:scale(.94); }
+    50%{ opacity:.82; transform:scale(.97); }
   }
   .auth-splash.hidden{ display:none; }
   .auth-login-form.hidden{ display:none; }
@@ -2077,7 +2088,7 @@ const DIFICULTAD_OPTIONS = ["aleatoria", "facil", "media", "dificil"];
 const DIFICULTAD_LABELS = { aleatoria:"Aleatoria", facil:"Fácil", media:"Media", dificil:"Difícil" };
 const AYUDA_OPTIONS = ["ocultar", "mostrar"];
 const AYUDA_LABELS = { ocultar:"Ocultar tema", mostrar:"Mostrar tema" };
-const REPASO_OPTIONS = [false, true];
+const REPASO_OPTIONS = [true, false]; // "Vuelta" primero: es el modo activo por defecto
 
 let HISTORY = [];
 let lastFinishedReviewId = null;
@@ -2234,7 +2245,7 @@ const ICONS = {
 
 let quizState = { mode:null, index:0, correctCount:0, answered:false };
 let ACTIVE_QUESTIONS = SAMPLE_QUESTIONS;
-let configState = { mode:null, topics:new Set(), nodeSelections:{}, count:20, time:30, minutos:null, preguntas:null, dificultad:'aleatoria', ayuda:'ocultar', repaso:false };
+let configState = { mode:null, topics:new Set(), nodeSelections:{}, count:20, time:30, minutos:null, preguntas:null, dificultad:'aleatoria', ayuda:'ocultar', repaso:true };
 let timerInterval = null;
 
 /* ---------- persistencia local del test en curso ----------
@@ -2959,7 +2970,7 @@ function renderSettings(){
     { key:'ayuda', icon: ICONS.info, label:'Ayuda',
       options: AYUDA_OPTIONS.map(v => ({ value:v, label: AYUDA_LABELS[v] })) },
     { key:'repaso', icon: ICONS.brain, label:'Repaso Inteligente',
-      options: REPASO_OPTIONS.map(v => ({ value:v, label: v ? 'Sí' : 'No' })) }
+      options: REPASO_OPTIONS.map(v => ({ value:v, label: v ? 'Vuelta' : 'Normal' })) }
   ];
   const el = document.getElementById('settingsList');
   el.innerHTML = '';
@@ -3255,15 +3266,45 @@ function buildQuestionSet(pool, count){
   return shuffleArray(out); // vuelve a barajar por si count > pool.length (evita bloques repetidos en el mismo orden)
 }
 
+/* ---------- Repaso Inteligente ("Vuelta" vs "Normal") ----------
+   "Vuelta" (configState.repaso === true): antes de barajar, las preguntas
+   se ordenan por timesSeen ascendente (las que menos se han visto primero,
+   con orden aleatorio entre las que empatan). Así, si el test se limita a
+   N preguntas, entran primero las menos vistas —como una "vuelta" que no
+   repite una pregunta hasta que las demás también han salido—.
+   "Normal" (configState.repaso === false): selección puramente aleatoria,
+   sin mirar timesSeen; una pregunta puede volver a tocarte aunque hayan
+   quedado otras por ver, pero nunca se repite dos veces DENTRO del mismo
+   test (eso ya lo garantiza tomar el slice de un array sin reemplazo). */
+function selectStudyQuestions(pool, limit){
+  let ordered;
+  if(configState.repaso){
+    // Agrupa por timesSeen y baraja dentro de cada grupo, para que el
+    // criterio sea "menos vistas primero" pero sin orden fijo entre
+    // preguntas con el mismo número de veces vistas.
+    const byTimesSeen = {};
+    pool.forEach(q => {
+      const n = q.timesSeen || 0;
+      (byTimesSeen[n] = byTimesSeen[n] || []).push(q);
+    });
+    ordered = Object.keys(byTimesSeen)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .flatMap(n => shuffleArray(byTimesSeen[n]));
+  } else {
+    ordered = shuffleArray(pool);
+  }
+  const selected = limit ? ordered.slice(0, limit) : ordered;
+  return shuffleArray(selected); // el orden de presentación siempre se baraja
+}
+
 function startFromConfig(){
   const mode = configState.mode;
   if(mode === 'estudio'){
     let questions = buildQuestionsFromTopics(configState.topics);
     // Respeta el ajuste "Preguntas" (10/20/30/40 o "Sin límite"); antes se
     // ignoraba y siempre entraban todas las preguntas del tema.
-    if(configState.preguntas){
-      questions = shuffleArray(questions).slice(0, configState.preguntas);
-    }
+    questions = selectStudyQuestions(questions, configState.preguntas);
     startQuiz('estudio', questions, null);
   } else if(mode === 'examen'){
     const pool = buildQuestionsFromTopics(configState.topics);
