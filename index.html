@@ -1185,11 +1185,19 @@
     width:34px; height:34px; border-radius:50%; flex-shrink:0;
     border:1.5px solid var(--line); background: var(--card); color: var(--muted-2);
     display:flex; align-items:center; justify-content:center; cursor:pointer;
-    transition: border-color .12s, background .12s, color .12s;
+    transition: border-color .15s, background .15s, color .15s, transform .18s cubic-bezier(.34,1.56,.64,1);
   }
-  .quiz-luck-btn svg{ width:16px; height:16px; }
+  .quiz-luck-btn svg{ width:16px; height:16px; transition: fill .15s; }
   .quiz-luck-btn:hover{ border-color: var(--coral); color: var(--coral); }
-  .quiz-luck-btn.active{ border-color: var(--coral); background: rgba(242,102,92,0.16); color: var(--coral); }
+  /* Estado activo bien diferenciado del inactivo: además del color,
+     crece ligeramente ("pop") y el icono se rellena, para que se note
+     claramente el cambio al pulsar y al volver a pulsar. */
+  .quiz-luck-btn.active{
+    border-color: var(--coral); background: var(--coral); color: #1A0908;
+    transform: scale(1.12);
+    box-shadow: 0 0 0 4px rgba(242,102,92,0.18);
+  }
+  .quiz-luck-btn.active svg{ fill: #1A0908; }
   .quiz-luck-btn[hidden]{ display:none; }
   .quiz-finish-btn{
     font-family: var(--sans); font-weight:600; font-size:12px; color: var(--muted);
