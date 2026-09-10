@@ -187,6 +187,17 @@
   .ia-issue-box{ margin-bottom:8px; }
   .ia-notreviewed{ font-size:11.5px; color: var(--muted); margin-bottom:8px; }
   .ia-general-check{ display:flex; align-items:center; gap:6px; font-size:12.5px; color: var(--muted); margin-bottom:10px; }
+  .ia-preview-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:2px 0 10px; flex-wrap:wrap; }
+  .ia-preview-count{ font-size:12px; color: var(--muted); }
+  .ia-preview-toolbar-btns{ display:flex; gap:8px; }
+  .ia-toolbar-btn{ font-size:12px; font-weight:600; color: var(--blue); cursor:pointer; background:none; border:1px solid var(--line); border-radius:8px; padding:5px 10px; }
+  .ia-preview-item--priority{ border-color: var(--coral); }
+  .ia-collapse-toggle{ cursor:pointer; font-size:13px; color: var(--muted); font-weight:700; padding:0 4px; user-select:none; }
+  .ia-preview-summary{ cursor:pointer; font-size:13px; color: var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:2px 0 4px; }
+  .ia-status-dot{ display:inline-block; font-size:11px; font-weight:700; border-radius:6px; padding:1px 6px; margin-right:4px; }
+  .ia-status-dot--error{ color:#fff; background: var(--coral); }
+  .ia-status-dot--warn{ color:#111; background: var(--amber); }
+  .ia-status-dot--ok{ color:#111; background: var(--green); }
   .admin-section{ display:none; }
   .admin-section.active{ display:block; }
   .admin-card{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
@@ -1692,6 +1703,13 @@
           <div class="admin-form-actions hidden" id="iaReviewRow" style="flex-direction:column; align-items:stretch;">
             <div class="admin-card-meta" style="margin:0 0 8px;">Opcional: usa la clave de Gemini configurada en <b>Cambios BOE → Administración</b> para que la IA revise las preguntas ya extraídas (avisa de problemas de formato o contenido, sin tocar enunciados ni opciones) y proponga a qué Título/Capítulo/Sección/Artículo pertenece cada una.</div>
             <button class="btn btn-light" id="iaReviewBtn" onclick="adminReviewWithAI()">Revisar y ubicar con IA</button>
+          </div>
+          <div class="ia-preview-toolbar hidden" id="iaPreviewToolbar">
+            <span class="ia-preview-count" id="iaPreviewCount"></span>
+            <div class="ia-preview-toolbar-btns">
+              <button type="button" class="ia-toolbar-btn" onclick="iaExpandAll()">Desplegar todas</button>
+              <button type="button" class="ia-toolbar-btn" onclick="iaCollapseAll()">Plegar todas</button>
+            </div>
           </div>
           <div id="iaPreviewList"></div>
           <div class="admin-form-actions hidden" id="iaSaveRow">
@@ -5907,7 +5925,12 @@ function parseBookmarkletBlock(block){
     include: true, // preseleccionada; el admin desmarca si al revisar decide descartarla
     warnings,
     issues: [],
-    reviewedByAI: false
+    reviewedByAI: false,
+    saveError: null,
+    // Plegada por defecto para no mostrar todas las preguntas seguidas en una
+    // fila larguísima; las que tienen algún problema se abren solas porque
+    // necesitan revisión inmediata (ver iaNeedsAttention()).
+    collapsed: !warnings.length
   };
 }
 /* Detección determinista (sin IA) de a qué nivel del temario pertenece un
@@ -6006,6 +6029,9 @@ async function adminReviewWithAI(){
       const aiLoc = normalizeIALoc(r.location);
       iaPreviewData[i].location = iaLocIsEmpty(detLoc) ? aiLoc : detLoc;
       iaPreviewData[i].reviewedByAI = true;
+      // Si la IA ha encontrado alguna incidencia, o sigue sin ubicar el
+      // artículo, se despliega sola para que no haya que buscarla.
+      if(iaNeedsAttention(iaPreviewData[i])) iaPreviewData[i].collapsed = false;
     });
     renderIAPreview();
     const sinRevisar = iaPreviewData.filter(q => !q.reviewedByAI).length;
@@ -6024,18 +6050,77 @@ function iaLocField(i, tipo, field){
     'if(!iaPreviewData['+i+'].location.'+tipo+'.numero&&!iaPreviewData['+i+'].location.'+tipo+'.nombre)iaPreviewData['+i+'].location.'+tipo+'=null;"';
 }
 const IA_LOC_TITLE = { articulo:'Artículo' };
+/* Un elemento "necesita atención" si tiene un error de guardado, avisos de
+   formato, incidencias detectadas por la IA, o no tiene artículo ubicado y
+   no está confirmada como pregunta general. Estos se muestran primero y
+   desplegados, para no tener que buscarlos entre el resto. */
+function iaNeedsAttention(q){
+  const noLoc = iaLocIsEmpty(q.location) && !q.confirmedGeneral;
+  return !!(q.saveError || (q.warnings && q.warnings.length) || (q.issues && q.issues.length) || noLoc);
+}
+/* Orden de prioridad para mostrar: 1) con error de guardado, 2) con avisos/
+   incidencias o sin ubicar, 3) el resto en su orden original. Es solo un
+   orden de visualización: no reordena iaPreviewData, así que los índices
+   usados en los onchange/onclick (iaPreviewData[i]) siguen siendo válidos. */
+function iaSortedIndices(){
+  const idx = iaPreviewData.map((_, i) => i);
+  const score = q => q.saveError ? 0 : (iaNeedsAttention(q) ? 1 : 2);
+  idx.sort((a, b) => score(iaPreviewData[a]) - score(iaPreviewData[b]) || a - b);
+  return idx;
+}
+function iaToggleCollapse(i){
+  iaPreviewData[i].collapsed = !iaPreviewData[i].collapsed;
+  renderIAPreview();
+}
+function iaExpandAll(){
+  iaPreviewData.forEach(q => q.collapsed = false);
+  renderIAPreview();
+}
+function iaCollapseAll(){
+  // Las que necesitan atención (error, avisos o sin artículo) se quedan
+  // desplegadas incluso al "Plegar todas", porque si no se perdería de vista
+  // justo lo que hay que corregir.
+  iaPreviewData.forEach(q => { q.collapsed = !iaNeedsAttention(q); });
+  renderIAPreview();
+}
 function renderIAPreview(){
   const el = document.getElementById('iaPreviewList');
-  if(!iaPreviewData.length){ el.innerHTML = ''; return; }
-  el.innerHTML = iaPreviewData.map((q, i) => {
+  const toolbar = document.getElementById('iaPreviewToolbar');
+  const countEl = document.getElementById('iaPreviewCount');
+  if(!iaPreviewData.length){
+    el.innerHTML = '';
+    toolbar.classList.add('hidden');
+    return;
+  }
+  const conProblemas = iaPreviewData.filter(iaNeedsAttention).length;
+  toolbar.classList.remove('hidden');
+  countEl.textContent = iaPreviewData.length + ' pregunta' + (iaPreviewData.length===1?'':'s') +
+    (conProblemas ? ' · ' + conProblemas + ' con aviso' + (conProblemas===1?'':'s') + ' (arriba)' : '');
+  el.innerHTML = iaSortedIndices().map(i => {
+    const q = iaPreviewData[i];
     const noLoc = iaLocIsEmpty(q.location);
     const needsAttention = noLoc && !q.confirmedGeneral;
+    const priority = iaNeedsAttention(q);
+    const collapsed = !!q.collapsed;
+    const statusBadges =
+      (q.saveError ? '<span class="ia-status-dot ia-status-dot--error">Error al guardar</span>' : '') +
+      (q.warnings && q.warnings.length ? '<span class="ia-status-dot ia-status-dot--warn">'+q.warnings.length+' aviso'+(q.warnings.length===1?'':'s')+'</span>' : '') +
+      (q.issues && q.issues.length ? '<span class="ia-status-dot ia-status-dot--warn">'+q.issues.length+' incidencia'+(q.issues.length===1?'':'s')+'</span>' : '') +
+      (needsAttention ? '<span class="ia-status-dot ia-status-dot--warn">Sin artículo</span>' : '');
+    const previewText = (q.number!=null?'#'+q.number+' — ':'') + (q.question ? q.question : '(sin enunciado)');
     return (
-    '<div class="ia-preview-item">' +
+    '<div class="ia-preview-item'+(priority?' ia-preview-item--priority':'')+'">' +
       '<div class="ia-preview-head">' +
         '<label><input type="checkbox" '+(q.include?'checked':'')+' onchange="iaPreviewData['+i+'].include=this.checked">Incluir al guardar'+(q.number!=null?' <span class="admin-badge" style="margin-left:6px;">#'+q.number+'</span>':'')+'</label>' +
-        '<span class="ia-discard-btn" onclick="iaPreviewData.splice('+i+',1);renderIAPreview();">Descartar</span>' +
+        '<span style="display:flex; align-items:center; gap:8px;">' +
+          statusBadges +
+          '<span class="ia-collapse-toggle" onclick="iaToggleCollapse('+i+')" title="'+(collapsed?'Desplegar':'Plegar')+'">'+(collapsed?'▸ Desplegar':'▾ Plegar')+'</span>' +
+          '<span class="ia-discard-btn" onclick="iaPreviewData.splice('+i+',1);renderIAPreview();">Descartar</span>' +
+        '</span>' +
       '</div>' +
+      (collapsed ? '<div class="ia-preview-summary" onclick="iaToggleCollapse('+i+')">'+esc(previewText)+'</div>' : '') +
+      (collapsed ? '' :
+      (q.saveError ? '<div class="ia-issue-box"><div class="ia-warn" style="margin-bottom:2px;">⛔ '+esc(q.saveError)+'</div></div>' : '') +
       (q.warnings && q.warnings.length ? '<div class="ia-issue-box">' + q.warnings.map(w => '<div class="ia-warn" style="margin-bottom:2px;">⚠ '+esc(w)+'</div>').join('') + '</div>' : '') +
       (q.issues && q.issues.length ? '<div class="ia-issue-box">' + q.issues.map(w => '<div class="ia-issue">🔎 '+esc(w)+'</div>').join('') + '</div>' : '') +
       (!q.reviewedByAI ? '<div class="ia-notreviewed">Aún no revisada por IA.</div>' : '') +
@@ -6058,7 +6143,8 @@ function renderIAPreview(){
         '<input placeholder="Número de artículo" value="'+esc(q.location.articulo ? q.location.articulo.numero : '')+'" '+iaLocField(i,'articulo','numero')+'>' +
       '</div>' +
       '<div class="ia-general-check"><input type="checkbox" id="iaGeneral'+i+'" '+(q.confirmedGeneral?'checked':'')+' onchange="iaPreviewData['+i+'].confirmedGeneral=this.checked;renderIAPreview();">' +
-      '<label for="iaGeneral'+i+'" style="margin:0;">Es una pregunta general de todo el tema (sin artículo), a propósito</label></div>' +
+      '<label for="iaGeneral'+i+'" style="margin:0;">Es una pregunta general de todo el tema (sin artículo), a propósito</label></div>'
+      ) +
     '</div>'
     );
   }).join('');
@@ -6083,30 +6169,53 @@ async function ensureIANodePath(topicId, loc){
 }
 async function adminSaveIAQuestions(){
   const statusEl = document.getElementById('adminStatus-iaImport');
+  // Limpia errores de un intento de guardado anterior antes de revalidar.
+  iaPreviewData.forEach(q => q.saveError = null);
   const candidates = iaPreviewData.filter(q => q.include && q.question.trim() && q.options.filter(o=>o && o.trim()).length >= 2);
   if(!candidates.length){ statusEl.style.color = 'var(--coral)'; statusEl.textContent = 'No hay preguntas válidas seleccionadas para guardar.'; return; }
   const pending = candidates.filter(q => iaLocIsEmpty(q.location) && !q.confirmedGeneral);
   if(pending.length){
+    pending.forEach(q => { q.saveError = 'Falta el número de artículo, o márcala como general a propósito.'; q.collapsed = false; });
+    renderIAPreview();
     statusEl.style.color = 'var(--coral)';
-    statusEl.textContent = 'Hay ' + pending.length + ' pregunta' + (pending.length===1?'':'s') + ' sin número de artículo: indícalo o márca' + (pending.length===1?'la':'las') + ' como general a propósito antes de guardar.';
+    statusEl.textContent = 'Hay ' + pending.length + ' pregunta' + (pending.length===1?'':'s') + ' sin número de artículo: indícalo o márca' + (pending.length===1?'la':'las') + ' como general a propósito antes de guardar. Se ' + (pending.length===1?'ha':'han') + ' subido al principio de la lista.';
     return;
   }
   const btn = document.getElementById('iaSaveBtn');
   btn.disabled = true; btn.textContent = 'Guardando…';
   try{
-    const payload = [];
+    // 1ª pasada: resolver el nodo de cada candidata SIN guardar nada todavía.
+    // Si alguna falla (p.ej. el artículo no existe en el árbol), se marca con
+    // su propio error y se sube al principio de la lista, en vez de abortar
+    // en la primera y dejar al admin sin saber cuántas más fallan ni cuáles.
+    const resolved = [];
+    let hadError = false;
     for(const q of candidates){
-      const nodoId = iaLocIsEmpty(q.location) ? null : await ensureIANodePath(adminTreeTopicId, q.location);
-      payload.push({
-        topic_id: adminTreeTopicId,
-        nodo_id: nodoId,
-        question: q.question.trim(),
-        options: q.options.map(o => (o||'').trim()).filter(o => o.length > 0),
-        correct_index: q.correct_index,
-        explain: (q.explain||'').trim(),
-        difficulty: 'media'
-      });
+      try{
+        const nodoId = iaLocIsEmpty(q.location) ? null : await ensureIANodePath(adminTreeTopicId, q.location);
+        resolved.push({ q, nodoId });
+      } catch(err){
+        q.saveError = err.message || 'No se ha podido ubicar esta pregunta.';
+        q.collapsed = false;
+        hadError = true;
+      }
     }
+    if(hadError){
+      renderIAPreview();
+      const nErr = candidates.filter(q => q.saveError).length;
+      statusEl.style.color = 'var(--coral)';
+      statusEl.textContent = nErr + ' pregunta' + (nErr===1?' tiene':'s tienen') + ' un error y se ' + (nErr===1?'ha':'han') + ' subido al principio de la lista, marcada' + (nErr===1?'':'s') + ' en rojo. Corrígela' + (nErr===1?'':'s') + ' y vuelve a guardar.';
+      return;
+    }
+    const payload = resolved.map(({ q, nodoId }) => ({
+      topic_id: adminTreeTopicId,
+      nodo_id: nodoId,
+      question: q.question.trim(),
+      options: q.options.map(o => (o||'').trim()).filter(o => o.length > 0),
+      correct_index: q.correct_index,
+      explain: (q.explain||'').trim(),
+      difficulty: 'media'
+    }));
     const { error } = await sb.from('questions').insert(payload);
     if(error) throw new Error(error.message);
     statusEl.style.color = 'var(--green)';
