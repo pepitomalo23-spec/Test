@@ -6150,22 +6150,30 @@ function renderIAPreview(){
   }).join('');
 }
 /* Busca el nodo "articulo" del árbol que corresponde al número indicado (o null si
-   no se indicó número = pregunta general confirmada). Solo se pide el número: no se
-   crean nodos nuevos aquí, así que el artículo debe existir ya en "Estructura". */
+   no se indicó número = pregunta general confirmada). Solo se pide el número: se
+   busca en cualquier parte del árbol de este tema y se reutiliza si existe; si no
+   existe, se crea automáticamente colgado directamente del tema (sin título/
+   capítulo/sección), que es una ubicación válida según el esquema del árbol. Así
+   se puede ir construyendo la estructura sobre la marcha, sin bloquear el guardado
+   de preguntas. Si luego quieres reordenarlo bajo un capítulo/sección, se puede
+   mover a mano en "Estructura" sin perder ni duplicar preguntas. */
 async function ensureIANodePath(topicId, loc){
-  // Ahora solo se pide el número de artículo (sin título/capítulo/sección): se busca
-  // el nodo "articulo" con ese número en cualquier parte del árbol de este tema,
-  // sea cual sea su padre, y se reutiliza. No se crean nodos nuevos aquí porque sin
-  // título/capítulo/sección no sabríamos dónde colgarlos: si no existe, hay que
-  // crearlo antes a mano en "Estructura".
   const spec = loc.articulo;
   if(!spec || !spec.numero) return null;
   const numeroMatches = n => n.numero && String(n.numero).trim().toLowerCase() === String(spec.numero).trim().toLowerCase();
   const existing = adminData.nodes.find(n => n.topic_id === topicId && n.tipo === 'articulo' && numeroMatches(n));
-  if(!existing){
-    throw new Error('No existe ningún "Artículo ' + spec.numero + '" en el árbol de este tema. Créalo antes en Estructura.');
+  if(existing) return existing.id;
+  // No existe todavía: se crea como nivel raíz del tema, igual que hace
+  // adminSaveNode() al crear un nivel manualmente sin padre.
+  const payload = { topic_id: topicId, padre_id: null, tipo: 'articulo', numero: spec.numero, nombre: null };
+  const { data, error } = await sb.from('nodos_temario').insert(payload).select().single();
+  if(error){
+    throw new Error('No se ha podido crear automáticamente el "Artículo ' + spec.numero + '": ' + error.message);
   }
-  return existing.id;
+  // Se añade a la caché local para que, dentro del mismo guardado por lotes,
+  // otras preguntas del mismo artículo reutilicen este nodo en vez de crear duplicados.
+  adminData.nodes.push(data);
+  return data.id;
 }
 async function adminSaveIAQuestions(){
   const statusEl = document.getElementById('adminStatus-iaImport');
