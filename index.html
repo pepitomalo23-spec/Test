@@ -1365,7 +1365,12 @@
         </div>
         <div class="mode-card inteligente" id="modeCardInteligente" role="button" tabindex="0" onclick="openInteligente()">
           <div class="mode-emblem">
-            <img src="assets/icons/test-inteligente-logo.jpg" alt="" style="width:38px; height:38px; border-radius:9px; object-fit:cover;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2"/>
+              <path d="M18 14h-8"/>
+              <path d="M15 18h-5"/>
+              <rect width="8" height="4" x="10" y="6" rx="1"/>
+            </svg>
           </div>
           <div><div class="m-name">Test Inteligente</div><div class="m-sub" id="smartPendingLabel">— recomendadas hoy</div></div>
           <div class="mode-resume-btn hidden" role="button" tabindex="0" onclick="event.stopPropagation(); resumeQuiz();" onkeydown="event.stopPropagation(); if(event.key==='Enter')resumeQuiz();">
@@ -2672,6 +2677,20 @@ async function loadHistory(){
 }
 
 /* ---------- global stats screen ---------- */
+// Tras CUALQUIER alta/edición/borrado/movimiento de preguntas o nodos desde
+// el panel de administración, el QUESTIONS_POOL y TOPICS que usa el alumno
+// (ranking de temas, rueda de dominio, "Nivel general", etc.) se quedaban
+// desfasados hasta el siguiente login o el siguiente test. Esta función
+// recarga ese pool y vuelve a pintar las estadísticas al momento, para que
+// los porcentajes sean siempre fiables sin depender de recargar la página.
+async function adminRefreshStudentStats(){
+  try{
+    await loadAppData();
+    await refreshGlobalStats();
+  } catch(err){
+    console.error('Error refrescando estadísticas de alumno tras cambio de admin', err);
+  }
+}
 async function refreshGlobalStats(){
   if(!currentUser) return;
   const { data: sessions } = await sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
@@ -5558,6 +5577,7 @@ async function adminConfirmBulkMove(){
     await adminLoadTree();
     await adminLoadQuestions();
     renderTree();
+    await adminRefreshStudentStats();
     setTimeout(adminCancelBulkMove, 900);
   } catch(err){
     statusEl.style.color = 'var(--coral)';
@@ -5707,6 +5727,7 @@ async function adminDeleteNode(id){
   if(error){ alert(error.message); return; }
   await adminLoadQuestions();
   await adminLoadTree();
+  await adminRefreshStudentStats();
 }
 
 /* ---------- Mover un nivel (título/capítulo/sección/artículo) a otro sitio del árbol ---------- */
@@ -6234,6 +6255,7 @@ async function adminSaveIAQuestions(){
     await adminLoadTree();
     await adminLoadQuestions();
     renderTree();
+    await adminRefreshStudentStats();
     setTimeout(adminCancelIAImportForm, 1200);
   } catch(err){
     statusEl.style.color = 'var(--coral)';
@@ -6330,6 +6352,7 @@ async function adminSaveTreeQuestion(){
   showAdminStatus('treeQuestion', editingId ? 'Cambios guardados correctamente.' : 'Pregunta guardada correctamente.', false);
   await adminLoadQuestions();
   renderTree();
+  await adminRefreshStudentStats();
   setTimeout(adminCancelTreeQuestionForm, 700);
 }
 
@@ -6345,6 +6368,7 @@ async function adminDeleteQuestion(id){
   if(error){ alert(error.message); return; }
   await adminLoadQuestions();
   renderTree();
+  await adminRefreshStudentStats();
 }
 
 // Evita que los refrescos de token en segundo plano (silenciosos y
