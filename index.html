@@ -3016,7 +3016,7 @@ function renderTemas(){
     const isPartial = !!(topicSelected && restriction && restriction.size < groups.length);
     row.innerHTML =
       '<span class="topic-check' + (isPartial ? ' indeterminate' : '') + '">' + ICONS.check + '</span>' +
-      '<span class="topic-text"><span class="topic-name">' + (idx+1) + ' - ' + esc(t.name) + badge + '</span></span>' +
+      '<span class="topic-text"><span class="topic-name">' + esc(t.name) + badge + '</span></span>' +
       (hasGroups ? '<span class="topic-row-chevron' + (isOpen ? ' open' : '') + '">' + ICONS.chevron + '</span>' : '');
     row.querySelector('.topic-check').onclick = (e) => { e.stopPropagation(); toggleTopic(t.id); };
     if(hasGroups){
