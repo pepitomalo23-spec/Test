@@ -5790,7 +5790,7 @@ function adminConfirmGeneralPicker(){
   adminOpenTreeQuestionForm(nodeId);
 }
 /* ---------- Importar preguntas en bloque con IA (Gemini) ---------- */
-const IA_LOC_LEVELS = ['titulo','capitulo','seccion','articulo'];
+const IA_LOC_LEVELS = ['articulo'];
 let iaPreviewData = []; // preguntas propuestas por la IA, pendientes de revisar/guardar
 function adminOpenIAImportForm(){
   if(!adminTreeTopicId){ alert('Selecciona antes un tema.'); return; }
@@ -5982,12 +5982,10 @@ async function adminReviewWithAI(){
     '"issues": ["aviso corto en español sobre un posible problema de contenido, p.ej. texto cortado a mitad de frase, ' +
     'caracteres sueltos o mal codificados, opciones duplicadas o casi idénticas, o una explicación que contradice la ' +
     'opción marcada como correcta; deja el array vacío [] si no ves ningún problema"], ' +
-    '"location": {"titulo": {"numero":"I","nombre":"..."} o null, "capitulo": {"numero":"II","nombre":"..."} o null, ' +
-    '"seccion": {"numero":"1","nombre":"..."} o null, "articulo": {"numero":"15","nombre":"..."} o null}}\n' +
-    'Para "location", básate en las citas de artículos/títulos/capítulos que aparezcan en la propia pregunta o en su ' +
-    'explicación (p.ej. "Artículo 9.1", "TÍTULO I") y rellena solo los niveles que el texto realmente indique, sin ' +
-    'inventar números que no aparezcan. Si de verdad no hay forma de saber a qué artículo pertenece, deja "location" ' +
-    'con todos los niveles en null.\n' +
+    '"location": {"articulo": {"numero":"15"} o null}}\n' +
+    'Para "location", básate únicamente en las citas de artículo que aparezcan en la propia pregunta o en su ' +
+    'explicación (p.ej. "Artículo 9.1" → numero "9"), sin inventar números que no aparezcan. Si de verdad no hay ' +
+    'forma de saber a qué artículo pertenece, deja "location" con "articulo" en null.\n' +
     'Devuelve EXCLUSIVAMENTE un array JSON (sin markdown, sin ```), con exactamente ' + batch.length + ' elementos, ' +
     'uno por cada pregunta de entrada y en el mismo orden.\n\nPREGUNTAS:\n' + JSON.stringify(batch);
   try{
@@ -6025,7 +6023,7 @@ function iaLocField(i, tipo, field){
     'iaPreviewData['+i+'].location.'+tipo+'.'+field+'=this.value;' +
     'if(!iaPreviewData['+i+'].location.'+tipo+'.numero&&!iaPreviewData['+i+'].location.'+tipo+'.nombre)iaPreviewData['+i+'].location.'+tipo+'=null;"';
 }
-const IA_LOC_TITLE = { titulo:'Título', capitulo:'Capítulo', seccion:'Sección', articulo:'Artículo' };
+const IA_LOC_TITLE = { articulo:'Artículo' };
 function renderIAPreview(){
   const el = document.getElementById('iaPreviewList');
   if(!iaPreviewData.length){ el.innerHTML = ''; return; }
@@ -6053,53 +6051,35 @@ function renderIAPreview(){
       '</select>' +
       '<label>Explicación</label>' +
       '<textarea onchange="iaPreviewData['+i+'].explain=this.value">'+esc(q.explain)+'</textarea>' +
-      '<label>Ubicación en el temario</label>' +
+      '<label>Número de artículo</label>' +
       (q.autoDetected && !noLoc ? '<div class="ia-notreviewed" style="color:var(--green);">📍 Detectado automáticamente del texto — revisa que sea correcto.</div>' : '') +
-      (needsAttention ? '<div class="ia-warn">⚠ No se ha detectado artículo/capítulo para esta pregunta. Indícalo abajo o márcala como general a propósito.</div>' : '') +
-      IA_LOC_LEVELS.map(tipo => (
-        '<div class="ia-loc-row">' +
-          '<input placeholder="Nº" value="'+esc(q.location[tipo] ? q.location[tipo].numero : '')+'" '+iaLocField(i,tipo,'numero')+'>' +
-          '<input placeholder="'+IA_LOC_TITLE[tipo]+' — nombre (opcional)" value="'+esc(q.location[tipo] ? q.location[tipo].nombre : '')+'" '+iaLocField(i,tipo,'nombre')+'>' +
-        '</div>'
-      )).join('') +
+      (needsAttention ? '<div class="ia-warn">⚠ No se ha detectado el número de artículo para esta pregunta. Indícalo abajo o márcala como general a propósito.</div>' : '') +
+      '<div class="ia-loc-row">' +
+        '<input placeholder="Número de artículo" value="'+esc(q.location.articulo ? q.location.articulo.numero : '')+'" '+iaLocField(i,'articulo','numero')+'>' +
+      '</div>' +
       '<div class="ia-general-check"><input type="checkbox" id="iaGeneral'+i+'" '+(q.confirmedGeneral?'checked':'')+' onchange="iaPreviewData['+i+'].confirmedGeneral=this.checked;renderIAPreview();">' +
       '<label for="iaGeneral'+i+'" style="margin:0;">Es una pregunta general de todo el tema (sin artículo), a propósito</label></div>' +
     '</div>'
     );
   }).join('');
 }
-/* Busca (o crea si no existe) la cadena de niveles del árbol que indica la ubicación
-   de una pregunta, y devuelve el id del nivel más profundo indicado (o null si la
-   ubicación está vacía = pregunta general confirmada). Si hace falta crear algún
-   nivel, se crea aquí mismo para que el admin no tenga que ir antes a "Estructura". */
+/* Busca el nodo "articulo" del árbol que corresponde al número indicado (o null si
+   no se indicó número = pregunta general confirmada). Solo se pide el número: no se
+   crean nodos nuevos aquí, así que el artículo debe existir ya en "Estructura". */
 async function ensureIANodePath(topicId, loc){
-  let parentId = null, leafId = null;
-  for(const tipo of IA_LOC_LEVELS){
-    const spec = loc[tipo];
-    if(!spec || (!spec.numero && !spec.nombre)) continue;
-    const numeroMatches = n => (spec.numero && n.numero && String(n.numero).trim().toLowerCase() === String(spec.numero).trim().toLowerCase()) ||
-       (!spec.numero && spec.nombre && n.nombre && n.nombre.trim().toLowerCase() === spec.nombre.trim().toLowerCase());
-    let existing = adminData.nodes.find(n => n.topic_id === topicId && (n.padre_id||null) === parentId && n.tipo === tipo && numeroMatches(n));
-    if(!existing){
-      // Ya existe un nodo con el mismo tipo+número en este tema pero colgando de un
-      // padre distinto: probablemente es el mismo artículo mal ubicado (p.ej. por una
-      // ubicación de título/capítulo distinta propuesta por la IA), no uno nuevo.
-      // Se avisa en vez de crear un duplicado silencioso.
-      const sameNumberElsewhere = adminData.nodes.find(n => n.topic_id === topicId && n.tipo === tipo && numeroMatches(n));
-      if(sameNumberElsewhere){
-        throw new Error('Ya existe "' + IA_LOC_TITLE[tipo] + ' ' + (spec.numero||spec.nombre) + '" en otra parte del árbol de este tema. ' +
-          'Revisa la ubicación de esta pregunta a mano (probablemente la IA le asignó un título/capítulo distinto al del nodo existente) en vez de crear uno nuevo.');
-      }
-      const payload = { topic_id: topicId, padre_id: parentId, tipo, numero: spec.numero || null, nombre: spec.nombre || null };
-      const { data, error } = await sb.from('nodos_temario').insert(payload).select().single();
-      if(error) throw new Error('No se pudo crear "'+(IA_LOC_TITLE[tipo])+' '+(spec.numero||spec.nombre)+'": ' + error.message);
-      existing = data;
-      adminData.nodes.push(existing);
-    }
-    parentId = existing.id;
-    leafId = existing.id;
+  // Ahora solo se pide el número de artículo (sin título/capítulo/sección): se busca
+  // el nodo "articulo" con ese número en cualquier parte del árbol de este tema,
+  // sea cual sea su padre, y se reutiliza. No se crean nodos nuevos aquí porque sin
+  // título/capítulo/sección no sabríamos dónde colgarlos: si no existe, hay que
+  // crearlo antes a mano en "Estructura".
+  const spec = loc.articulo;
+  if(!spec || !spec.numero) return null;
+  const numeroMatches = n => n.numero && String(n.numero).trim().toLowerCase() === String(spec.numero).trim().toLowerCase();
+  const existing = adminData.nodes.find(n => n.topic_id === topicId && n.tipo === 'articulo' && numeroMatches(n));
+  if(!existing){
+    throw new Error('No existe ningún "Artículo ' + spec.numero + '" en el árbol de este tema. Créalo antes en Estructura.');
   }
-  return leafId;
+  return existing.id;
 }
 async function adminSaveIAQuestions(){
   const statusEl = document.getElementById('adminStatus-iaImport');
@@ -6108,7 +6088,7 @@ async function adminSaveIAQuestions(){
   const pending = candidates.filter(q => iaLocIsEmpty(q.location) && !q.confirmedGeneral);
   if(pending.length){
     statusEl.style.color = 'var(--coral)';
-    statusEl.textContent = 'Hay ' + pending.length + ' pregunta' + (pending.length===1?'':'s') + ' sin ubicación: indica el artículo/capítulo o márca' + (pending.length===1?'la':'las') + ' como general a propósito antes de guardar.';
+    statusEl.textContent = 'Hay ' + pending.length + ' pregunta' + (pending.length===1?'':'s') + ' sin número de artículo: indícalo o márca' + (pending.length===1?'la':'las') + ' como general a propósito antes de guardar.';
     return;
   }
   const btn = document.getElementById('iaSaveBtn');
@@ -6130,7 +6110,7 @@ async function adminSaveIAQuestions(){
     const { error } = await sb.from('questions').insert(payload);
     if(error) throw new Error(error.message);
     statusEl.style.color = 'var(--green)';
-    statusEl.textContent = payload.length + ' pregunta' + (payload.length===1?'':'s') + ' guardada' + (payload.length===1?'':'s') + ' correctamente' + (payload.some(p=>p.nodo_id) ? ', creando la estructura que hiciera falta.' : '.');
+    statusEl.textContent = payload.length + ' pregunta' + (payload.length===1?'':'s') + ' guardada' + (payload.length===1?'':'s') + ' correctamente.';
     iaPreviewData = [];
     renderIAPreview();
     document.getElementById('iaSaveRow').classList.add('hidden');
