@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>pj.fire</title>
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-title" content="pj.fire">
@@ -1040,6 +1040,26 @@
   .own-note-image{
     display:block; max-width:100%; border-radius:12px; border:1px solid var(--line-soft); cursor:zoom-in;
   }
+  /* Visor de imagen a pantalla completa: la web en sí no se puede ampliar
+     (viewport con user-scalable=no), pero aquí dentro sí, tocando la
+     imagen alterna entre verla entera y verla ampliada (zoom in/out). */
+  .image-lightbox{
+    position:fixed; inset:0; z-index:9999; background:rgba(6,6,8,0.94);
+    display:none; align-items:center; justify-content:center;
+    overflow:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y pinch-zoom;
+  }
+  .image-lightbox.show{ display:flex; }
+  .image-lightbox img{
+    display:block; max-width:92vw; max-height:88vh; border-radius:8px;
+    cursor:zoom-in; transition: transform .18s ease; touch-action:pan-x pan-y pinch-zoom;
+  }
+  .image-lightbox img.zoomed{ max-width:none; max-height:none; width:auto; height:auto; transform:scale(2.2); cursor:zoom-out; }
+  .image-lightbox-close{
+    position:absolute; top:16px; right:16px; width:38px; height:38px; border-radius:50%;
+    background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); color:#fff;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .image-lightbox-close svg{ width:18px; height:18px; }
   .own-note-editor{
     margin-top:16px; padding:16px 16px 18px; border-radius:14px;
     background: rgba(255,255,255,0.03); border:1px dashed rgba(245,192,67,0.4);
@@ -3652,6 +3672,29 @@ function ownNoteImageUrls(note){
   return [];
 }
 
+/* Visor de imagen a pantalla completa. La web en general no se puede
+   ampliar (pellizcar/doble toque desactivado), pero al tocar una imagen
+   de una nota se abre aquí a tamaño grande, y dentro de este visor sí se
+   puede acercar/alejar tocando la propia imagen. */
+function openImageLightbox(url){
+  const box = document.getElementById('imageLightbox');
+  const img = document.getElementById('imageLightboxImg');
+  if(!box || !img) return;
+  img.src = url;
+  img.classList.remove('zoomed');
+  box.classList.add('show');
+}
+function closeImageLightbox(e){
+  if(e) e.stopPropagation();
+  const box = document.getElementById('imageLightbox');
+  const img = document.getElementById('imageLightboxImg');
+  if(box) box.classList.remove('show');
+  if(img) img.classList.remove('zoomed');
+}
+function toggleImageLightboxZoom(img){
+  img.classList.toggle('zoomed');
+}
+
 /* Tarjeta de "nuestra" nota (texto y/o hasta 5 imágenes escritas/subidas a
    mano por vosotros, no generadas por IA). Mismo hueco que ocupaba antes
    solo la IA, pero con su propio botón "Nota": en cuanto alguien escribe
@@ -3664,7 +3707,7 @@ function ownNoteCardHtml(note, questionId){
   const textHtml = note.text ? '<div class="own-note-text">' + esc(note.text) + '</div>' : '';
   const imagesHtml = images.length
     ? '<div class="own-note-image-wrap">' +
-        images.map(url => '<img class="own-note-image" src="' + esc(url) + '" alt="Imagen añadida por vosotros" onclick="event.stopPropagation();">').join('') +
+        images.map(url => '<img class="own-note-image" src="' + esc(url) + '" alt="Imagen añadida por vosotros" onclick="event.stopPropagation();openImageLightbox(\'' + esc(url) + '\')">').join('') +
       '</div>'
     : '';
   return '<div class="own-note-card">' +
@@ -6493,5 +6536,11 @@ sb.auth.onAuthStateChange((event, session) => {
   }
 });
 </script>
+<div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
+  <button type="button" class="image-lightbox-close" onclick="closeImageLightbox(event)" title="Cerrar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
+  <img id="imageLightboxImg" src="" alt="Imagen ampliada" onclick="event.stopPropagation();toggleImageLightboxZoom(this)">
+</div>
 </body>
 </html>
