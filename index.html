@@ -3473,6 +3473,16 @@ function smartDaysSince(iso){
   if(!iso) return null;
   return (Date.now() - new Date(iso).getTime()) / 86400000;
 }
+// ¿"iso" cae en el mismo día de calendario (hora local) que ahora mismo?
+// Se usa para las preguntas en "Progreso": tras acertar, aunque no lleven
+// los 3 aciertos seguidos necesarios para darlas por recuperadas, no
+// vuelven a salir en Test Inteligente hasta que cambie el día.
+function smartIsToday(iso){
+  if(!iso) return false;
+  const d = new Date(iso);
+  const now = new Date();
+  return d.toDateString() === now.toDateString();
+}
 // Cuántos días "debería" aguantar una pregunta dominada sin considerarse
 // en riesgo de olvido, según cuántas veces se ha visto ya. Crece con cada
 // repaso (como el intervalo de Anki), con un tope de 90 días.
@@ -3490,7 +3500,14 @@ function smartDifficultyWeight(q){
 // esas quedan fuera del Test Inteligente por completo.
 function smartClassify(q){
   if(q.masteryStatus === 'red') return 'red';
-  if(q.masteryStatus === 'yellow') return 'yellow';
+  if(q.masteryStatus === 'yellow'){
+    // Está en racha de recuperación (ya acertó al menos una vez tras
+    // fallarla, pero todavía no lleva los 3 aciertos seguidos). Si ese
+    // último acierto fue HOY, descansa hasta mañana: no vuelve a salir
+    // en Test Inteligente el mismo día en que se acaba de acertar.
+    if(smartIsToday(q.lastAttemptAt)) return null;
+    return 'yellow';
+  }
   if(q.masteryStatus === 'green'){
     const days = smartDaysSince(q.lastAttemptAt);
     const interval = smartReviewInterval(q);
