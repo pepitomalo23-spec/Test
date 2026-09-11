@@ -1010,6 +1010,20 @@
   .own-note-image-btn.loading{ cursor:default; opacity:.9; }
   .own-note-image-btn.loading svg{ animation: ownNoteSpin .8s linear infinite; }
   @keyframes ownNoteSpin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+  /* Bandeja arriba en la cabecera del test: una miniatura por cada imagen
+     que se está subiendo en ese momento (de cualquier pregunta), con un
+     aro girando encima. Desaparece en cuanto esa imagen concreta termina
+     de subirse, sin esperar a las demás. Sigue funcionando aunque se
+     cambie de pregunta o se salga del test, porque la subida en sí no
+     depende de qué pantalla se esté viendo. */
+  .quiz-upload-tray{ display:flex; align-items:center; gap:5px; }
+  .quiz-upload-thumb{ position:relative; width:22px; height:22px; border-radius:6px; overflow:hidden; flex-shrink:0; }
+  .quiz-upload-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .quiz-upload-thumb::after{
+    content:''; position:absolute; inset:-2px; border-radius:8px;
+    border:2px solid rgba(245,192,67,0.25); border-top-color: var(--amber);
+    animation: ownNoteSpin .8s linear infinite;
+  }
   .own-note-result{ display:none; margin-top:20px; }
   .own-note-result.show{ display:block; animation: failPanelIn .16s ease; }
   .own-note-card{
@@ -1906,6 +1920,7 @@
           Volver
         </span>
         <div class="quiz-head-right">
+          <div class="quiz-upload-tray" id="quizUploadTray"></div>
           <span class="quiz-progress" id="quizCount">1 / 4</span>
           <span class="quiz-timer" id="quizTimer">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
@@ -3643,6 +3658,32 @@ function noteBtnHtml(questionId){
    un elemento del DOM que pueda haber quedado obsoleto tras navegar. */
 const pendingNoteImageUploads = {};
 
+/* Bandeja global de miniaturas "subiendo…" en la cabecera del test. Es
+   independiente de qué pregunta o pantalla se esté viendo: mientras el
+   test siga abierto (aunque se haya salido a Inicio) las subidas siguen
+   en marcha y esta bandeja, si el elemento existe en pantalla, refleja
+   el estado real en cada momento. */
+let uploadTrayItems = [];
+function addUploadTrayItem(file){
+  const id = 'up_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+  uploadTrayItems.push({ id, url: URL.createObjectURL(file) });
+  renderUploadTray();
+  return id;
+}
+function removeUploadTrayItem(id){
+  const item = uploadTrayItems.find(it => it.id === id);
+  if(item) URL.revokeObjectURL(item.url);
+  uploadTrayItems = uploadTrayItems.filter(it => it.id !== id);
+  renderUploadTray();
+}
+function renderUploadTray(){
+  const el = document.getElementById('quizUploadTray');
+  if(!el) return;
+  el.innerHTML = uploadTrayItems.map(it =>
+    '<span class="quiz-upload-thumb"><img src="' + it.url + '" alt=""></span>'
+  ).join('');
+}
+
 function quickImageBtnInnerHtml(questionId){
   const inputId = 'quickImg_' + questionId;
   if(pendingNoteImageUploads[questionId]){
@@ -3848,7 +3889,12 @@ async function quickAddOwnNoteImages(questionId, inputEl){
   try{
     const uploadedUrls = [];
     for(let i = 0; i < files.length; i++){
-      uploadedUrls.push(await uploadOwnNoteImage(questionId, files[i]));
+      const trayId = addUploadTrayItem(files[i]);
+      try{
+        uploadedUrls.push(await uploadOwnNoteImage(questionId, files[i]));
+      } finally {
+        removeUploadTrayItem(trayId);
+      }
     }
     const finalImages = keptImages.concat(uploadedUrls).slice(0, 5);
 
