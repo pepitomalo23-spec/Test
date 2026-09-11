@@ -1946,7 +1946,6 @@
           <div class="fallos-count"><span id="smartTotal">0</span></div>
           <div class="fallos-label">preguntas recomendadas para hoy</div>
         </div>
-        <div class="param-options" id="smartSizeOptions" style="justify-content:center; margin-bottom:18px;"></div>
         <div class="fallos-breakdown" id="smartBreakdown"></div>
         <div class="modal-footer">
           <button class="btn btn-primary btn-block btn-light" id="smartStartBtn" onclick="startSmartTest()">Empezar test inteligente</button>
@@ -3456,21 +3455,18 @@ async function eliminarFallosPendientes(){
 /* ---------- Test Inteligente (repaso adaptativo tipo Anki) ----------
    No guarda nada nuevo en Supabase: se apoya en los mismos datos que ya
    calcula computeQuestionMastery() (masteryStatus, failCount, timesSeen,
-   lastAttemptAt). La idea es simple:
-   - Rojas y amarillas (falladas / en proceso de recuperarse) tienen
-     siempre la prioridad más alta.
-   - Las preguntas dominadas (verdes) no desaparecen para siempre: cuanto
-     más tiempo llevan sin verse en relación a lo "afianzadas" que están
-     (más veces vistas = intervalo más largo antes de considerarse en
-     riesgo), más sube su prioridad. Esto es lo mismo que hace Anki con
-     la repetición espaciada, pero calculado al vuelo con lo que ya
-     tenemos, sin tablas ni columnas nuevas.
-   - Las preguntas nunca respondidas entran con prioridad baja, para ir
-     ampliando cobertura del temario sin monopolizar el test.
-   Un tope diario (smartTestSize) y unos cupos por categoría evitan que
-   el test acabe siendo "solo fallos" o "solo preguntas nuevas". */
-const SMART_SIZE_OPTIONS = [10, 20, 30, 40];
-let smartTestSize = 20;
+   lastAttemptAt). Solo entran preguntas que TOCAN hoy, en 3 grupos reales
+   (los mismos que usa el resto de la app para masteryStatus):
+   - Fallos: el último intento fue un fallo.
+   - Progreso: falladas antes y ahora en racha de recuperación (aciertos
+     seguidos, pero todavía menos de 3).
+   - Acertadas: ya dominadas (nunca falladas, o recuperadas del todo), pero
+     ya ha pasado su intervalo de repaso (como el intervalo de Anki: crece
+     con cada vez que se ven, hasta 90 días) y toca repasarlas de memoria.
+   Las preguntas nunca respondidas NO entran aquí (para eso está "Modo
+   estudio"), y las dominadas que aún no tocan repasar tampoco. No hay
+   ningún tope ni relleno artificial: el test de hoy es exactamente el
+   número de preguntas que de verdad tocan hoy, ni una más ni una menos. */
 let smartTestPicked = []; // últimas preguntas calculadas (se usan al pulsar "Empezar")
 
 function smartDaysSince(iso){
@@ -3489,119 +3485,70 @@ function smartDifficultyWeight(q){
   if(q.difficulty === 'facil') return 0.9;
   return 1;
 }
-// Categoría "humana" de cada pregunta, la misma que se muestra en el
-// desglose del recuadro antes de empezar el test.
+// Categoría real de cada pregunta para HOY. Devuelve null si hoy no le toca
+// (nunca vista, o dominada pero su intervalo de repaso aún no ha vencido):
+// esas quedan fuera del Test Inteligente por completo.
 function smartClassify(q){
   if(q.masteryStatus === 'red') return 'red';
   if(q.masteryStatus === 'yellow') return 'yellow';
-  if(q.masteryStatus === null) return 'new';
-  const days = smartDaysSince(q.lastAttemptAt);
-  const interval = smartReviewInterval(q);
-  return (days !== null && days >= interval) ? 'memory' : 'mastered';
+  if(q.masteryStatus === 'green'){
+    const days = smartDaysSince(q.lastAttemptAt);
+    const interval = smartReviewInterval(q);
+    return (days !== null && days >= interval) ? 'memory' : null;
+  }
+  return null; // nunca respondida: no entra en Test Inteligente
 }
-function smartScore(q){
+function smartScore(q, cat){
   const w = smartDifficultyWeight(q);
-  const cat = smartClassify(q);
   if(cat === 'red') return 100 * w;
   if(cat === 'yellow') return 60 * w;
-  if(cat === 'new') return 20 * w;
-  if(cat === 'mastered') return 5 * w;
   // 'memory': cuanto más se haya pasado del intervalo esperado, más urge
   const days = smartDaysSince(q.lastAttemptAt);
   const interval = smartReviewInterval(q);
   const ratio = interval > 0 ? (days / interval) : 1;
   return Math.min(55, 25 * ratio) * w;
 }
-// Arma el test del día: puntúa todo el banco, reserva un cupo máximo por
-// categoría (para que no salga "solo fallos" aunque tengas 300 rojas) y
-// rellena los huecos que sobren por pura puntuación.
-function buildSmartTest(limit){
-  const scored = QUESTIONS_POOL.map(q => ({ q, cat: smartClassify(q), score: smartScore(q) }));
-  const byCat = { red: [], yellow: [], memory: [], new: [], mastered: [] };
-  scored.forEach(s => byCat[s.cat].push(s));
-  Object.values(byCat).forEach(arr => arr.sort((a, b) => b.score - a.score));
-
-  const caps = {
-    red: Math.max(1, Math.ceil(limit * 0.5)),
-    yellow: Math.max(1, Math.ceil(limit * 0.3)),
-    memory: Math.max(1, Math.ceil(limit * 0.3)),
-    new: Math.max(1, Math.ceil(limit * 0.2)),
-    mastered: limit
-  };
-  const picked = [];
-  const pickedIds = new Set();
-  ['red', 'yellow', 'memory', 'new', 'mastered'].forEach(cat => {
-    byCat[cat].slice(0, caps[cat]).forEach(s => {
-      if(picked.length < limit && !pickedIds.has(s.q.id)){ picked.push(s); pickedIds.add(s.q.id); }
-    });
+// Arma el test de HOY: solo preguntas que realmente tocan (fallos, en
+// progreso, o dominadas cuyo repaso ya venció), ordenadas por urgencia.
+// Sin cupos, sin relleno, sin tamaño fijo: el total es el que es.
+function buildSmartTest(){
+  const byCat = { red: [], yellow: [], memory: [] };
+  QUESTIONS_POOL.forEach(q => {
+    const cat = smartClassify(q);
+    if(cat) byCat[cat].push({ q, cat, score: smartScore(q, cat) });
   });
-  if(picked.length < limit){
-    scored.sort((a, b) => b.score - a.score);
-    for(const s of scored){
-      if(picked.length >= limit) break;
-      if(!pickedIds.has(s.q.id)){ picked.push(s); pickedIds.add(s.q.id); }
-    }
-  }
-  const counts = { red: byCat.red.length, yellow: byCat.yellow.length, memory: byCat.memory.length, new: byCat.new.length };
-  const selectedCounts = picked.reduce((acc, s) => { acc[s.cat] = (acc[s.cat] || 0) + 1; return acc; }, {});
-  return { questions: picked.map(s => s.q), counts, selectedCounts };
+  Object.values(byCat).forEach(arr => arr.sort((a, b) => b.score - a.score));
+  const picked = [...byCat.red, ...byCat.yellow, ...byCat.memory];
+  const counts = { red: byCat.red.length, yellow: byCat.yellow.length, memory: byCat.memory.length };
+  return { questions: picked.map(s => s.q), counts };
 }
 function smartUrgentCount(){
-  // "urgentes" = lo que de verdad conviene repasar ya (rojas + amarillas +
-  // memoria vencida). Es lo que se muestra como aviso en la tarjeta de home.
-  return QUESTIONS_POOL.filter(q => {
-    const c = smartClassify(q);
-    return c === 'red' || c === 'yellow' || c === 'memory';
-  }).length;
-}
-function renderSmartSizeOptions(){
-  const el = document.getElementById('smartSizeOptions');
-  if(!el) return;
-  el.innerHTML = '';
-  SMART_SIZE_OPTIONS.forEach(n => {
-    const b = document.createElement('span');
-    b.className = 'param-opt' + (smartTestSize === n ? ' selected' : '');
-    b.setAttribute('role', 'button'); b.setAttribute('tabindex', '0');
-    b.textContent = n + ' preguntas';
-    b.onclick = () => { smartTestSize = n; renderSmartIntro(); };
-    el.appendChild(b);
-  });
+  // "urgentes" = todo lo que hoy toca en el Test Inteligente (fallos +
+  // progreso + memoria vencida). Es lo que se muestra como aviso en la
+  // tarjeta de home.
+  return QUESTIONS_POOL.filter(q => !!smartClassify(q)).length;
 }
 const SMART_CAT_LABELS = {
-  fallos: '🔴 Fallos', progreso: '🟠 En progreso', acertadas: '🟢 Acertadas'
+  red: '🔴 Fallos', yellow: '🟠 Progreso', memory: '🟢 Acertadas'
 };
 function renderSmartIntro(){
   if(!currentUser || !QUESTIONS_POOL.length) return;
-  const result = buildSmartTest(smartTestSize);
+  const result = buildSmartTest();
   smartTestPicked = result.questions;
   const totalEl = document.getElementById('smartTotal');
   if(totalEl) totalEl.textContent = smartTestPicked.length;
   const el = document.getElementById('smartBreakdown');
   if(el){
     el.innerHTML = '';
-    // Solo el desglose del test de HOY (lo que realmente se ha elegido para
-    // esta sesión), agrupado en 3 grupos sencillos en vez de las 5
-    // categorías internas del algoritmo:
-    // - Fallos: preguntas falladas en el último intento.
-    // - En progreso: falladas antes y ahora en racha de recuperación, o
-    //   preguntas que todavía no habías visto nunca.
-    // - Acertadas: ya dominadas, hoy solo tocan de repaso de memoria.
-    const sc = result.selectedCounts;
-    const grouped = {
-      fallos: sc.red || 0,
-      progreso: (sc.yellow || 0) + (sc.new || 0),
-      acertadas: (sc.memory || 0) + (sc.mastered || 0)
-    };
-    ['fallos', 'progreso', 'acertadas'].forEach(cat => {
-      const n = grouped[cat];
-      if(n === 0) return; // no mostrar grupos vacíos en el test de hoy
+    ['red', 'yellow', 'memory'].forEach(cat => {
+      const n = result.counts[cat] || 0;
+      if(n === 0) return; // no mostrar grupos vacíos: solo lo que hay hoy
       const row = document.createElement('div');
       row.className = 'fallos-row';
       row.innerHTML = '<span class="fallos-row-name">' + SMART_CAT_LABELS[cat] + '</span><span class="fallos-row-count">' + n + '</span>';
       el.appendChild(row);
     });
   }
-  renderSmartSizeOptions();
   const startBtn = document.getElementById('smartStartBtn');
   if(startBtn) startBtn.disabled = smartTestPicked.length === 0;
 }
