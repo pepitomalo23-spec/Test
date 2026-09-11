@@ -3473,8 +3473,9 @@ function startQuiz(mode, questions, timeMinutes){
   showScreen('screen-quiz');
   document.getElementById('quizCardView').style.display = (viewMode === 'card') ? 'block' : 'none';
   document.getElementById('quizListView').style.display = (viewMode === 'list') ? 'block' : 'none';
-  // en modo tarjeta (estudio / fallos) no se muestra el contador de preguntas arriba a la derecha
-  document.getElementById('quizCount').style.display = (viewMode === 'card') ? 'none' : '';
+  // el contador de progreso ahora se muestra en todos los modos, incluido
+  // el modo tarjeta (estudio / fallos / inteligente)
+  document.getElementById('quizCount').style.display = '';
   // el botón "Finalizar" de la esquina es propio de la vista tarjeta: en
   // examen/simulacro (vista lista) ya existe su propio botón "Finalizar"
   // al final del listado.
@@ -3493,7 +3494,7 @@ function resumeQuiz(){
   showScreen('screen-quiz');
   document.getElementById('quizCardView').style.display = (quizState.viewMode === 'card') ? 'block' : 'none';
   document.getElementById('quizListView').style.display = (quizState.viewMode === 'list') ? 'block' : 'none';
-  document.getElementById('quizCount').style.display = (quizState.viewMode === 'card') ? 'none' : '';
+  document.getElementById('quizCount').style.display = '';
   document.getElementById('quizFinishTopBtn').style.display = (quizState.viewMode === 'card') ? '' : 'none';
   if(quizState.viewMode === 'card'){
     renderQuestion();
