@@ -203,6 +203,9 @@
   .admin-card{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
   .addition-card-peek{ position:relative; cursor:pointer; overflow:hidden; }
   .addition-card-peek .admin-card-row{ filter: blur(4px); opacity:.55; user-select:none; }
+  .hist-item.addition-card-peek{ position:relative; cursor:pointer; overflow:hidden; }
+  .hist-item.addition-card-peek .hist-icon,
+  .hist-item.addition-card-peek .hist-content{ filter: blur(4px); opacity:.55; user-select:none; }
   .addition-card-peek-label{
     position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     font-family: var(--sans); font-weight:700; font-size:13px; color:#fff;
@@ -2613,10 +2616,20 @@ async function loadAppData(){
 }
 
 
+/* Igual que en "Notas y explicaciones IA": como mucho las 10 entradas más
+   recientes del historial (ya viene ordenado del más nuevo al más viejo);
+   si hay más, se ve una 11ª tarjeta difuminada con "Pulsa para ver más"
+   que despliega el resto al tocarla. */
+let historyShowAll = false;
 function renderHistory(){
   const el = document.getElementById('historyList');
   el.innerHTML = '';
-  HISTORY.forEach(h => {
+
+  const LIMIT = 10;
+  const hasMore = !historyShowAll && HISTORY.length > LIMIT;
+  const visibleHistory = hasMore ? HISTORY.slice(0, LIMIT) : HISTORY;
+
+  visibleHistory.forEach(h => {
     const dateEl = document.createElement('div');
     dateEl.className = 'hist-date';
     dateEl.textContent = h.date;
@@ -2669,6 +2682,29 @@ function renderHistory(){
     delBtn.onkeydown = (e) => { e.stopPropagation(); };
     el.appendChild(item);
   });
+
+  if(hasMore){
+    const peek = HISTORY[LIMIT];
+    const peekWrap = document.createElement('div');
+    peekWrap.className = 'hist-item t-' + peek.type + ' addition-card-peek';
+    peekWrap.setAttribute('role','button');
+    peekWrap.setAttribute('tabindex','0');
+    peekWrap.innerHTML =
+      '<div class="hist-icon">' + ICONS[peek.type] + '</div>' +
+      '<div class="hist-content">' +
+        '<div class="hist-top">' +
+          '<div class="hist-title">' + peek.title + '</div>' +
+          '<div class="hist-top-right"><div class="hist-score">Nota <b>' + peek.nota + '</b></div></div>' +
+        '</div>' +
+        '<div class="hist-bottom">' +
+          '<div class="hist-meta">' + ICONS.clock + peek.time + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="addition-card-peek-label">Pulsa para ver más</div>';
+    peekWrap.onclick = () => { historyShowAll = true; renderHistory(); };
+    peekWrap.onkeydown = (e) => { if(e.key === 'Enter'){ historyShowAll = true; renderHistory(); } };
+    el.appendChild(peekWrap);
+  }
 }
 
 /* ---------- borrar un test del historial ---------- */
@@ -2862,7 +2898,7 @@ function showScreen(id){
     quizHeadObserver.disconnect();
     quizHeadObserver = null;
   }
-  if(id === 'screen-home') updateModeCardsLockState();
+  if(id === 'screen-home'){ updateModeCardsLockState(); historyShowAll = false; renderHistory(); }
   if(id === 'screen-boe-cambios') loadNormativas();
   if(id === 'screen-my-additions'){ myAdditionsShowAll = false; renderMyAdditionsList(); }
 }
