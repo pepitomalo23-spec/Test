@@ -855,6 +855,7 @@
   .fail-history-row .fh-badge svg{ width:13px; height:13px; }
   .fh-ok .fh-badge{ background: rgba(52,211,153,0.14); color: var(--green); }
   .fh-bad .fh-badge{ background: rgba(242,102,92,0.14); color: var(--coral); }
+  .fh-blank .fh-badge{ background: rgba(255,255,255,0.06); color: var(--muted-2); }
   .fail-history-loading, .fail-history-empty{
     font-family: var(--mono); font-size:11.5px; color: var(--muted-2); padding:14px 15px;
   }
@@ -2279,6 +2280,7 @@ async function computeQuestionMastery(questionIds){
   const byQuestion = {};
   (data || []).forEach(row => {
     if(!row.test_sessions) return; // por seguridad: sin sesión asociada (ya borrada)
+    if(row.is_correct === null) return; // dejada en blanco: no es un intento real, no cuenta
     (byQuestion[row.question_id] = byQuestion[row.question_id] || []).push(row);
   });
 
@@ -3752,10 +3754,13 @@ async function toggleFailHistory(questionId, toggleEl){
       panel.innerHTML = rows.map(r => {
         const d = new Date(r.test_sessions.created_at);
         const dateStr = d.toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' });
-        const icon = r.is_correct
-          ? '<span class="fh-ok"><span class="fh-badge">' + ICONS.check + '</span></span>'
-          : '<span class="fh-bad"><span class="fh-badge">' + ICONS.cross + '</span></span>';
-        return '<div class="fail-history-row">' + icon + '<span>' + dateStr + '</span></div>';
+        const icon = r.is_correct === null
+          ? '<span class="fh-blank"><span class="fh-badge">' + ICONS.pending + '</span></span>'
+          : (r.is_correct
+            ? '<span class="fh-ok"><span class="fh-badge">' + ICONS.check + '</span></span>'
+            : '<span class="fh-bad"><span class="fh-badge">' + ICONS.cross + '</span></span>');
+        const label = r.is_correct === null ? ' <span style="color:var(--muted-2)">(en blanco)</span>' : '';
+        return '<div class="fail-history-row">' + icon + '<span>' + dateStr + label + '</span></div>';
       }).join('');
     }
     panel.dataset.loaded = '1';
@@ -4946,10 +4951,17 @@ async function finishQuiz(){
         const canonicalIndex = (a === null || a === undefined)
           ? null
           : (q._optionOrder ? q._optionOrder[a] : a);
+        // En blanco (a === null/undefined) no es un intento real: se guarda
+        // is_correct = NULL para que no cuente como fallo en el cálculo de
+        // dominio (computeQuestionMastery), ni en Fallos, ni en Test
+        // Inteligente. Antes se guardaba como "false" y una pregunta que
+        // simplemente no te dio tiempo a responder en un Simulacro/Examen
+        // aparecía como si la hubieras fallado.
+        const isBlank = (a === null || a === undefined);
         return {
           session_id: sessionId, user_id: currentUser.id, question_id: q.id,
           selected_index: canonicalIndex,
-          is_correct: a === q.correct, answer_order: j
+          is_correct: isBlank ? null : (a === q.correct), answer_order: j
         };
       });
       if(answerRows.length){
