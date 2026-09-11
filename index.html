@@ -201,6 +201,13 @@
   .admin-section{ display:none; }
   .admin-section.active{ display:block; }
   .admin-card{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .addition-card-peek{ position:relative; cursor:pointer; overflow:hidden; }
+  .addition-card-peek .admin-card-row{ filter: blur(4px); opacity:.55; user-select:none; }
+  .addition-card-peek-label{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family: var(--sans); font-weight:700; font-size:13px; color:#fff;
+    background: rgba(10,10,12,0.25); letter-spacing:.02em;
+  }
   .boe-admin-form{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   .boe-admin-form select, .boe-admin-form input{ flex:1 1 160px; margin-bottom:0 !important; }
   .boe-normas-list{ display:flex; flex-direction:column; gap:10px; margin-bottom:18px; }
@@ -2857,7 +2864,7 @@ function showScreen(id){
   }
   if(id === 'screen-home') updateModeCardsLockState();
   if(id === 'screen-boe-cambios') loadNormativas();
-  if(id === 'screen-my-additions') renderMyAdditionsList();
+  if(id === 'screen-my-additions'){ myAdditionsShowAll = false; renderMyAdditionsList(); }
 }
 function showHome(){ showScreen('screen-home'); }
 
@@ -4172,6 +4179,10 @@ function findQuestionById(questionId){
    editarlas/quitarlas sin tener que acordarse de en qué test o artículo
    estaban. Las notas propias (con updated_at) van primero y más
    recientes arriba; las que solo tienen explicación IA van después. */
+/* Muestra como mucho las 10 aportaciones (nota/IA) más recientes; si hay
+   más, se ve una 11ª tarjeta difuminada con "Pulsa para ver más" que, al
+   tocarla, despliega el resto sin límite. */
+let myAdditionsShowAll = false;
 function renderMyAdditionsList(){
   const listEl = document.getElementById('myAdditionsList');
   if(!listEl) return;
@@ -4189,14 +4200,22 @@ function renderMyAdditionsList(){
     return tb - ta;
   });
 
-  listEl.innerHTML = items.map(q => {
+  const LIMIT = 10;
+  const hasMore = !myAdditionsShowAll && items.length > LIMIT;
+  const visibleItems = hasMore ? items.slice(0, LIMIT) : items;
+  const peekItem = hasMore ? items[LIMIT] : null;
+
+  const cardHtml = (q, blurred) => {
     const badges =
       (q.own_note ? '<span class="addition-badge addition-badge-note">' + ICONS.pencil + '<span>Nota</span></span>' : '') +
       (q.ai_explain ? '<span class="addition-badge addition-badge-ia">' + ICONS.brain + '<span>IA</span></span>' : '');
     const location = q.art || 'General';
     const editedAt = q.own_note ? formatDateTime(q.own_note.updated_at) : '';
     const metaHtml = editedAt ? (esc(location) + ' · Editada: ' + editedAt) : esc(location);
-    return '<div class="admin-card" role="button" tabindex="0" onclick="openMyAddition(\'' + q.id + '\')" onkeydown="if(event.key===\'Enter\')openMyAddition(\'' + q.id + '\')">' +
+    const clickAttrs = blurred
+      ? ' onclick="myAdditionsShowAll=true;renderMyAdditionsList();" onkeydown="if(event.key===\'Enter\'){myAdditionsShowAll=true;renderMyAdditionsList();}"'
+      : ' onclick="openMyAddition(\'' + q.id + '\')" onkeydown="if(event.key===\'Enter\')openMyAddition(\'' + q.id + '\')"';
+    return '<div class="admin-card' + (blurred ? ' addition-card-peek' : '') + '" role="button" tabindex="0"' + clickAttrs + '>' +
       '<div class="admin-card-row">' +
         '<div>' +
           '<div class="admin-card-title">' + esc(q.q) + '</div>' +
@@ -4204,8 +4223,11 @@ function renderMyAdditionsList(){
         '</div>' +
         '<div class="admin-card-actions">' + badges + '</div>' +
       '</div>' +
+      (blurred ? '<div class="addition-card-peek-label">Pulsa para ver más</div>' : '') +
     '</div>';
-  }).join('');
+  };
+
+  listEl.innerHTML = visibleItems.map(q => cardHtml(q, false)).join('') + (peekItem ? cardHtml(peekItem, true) : '');
 }
 
 /* Abre el detalle de una pregunta desde "Notas y explicaciones IA": la
