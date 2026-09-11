@@ -1007,6 +1007,9 @@
   .own-note-image-btn:hover{ transform: translateY(-1px); box-shadow: 0 0 20px rgba(255,122,61,0.55); }
   .own-note-image-btn:active{ transform: translateY(0); }
   .own-note-image-btn svg{ width:12px; height:12px; }
+  .own-note-image-btn.loading{ cursor:default; opacity:.9; }
+  .own-note-image-btn.loading svg{ animation: ownNoteSpin .8s linear infinite; }
+  @keyframes ownNoteSpin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
   .own-note-result{ display:none; margin-top:20px; }
   .own-note-result.show{ display:block; animation: failPanelIn .16s ease; }
   .own-note-card{
@@ -2255,6 +2258,7 @@ function generalCiteText(q){
 }
 
 const ICONS = {
+  spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></svg>',
   estudio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M16 12h2"/><path d="M16 8h2"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/><path d="M6 12h2"/><path d="M6 8h2"/></svg>',
   fallos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 7-6 6"/><path d="M20 17H6.5a1 1 0 000 5H19a1 1 0 001-1V3a1 1 0 00-1-1H6.5A2.5 2.5 0 004 4.5v15"/><path d="m9 7 6 6"/></svg>',
   examen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/></svg>',
@@ -3632,21 +3636,43 @@ function noteBtnHtml(questionId){
       ICONS.pencil + '<span>Nota</span>' +
     '</button>';
 }
-/* Botón redondo, solo icono, para añadir una imagen al momento sin pasar
-   por el editor de texto: al elegir el archivo se sube y se guarda ya,
-   sin tener que pulsar "Guardar" aparte. */
-function quickImageBtnHtml(questionId){
+/* Sigue qué preguntas tienen una subida de imagen en curso (por id), para
+   poder mostrar el spinner correspondiente tanto si el usuario se queda
+   en esa pregunta como si navega a otras mientras se sube en segundo
+   plano, y para poder repintar el botón cuando termine sin depender de
+   un elemento del DOM que pueda haber quedado obsoleto tras navegar. */
+const pendingNoteImageUploads = {};
+
+function quickImageBtnInnerHtml(questionId){
   const inputId = 'quickImg_' + questionId;
+  if(pendingNoteImageUploads[questionId]){
+    return '<button type="button" class="own-note-image-btn loading" disabled title="Subiendo imagen…">' + ICONS.spinner + '</button>';
+  }
   return '<button type="button" class="own-note-image-btn" onclick="event.stopPropagation();document.getElementById(\'' + inputId + '\').click()" title="Añadir una imagen (se guarda al instante)">' +
       ICONS.image +
     '</button>' +
     '<input type="file" accept="image/*" multiple id="' + inputId + '" class="own-note-quick-image-input" style="display:none" onchange="event.stopPropagation();quickAddOwnNoteImages(\'' + questionId + '\', this)">';
 }
+/* Botón redondo, solo icono, para añadir una imagen al momento sin pasar
+   por el editor de texto: al elegir el archivo se sube y se guarda ya,
+   sin tener que pulsar "Guardar" aparte. Mientras se sube (aquí o ya en
+   segundo plano si se cambió de pregunta) muestra un spinner de carga. */
+function quickImageBtnHtml(questionId){
+  return '<span class="own-note-image-wrap-btn" id="qimgWrap_' + questionId + '">' + quickImageBtnInnerHtml(questionId) + '</span>';
+}
+/* Repinta el botón de imagen de una pregunta si está actualmente visible
+   en pantalla (si el usuario ha navegado a otra pregunta, no hay nada que
+   repintar: la próxima vez que se vuelva a esa pregunta se pintará ya con
+   el estado correcto, porque explainBodyHtml consulta pendingNoteImageUploads). */
+function refreshQuickImageBtnUI(questionId){
+  const wrap = document.getElementById('qimgWrap_' + questionId);
+  if(wrap) wrap.innerHTML = quickImageBtnInnerHtml(questionId);
+}
 function explainBodyHtml(q){
   const generateBtn = '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
       ICONS.brain + '<span>IA</span>' +
     '</button>';
-  return '<div class="explain-body">' +
+  return '<div class="explain-body" data-qid="' + q.id + '">' +
     '<div class="explain-section-head">' +
       '<div class="explain-section-label"><span class="explain-icon-badge">' + ICONS.bulb + '</span><span>Explicación</span></div>' +
       '<div class="explain-section-actions">' +
@@ -3783,21 +3809,23 @@ function openOwnNoteEditor(questionId, btnEl){
 
 /* Añade imagen(es) al momento desde el botón redondo de imagen rápida:
    sube el/los archivo(s) y guarda la nota ya mismo (RPC), sin esperar a
-   que se pulse "Guardar". Conserva el texto que ya hubiera (o el que se
-   esté escribiendo en el editor si está abierto) y las imágenes previas,
-   respetando el máximo de 5 en total. */
+   que se pulse "Guardar" y sin bloquear nada: el usuario puede seguir
+   viendo otras preguntas mientras la subida sigue en segundo plano. El
+   estado de carga se guarda por pregunta (pendingNoteImageUploads), así
+   que si vuelve a esta pregunta antes de que termine, sigue viendo el
+   spinner; y cuando termina, se repinta solo si sigue viéndola. */
 async function quickAddOwnNoteImages(questionId, inputEl){
   const files = inputEl.files ? Array.from(inputEl.files) : [];
   if(!files.length) return;
 
   const body = inputEl.closest('.explain-body');
-  if(!body) return;
   const q = findQuestionById(questionId);
   const existingImages = ownNoteImageUrls(q && q.own_note);
   // Si el editor completo está abierto, respeta lo que se haya escrito y
   // las casillas de "Quitar" marcadas; si no, usa el texto/imágenes tal
-  // cual estaban guardados.
-  const openEditor = body.querySelector('.own-note-editor');
+  // cual estaban guardados. Se lee ya mismo, antes de que el usuario
+  // pueda navegar a otra pregunta.
+  const openEditor = body ? body.querySelector('.own-note-editor') : null;
   const text = openEditor
     ? openEditor.querySelector('.own-note-textarea').value.trim()
     : ((q && q.own_note && q.own_note.text) || '');
@@ -3813,8 +3841,10 @@ async function quickAddOwnNoteImages(questionId, inputEl){
     return;
   }
 
-  const btn = body.querySelector('.own-note-image-btn');
-  if(btn) btn.disabled = true;
+  pendingNoteImageUploads[questionId] = true;
+  refreshQuickImageBtnUI(questionId);
+  inputEl.value = '';
+
   try{
     const uploadedUrls = [];
     for(let i = 0; i < files.length; i++){
@@ -3833,21 +3863,26 @@ async function quickAddOwnNoteImages(questionId, inputEl){
     if(q) q.own_note = note;
     if(document.getElementById('myAdditionsList')) renderMyAdditionsList();
 
-    const slot = body.querySelector('.own-note-editor-slot');
-    if(slot){ slot.innerHTML = ''; slot.dataset.open = ''; }
-
-    const resultEl = body.querySelector('.own-note-result');
-    if(resultEl){
-      resultEl.innerHTML = ownNoteCardHtml(note, questionId);
-      resultEl.classList.add('show');
+    // Repinta el resultado solo si la pregunta se sigue viendo en este
+    // momento (puede que el usuario ya esté en otra distinta); si no, se
+    // pintará ya correcta la próxima vez que se entre a esta pregunta.
+    const liveBody = document.querySelector('.explain-body[data-qid="' + questionId + '"]');
+    if(liveBody){
+      const slot = liveBody.querySelector('.own-note-editor-slot');
+      if(slot){ slot.innerHTML = ''; slot.dataset.open = ''; }
+      const resultEl = liveBody.querySelector('.own-note-result');
+      if(resultEl){
+        resultEl.innerHTML = ownNoteCardHtml(note, questionId);
+        resultEl.classList.add('show');
+      }
+      const addBtn = liveBody.querySelector('.own-note-btn');
+      if(addBtn) addBtn.remove();
     }
-    const addBtn = body.querySelector('.own-note-btn');
-    if(addBtn) addBtn.remove();
   } catch(err){
-    alert('No se ha podido añadir la imagen: ' + (err.message || 'error desconocido'));
+    alert('No se ha podido añadir la imagen a la pregunta: ' + (err.message || 'error desconocido'));
   } finally {
-    if(btn) btn.disabled = false;
-    inputEl.value = '';
+    delete pendingNoteImageUploads[questionId];
+    refreshQuickImageBtnUI(questionId);
   }
 }
 
