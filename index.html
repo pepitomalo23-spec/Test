@@ -995,7 +995,18 @@
   }
   .own-note-btn:hover{ transform: translateY(-1px); box-shadow: 0 0 20px rgba(255,122,61,0.55); }
   .own-note-btn:active{ transform: translateY(0); }
-  .own-note-btn svg{ width:13px; height:13px; }
+  .own-note-btn svg{ width:10px; height:10px; }
+  .own-note-image-btn{
+    position:relative; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    width:26px; height:26px; color:#0A0A0A;
+    background: linear-gradient(90deg, var(--amber), var(--orange));
+    border:1px solid transparent; border-radius:50%; cursor:pointer;
+    box-shadow: 0 0 14px rgba(245,192,67,0.35);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .own-note-image-btn:hover{ transform: translateY(-1px); box-shadow: 0 0 20px rgba(255,122,61,0.55); }
+  .own-note-image-btn:active{ transform: translateY(0); }
+  .own-note-image-btn svg{ width:12px; height:12px; }
   .own-note-result{ display:none; margin-top:20px; }
   .own-note-result.show{ display:block; animation: failPanelIn .16s ease; }
   .own-note-card{
@@ -3591,19 +3602,32 @@ async function toggleFailHistory(questionId, toggleEl){
    debajo de todo. Usa la clave única configurada por el administrador en
    el servidor (Cambios BOE → Administración), vía la Edge Function
    gemini-proxy: nunca hace falta que el usuario tenga su propia clave. */
+function noteBtnHtml(questionId){
+  return '<button type="button" class="own-note-btn" onclick="event.stopPropagation();openOwnNoteEditor(\'' + questionId + '\', this)" title="Escribir vuestra propia explicación">' +
+      ICONS.pencil + '<span>Nota</span>' +
+    '</button>';
+}
+/* Botón redondo, solo icono, para añadir una imagen al momento sin pasar
+   por el editor de texto: al elegir el archivo se sube y se guarda ya,
+   sin tener que pulsar "Guardar" aparte. */
+function quickImageBtnHtml(questionId){
+  const inputId = 'quickImg_' + questionId;
+  return '<button type="button" class="own-note-image-btn" onclick="event.stopPropagation();document.getElementById(\'' + inputId + '\').click()" title="Añadir una imagen (se guarda al instante)">' +
+      ICONS.image +
+    '</button>' +
+    '<input type="file" accept="image/*" multiple id="' + inputId + '" class="own-note-quick-image-input" style="display:none" onchange="event.stopPropagation();quickAddOwnNoteImages(\'' + questionId + '\', this)">';
+}
 function explainBodyHtml(q){
   const generateBtn = '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
       ICONS.brain + '<span>IA</span>' +
-    '</button>';
-  const noteBtn = '<button type="button" class="own-note-btn" onclick="event.stopPropagation();openOwnNoteEditor(\'' + q.id + '\', this)" title="Escribir vuestra propia explicación o añadir imágenes">' +
-      ICONS.pencil + '<span>Nota</span>' +
     '</button>';
   return '<div class="explain-body">' +
     '<div class="explain-section-head">' +
       '<div class="explain-section-label"><span class="explain-icon-badge">' + ICONS.bulb + '</span><span>Explicación</span></div>' +
       '<div class="explain-section-actions">' +
         (q.ai_explain ? '' : generateBtn) +
-        (q.own_note ? '' : noteBtn) +
+        quickImageBtnHtml(q.id) +
+        (q.own_note ? '' : noteBtnHtml(q.id)) +
       '</div>' +
     '</div>' +
     '<div class="explain-text">' + q.explain + '</div>' +
@@ -3696,6 +3720,76 @@ function openOwnNoteEditor(questionId, btnEl){
 
   const addBtn = body.querySelector('.own-note-btn');
   if(addBtn) addBtn.style.display = 'none';
+}
+
+/* Añade imagen(es) al momento desde el botón redondo de imagen rápida:
+   sube el/los archivo(s) y guarda la nota ya mismo (RPC), sin esperar a
+   que se pulse "Guardar". Conserva el texto que ya hubiera (o el que se
+   esté escribiendo en el editor si está abierto) y las imágenes previas,
+   respetando el máximo de 5 en total. */
+async function quickAddOwnNoteImages(questionId, inputEl){
+  const files = inputEl.files ? Array.from(inputEl.files) : [];
+  if(!files.length) return;
+
+  const body = inputEl.closest('.explain-body');
+  if(!body) return;
+  const q = findQuestionById(questionId);
+  const existingImages = ownNoteImageUrls(q && q.own_note);
+  // Si el editor completo está abierto, respeta lo que se haya escrito y
+  // las casillas de "Quitar" marcadas; si no, usa el texto/imágenes tal
+  // cual estaban guardados.
+  const openEditor = body.querySelector('.own-note-editor');
+  const text = openEditor
+    ? openEditor.querySelector('.own-note-textarea').value.trim()
+    : ((q && q.own_note && q.own_note.text) || '');
+  const removeUrls = openEditor
+    ? Array.from(openEditor.querySelectorAll('.own-note-remove-image-check:checked')).map(c => c.value)
+    : [];
+  const keptImages = existingImages.filter(url => !removeUrls.includes(url));
+
+  const availableSlots = 5 - keptImages.length;
+  if(files.length > availableSlots){
+    alert('Máximo 5 imágenes por nota: caben ' + Math.max(availableSlots, 0) + ' más.');
+    inputEl.value = '';
+    return;
+  }
+
+  const btn = body.querySelector('.own-note-image-btn');
+  if(btn) btn.disabled = true;
+  try{
+    const uploadedUrls = [];
+    for(let i = 0; i < files.length; i++){
+      uploadedUrls.push(await uploadOwnNoteImage(questionId, files[i]));
+    }
+    const finalImages = keptImages.concat(uploadedUrls).slice(0, 5);
+
+    const { error } = await sb.rpc('set_question_own_note', {
+      p_question_id: questionId,
+      p_text: text || null,
+      p_image_urls: finalImages
+    });
+    if(error) throw error;
+
+    const note = { text: text || null, image_urls: finalImages, updated_at: new Date().toISOString() };
+    if(q) q.own_note = note;
+    if(document.getElementById('myAdditionsList')) renderMyAdditionsList();
+
+    const slot = body.querySelector('.own-note-editor-slot');
+    if(slot){ slot.innerHTML = ''; slot.dataset.open = ''; }
+
+    const resultEl = body.querySelector('.own-note-result');
+    if(resultEl){
+      resultEl.innerHTML = ownNoteCardHtml(note, questionId);
+      resultEl.classList.add('show');
+    }
+    const addBtn = body.querySelector('.own-note-btn');
+    if(addBtn) addBtn.remove();
+  } catch(err){
+    alert('No se ha podido añadir la imagen: ' + (err.message || 'error desconocido'));
+  } finally {
+    if(btn) btn.disabled = false;
+    inputEl.value = '';
+  }
 }
 
 /* Avisa en vivo, mientras se eligen archivos, si el total (imágenes que se
@@ -3821,12 +3915,7 @@ async function saveOwnNote(questionId, btnEl){
       if(addBtn) addBtn.remove();
     } else if(!addBtn){
       const actions = body.querySelector('.explain-section-actions');
-      if(actions){
-        actions.insertAdjacentHTML('beforeend',
-          '<button type="button" class="own-note-btn" onclick="event.stopPropagation();openOwnNoteEditor(\'' + questionId + '\', this)" title="Escribir vuestra propia explicación o añadir imágenes">' +
-            ICONS.pencil + '<span>Nota</span>' +
-          '</button>');
-      }
+      if(actions) actions.insertAdjacentHTML('beforeend', noteBtnHtml(questionId));
     }
   } catch(err){
     statusEl.style.color = 'var(--coral)';
@@ -3859,10 +3948,7 @@ async function removeOwnNote(questionId, btnEl){
 
     const actions = body ? body.querySelector('.explain-section-actions') : null;
     if(actions && !actions.querySelector('.own-note-btn')){
-      actions.insertAdjacentHTML('beforeend',
-        '<button type="button" class="own-note-btn" onclick="event.stopPropagation();openOwnNoteEditor(\'' + questionId + '\', this)" title="Escribir vuestra propia explicación o añadir imágenes">' +
-          ICONS.pencil + '<span>Nota</span>' +
-        '</button>');
+      actions.insertAdjacentHTML('beforeend', noteBtnHtml(questionId));
     }
   } catch(err){
     alert('No se ha podido quitar la nota: ' + (err.message || 'error desconocido'));
