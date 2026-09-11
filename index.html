@@ -1547,11 +1547,43 @@
       <div class="modal-panel">
         <div class="modal-head">
           <h1>Pregunta</h1>
-          <button class="modal-close" aria-label="Cerrar" onclick="showScreen('screen-my-additions')">
+          <button class="modal-close" aria-label="Cerrar" onclick="showScreen(myAdditionDetailReturn)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
           </button>
         </div>
         <div id="myAdditionDetailBody"><div class="empty">Cargando…</div></div>
+      </div>
+    </section>
+
+    <!-- ===== TODAS LAS NOTAS, ORGANIZADAS POR FICHA (se abre al pulsar
+         "Pulsa para ver más" en "Notas y explicaciones IA") ===== -->
+    <section class="screen overlay" id="screen-notas-todas">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h1>Todas las notas</h1>
+          <button class="modal-close" aria-label="Cerrar" onclick="showScreen('screen-my-additions')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="config-sub">Todas las preguntas con nota o explicación IA, agrupadas por ficha. Pulsa una ficha para ver solo esa.</div>
+        <div class="param-options" id="notasTemaFilters" style="margin-bottom:16px;"></div>
+        <div id="notasTodasList"></div>
+      </div>
+    </section>
+
+    <!-- ===== HISTORIAL COMPLETO, FILTRABLE POR TIPO DE TEST (se abre al
+         pulsar "Pulsa para ver más" en el Historial de Inicio) ===== -->
+    <section class="screen overlay" id="screen-historial-todo">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h1>Todo el historial</h1>
+          <button class="modal-close" aria-label="Cerrar" onclick="showHome()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="config-sub">Todos tus tests, filtrables por tipo.</div>
+        <div class="param-options" id="historialTipoFilters" style="margin-bottom:16px;"></div>
+        <div class="history" id="historialTodoList"></div>
       </div>
     </section>
 
@@ -2616,72 +2648,75 @@ async function loadAppData(){
 }
 
 
-/* Igual que en "Notas y explicaciones IA": como mucho las 10 entradas más
-   recientes del historial (ya viene ordenado del más nuevo al más viejo);
-   si hay más, se ve una 11ª tarjeta difuminada con "Pulsa para ver más"
-   que despliega el resto al tocarla. */
-let historyShowAll = false;
+/* Construye la fila (fecha + tarjeta) de una entrada del historial y la
+   añade al contenedor dado. Se reutiliza tanto en el Historial de Inicio
+   (10 más recientes) como en "Todo el historial" (lista completa filtrable
+   por tipo de test). */
+function renderHistoryEntry(container, h){
+  const dateEl = document.createElement('div');
+  dateEl.className = 'hist-date';
+  dateEl.textContent = h.date;
+  container.appendChild(dateEl);
+
+  const item = document.createElement('div');
+  item.className = 'hist-item t-' + h.type;
+  item.setAttribute('role','button');
+  item.setAttribute('tabindex','0');
+  item.innerHTML =
+    '<div class="hist-icon">' + ICONS[h.type] + '</div>' +
+    '<div class="hist-content">' +
+      '<div class="hist-top">' +
+        '<div class="hist-title">' + h.title + '</div>' +
+        '<div class="hist-top-right">' +
+          '<div class="hist-score">Nota <b>' + h.nota + '</b></div>' +
+          '<button class="hist-delete-btn" type="button" aria-label="Borrar test" title="Borrar test">' + ICONS.trash + '</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="hist-bottom">' +
+        '<div class="hist-meta">' + ICONS.clock + h.time + '</div>' +
+        '<div class="hist-counts">' +
+          '<span class="c-ok">' + ICONS.ok + h.ok + '</span>' +
+          '<span class="c-bad">' + ICONS.bad + h.bad + '</span>' +
+          '<span class="c-pending">' + ICONS.pending + h.pending + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  item.onclick = async () => {
+    if(h.review){ openReview(h.review, h.title + ' · Nota ' + h.nota); return; }
+    const { data: rows, error } = await sb
+      .from('session_answers')
+      .select('question_id, selected_index, is_correct, answer_order, questions(*)')
+      .eq('session_id', h.id)
+      .order('answer_order');
+    if(error || !rows || !rows.length){
+      alert('Este test no tiene datos de corrección guardados.');
+      return;
+    }
+    const review = {
+      questions: rows.map(r => mapDbQuestionToQuiz(r.questions)),
+      answers: rows.map(r => r.selected_index)
+    };
+    h.review = review;
+    openReview(review, h.title + ' · Nota ' + h.nota);
+  };
+  item.onkeydown = (e) => { if(e.key === 'Enter') item.onclick(); };
+  const delBtn = item.querySelector('.hist-delete-btn');
+  delBtn.onclick = (e) => { e.stopPropagation(); deleteHistoryItem(h, delBtn); };
+  delBtn.onkeydown = (e) => { e.stopPropagation(); };
+  container.appendChild(item);
+}
+/* Como mucho las 10 entradas más recientes del historial (ya viene
+   ordenado del más nuevo al más viejo); si hay más, se ve una 11ª tarjeta
+   difuminada con "Pulsa para ver más" que lleva a "Todo el historial". */
 function renderHistory(){
   const el = document.getElementById('historyList');
   el.innerHTML = '';
 
   const LIMIT = 10;
-  const hasMore = !historyShowAll && HISTORY.length > LIMIT;
+  const hasMore = HISTORY.length > LIMIT;
   const visibleHistory = hasMore ? HISTORY.slice(0, LIMIT) : HISTORY;
 
-  visibleHistory.forEach(h => {
-    const dateEl = document.createElement('div');
-    dateEl.className = 'hist-date';
-    dateEl.textContent = h.date;
-    el.appendChild(dateEl);
-
-    const item = document.createElement('div');
-    item.className = 'hist-item t-' + h.type;
-    item.setAttribute('role','button');
-    item.setAttribute('tabindex','0');
-    item.innerHTML =
-      '<div class="hist-icon">' + ICONS[h.type] + '</div>' +
-      '<div class="hist-content">' +
-        '<div class="hist-top">' +
-          '<div class="hist-title">' + h.title + '</div>' +
-          '<div class="hist-top-right">' +
-            '<div class="hist-score">Nota <b>' + h.nota + '</b></div>' +
-            '<button class="hist-delete-btn" type="button" aria-label="Borrar test" title="Borrar test">' + ICONS.trash + '</button>' +
-          '</div>' +
-        '</div>' +
-        '<div class="hist-bottom">' +
-          '<div class="hist-meta">' + ICONS.clock + h.time + '</div>' +
-          '<div class="hist-counts">' +
-            '<span class="c-ok">' + ICONS.ok + h.ok + '</span>' +
-            '<span class="c-bad">' + ICONS.bad + h.bad + '</span>' +
-            '<span class="c-pending">' + ICONS.pending + h.pending + '</span>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
-    item.onclick = async () => {
-      if(h.review){ openReview(h.review, h.title + ' · Nota ' + h.nota); return; }
-      const { data: rows, error } = await sb
-        .from('session_answers')
-        .select('question_id, selected_index, is_correct, answer_order, questions(*)')
-        .eq('session_id', h.id)
-        .order('answer_order');
-      if(error || !rows || !rows.length){
-        alert('Este test no tiene datos de corrección guardados.');
-        return;
-      }
-      const review = {
-        questions: rows.map(r => mapDbQuestionToQuiz(r.questions)),
-        answers: rows.map(r => r.selected_index)
-      };
-      h.review = review;
-      openReview(review, h.title + ' · Nota ' + h.nota);
-    };
-    item.onkeydown = (e) => { if(e.key === 'Enter') item.onclick(); };
-    const delBtn = item.querySelector('.hist-delete-btn');
-    delBtn.onclick = (e) => { e.stopPropagation(); deleteHistoryItem(h, delBtn); };
-    delBtn.onkeydown = (e) => { e.stopPropagation(); };
-    el.appendChild(item);
-  });
+  visibleHistory.forEach(h => renderHistoryEntry(el, h));
 
   if(hasMore){
     const peek = HISTORY[LIMIT];
@@ -2701,10 +2736,53 @@ function renderHistory(){
         '</div>' +
       '</div>' +
       '<div class="addition-card-peek-label">Pulsa para ver más</div>';
-    peekWrap.onclick = () => { historyShowAll = true; renderHistory(); };
-    peekWrap.onkeydown = (e) => { if(e.key === 'Enter'){ historyShowAll = true; renderHistory(); } };
+    peekWrap.onclick = () => { openHistorialTodo(); };
+    peekWrap.onkeydown = (e) => { if(e.key === 'Enter') openHistorialTodo(); };
     el.appendChild(peekWrap);
   }
+}
+
+/* ---------- "Todo el historial", filtrable por tipo de test ----------
+   Se abre desde la tarjeta difuminada del Historial de Inicio. Arriba, un
+   selector con cada tipo de test presente (y cuántos hay); debajo, la
+   lista completa (limitada a lo que ya se ha cargado del backend) según
+   el filtro elegido. */
+const HISTORIAL_TIPO_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos', inteligente:'Test Inteligente' };
+let historialTipoFilter = 'todas';
+function openHistorialTodo(){
+  historialTipoFilter = 'todas';
+  renderHistorialTipoFilters();
+  renderHistorialTodoList();
+  showScreen('screen-historial-todo');
+}
+function renderHistorialTipoFilters(){
+  const wrap = document.getElementById('historialTipoFilters');
+  if(!wrap) return;
+  const counts = {};
+  HISTORY.forEach(h => { counts[h.type] = (counts[h.type] || 0) + 1; });
+  const defs = [{ id: 'todas', label: 'Todos', count: HISTORY.length }]
+    .concat(Object.keys(HISTORIAL_TIPO_LABELS).filter(k => counts[k]).map(k => ({ id: k, label: HISTORIAL_TIPO_LABELS[k], count: counts[k] })));
+  wrap.innerHTML = '';
+  defs.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'param-opt' + (historialTipoFilter === d.id ? ' selected' : '');
+    el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0');
+    el.textContent = d.label + ' · ' + d.count;
+    el.onclick = () => { historialTipoFilter = d.id; renderHistorialTipoFilters(); renderHistorialTodoList(); };
+    el.onkeydown = (e) => { if(e.key === 'Enter') el.onclick(); };
+    wrap.appendChild(el);
+  });
+}
+function renderHistorialTodoList(){
+  const el = document.getElementById('historialTodoList');
+  if(!el) return;
+  el.innerHTML = '';
+  const items = historialTipoFilter === 'todas' ? HISTORY : HISTORY.filter(h => h.type === historialTipoFilter);
+  if(!items.length){
+    el.innerHTML = '<div class="empty">No hay tests en este filtro.</div>';
+    return;
+  }
+  items.forEach(h => renderHistoryEntry(el, h));
 }
 
 /* ---------- borrar un test del historial ---------- */
@@ -2751,6 +2829,7 @@ async function deleteHistoryItem(h, btnEl){
 
   HISTORY = HISTORY.filter(item => item.id !== h.id);
   renderHistory();
+  renderHistorialTodoList();
 
   if(currentUser){
     await refreshGlobalStats();
@@ -2857,6 +2936,8 @@ const SCREEN_RESTORE_TARGET = {
   'screen-stats': 'screen-stats',
   'screen-boe-cambios': 'screen-boe-cambios',
   'screen-my-additions': 'screen-my-additions',
+  'screen-notas-todas': 'screen-my-additions',
+  'screen-historial-todo': 'screen-home',
   'screen-admin': 'screen-admin',
   'screen-boe-detalle': 'screen-boe-cambios',
   'screen-my-addition-detail': 'screen-my-additions',
@@ -2898,9 +2979,9 @@ function showScreen(id){
     quizHeadObserver.disconnect();
     quizHeadObserver = null;
   }
-  if(id === 'screen-home'){ updateModeCardsLockState(); historyShowAll = false; renderHistory(); }
+  if(id === 'screen-home'){ updateModeCardsLockState(); renderHistory(); }
   if(id === 'screen-boe-cambios') loadNormativas();
-  if(id === 'screen-my-additions'){ myAdditionsShowAll = false; renderMyAdditionsList(); }
+  if(id === 'screen-my-additions'){ renderMyAdditionsList(); }
 }
 function showHome(){ showScreen('screen-home'); }
 
@@ -4215,55 +4296,121 @@ function findQuestionById(questionId){
    editarlas/quitarlas sin tener que acordarse de en qué test o artículo
    estaban. Las notas propias (con updated_at) van primero y más
    recientes arriba; las que solo tienen explicación IA van después. */
+function myAdditionItems(){
+  return (QUESTIONS_POOL || []).filter(q => q.own_note || q.ai_explain);
+}
+function myAdditionTemaKey(q){ return q.art || 'General'; }
+function myAdditionSortByRecent(items){
+  return items.slice().sort((a, b) => {
+    const ta = a.own_note && a.own_note.updated_at ? new Date(a.own_note.updated_at).getTime() : 0;
+    const tb = b.own_note && b.own_note.updated_at ? new Date(b.own_note.updated_at).getTime() : 0;
+    return tb - ta;
+  });
+}
+/* Tarjeta compartida entre la lista corta de "Notas y explicaciones IA" y
+   la pantalla completa "Todas las notas" (organizada por ficha). blurred=true
+   pinta la 11ª tarjeta difuminada, que ahora en vez de desplegar el resto
+   en el mismo sitio, lleva a esa pantalla organizada. returnScreen es la
+   pantalla a la que debe volver el detalle al cerrarse. */
+function myAdditionCardHtml(q, blurred, returnScreen){
+  const badges =
+    (q.own_note ? '<span class="addition-badge addition-badge-note">' + ICONS.pencil + '<span>Nota</span></span>' : '') +
+    (q.ai_explain ? '<span class="addition-badge addition-badge-ia">' + ICONS.brain + '<span>IA</span></span>' : '');
+  const location = q.art || 'General';
+  const editedAt = q.own_note ? formatDateTime(q.own_note.updated_at) : '';
+  const metaHtml = editedAt ? (esc(location) + ' · Editada: ' + editedAt) : esc(location);
+  const clickAttrs = blurred
+    ? ' onclick="openNotasOrganizadas();" onkeydown="if(event.key===\'Enter\')openNotasOrganizadas();"'
+    : ' onclick="openMyAddition(\'' + q.id + '\',\'' + (returnScreen || 'screen-my-additions') + '\')" onkeydown="if(event.key===\'Enter\')openMyAddition(\'' + q.id + '\',\'' + (returnScreen || 'screen-my-additions') + '\')"';
+  return '<div class="admin-card' + (blurred ? ' addition-card-peek' : '') + '" role="button" tabindex="0"' + clickAttrs + '>' +
+    '<div class="admin-card-row">' +
+      '<div>' +
+        '<div class="admin-card-title">' + esc(q.q) + '</div>' +
+        '<div class="admin-card-meta">' + metaHtml + '</div>' +
+      '</div>' +
+      '<div class="admin-card-actions">' + badges + '</div>' +
+    '</div>' +
+    (blurred ? '<div class="addition-card-peek-label">Pulsa para ver más</div>' : '') +
+  '</div>';
+}
 /* Muestra como mucho las 10 aportaciones (nota/IA) más recientes; si hay
-   más, se ve una 11ª tarjeta difuminada con "Pulsa para ver más" que, al
-   tocarla, despliega el resto sin límite. */
-let myAdditionsShowAll = false;
+   más, se ve una 11ª tarjeta difuminada con "Pulsa para ver más" que lleva
+   a la pantalla "Todas las notas", organizada por ficha. */
 function renderMyAdditionsList(){
   const listEl = document.getElementById('myAdditionsList');
   if(!listEl) return;
 
-  const items = (QUESTIONS_POOL || []).filter(q => q.own_note || q.ai_explain);
+  const items = myAdditionItems();
 
   if(!items.length){
     listEl.innerHTML = '<div class="empty">Todavía no habéis añadido ninguna nota ni ninguna explicación con IA. Aparecerán aquí en cuanto uséis los botones "Nota" o "IA" en la explicación de una pregunta.</div>';
     return;
   }
 
-  items.sort((a, b) => {
-    const ta = a.own_note && a.own_note.updated_at ? new Date(a.own_note.updated_at).getTime() : 0;
-    const tb = b.own_note && b.own_note.updated_at ? new Date(b.own_note.updated_at).getTime() : 0;
-    return tb - ta;
-  });
-
+  const sorted = myAdditionSortByRecent(items);
   const LIMIT = 10;
-  const hasMore = !myAdditionsShowAll && items.length > LIMIT;
-  const visibleItems = hasMore ? items.slice(0, LIMIT) : items;
-  const peekItem = hasMore ? items[LIMIT] : null;
+  const hasMore = sorted.length > LIMIT;
+  const visibleItems = hasMore ? sorted.slice(0, LIMIT) : sorted;
+  const peekItem = hasMore ? sorted[LIMIT] : null;
 
-  const cardHtml = (q, blurred) => {
-    const badges =
-      (q.own_note ? '<span class="addition-badge addition-badge-note">' + ICONS.pencil + '<span>Nota</span></span>' : '') +
-      (q.ai_explain ? '<span class="addition-badge addition-badge-ia">' + ICONS.brain + '<span>IA</span></span>' : '');
-    const location = q.art || 'General';
-    const editedAt = q.own_note ? formatDateTime(q.own_note.updated_at) : '';
-    const metaHtml = editedAt ? (esc(location) + ' · Editada: ' + editedAt) : esc(location);
-    const clickAttrs = blurred
-      ? ' onclick="myAdditionsShowAll=true;renderMyAdditionsList();" onkeydown="if(event.key===\'Enter\'){myAdditionsShowAll=true;renderMyAdditionsList();}"'
-      : ' onclick="openMyAddition(\'' + q.id + '\')" onkeydown="if(event.key===\'Enter\')openMyAddition(\'' + q.id + '\')"';
-    return '<div class="admin-card' + (blurred ? ' addition-card-peek' : '') + '" role="button" tabindex="0"' + clickAttrs + '>' +
-      '<div class="admin-card-row">' +
-        '<div>' +
-          '<div class="admin-card-title">' + esc(q.q) + '</div>' +
-          '<div class="admin-card-meta">' + metaHtml + '</div>' +
-        '</div>' +
-        '<div class="admin-card-actions">' + badges + '</div>' +
-      '</div>' +
-      (blurred ? '<div class="addition-card-peek-label">Pulsa para ver más</div>' : '') +
-    '</div>';
-  };
+  listEl.innerHTML = visibleItems.map(q => myAdditionCardHtml(q, false, 'screen-my-additions')).join('') + (peekItem ? myAdditionCardHtml(peekItem, true) : '');
+}
 
-  listEl.innerHTML = visibleItems.map(q => cardHtml(q, false)).join('') + (peekItem ? cardHtml(peekItem, true) : '');
+/* ---------- "Todas las notas", organizada por ficha ----------
+   Se abre desde la tarjeta difuminada de "Notas y explicaciones IA".
+   Arriba, un selector de fichas (con cuántas notas tiene cada una) y
+   debajo la lista completa agrupada por ficha; si se elige una ficha
+   concreta, solo se ve el grupo de esa ficha. */
+let notasTemaFilter = 'todas';
+function openNotasOrganizadas(){
+  notasTemaFilter = 'todas';
+  renderNotasTemaFilters();
+  renderNotasOrganizadasList();
+  showScreen('screen-notas-todas');
+}
+function renderNotasTemaFilters(){
+  const wrap = document.getElementById('notasTemaFilters');
+  if(!wrap) return;
+  const items = myAdditionItems();
+  const counts = {};
+  items.forEach(q => { const k = myAdditionTemaKey(q); counts[k] = (counts[k] || 0) + 1; });
+  const temas = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'es'));
+  const defs = [{ id: 'todas', label: 'Todas', count: items.length }]
+    .concat(temas.map(t => ({ id: t, label: t, count: counts[t] })));
+  wrap.innerHTML = '';
+  defs.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'param-opt' + (notasTemaFilter === d.id ? ' selected' : '');
+    el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0');
+    el.textContent = d.label + ' · ' + d.count;
+    el.onclick = () => { notasTemaFilter = d.id; renderNotasTemaFilters(); renderNotasOrganizadasList(); };
+    el.onkeydown = (e) => { if(e.key === 'Enter') el.onclick(); };
+    wrap.appendChild(el);
+  });
+}
+function renderNotasOrganizadasList(){
+  const listEl = document.getElementById('notasTodasList');
+  if(!listEl) return;
+  const items = myAdditionItems();
+  if(!items.length){
+    listEl.innerHTML = '<div class="empty">Todavía no habéis añadido ninguna nota ni ninguna explicación con IA.</div>';
+    return;
+  }
+  const groups = {};
+  items.forEach(q => {
+    const k = myAdditionTemaKey(q);
+    if(notasTemaFilter !== 'todas' && k !== notasTemaFilter) return;
+    (groups[k] = groups[k] || []).push(q);
+  });
+  const temas = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'es'));
+  if(!temas.length){
+    listEl.innerHTML = '<div class="empty">No hay notas en esta ficha.</div>';
+    return;
+  }
+  listEl.innerHTML = temas.map(t => {
+    const rows = myAdditionSortByRecent(groups[t]).map(q => myAdditionCardHtml(q, false, 'screen-notas-todas')).join('');
+    return '<div class="section-row"><div class="section-title">' + esc(t) + '</div><div class="section-rule"></div></div>' + rows;
+  }).join('');
 }
 
 /* Abre el detalle de una pregunta desde "Notas y explicaciones IA": la
@@ -4271,7 +4418,9 @@ function renderMyAdditionsList(){
    bloque de explicación que se ve al hacer el test (con sus botones de
    editar/quitar Nota e IA), para poder gestionarla sin tener que volver
    a responder ningún test. */
-function openMyAddition(questionId){
+let myAdditionDetailReturn = 'screen-my-additions';
+function openMyAddition(questionId, returnScreen){
+  myAdditionDetailReturn = returnScreen || 'screen-my-additions';
   const q = findQuestionById(questionId);
   const body = document.getElementById('myAdditionDetailBody');
   if(!body) return;
