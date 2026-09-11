@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" id="viewportMeta" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>pj.fire</title>
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-title" content="pj.fire">
@@ -1051,9 +1051,8 @@
   .image-lightbox.show{ display:flex; }
   .image-lightbox img{
     display:block; max-width:92vw; max-height:88vh; border-radius:8px;
-    cursor:zoom-in; transition: transform .18s ease; touch-action:pan-x pan-y pinch-zoom;
+    cursor:default; transition: transform .18s ease; touch-action:pan-x pan-y pinch-zoom;
   }
-  .image-lightbox img.zoomed{ max-width:none; max-height:none; width:auto; height:auto; transform:scale(2.2); cursor:zoom-out; }
   .image-lightbox-close{
     position:absolute; top:16px; right:16px; width:38px; height:38px; border-radius:50%;
     background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); color:#fff;
@@ -3676,20 +3675,31 @@ function ownNoteImageUrls(note){
    ampliar (pellizcar/doble toque desactivado), pero al tocar una imagen
    de una nota se abre aquí a tamaño grande, y dentro de este visor sí se
    puede acercar/alejar tocando la propia imagen. */
+/* Visor de imagen a pantalla completa. La web en general no se puede
+   ampliar (viewport bloqueado), pero mientras este visor está abierto se
+   libera el viewport para que el pellizco de ampliar funcione de verdad
+   sobre la imagen; al cerrar, se vuelve a bloquear para el resto de la web. */
+function setViewportZoomable(enabled){
+  const meta = document.getElementById('viewportMeta');
+  if(!meta) return;
+  meta.setAttribute('content', enabled
+    ? 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes'
+    : 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
+  );
+}
 function openImageLightbox(url){
   const box = document.getElementById('imageLightbox');
   const img = document.getElementById('imageLightboxImg');
   if(!box || !img) return;
   img.src = url;
-  img.classList.remove('zoomed');
   box.classList.add('show');
+  setViewportZoomable(true);
 }
 function closeImageLightbox(e){
   if(e) e.stopPropagation();
   const box = document.getElementById('imageLightbox');
-  const img = document.getElementById('imageLightboxImg');
   if(box) box.classList.remove('show');
-  if(img) img.classList.remove('zoomed');
+  setViewportZoomable(false);
 }
 function toggleImageLightboxZoom(img){
   img.classList.toggle('zoomed');
@@ -6540,7 +6550,7 @@ sb.auth.onAuthStateChange((event, session) => {
   <button type="button" class="image-lightbox-close" onclick="closeImageLightbox(event)" title="Cerrar">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
   </button>
-  <img id="imageLightboxImg" src="" alt="Imagen ampliada" onclick="event.stopPropagation();toggleImageLightboxZoom(this)">
+  <img id="imageLightboxImg" src="" alt="Imagen ampliada" onclick="event.stopPropagation()">
 </div>
 </body>
 </html>
