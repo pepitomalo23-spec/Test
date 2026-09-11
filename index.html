@@ -1119,6 +1119,11 @@
   .option.correct{ border-color: var(--green); border-width:1.5px; background: rgba(52,211,153,0.16); color: var(--green); font-weight:600; }
   .option.correct .opt-badge{ border-color: var(--green); color:#06120E; background: var(--green); font-weight:700; }
   .option.correct .opt-result{ display:block; color: var(--green); }
+  /* Cuando la pregunta se deja "en blanco" (sin responder), la respuesta
+     correcta se marca igual que siempre en verde pero con borde a rayas,
+     para distinguir a simple vista "esto era lo correcto" de un acierto
+     real (borde sólido, que solo aparece si de verdad se ha respondido). */
+  .option.correct.blank-correct{ border-style: dashed; }
   .option.incorrect{ border-color: var(--coral); border-width:1.5px; background: rgba(242,102,92,0.16); color: var(--coral); font-weight:600; }
   .option.incorrect .opt-badge{ border-color: var(--coral); color:#1A0908; background: var(--coral); font-weight:700; }
   .option.incorrect .opt-result{ display:block; color: var(--coral); }
@@ -4311,6 +4316,7 @@ function renderQuestion(){
     if(isAnswered){
       if(i === q.correct){
         div.classList.add('correct');
+        if(isBlanked) div.classList.add('blank-correct');
         div.querySelector('.opt-result').innerHTML = ICONS.check;
       } else if(i === existingAnswer){
         div.classList.add('incorrect');
@@ -4401,7 +4407,7 @@ function markBlank(){
   document.querySelectorAll('#quizOptions .option').forEach((el,idx) => {
     el.onclick = null;
     if(idx === q.correct){
-      el.classList.add('correct');
+      el.classList.add('correct', 'blank-correct');
       el.querySelector('.opt-result').innerHTML = ICONS.check;
     }
   });
@@ -4703,7 +4709,7 @@ function renderReviewList(){
     html += '<div class="options">';
     q.options.forEach((opt, i) => {
       let cls = 'option', icon = '';
-      if(i === q.correct){ cls += ' correct'; icon = '<span class="opt-result" style="display:block">' + ICONS.check + '</span>'; }
+      if(i === q.correct){ cls += ' correct' + ((userAnswer === null || userAnswer === undefined) ? ' blank-correct' : ''); icon = '<span class="opt-result" style="display:block">' + ICONS.check + '</span>'; }
       else if(i === userAnswer){ cls += ' incorrect'; icon = '<span class="opt-result" style="display:block">' + ICONS.cross + '</span>'; }
       html += '<div class="' + cls + '"><span class="opt-badge">' + letters[i] + '</span><span class="opt-text">' + opt + '</span>' + icon + '</div>';
     });
