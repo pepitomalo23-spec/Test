@@ -3568,8 +3568,7 @@ function renderSmartSizeOptions(){
   });
 }
 const SMART_CAT_LABELS = {
-  red: '🔴 Fallos recientes', yellow: '🟠 En recuperación',
-  memory: '🟡 Memoria antigua', new: '🟣 Nunca vistas'
+  fallos: '🔴 Fallos', progreso: '🟠 En progreso', acertadas: '🟢 Acertadas'
 };
 function renderSmartIntro(){
   if(!currentUser || !QUESTIONS_POOL.length) return;
@@ -3580,9 +3579,22 @@ function renderSmartIntro(){
   const el = document.getElementById('smartBreakdown');
   if(el){
     el.innerHTML = '';
-    ['red', 'yellow', 'memory', 'new'].forEach(cat => {
-      const n = result.selectedCounts[cat] || 0;
-      if(n === 0 && result.counts[cat] === 0) return; // no hay nada de esta categoría en todo el banco
+    // Solo el desglose del test de HOY (lo que realmente se ha elegido para
+    // esta sesión), agrupado en 3 grupos sencillos en vez de las 5
+    // categorías internas del algoritmo:
+    // - Fallos: preguntas falladas en el último intento.
+    // - En progreso: falladas antes y ahora en racha de recuperación, o
+    //   preguntas que todavía no habías visto nunca.
+    // - Acertadas: ya dominadas, hoy solo tocan de repaso de memoria.
+    const sc = result.selectedCounts;
+    const grouped = {
+      fallos: sc.red || 0,
+      progreso: (sc.yellow || 0) + (sc.new || 0),
+      acertadas: (sc.memory || 0) + (sc.mastered || 0)
+    };
+    ['fallos', 'progreso', 'acertadas'].forEach(cat => {
+      const n = grouped[cat];
+      if(n === 0) return; // no mostrar grupos vacíos en el test de hoy
       const row = document.createElement('div');
       row.className = 'fallos-row';
       row.innerHTML = '<span class="fallos-row-name">' + SMART_CAT_LABELS[cat] + '</span><span class="fallos-row-count">' + n + '</span>';
