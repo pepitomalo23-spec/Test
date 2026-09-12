@@ -6035,13 +6035,26 @@ function normalizeForDuplicateCheck(text){
     .replace(/\s+/g, ' ')
     .trim();
 }
+/* Clave estricta de duplicado: mismo enunciado, MISMAS opciones (sin importar
+   en qué orden A/B/C/D estén escritas) y misma opción marcada como correcta.
+   Solo se consideran duplicadas dos preguntas que sean literalmente iguales
+   en todo esto, no solo en el enunciado. */
+function duplicateKeyForQuestion(q){
+  const qText = normalizeForDuplicateCheck(q.question);
+  if(!qText) return null;
+  const opts = (q.options || []).map(o => normalizeForDuplicateCheck(o)).filter(Boolean);
+  if(!opts.length) return null;
+  const correctText = (q.correct_index != null && opts[q.correct_index] != null) ? opts[q.correct_index] : '';
+  const sortedOpts = [...opts].sort(); // el orden de las opciones no importa para considerarlas "las mismas"
+  return qText + '||opts:' + sortedOpts.join('|') + '||correcta:' + correctText;
+}
 function findDuplicateQuestionGroups(){
   if(!adminTreeTopicId || !adminData.questions) return [];
   const groups = {};
   adminData.questions
     .filter(q => q.topic_id === adminTreeTopicId)
     .forEach(q => {
-      const key = normalizeForDuplicateCheck(q.question);
+      const key = duplicateKeyForQuestion(q);
       if(!key) return;
       (groups[key] = groups[key] || []).push(q);
     });
@@ -6072,13 +6085,13 @@ function updateDuplicatesLink(){
 function renderDuplicatesView(){
   const groups = findDuplicateQuestionGroups();
   if(!groups.length){
-    return '<div class="tree-empty">No se han encontrado preguntas duplicadas en este tema (se compara el texto de la pregunta, ignorando mayúsculas, acentos y puntuación).</div>';
+    return '<div class="tree-empty">No se han encontrado preguntas duplicadas en este tema (se comparan enunciado, opciones y respuesta correcta; se ignoran mayúsculas, acentos, puntuación y el orden de las opciones).</div>';
   }
   return (
-    '<div class="tree-empty" style="text-align:left;margin-bottom:14px;">Se han encontrado ' + groups.length + ' grupo' + (groups.length===1?'':'s') + ' de preguntas repetidas en este tema. Revisa cada grupo, marca en modo selección las copias que quieras eliminar (deja al menos una) y usa "Eliminar selección".</div>' +
+    '<div class="tree-empty" style="text-align:left;margin-bottom:14px;">Se han encontrado ' + groups.length + ' grupo' + (groups.length===1?'':'s') + ' de preguntas idénticas en este tema (mismo enunciado, mismas opciones y misma respuesta correcta). Revisa cada grupo, marca en modo selección las copias que quieras eliminar (deja al menos una) y usa "Eliminar selección".</div>' +
     groups.map((g, gi) => (
       '<div class="dup-group" style="margin-bottom:20px;">' +
-        '<div class="dup-group-head" style="font-weight:600;margin-bottom:6px;">Grupo ' + (gi+1) + ' — ' + g.length + ' preguntas iguales' +
+        '<div class="dup-group-head" style="font-weight:600;margin-bottom:6px;">Grupo ' + (gi+1) + ' — ' + g.length + ' preguntas idénticas' +
           (g[0].nodo_id ? ' · ' + esc(nodePathName(g[0].nodo_id)) : ' · Pregunta general del tema') +
         '</div>' +
         g.map(q => renderQuestionCard(q)).join('') +
