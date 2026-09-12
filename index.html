@@ -112,7 +112,7 @@
      dejando ver la app ya bien colocada. */
   #appSplash{ position:fixed; inset:0; z-index:9999; background: var(--bg); display:flex; align-items:center; justify-content:center; transition: opacity .4s ease; }
   #appSplash.hidden{ opacity:0; pointer-events:none; }
-  #appSplashLogo{ font-family: var(--title); font-size:38px; letter-spacing:.5px; color: var(--text); opacity:0; transition: opacity .5s ease; }
+  #appSplashLogo{ width:120px; height:120px; border-radius:26px; opacity:0; transition: opacity .5s ease; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
   #appSplashLogo.show{ opacity:1; }
   .hidden{ display:none !important; }
   .auth-overlay.hidden{ display:none; }
@@ -1290,7 +1290,7 @@
 </style>
 </head>
 <body>
-<div id="appSplash"><div id="appSplashLogo">pj.fire</div></div>
+<div id="appSplash"><img id="appSplashLogo" src="assets/icons/icon-512.png" alt=""></div>
 <div id="app">
 
   <div class="auth-overlay hidden" id="authOverlay">
