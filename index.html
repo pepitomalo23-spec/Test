@@ -1949,6 +1949,12 @@
         <div class="modal-footer">
           <button class="btn btn-primary btn-block btn-light" id="smartStartBtn" onclick="startSmartTest()">Empezar test inteligente</button>
         </div>
+        <!-- Historial propio del Test Inteligente: aparte del Historial general,
+             para que los repasos rápidos y espontáneos no lo ensucien. -->
+        <div id="smartHistorySection" class="hidden">
+          <div class="section-row" style="margin-top:18px;"><div class="section-title">Tus intentos de Test Inteligente</div><div class="section-rule"></div></div>
+          <div class="history" id="smartHistoryList"></div>
+        </div>
       </div>
     </section>
 
@@ -2188,6 +2194,11 @@ const AYUDA_LABELS = { ocultar:"Ocultar tema", mostrar:"Mostrar tema" };
 const REPASO_OPTIONS = [false, true];
 
 let HISTORY = [];
+// El Test Inteligente tiene su propio historial, separado del Historial
+// general: son repasos rápidos y espontáneos (a veces de 1 o 2 preguntas)
+// y no tiene sentido que ensucien el Historial de Examen/Estudio/Simulacro.
+// Se muestran aparte, dentro de la propia pantalla de Test Inteligente.
+let SMART_HISTORY = [];
 let lastFinishedReviewId = null;
 
 /* ---------- small helpers ---------- */
@@ -2767,7 +2778,7 @@ function renderHistory(){
    selector con cada tipo de test presente (y cuántos hay); debajo, la
    lista completa (limitada a lo que ya se ha cargado del backend) según
    el filtro elegido. */
-const HISTORIAL_TIPO_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos', inteligente:'Test Inteligente' };
+const HISTORIAL_TIPO_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos' };
 let historialTipoFilter = 'todas';
 function openHistorialTodo(){
   historialTipoFilter = 'todas';
@@ -2848,8 +2859,10 @@ async function deleteHistoryItem(h, btnEl){
   }
 
   HISTORY = HISTORY.filter(item => item.id !== h.id);
+  SMART_HISTORY = SMART_HISTORY.filter(item => item.id !== h.id);
   renderHistory();
   renderHistorialTodoList();
+  renderSmartHistory();
 
   if(currentUser){
     await refreshGlobalStats();
@@ -2857,27 +2870,43 @@ async function deleteHistoryItem(h, btnEl){
 }
 
 /* ---------- load session history for the logged-in user ---------- */
-async function loadHistory(){
-  if(!currentUser){ HISTORY = []; renderHistory(); return; }
-  const { data, error } = await sb
-    .from('test_sessions')
-    .select('*')
-    .eq('user_id', currentUser.id)
-    .order('created_at', { ascending: false })
-    .limit(50);
-  if(error){ console.error('Error cargando historial', error); HISTORY = []; renderHistory(); return; }
-  const MODE_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos', inteligente:'Test Inteligente' };
-  HISTORY = (data || []).map(row => ({
+const HISTORY_MODE_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos', inteligente:'Test Inteligente' };
+function mapSessionRowToHistoryEntry(row){
+  return {
     id: row.id,
     date: formatRelativeDate(row.created_at),
     type: row.mode,
-    title: MODE_LABELS[row.mode] || row.mode,
+    title: HISTORY_MODE_LABELS[row.mode] || row.mode,
     nota: formatNota(row.score),
     time: formatMMSS(row.time_seconds),
     ok: row.ok, bad: row.bad, pending: row.pending,
     review: null
-  }));
+  };
+}
+async function loadHistory(){
+  if(!currentUser){ HISTORY = []; SMART_HISTORY = []; renderHistory(); renderSmartHistory(); return; }
+  const [{ data, error }, { data: smartData, error: smartError }] = await Promise.all([
+    sb.from('test_sessions').select('*').eq('user_id', currentUser.id).neq('mode', 'inteligente')
+      .order('created_at', { ascending: false }).limit(50),
+    sb.from('test_sessions').select('*').eq('user_id', currentUser.id).eq('mode', 'inteligente')
+      .order('created_at', { ascending: false }).limit(30)
+  ]);
+  if(error) console.error('Error cargando historial', error);
+  if(smartError) console.error('Error cargando historial de Test Inteligente', smartError);
+  HISTORY = (data || []).map(mapSessionRowToHistoryEntry);
+  SMART_HISTORY = (smartData || []).map(mapSessionRowToHistoryEntry);
   renderHistory();
+  renderSmartHistory();
+}
+/* ---------- Historial propio del Test Inteligente, dentro de su pantalla ---------- */
+function renderSmartHistory(){
+  const wrap = document.getElementById('smartHistorySection');
+  const el = document.getElementById('smartHistoryList');
+  if(!wrap || !el) return;
+  if(!SMART_HISTORY.length){ wrap.classList.add('hidden'); el.innerHTML = ''; return; }
+  wrap.classList.remove('hidden');
+  el.innerHTML = '';
+  SMART_HISTORY.forEach(h => renderHistoryEntry(el, h));
 }
 
 /* ---------- global stats screen ---------- */
@@ -3594,6 +3623,7 @@ function openInteligente(){
   if(quizState && quizState.mode && quizState.mode !== 'inteligente') return; // hay un test en curso en otro apartado
   if(!QUESTIONS_POOL.length) return;
   renderSmartIntro();
+  renderSmartHistory();
   showScreen('screen-home');
   openOverlay('screen-inteligente');
 }
@@ -4915,7 +4945,7 @@ async function finishQuiz(){
   });
   const notaNum = total ? Math.max(0, (earnedPoints / total) * 10) : 0;
   const elapsedSec = quizState.startedAt ? Math.round((Date.now() - quizState.startedAt) / 1000) : 0;
-  const MODE_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos', inteligente:'Test Inteligente' };
+  const MODE_LABELS = HISTORY_MODE_LABELS;
 
   let sessionId = 'r' + Date.now();
 
@@ -4979,8 +5009,10 @@ async function finishQuiz(){
     pending: blank,
     review: { questions: SESSION_QUESTIONS.slice(), answers: SESSION_ANSWERS.slice() }
   };
-  HISTORY.unshift(entry);
-  renderHistory();
+  // El Test Inteligente va a su propio historial (dentro de su pantalla),
+  // no al Historial general de Examen/Estudio/Simulacro/Fallos.
+  if(quizState.mode === 'inteligente'){ SMART_HISTORY.unshift(entry); renderSmartHistory(); }
+  else { HISTORY.unshift(entry); renderHistory(); }
   lastFinishedReviewId = entry.id;
 
   // el test ya ha terminado: se libera el bloqueo de las demás tarjetas de home
@@ -4991,7 +5023,7 @@ async function finishQuiz(){
   showScreen('screen-result');
 }
 function openLastReview(){
-  const entry = HISTORY.find(h => h.id === lastFinishedReviewId);
+  const entry = HISTORY.find(h => h.id === lastFinishedReviewId) || SMART_HISTORY.find(h => h.id === lastFinishedReviewId);
   if(entry && entry.review) openReview(entry.review, entry.title + ' · Nota ' + entry.nota);
 }
 
@@ -5268,11 +5300,13 @@ function onLoggedOut(){
   const countEl = document.getElementById('headerAdminPendingCount');
   if(countEl) countEl.classList.add('hidden');
   HISTORY = [];
+  SMART_HISTORY = [];
   TOPICS = [];
   QUESTIONS_POOL = [];
   quizState = { mode:null, index:0, correctCount:0, answered:false };
   quizSecondsLeft = null;
   renderHistory();
+  renderSmartHistory();
   document.getElementById('authOverlay').classList.remove('hidden');
   showAuthError(''); showAuthStatus('');
   const emailEl = document.getElementById('headerUserEmail');
