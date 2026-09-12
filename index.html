@@ -3932,7 +3932,23 @@ function setViewportZoomable(enabled){
    evento posterior (scroll, giro...) lo corrige por su cuenta. Este truco
    (mover initial-scale una micra y devolverlo) obliga a Safari a
    recalcular el zoom real de la página, no solo a anotar el nuevo valor. */
+/* El pellizco de ampliar solo existe en pantallas táctiles con WebKit
+   (Safari/iOS; en iPadOS el user-agent se anuncia como "Macintosh" pero
+   trae pantalla táctil, así que se distingue por maxTouchPoints). En
+   escritorio (ratón) este bug no puede darse nunca, así que ahí NO
+   merece la pena tocar el viewport: hacerlo fuerza a todos los
+   navegadores a recalcular el zoom/layout de toda la página, lo que en
+   algunos provoca un parpadeo gris de un par de fotogramas mientras
+   recomponen la pantalla. Al limitar el truco a donde de verdad hace
+   falta evitamos ese parpadeo en el resto de dispositivos. */
+function isTouchWebKit(){
+  const ua = navigator.userAgent || '';
+  const isWebKitMobile = /iPhone|iPad|iPod/i.test(ua) ||
+    (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+  return isWebKitMobile;
+}
 function forceResetPinchZoom(){
+  if(!isTouchWebKit()) return;
   const meta = document.getElementById('viewportMeta');
   if(!meta) return;
   const finalContent = meta.getAttribute('content');
