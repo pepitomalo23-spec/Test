@@ -1698,6 +1698,7 @@
           <span class="tree-toolbar-link" onclick="adminCollapseAllTree()">Colapsar todo</span>
           <span class="tree-toolbar-link" id="selectionToggleLink" onclick="toggleSelectionMode()">Seleccionar varios</span>
           <span class="tree-toolbar-link hidden" id="selectAllLink" onclick="toggleSelectAllQuestions()">Seleccionar todas</span>
+          <span class="tree-toolbar-link" id="duplicatesToggleLink" onclick="toggleDuplicatesView()">Ver duplicadas</span>
         </div>
 
         <!-- barra flotante: cuántas preguntas/niveles hay seleccionados, y acciones sobre la selección -->
@@ -5877,6 +5878,7 @@ function onAdminTreeTopicChange(){
   adminCancelTreeQuestionForm();
   adminCancelMoveNode(); adminCancelBulkMove();
   treeNodeMenuOpen = null;
+  showingDuplicates = false;
   adminLoadTree();
 }
 async function adminLoadTree(){
@@ -5901,15 +5903,23 @@ function nodePathName(nodeId){
 }
 function renderTree(){
   const el = document.getElementById('adminTreeContainer');
+  if(showingDuplicates){
+    el.innerHTML = renderDuplicatesView();
+    updateBulkSelectBar();
+    updateDuplicatesLink();
+    return;
+  }
   const roots = nodeChildren(null);
   const temaHtml = renderTemaGeneralRow();
   if(!roots.length){
     el.innerHTML = temaHtml + '<div class="tree-empty">Este tema todavía no tiene estructura. Añade un nivel raíz (Título, Capítulo, Sección o Artículo, el que necesites).</div>';
     updateBulkSelectBar();
+    updateDuplicatesLink();
     return;
   }
   el.innerHTML = temaHtml + roots.map(n => renderNode(n)).join('');
   updateBulkSelectBar();
+  updateDuplicatesLink();
 }
 const TEMA_GENERAL_KEY = '__tema_general__';
 function temaGeneralQuestions(){
@@ -5987,17 +5997,16 @@ function toggleNodeSelected(id, event){
   if(selectedNodeIds.has(id)) selectedNodeIds.delete(id); else selectedNodeIds.add(id);
   renderTree();
 }
-function clearSelection(){
-  selectedQuestionIds.clear();
-  selectedNodeIds.clear();
-  adminCancelBulkMove();
-  renderTree();
-}
 /* Todas las preguntas del tema actualmente abierto en "Estructura" (con
    independencia de qué artículos estén desplegados en el árbol), que es el
-   conjunto sobre el que tiene sentido "seleccionar/deseleccionar todas". */
+   conjunto sobre el que tiene sentido "seleccionar/deseleccionar todas".
+   Si se está viendo el listado de duplicadas, el "todas" se limita a las
+   preguntas duplicadas mostradas (no a todo el tema), que es lo útil ahí:
+   marcarlas todas de golpe y luego ir desmarcando a mano las que se quieren
+   conservar antes de borrar el resto. */
 function currentTopicQuestionIds(){
   if(!adminTreeTopicId || !adminData || !adminData.questions) return [];
+  if(showingDuplicates) return findDuplicateQuestionGroups().flat().map(q => q.id);
   return adminData.questions.filter(q => q.topic_id === adminTreeTopicId).map(q => q.id);
 }
 /* Actúa como interruptor: si ya están todas seleccionadas, las deselecciona;
@@ -6009,6 +6018,79 @@ function toggleSelectAllQuestions(){
   const allSelected = ids.every(id => selectedQuestionIds.has(id));
   if(allSelected) ids.forEach(id => selectedQuestionIds.delete(id));
   else ids.forEach(id => selectedQuestionIds.add(id));
+  renderTree();
+}
+
+/* ---------- Detección de preguntas duplicadas ----------
+   Compara el texto de la pregunta (ignorando mayúsculas/minúsculas, acentos,
+   puntuación y espacios repetidos) dentro del mismo tema. No se compara entre
+   temas distintos porque una misma pregunta en dos temas no es un duplicado
+   por error, sino una decisión del admin. */
+let showingDuplicates = false;
+function normalizeForDuplicateCheck(text){
+  return (text || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita acentos
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')                  // quita puntuación
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function findDuplicateQuestionGroups(){
+  if(!adminTreeTopicId || !adminData.questions) return [];
+  const groups = {};
+  adminData.questions
+    .filter(q => q.topic_id === adminTreeTopicId)
+    .forEach(q => {
+      const key = normalizeForDuplicateCheck(q.question);
+      if(!key) return;
+      (groups[key] = groups[key] || []).push(q);
+    });
+  return Object.values(groups)
+    .filter(g => g.length > 1)
+    .sort((a, b) => b.length - a.length);
+}
+function toggleDuplicatesView(){
+  if(!adminTreeTopicId){ alert('Selecciona antes un tema.'); return; }
+  showingDuplicates = !showingDuplicates;
+  selectedQuestionIds.clear();
+  selectedNodeIds.clear();
+  adminCancelBulkMove();
+  if(showingDuplicates){
+    treeNodeMenuOpen = null;
+    adminCancelNodeForm(); adminCancelTreeQuestionForm(); adminCancelGeneralPicker();
+    adminCancelMoveNode(); adminCancelIAImportForm();
+  }
+  renderTree();
+}
+function updateDuplicatesLink(){
+  const link = document.getElementById('duplicatesToggleLink');
+  if(!link) return;
+  if(showingDuplicates){ link.textContent = '← Volver al árbol'; return; }
+  const nGroups = findDuplicateQuestionGroups().length;
+  link.textContent = nGroups ? ('Ver duplicadas ('+nGroups+')') : 'Ver duplicadas';
+}
+function renderDuplicatesView(){
+  const groups = findDuplicateQuestionGroups();
+  if(!groups.length){
+    return '<div class="tree-empty">No se han encontrado preguntas duplicadas en este tema (se compara el texto de la pregunta, ignorando mayúsculas, acentos y puntuación).</div>';
+  }
+  return (
+    '<div class="tree-empty" style="text-align:left;margin-bottom:14px;">Se han encontrado ' + groups.length + ' grupo' + (groups.length===1?'':'s') + ' de preguntas repetidas en este tema. Revisa cada grupo, marca en modo selección las copias que quieras eliminar (deja al menos una) y usa "Eliminar selección".</div>' +
+    groups.map((g, gi) => (
+      '<div class="dup-group" style="margin-bottom:20px;">' +
+        '<div class="dup-group-head" style="font-weight:600;margin-bottom:6px;">Grupo ' + (gi+1) + ' — ' + g.length + ' preguntas iguales' +
+          (g[0].nodo_id ? ' · ' + esc(nodePathName(g[0].nodo_id)) : ' · Pregunta general del tema') +
+        '</div>' +
+        g.map(q => renderQuestionCard(q)).join('') +
+      '</div>'
+    )).join('')
+  );
+}
+
+function clearSelection(){
+  selectedQuestionIds.clear();
+  selectedNodeIds.clear();
+  adminCancelBulkMove();
   renderTree();
 }
 function updateBulkSelectBar(){
