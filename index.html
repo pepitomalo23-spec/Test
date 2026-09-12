@@ -1419,7 +1419,7 @@
               <path d="m9 7 6 6"/>
             </svg>
           </div>
-          <div><div class="m-name">Fallos</div><div class="m-sub" id="fallosPendingLabel">— pendientes</div></div>
+          <div><div class="m-name">Fallos</div><div class="m-sub" id="fallosPendingLabel">Cargando…</div></div>
           <div class="mode-resume-btn hidden" role="button" tabindex="0" onclick="event.stopPropagation(); resumeQuiz();" onkeydown="event.stopPropagation(); if(event.key==='Enter')resumeQuiz();">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             Reanudar
@@ -1442,7 +1442,7 @@
               <rect x="6.5" y="6.5" width="11" height="11" rx="1"/>
             </svg>
           </div>
-          <div><div class="m-name">Test Inteligente</div><div class="m-sub" id="smartPendingLabel">— recomendadas hoy</div></div>
+          <div><div class="m-name">Test Inteligente</div><div class="m-sub" id="smartPendingLabel">Cargando…</div></div>
           <div class="mode-resume-btn hidden" role="button" tabindex="0" onclick="event.stopPropagation(); resumeQuiz();" onkeydown="event.stopPropagation(); if(event.key==='Enter')resumeQuiz();">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             Reanudar
@@ -1484,7 +1484,7 @@
 
       <div class="section-row"><div class="section-title">Historial</div><div class="section-rule"></div></div>
       <div class="history" id="historyList">
-        <!-- filled by JS -->
+        <div class="empty" id="historyLoadingPlaceholder">Cargando historial…</div>
       </div>
     </section>
 
@@ -5272,13 +5272,27 @@ async function onLoggedIn(user){
   const emailEl = document.getElementById('headerUserEmail');
   if(emailEl) emailEl.textContent = user.email || '';
 
+  // Se ve la pantalla de Inicio antes de que lleguen los datos (para no
+  // esperar con una pantalla en blanco), así que mientras se cargan se
+  // muestra un estado de "Cargando…" en vez de dejar el texto de la
+  // sesión anterior (o el placeholder final) congelado en pantalla.
+  const fallosLabelEl = document.getElementById('fallosPendingLabel');
+  if(fallosLabelEl) fallosLabelEl.textContent = 'Cargando…';
+  const smartLabelEl = document.getElementById('smartPendingLabel');
+  if(smartLabelEl) smartLabelEl.textContent = 'Cargando…';
+  const historyListEl = document.getElementById('historyList');
+  if(historyListEl) historyListEl.innerHTML = '<div class="empty" id="historyLoadingPlaceholder">Cargando historial…</div>';
+
   const adminBtn = document.getElementById('headerAdminBtn');
   if(adminBtn) adminBtn.classList.toggle('hidden', !currentUserIsAdmin);
   if(currentUserIsAdmin) refreshAdminPendingBadge();
 
-  await loadAppData();
-
-  await loadHistory();
+  // loadHistory() no depende de nada que calcule loadAppData() (solo de
+  // currentUser), así que se lanzan en paralelo en vez de uno detrás de
+  // otro: eso ahorra un viaje de ida y vuelta completo a Supabase en cada
+  // entrada. refreshGlobalStats() sí depende de QUESTIONS_POOL (que llena
+  // loadAppData()), así que ese va después.
+  await Promise.all([loadAppData(), loadHistory()]);
   await refreshGlobalStats();
   // Al entrar (incluido tras recargar la app), volvemos a la pantalla en
   // la que estaba el usuario la última vez (o a su pantalla padre si era
