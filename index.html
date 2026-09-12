@@ -2575,11 +2575,33 @@ function nodeFullPath(nodeId){
   }
   return parts.join(' › ');
 }
+/* Supabase/PostgREST limita cada select() a un máximo de filas por defecto
+   (p.ej. 1000), aunque no haya ningún .limit() explícito en el código: a
+   partir de ese número, corta la respuesta en silencio y sin error. Como
+   la tabla "questions" puede superar ese límite, cualquier select('*') sin
+   paginar puede devolver solo una parte de las preguntas (y, al no llevar
+   tampoco ORDER BY, un subconjunto distinto y arbitrario en cada carga).
+   Esta función pagina con .range() hasta traer todas las filas. */
+async function fetchAllRows(tableName, selectCols, applyOrder){
+  const PAGE_SIZE = 1000;
+  let allRows = [];
+  let from = 0;
+  while(true){
+    let query = sb.from(tableName).select(selectCols || '*');
+    if(applyOrder) query = applyOrder(query);
+    const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
+    if(error) return { data: allRows.length ? allRows : null, error };
+    allRows = allRows.concat(data || []);
+    if(!data || data.length < PAGE_SIZE) break; // última página
+    from += PAGE_SIZE;
+  }
+  return { data: allRows, error: null };
+}
 async function loadAppData(){
   const [{ data: topicsData, error: topicsErr }, { data: nodesData }, { data: questionsData }] = await Promise.all([
     sb.from('topics').select('*').order('sort_order'),
     sb.from('nodos_temario').select('*').order('orden'),
-    sb.from('questions').select('*')
+    fetchAllRows('questions', '*', q => q.order('id'))
   ]);
   if(topicsErr) console.error('Error cargando temas', topicsErr);
 
@@ -6815,7 +6837,7 @@ async function adminSaveTreeQuestion(){
 
 /* ---------- QUESTIONS (datos usados por el árbol de Estructura) ---------- */
 async function adminLoadQuestions(){
-  const { data, error } = await sb.from('questions').select('*');
+  const { data, error } = await fetchAllRows('questions', '*', q => q.order('id'));
   if(error){ console.error(error); return; }
   adminData.questions = data || [];
 }
