@@ -1697,6 +1697,7 @@
           <span class="tree-toolbar-link" onclick="adminExpandAllTree()">Expandir todo</span>
           <span class="tree-toolbar-link" onclick="adminCollapseAllTree()">Colapsar todo</span>
           <span class="tree-toolbar-link" id="selectionToggleLink" onclick="toggleSelectionMode()">Seleccionar varios</span>
+          <span class="tree-toolbar-link hidden" id="selectAllLink" onclick="toggleSelectAllQuestions()">Seleccionar todas</span>
         </div>
 
         <!-- barra flotante: cuántas preguntas/niveles hay seleccionados, y acciones sobre la selección -->
@@ -5992,9 +5993,34 @@ function clearSelection(){
   adminCancelBulkMove();
   renderTree();
 }
+/* Todas las preguntas del tema actualmente abierto en "Estructura" (con
+   independencia de qué artículos estén desplegados en el árbol), que es el
+   conjunto sobre el que tiene sentido "seleccionar/deseleccionar todas". */
+function currentTopicQuestionIds(){
+  if(!adminTreeTopicId || !adminData || !adminData.questions) return [];
+  return adminData.questions.filter(q => q.topic_id === adminTreeTopicId).map(q => q.id);
+}
+/* Actúa como interruptor: si ya están todas seleccionadas, las deselecciona;
+   si no, selecciona de golpe todas las preguntas del tema (aunque su artículo
+   esté colapsado, no hace falta desplegarlo pregunta a pregunta). */
+function toggleSelectAllQuestions(){
+  const ids = currentTopicQuestionIds();
+  if(!ids.length) return;
+  const allSelected = ids.every(id => selectedQuestionIds.has(id));
+  if(allSelected) ids.forEach(id => selectedQuestionIds.delete(id));
+  else ids.forEach(id => selectedQuestionIds.add(id));
+  renderTree();
+}
 function updateBulkSelectBar(){
   const link = document.getElementById('selectionToggleLink');
   if(link) link.textContent = selectionMode ? 'Salir de selección' : 'Seleccionar varios';
+  const selectAllLink = document.getElementById('selectAllLink');
+  if(selectAllLink){
+    const ids = currentTopicQuestionIds();
+    selectAllLink.classList.toggle('hidden', !selectionMode || !ids.length);
+    const allSelected = ids.length > 0 && ids.every(id => selectedQuestionIds.has(id));
+    selectAllLink.textContent = allSelected ? 'Deseleccionar todas' : 'Seleccionar todas';
+  }
   const bar = document.getElementById('bulkSelectBar');
   if(!bar) return;
   const total = selectedQuestionIds.size + selectedNodeIds.size;
