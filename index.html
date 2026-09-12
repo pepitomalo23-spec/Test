@@ -112,7 +112,7 @@
      dejando ver la app ya bien colocada. */
   #appSplash{ position:fixed; inset:0; z-index:9999; background: var(--bg); display:flex; align-items:center; justify-content:center; transition: opacity .4s ease; }
   #appSplash.hidden{ opacity:0; pointer-events:none; }
-  #appSplashLogo{ width:120px; height:120px; border-radius:26px; opacity:0; transition: opacity .5s ease; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+  #appSplashLogo{ width:120px; height:120px; opacity:0; transition: opacity .6s ease; }
   #appSplashLogo.show{ opacity:1; }
   .hidden{ display:none !important; }
   .auth-overlay.hidden{ display:none; }
@@ -1290,7 +1290,7 @@
 </style>
 </head>
 <body>
-<div id="appSplash"><img id="appSplashLogo" src="assets/icons/icon-512.png" alt=""></div>
+<div id="appSplash"><img id="appSplashLogo" src="assets/icons/icon-512-splash.png" alt=""></div>
 <div id="app">
 
   <div class="auth-overlay hidden" id="authOverlay">
@@ -3932,7 +3932,23 @@ function setViewportZoomable(enabled){
    evento posterior (scroll, giro...) lo corrige por su cuenta. Este truco
    (mover initial-scale una micra y devolverlo) obliga a Safari a
    recalcular el zoom real de la página, no solo a anotar el nuevo valor. */
+/* El pellizco de ampliar solo existe en pantallas táctiles con WebKit
+   (Safari/iOS; en iPadOS el user-agent se anuncia como "Macintosh" pero
+   trae pantalla táctil, así que se distingue por maxTouchPoints). En
+   escritorio (ratón) este bug no puede darse nunca, así que ahí NO
+   merece la pena tocar el viewport: hacerlo fuerza a todos los
+   navegadores a recalcular el zoom/layout de toda la página, lo que en
+   algunos provoca un parpadeo gris de un par de fotogramas mientras
+   recomponen la pantalla. Al limitar el truco a donde de verdad hace
+   falta evitamos ese parpadeo en el resto de dispositivos. */
+function isTouchWebKit(){
+  const ua = navigator.userAgent || '';
+  const isWebKitMobile = /iPhone|iPad|iPod/i.test(ua) ||
+    (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+  return isWebKitMobile;
+}
 function forceResetPinchZoom(){
+  if(!isTouchWebKit()) return;
   const meta = document.getElementById('viewportMeta');
   if(!meta) return;
   const finalContent = meta.getAttribute('content');
@@ -4006,7 +4022,7 @@ setTimeout(() => {
 setTimeout(() => {
   const splash = document.getElementById('appSplash');
   if(splash) splash.classList.add('hidden');
-}, 1100);
+}, 1700);
 
 /* Tarjeta de "nuestra" nota (texto y/o hasta 5 imágenes escritas/subidas a
    mano por vosotros, no generadas por IA). Mismo hueco que ocupaba antes
