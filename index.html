@@ -3969,6 +3969,19 @@ document.addEventListener('visibilitychange', () => {
   else handleAppForegrounded();
 });
 window.addEventListener('pageshow', handleAppForegrounded);
+// iOS puede reaplicar el zoom pellizcado de la sesión anterior DESPUÉS de
+// que se ejecute este script (parece hacerlo de forma asíncrona al
+// restaurar la página desde el icono de inicio), así que una sola
+// llamada a forceResetPinchZoom() al cargar puede llegar demasiado
+// pronto y quedar pisada. Como red de seguridad adicional, se reintenta
+// varias veces durante los primeros 2 segundos: si no había nada que
+// corregir no se nota (es una operación barata e inofensiva), y si sí lo
+// había, alguno de estos reintentos cae después de que iOS lo reaplique.
+[100, 300, 600, 1000, 1500, 2000].forEach(delay => {
+  setTimeout(() => {
+    if(!document.getElementById('imageLightbox').classList.contains('show')) forceResetPinchZoom();
+  }, delay);
+});
 
 /* Tarjeta de "nuestra" nota (texto y/o hasta 5 imágenes escritas/subidas a
    mano por vosotros, no generadas por IA). Mismo hueco que ocupaba antes
