@@ -385,6 +385,35 @@
   .mastery-info-box .mastery-dot{ margin-top:4px; }
   .mastery-info-box b{ color: var(--text); }
 
+  /* ---------- artículos peor/mejor dominados (rachas sin corte) ---------- */
+  .streak-row{
+    display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line-soft);
+    cursor:pointer; background:none; border-left:none; border-right:none; border-top:none; width:100%; text-align:left; font:inherit; color:inherit;
+  }
+  .streak-row:last-child{ border-bottom:none; }
+  .streak-row:hover{ background: var(--card-hi); }
+  .streak-pos{
+    width:22px; height:22px; flex-shrink:0; border-radius:50%; background: var(--card-hi);
+    display:flex; align-items:center; justify-content:center;
+    font-family: var(--mono); font-size:10.5px; font-weight:700; color: var(--muted-2);
+  }
+  .streak-body{ flex:1; min-width:0; }
+  .streak-name{ font-size:13px; font-weight:600; color: var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .streak-meta{ font-size:11.5px; color: var(--muted-2); margin-top:2px; }
+  .streak-count{
+    flex-shrink:0; display:flex; align-items:center; gap:4px; font-family: var(--mono); font-size:13.5px; font-weight:700;
+    padding:3px 9px; border-radius:20px;
+  }
+  .streak-count.coral{ color: var(--coral); background: rgba(242,102,92,0.12); }
+  .streak-count.green{ color: var(--green); background: rgba(52,211,153,0.14); }
+  .streak-chevron{ width:14px; height:14px; flex-shrink:0; color: var(--muted-2); }
+  .streak-empty{ font-size:13px; color: var(--muted-2); padding:6px 0; }
+  .streak-two-col{ display:grid; grid-template-columns: 1fr 1fr; gap:22px; }
+  @media (max-width: 620px){ .streak-two-col{ grid-template-columns: 1fr; } }
+  .streak-col-title{ display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; margin-bottom:10px; }
+  .streak-col-title.coral{ color: var(--coral); }
+  .streak-col-title.green{ color: var(--green); }
+
   main{ max-width: 1080px; margin:0 auto; padding: 32px 24px 76px; }
   h1{ font-family: var(--title); font-size:23px; font-weight:400; letter-spacing:.3px; margin-bottom:20px; }
 
@@ -1650,6 +1679,50 @@
         </div>
         <div class="ranking-list" id="topicRankingList"></div>
       </div>
+
+      <div class="ranking-card">
+        <div class="ranking-head">
+          <div class="ranking-title">Peor de lo peor</div>
+          <div class="ranking-sub">Nunca aciertas, 3+ fallos</div>
+        </div>
+        <div class="ranking-list" id="worstArticlesList"></div>
+      </div>
+
+      <div class="ranking-card">
+        <div class="ranking-head">
+          <div class="mastery-title-row">
+            <div class="ranking-title">Extremos por artículo</div>
+            <button type="button" class="mastery-info-btn" id="streakInfoBtn" title="¿Qué significa esto?" onclick="toggleStreakInfo()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"/></svg></button>
+          </div>
+        </div>
+        <div class="mastery-info-box" id="streakInfoBox">
+          <div><span>Un artículo aparece aquí en cuanto acumula <b>3 o más intentos</b> con siempre el mismo resultado, sin ninguna excepción: todo fallos o todo aciertos. En "Siempre fallas" ninguna de sus preguntas la has acertado nunca; en "Siempre aciertas" ninguna la has fallado nunca.</span></div>
+        </div>
+        <div class="streak-two-col">
+          <div>
+            <div class="streak-col-title coral">Siempre fallas</div>
+            <div class="ranking-list" id="streakAlwaysFailList"></div>
+          </div>
+          <div>
+            <div class="streak-col-title green">Siempre aciertas</div>
+            <div class="ranking-list" id="streakAlwaysCorrectList"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ARTÍCULO: preguntas de un artículo (desde Estadísticas) ===== -->
+    <section class="screen overlay" id="screen-articulo-preguntas">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h1 id="articuloPreguntasTitle">Artículo</h1>
+          <button class="modal-close" aria-label="Cerrar" onclick="showScreen('screen-stats')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="config-sub" id="articuloPreguntasSub">Pulsa una pregunta para verla.</div>
+        <div id="articuloPreguntasList"></div>
+      </div>
     </section>
 
     <!-- ===== ADMIN SCREEN ===== -->
@@ -2450,6 +2523,128 @@ function toggleMasteryInfo(){
   if(btn) btn.classList.toggle('active', box.classList.contains('show'));
 }
 
+/* Igual que toggleMasteryInfo pero para la caja de ayuda de "Extremos por
+   artículo" (Estadísticas). */
+function toggleStreakInfo(){
+  const box = document.getElementById('streakInfoBox');
+  const btn = document.getElementById('streakInfoBtn');
+  if(!box) return;
+  box.classList.toggle('show');
+  if(btn) btn.classList.toggle('active', box.classList.contains('show'));
+}
+
+/* ---------- artículos "peor de lo peor" y "extremos" (Estadísticas) ----------
+   Agrupa QUESTIONS_POOL por artículo real (nodo de tipo 'articulo'; las
+   preguntas "generales" sin artículo concreto se ignoran aquí) y suma,
+   para cada artículo, los fallos y aciertos de TODAS sus preguntas
+   (Q.failCount / Q.timesSeen, ya calculados en loadAppData a partir de
+   session_answers). Un artículo solo cuenta si tiene 3 o más intentos
+   totales con siempre el mismo resultado, sin ninguna excepción desde el
+   principio: 0 aciertos (siempre fallas) o 0 fallos (siempre aciertas). */
+const ARTICLE_STREAK_MIN = 3;
+function computeArticleStreakStats(){
+  const groups = {};
+  QUESTIONS_POOL.forEach(q => {
+    if(!q.nodo_id) return;
+    const node = NODES_BY_ID[q.nodo_id];
+    if(!node || node.tipo !== 'articulo') return; // solo artículos reales
+    if(!q.timesSeen) return; // nunca respondida: no cuenta para rachas
+    const g = groups[q.nodo_id] || (groups[q.nodo_id] = {
+      nodoId: q.nodo_id, name: nodeFullPath(q.nodo_id), fails: 0, corrects: 0, questionIds: []
+    });
+    g.fails += (q.failCount || 0);
+    g.corrects += (q.timesSeen - (q.failCount || 0));
+    g.questionIds.push(q.id);
+  });
+  const all = Object.values(groups);
+  const alwaysFail = all
+    .filter(g => g.corrects === 0 && g.fails >= ARTICLE_STREAK_MIN)
+    .sort((a, b) => b.fails - a.fails);
+  const alwaysCorrect = all
+    .filter(g => g.fails === 0 && g.corrects >= ARTICLE_STREAK_MIN)
+    .sort((a, b) => b.corrects - a.corrects);
+  return { alwaysFail, alwaysCorrect };
+}
+function streakRowHtml(g, i, kind){
+  const count = kind === 'fail' ? g.fails : g.corrects;
+  const label = kind === 'fail' ? 'fallos' : 'aciertos';
+  const badgeClass = kind === 'fail' ? 'coral' : 'green';
+  const nQuestions = g.questionIds.length;
+  return (
+    '<button type="button" class="streak-row" onclick="openArticuloPreguntas(\'' + g.nodoId + '\')">' +
+      '<div class="streak-pos">' + (i + 1) + '</div>' +
+      '<div class="streak-body">' +
+        '<div class="streak-name">' + escapeHtml(g.name) + '</div>' +
+        '<div class="streak-meta">' + nQuestions + (nQuestions === 1 ? ' pregunta' : ' preguntas') + '</div>' +
+      '</div>' +
+      '<div class="streak-count ' + badgeClass + '">' + count + ' ' + label + '</div>' +
+      '<svg class="streak-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>' +
+    '</button>'
+  );
+}
+function renderStreakStats(){
+  const worstEl = document.getElementById('worstArticlesList');
+  const failEl = document.getElementById('streakAlwaysFailList');
+  const correctEl = document.getElementById('streakAlwaysCorrectList');
+  if(!worstEl || !failEl || !correctEl) return;
+
+  const { alwaysFail, alwaysCorrect } = computeArticleStreakStats();
+
+  worstEl.innerHTML = alwaysFail.length
+    ? alwaysFail.map((g, i) => streakRowHtml(g, i, 'fail')).join('')
+    : '<div class="streak-empty">Todavía no hay ningún artículo que falles siempre (3+ fallos sin ningún acierto). ¡Bien!</div>';
+
+  failEl.innerHTML = alwaysFail.length
+    ? alwaysFail.map((g, i) => streakRowHtml(g, i, 'fail')).join('')
+    : '<div class="streak-empty">Ninguno todavía.</div>';
+
+  correctEl.innerHTML = alwaysCorrect.length
+    ? alwaysCorrect.map((g, i) => streakRowHtml(g, i, 'correct')).join('')
+    : '<div class="streak-empty">Ninguno todavía.</div>';
+}
+
+/* Pantalla de detalle: preguntas de un artículo concreto, a la que se
+   llega pulsando una fila en "Peor de lo peor" o "Extremos por artículo".
+   Reutiliza openMyAddition para ver cada pregunta individual (opciones,
+   correcta marcada y explicación), pasando esta pantalla como "volver". */
+function openArticuloPreguntas(nodoId){
+  const node = NODES_BY_ID[nodoId];
+  const title = document.getElementById('articuloPreguntasTitle');
+  const sub = document.getElementById('articuloPreguntasSub');
+  const list = document.getElementById('articuloPreguntasList');
+  if(!list) return;
+  if(title) title.textContent = node ? nodeFullPath(nodoId) : 'Artículo';
+
+  const questions = QUESTIONS_POOL.filter(q => q.nodo_id === nodoId);
+  if(sub) sub.textContent = questions.length === 1
+    ? 'Esta es la pregunta de este artículo. Pulsa para verla.'
+    : 'Estas son las ' + questions.length + ' preguntas de este artículo. Pulsa una para verla.';
+
+  list.innerHTML = questions.length
+    ? questions.map(q => {
+        const result = q.timesSeen
+          ? (q.failCount === q.timesSeen ? 'coral' : (q.failCount === 0 ? 'green' : ''))
+          : '';
+        const metaCount = q.timesSeen
+          ? (q.failCount + ' fallos · ' + (q.timesSeen - q.failCount) + ' aciertos')
+          : 'Todavía sin responder';
+        return (
+          '<div class="admin-card" role="button" tabindex="0" onclick="openMyAddition(\'' + q.id + '\',\'screen-articulo-preguntas\')" onkeydown="if(event.key===\'Enter\')openMyAddition(\'' + q.id + '\',\'screen-articulo-preguntas\')">' +
+            '<div class="admin-card-row">' +
+              '<div>' +
+                '<div class="admin-card-title">' + esc(q.q) + '</div>' +
+                '<div class="admin-card-meta">' + metaCount + '</div>' +
+              '</div>' +
+              (result ? '<div class="admin-card-actions"><span class="streak-count ' + result + '" style="font-size:11.5px;">' + (result === 'coral' ? 'Siempre falla' : 'Siempre acierta') + '</span></div>' : '') +
+            '</div>' +
+          '</div>'
+        );
+      }).join('')
+    : '<div class="empty">No se han encontrado preguntas para este artículo.</div>';
+
+  showScreen('screen-articulo-preguntas');
+}
+
 /* Construye el path SVG de un segmento de "donut" (anillo) entre dos
    ángulos, sobre la mitad superior de un círculo (de 180° en el punto
    izquierdo a 0° en el punto derecho, pasando por arriba). */
@@ -2978,6 +3173,7 @@ async function refreshGlobalStats(){
 
   renderMasteryBar();
   renderTopicRanking();
+  renderStreakStats();
 }
 
 /* ---------- navigation ---------- */
@@ -3000,6 +3196,7 @@ const SCREEN_RESTORE_TARGET = {
   'screen-admin': 'screen-admin',
   'screen-boe-detalle': 'screen-boe-cambios',
   'screen-my-addition-detail': 'screen-my-additions',
+  'screen-articulo-preguntas': 'screen-stats',
   'screen-review': 'screen-home',
   'screen-config': 'screen-home',
   'screen-quiz': 'screen-home',
