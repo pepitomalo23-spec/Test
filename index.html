@@ -1707,21 +1707,6 @@
         </div>
         <div class="ranking-list" id="worstArticlesList"></div>
       </div>
-
-      <div class="ranking-card">
-        <div class="ranking-head">
-          <div class="mastery-title-row">
-            <div class="ranking-title">Mejor progreso</div>
-            <button type="button" class="mastery-info-btn" id="masteredInfoBtn" title="¿Qué significa esto?" onclick="toggleInfoBox('masteredInfoBox','masteredInfoBtn')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"/></svg></button>
-          </div>
-          <div class="ranking-sub">Nunca fallas, o ya recuperado</div>
-        </div>
-        <div class="mastery-info-box" id="masteredInfoBox">
-          <div><span>Un artículo aparece aquí si nunca has fallado ninguna de sus preguntas y llevas <b>5 o más aciertos</b>.</span></div>
-          <div><span>También aparece si fallaste alguna vez pero ya te has recuperado: <b>5 aciertos seguidos</b> si el artículo tiene 1 o 2 preguntas, o <b>todas acertadas sin fallar ninguna entre medias + 3 aciertos más</b> si tiene 3 o más.</span></div>
-        </div>
-        <div class="ranking-list" id="masteredArticlesList"></div>
-      </div>
     </section>
 
     <!-- ===== ARTÍCULO: preguntas de un artículo (desde Estadísticas) ===== -->
@@ -2685,12 +2670,10 @@ function streakRowHtml(g, i, kind, returnScreen){
 }
 function renderStreakStats(){
   const worstEl = document.getElementById('worstArticlesList');
-  const masteredEl = document.getElementById('masteredArticlesList');
-  if(!worstEl || !masteredEl) return;
+  if(!worstEl) return;
 
-  const { mostFailed, mastered } = computeArticleStreakStats();
+  const { mostFailed } = computeArticleStreakStats();
   worstEl.innerHTML = streakListHtml(mostFailed, 'fail', 'ningún artículo con 5 o más fallos. ¡Bien!');
-  masteredEl.innerHTML = streakListHtml(mastered, 'correct', 'ningún artículo con 5 o más aciertos seguidos sin fallar.');
 }
 /* Muestra solo un resumen (STREAK_PREVIEW_COUNT filas); si hay más,
 /* Pantalla con el ranking completo (todos los artículos, no solo el
