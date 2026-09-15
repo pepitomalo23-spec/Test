@@ -1718,12 +1718,26 @@
       <div class="modal-panel">
         <div class="modal-head">
           <h1 id="articuloPreguntasTitle">Artículo</h1>
-          <button class="modal-close" aria-label="Cerrar" onclick="showScreen('screen-stats')">
+          <button class="modal-close" aria-label="Cerrar" onclick="showScreen(articuloPreguntasReturn)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
           </button>
         </div>
         <div class="config-sub" id="articuloPreguntasSub">Pulsa una pregunta para verla.</div>
         <div id="articuloPreguntasList"></div>
+      </div>
+    </section>
+
+    <!-- ===== RANKING COMPLETO: "Ver todos" desde Estadísticas ===== -->
+    <section class="screen overlay" id="screen-streak-full">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h1 id="streakFullTitle">Ranking</h1>
+          <button class="modal-close" aria-label="Cerrar" onclick="showScreen('screen-stats')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="config-sub" id="streakFullSub"></div>
+        <div class="ranking-list" id="streakFullList"></div>
       </div>
     </section>
 
@@ -2556,7 +2570,7 @@ function computeArticleStreakStats(){
     if(!node || node.tipo !== 'articulo') return; // solo artículos reales
     if(!q.timesSeen) return; // nunca respondida: no cuenta
     const g = groups[q.nodo_id] || (groups[q.nodo_id] = {
-      nodoId: q.nodo_id, name: nodeDisplayName(node), topicName: topicTitle(q.topic_id),
+      nodoId: q.nodo_id, name: articleShortLabel(node), lawName: topicTitle(q.topic_id),
       fails: 0, corrects: 0, questionIds: []
     });
     g.fails += (q.failCount || 0);
@@ -2572,16 +2586,20 @@ function computeArticleStreakStats(){
     .sort((a, b) => b.corrects - a.corrects);
   return { mostFailed, mastered };
 }
-function streakRowHtml(g, i, kind){
+/* Solo "Artículo N" (número), sin el nombre/descripción del artículo. */
+function articleShortLabel(node){
+  return node.numero ? (NODE_TYPE_LABEL[node.tipo] + ' ' + node.numero) : nodeDisplayName(node);
+}
+function streakRowHtml(g, i, kind, returnScreen){
   const count = kind === 'fail' ? g.fails : g.corrects;
   const label = kind === 'fail' ? 'fallos' : 'aciertos';
   const badgeClass = kind === 'fail' ? 'coral' : 'green';
   return (
-    '<button type="button" class="streak-row" onclick="openArticuloPreguntas(\'' + g.nodoId + '\',\'' + kind + '\')">' +
+    '<button type="button" class="streak-row" onclick="openArticuloPreguntas(\'' + g.nodoId + '\',\'' + kind + '\',\'' + (returnScreen || 'screen-stats') + '\')">' +
       '<div class="streak-pos">' + (i + 1) + '</div>' +
       '<div class="streak-body">' +
         '<div class="streak-name">' + escapeHtml(g.name) + '</div>' +
-        '<div class="streak-meta">Tema: ' + escapeHtml(g.topicName) + '</div>' +
+        '<div class="streak-meta">' + escapeHtml(g.lawName) + '</div>' +
       '</div>' +
       '<div class="streak-count ' + badgeClass + '">' + count + ' ' + label + '</div>' +
       '<svg class="streak-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>' +
@@ -2597,40 +2615,51 @@ function renderStreakStats(){
   worstEl.innerHTML = streakListHtml(mostFailed, 'fail', 'ningún artículo con 5 o más fallos. ¡Bien!');
   masteredEl.innerHTML = streakListHtml(mastered, 'correct', 'ningún artículo con 5 o más aciertos seguidos sin fallar.');
 }
-/* Muestra solo un resumen (STREAK_PREVIEW_COUNT filas) y, si hay más,
-   un botón "Ver todos" que despliega el resto en el mismo sitio (sin
-   pantalla nueva ni recargar nada). El estado de expandido/plegado de
-   cada lista se recuerda en streakExpanded mientras dure la sesión. */
+/* Muestra solo un resumen (STREAK_PREVIEW_COUNT filas); si hay más,
+   un botón "Ver todos (N)" lleva a una pantalla nueva con el ranking
+   completo (screen-streak-full), no lo despliega en el mismo sitio. */
 const STREAK_PREVIEW_COUNT = 3;
-const streakExpanded = { fail: false, correct: false };
 function streakListHtml(items, kind, emptyMsg){
   if(!items.length) return '<div class="streak-empty">Todavía no hay ' + emptyMsg + '</div>';
-  const expanded = streakExpanded[kind];
-  const shown = expanded ? items : items.slice(0, STREAK_PREVIEW_COUNT);
-  let html = shown.map((g, i) => streakRowHtml(g, i, kind)).join('');
+  let html = items.slice(0, STREAK_PREVIEW_COUNT).map((g, i) => streakRowHtml(g, i, kind)).join('');
   if(items.length > STREAK_PREVIEW_COUNT){
     html += (
-      '<button type="button" class="streak-toggle" onclick="toggleStreakExpand(\'' + kind + '\')">' +
-        (expanded ? 'Ver menos' : 'Ver todos (' + items.length + ')') +
-        '<svg class="streak-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(' + (expanded ? '-90' : '90') + 'deg)"><polyline points="9,6 15,12 9,18"/></svg>' +
+      '<button type="button" class="streak-toggle" onclick="openStreakFull(\'' + kind + '\')">' +
+        'Ver todos (' + items.length + ')' +
+        '<svg class="streak-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>' +
       '</button>'
     );
   }
   return html;
 }
-function toggleStreakExpand(kind){
-  streakExpanded[kind] = !streakExpanded[kind];
-  renderStreakStats();
+/* Pantalla con el ranking completo (todos los artículos, no solo el
+   resumen de 3), a la que se llega desde el botón "Ver todos". */
+function openStreakFull(kind){
+  const { mostFailed, mastered } = computeArticleStreakStats();
+  const items = kind === 'fail' ? mostFailed : mastered;
+  const title = document.getElementById('streakFullTitle');
+  const sub = document.getElementById('streakFullSub');
+  const list = document.getElementById('streakFullList');
+  if(!list) return;
+  if(title) title.textContent = kind === 'fail' ? 'Artículos que más fallas' : 'Mejor progreso';
+  if(sub) sub.textContent = kind === 'fail' ? 'A partir de 5 fallos' : 'Nunca fallas, 5+ aciertos';
+  list.innerHTML = items.map((g, i) => streakRowHtml(g, i, kind, 'screen-streak-full')).join('');
+  showScreen('screen-streak-full');
 }
 
 /* Pantalla de detalle: preguntas de un artículo concreto, a la que se
    llega pulsando una fila en "Artículos que más fallas" o "Mejor
-   progreso". Reutiliza openMyAddition para ver cada pregunta individual
+   progreso" (desde el resumen en Estadísticas o desde su ranking
+   completo). Reutiliza openMyAddition para ver cada pregunta individual
    (opciones, correcta marcada y explicación), pasando esta pantalla
    como "volver". Si mode==='fail' solo se listan las preguntas que se
    han fallado alguna vez (para revisar justo lo que falla); si no,
-   se listan todas las preguntas del artículo. */
-function openArticuloPreguntas(nodoId, mode){
+   se listan todas las preguntas del artículo. El botón de cerrar de
+   esta pantalla vuelve a returnScreen (screen-stats o screen-streak-full
+   según desde dónde se haya abierto). */
+let articuloPreguntasReturn = 'screen-stats';
+function openArticuloPreguntas(nodoId, mode, returnScreen){
+  articuloPreguntasReturn = returnScreen || 'screen-stats';
   const node = NODES_BY_ID[nodoId];
   const title = document.getElementById('articuloPreguntasTitle');
   const sub = document.getElementById('articuloPreguntasSub');
@@ -3225,6 +3254,7 @@ const SCREEN_RESTORE_TARGET = {
   'screen-boe-detalle': 'screen-boe-cambios',
   'screen-my-addition-detail': 'screen-my-additions',
   'screen-articulo-preguntas': 'screen-stats',
+  'screen-streak-full': 'screen-stats',
   'screen-review': 'screen-home',
   'screen-config': 'screen-home',
   'screen-quiz': 'screen-home',
