@@ -409,6 +409,11 @@
   .streak-count.green{ color: var(--green); background: rgba(52,211,153,0.14); }
   .streak-chevron{ width:14px; height:14px; flex-shrink:0; color: var(--muted-2); }
   .streak-empty{ font-size:13px; color: var(--muted-2); padding:6px 0; }
+  .streak-group-header{
+    font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color: var(--muted-2);
+    padding:14px 0 6px; border-top:1px solid var(--line-soft); margin-top:4px;
+  }
+  .streak-group-header:first-child{ border-top:none; margin-top:0; padding-top:0; }
   .streak-toggle{
     display:flex; align-items:center; justify-content:center; gap:6px; width:100%;
     margin-top:6px; padding:9px 0; background:none; border:none; border-top:1px solid var(--line-soft);
@@ -1737,6 +1742,7 @@
           </button>
         </div>
         <div class="config-sub" id="streakFullSub"></div>
+        <div class="admin-tabs" id="streakFullSortTabs"></div>
         <div class="ranking-list" id="streakFullList"></div>
       </div>
     </section>
@@ -2570,7 +2576,8 @@ function computeArticleStreakStats(){
     if(!node || node.tipo !== 'articulo') return; // solo artículos reales
     if(!q.timesSeen) return; // nunca respondida: no cuenta
     const g = groups[q.nodo_id] || (groups[q.nodo_id] = {
-      nodoId: q.nodo_id, name: articleShortLabel(node), lawName: topicTitle(q.topic_id),
+      nodoId: q.nodo_id, node: node, topicId: q.topic_id,
+      name: articleShortLabel(node), lawName: topicTitle(q.topic_id),
       fails: 0, corrects: 0, questionIds: []
     });
     g.fails += (q.failCount || 0);
@@ -2616,8 +2623,72 @@ function renderStreakStats(){
   masteredEl.innerHTML = streakListHtml(mastered, 'correct', 'ningún artículo con 5 o más aciertos seguidos sin fallar.');
 }
 /* Muestra solo un resumen (STREAK_PREVIEW_COUNT filas); si hay más,
-   un botón "Ver todos (N)" lleva a una pantalla nueva con el ranking
-   completo (screen-streak-full), no lo despliega en el mismo sitio. */
+/* Pantalla con el ranking completo (todos los artículos, no solo el
+   resumen de 3), a la que se llega desde el botón "Ver todos". Permite
+   reordenar: por nº de fallos/aciertos (por defecto), agrupado por
+   tema, o por nº de artículo. */
+let streakFullKind = 'fail';
+let streakFullSort = 'count';
+const STREAK_SORT_OPTIONS = [
+  { id: 'count', label: 'Más fallos' }, // el texto se ajusta según kind en renderStreakFullSortTabs()
+  { id: 'topic', label: 'Por tema' },
+  { id: 'numero', label: 'Nº de artículo' }
+];
+function openStreakFull(kind){
+  streakFullKind = kind;
+  streakFullSort = 'count';
+  const title = document.getElementById('streakFullTitle');
+  const sub = document.getElementById('streakFullSub');
+  if(title) title.textContent = kind === 'fail' ? 'Artículos que más fallas' : 'Mejor progreso';
+  if(sub) sub.textContent = kind === 'fail' ? 'A partir de 5 fallos' : 'Nunca fallas, 5+ aciertos';
+  renderStreakFullSortTabs();
+  renderStreakFullList();
+  showScreen('screen-streak-full');
+}
+function renderStreakFullSortTabs(){
+  const el = document.getElementById('streakFullSortTabs');
+  if(!el) return;
+  const countLabel = streakFullKind === 'fail' ? 'Más fallos' : 'Más aciertos';
+  el.innerHTML = STREAK_SORT_OPTIONS.map(opt => (
+    '<button type="button" class="admin-tab' + (streakFullSort === opt.id ? ' active' : '') + '" onclick="setStreakFullSort(\'' + opt.id + '\')">' +
+      (opt.id === 'count' ? countLabel : opt.label) +
+    '</button>'
+  )).join('');
+}
+function setStreakFullSort(sort){
+  streakFullSort = sort;
+  renderStreakFullSortTabs();
+  renderStreakFullList();
+}
+function renderStreakFullList(){
+  const list = document.getElementById('streakFullList');
+  if(!list) return;
+  const { mostFailed, mastered } = computeArticleStreakStats();
+  const items = (streakFullKind === 'fail' ? mostFailed : mastered).slice();
+
+  if(streakFullSort === 'numero'){
+    items.sort((a, b) => compareNodes(a.node, b.node));
+    list.innerHTML = items.map((g, i) => streakRowHtml(g, i, streakFullKind, 'screen-streak-full')).join('');
+    return;
+  }
+  if(streakFullSort === 'topic'){
+    const byTopic = {};
+    items.forEach(g => { (byTopic[g.topicId] = byTopic[g.topicId] || []).push(g); });
+    const topicGroups = Object.values(byTopic).sort((a, b) => a[0].lawName.localeCompare(b[0].lawName, 'es', { sensitivity:'base' }));
+    list.innerHTML = topicGroups.map(groupItems => {
+      groupItems.sort((a, b) => compareNodes(a.node, b.node));
+      return (
+        '<div class="streak-group-header">' + escapeHtml(groupItems[0].lawName) + '</div>' +
+        groupItems.map((g, i) => streakRowHtml(g, i, streakFullKind, 'screen-streak-full')).join('')
+      );
+    }).join('');
+    return;
+  }
+  // 'count' (por defecto): ya vienen ordenados de más a menos.
+  list.innerHTML = items.map((g, i) => streakRowHtml(g, i, streakFullKind, 'screen-streak-full')).join('');
+}
+/* Compatibilidad: streakListHtml sigue usando STREAK_PREVIEW_COUNT para
+   el resumen de 3 filas en Estadísticas. */
 const STREAK_PREVIEW_COUNT = 3;
 function streakListHtml(items, kind, emptyMsg){
   if(!items.length) return '<div class="streak-empty">Todavía no hay ' + emptyMsg + '</div>';
@@ -2632,20 +2703,7 @@ function streakListHtml(items, kind, emptyMsg){
   }
   return html;
 }
-/* Pantalla con el ranking completo (todos los artículos, no solo el
-   resumen de 3), a la que se llega desde el botón "Ver todos". */
-function openStreakFull(kind){
-  const { mostFailed, mastered } = computeArticleStreakStats();
-  const items = kind === 'fail' ? mostFailed : mastered;
-  const title = document.getElementById('streakFullTitle');
-  const sub = document.getElementById('streakFullSub');
-  const list = document.getElementById('streakFullList');
-  if(!list) return;
-  if(title) title.textContent = kind === 'fail' ? 'Artículos que más fallas' : 'Mejor progreso';
-  if(sub) sub.textContent = kind === 'fail' ? 'A partir de 5 fallos' : 'Nunca fallas, 5+ aciertos';
-  list.innerHTML = items.map((g, i) => streakRowHtml(g, i, kind, 'screen-streak-full')).join('');
-  showScreen('screen-streak-full');
-}
+
 
 /* Pantalla de detalle: preguntas de un artículo concreto, a la que se
    llega pulsando una fila en "Artículos que más fallas" o "Mejor
