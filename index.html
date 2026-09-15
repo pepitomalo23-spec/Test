@@ -3010,9 +3010,14 @@ async function loadAppData(){
   let dismissedMap = {}; // { question_id: dismissed_at } — preguntas descartadas de Fallos
   if(currentUser){
     const qIds = (questionsData || []).map(q => q.id);
-    if(qIds.length) masteryByQuestion = await computeQuestionMastery(qIds);
-    const { data: dismissedData, error: dismissedErr } = await sb
-      .from('dismissed_fails').select('question_id, dismissed_at').eq('user_id', currentUser.id);
+    // Estas dos consultas no dependen una de la otra, así que van en
+    // paralelo en vez de una detrás de otra (ahorra un viaje de ida y
+    // vuelta completo a Supabase en cada entrada a la app).
+    const [mastery, { data: dismissedData, error: dismissedErr }] = await Promise.all([
+      qIds.length ? computeQuestionMastery(qIds) : Promise.resolve({}),
+      sb.from('dismissed_fails').select('question_id, dismissed_at').eq('user_id', currentUser.id)
+    ]);
+    masteryByQuestion = mastery;
     if(dismissedErr) console.error('Error cargando preguntas descartadas de Fallos', dismissedErr);
     (dismissedData || []).forEach(d => { dismissedMap[d.question_id] = d.dismissed_at; });
   }
@@ -3297,9 +3302,12 @@ async function adminRefreshStudentStats(){
     console.error('Error refrescando estadísticas de alumno tras cambio de admin', err);
   }
 }
-async function refreshGlobalStats(){
+async function refreshGlobalStats(sessionsPromise){
   if(!currentUser) return;
-  const { data: sessions } = await sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
+  // Admite recibir la consulta ya lanzada (ver onLoggedIn) para que ese
+  // viaje de ida y vuelta a Supabase se solape con loadAppData()/loadHistory()
+  // en vez de esperar a que terminen para empezarlo.
+  const { data: sessions } = await (sessionsPromise || sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id));
   const list = sessions || [];
   const questionsDone = list.reduce((s,r) => s + (r.total || 0), 0);
 
@@ -5743,7 +5751,9 @@ async function onLoggedIn(user){
   }catch(e){ deviceCheckError = e; }
 
   const blocked = !!deviceCheckError || !deviceCheck || deviceCheck.allowed === false;
-  await logLoginAttempt(
+  // No se espera esta llamada: es solo un registro de auditoría y no debe
+  // retrasar la entrada del alumno a la app (antes bloqueaba con await).
+  logLoginAttempt(
     user.email,
     !blocked,
     blocked ? ((deviceCheck && deviceCheck.reason) || (deviceCheckError && deviceCheckError.message) || 'device_check_failed') : null,
@@ -5785,9 +5795,12 @@ async function onLoggedIn(user){
   // currentUser), así que se lanzan en paralelo en vez de uno detrás de
   // otro: eso ahorra un viaje de ida y vuelta completo a Supabase en cada
   // entrada. refreshGlobalStats() sí depende de QUESTIONS_POOL (que llena
-  // loadAppData()), así que ese va después.
+  // loadAppData()) para pintar en pantalla, pero su propia consulta a
+  // test_sessions no depende de nada de eso, así que se lanza ya mismo
+  // (en paralelo con lo anterior) y se le pasa lista a refreshGlobalStats().
+  const globalStatsSessionsPromise = sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
   await Promise.all([loadAppData(), loadHistory()]);
-  await refreshGlobalStats();
+  await refreshGlobalStats(globalStatsSessionsPromise);
   // Al entrar (incluido tras recargar la app), volvemos a la pantalla en
   // la que estaba el usuario la última vez (o a su pantalla padre si era
   // una de detalle/proceso), en vez de ir siempre a Inicio.
