@@ -409,12 +409,7 @@
   .streak-count.green{ color: var(--green); background: rgba(52,211,153,0.14); }
   .streak-chevron{ width:14px; height:14px; flex-shrink:0; color: var(--muted-2); }
   .streak-empty{ font-size:13px; color: var(--muted-2); padding:6px 0; }
-  .streak-two-col{ display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap:22px; min-width:0; }
-  .streak-two-col > div{ min-width:0; }
-  @media (max-width: 620px){ .streak-two-col{ grid-template-columns: minmax(0,1fr); } }
-  .streak-col-title{ display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; margin-bottom:10px; }
-  .streak-col-title.coral{ color: var(--coral); }
-  .streak-col-title.green{ color: var(--green); }
+
 
   main{ max-width: 1080px; margin:0 auto; padding: 32px 24px 76px; }
   h1{ font-family: var(--title); font-size:23px; font-weight:400; letter-spacing:.3px; margin-bottom:20px; }
@@ -1684,8 +1679,14 @@
 
       <div class="ranking-card">
         <div class="ranking-head">
-          <div class="ranking-title">Peor de lo peor</div>
-          <div class="ranking-sub">Nunca aciertas, 3+ fallos</div>
+          <div class="mastery-title-row">
+            <div class="ranking-title">Artículos que más fallas</div>
+            <button type="button" class="mastery-info-btn" id="failInfoBtn" title="¿Qué significa esto?" onclick="toggleInfoBox('failInfoBox','failInfoBtn')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"/></svg></button>
+          </div>
+          <div class="ranking-sub">A partir de 5 fallos</div>
+        </div>
+        <div class="mastery-info-box" id="failInfoBox">
+          <div><span>Un artículo aparece aquí en cuanto suma <b>5 o más fallos</b> entre todas sus preguntas, ordenado de más a menos. Pulsa uno para ver solo las preguntas que has fallado de ese artículo.</span></div>
         </div>
         <div class="ranking-list" id="worstArticlesList"></div>
       </div>
@@ -1693,23 +1694,15 @@
       <div class="ranking-card">
         <div class="ranking-head">
           <div class="mastery-title-row">
-            <div class="ranking-title">Extremos por artículo</div>
-            <button type="button" class="mastery-info-btn" id="streakInfoBtn" title="¿Qué significa esto?" onclick="toggleStreakInfo()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"/></svg></button>
+            <div class="ranking-title">Mejor progreso</div>
+            <button type="button" class="mastery-info-btn" id="masteredInfoBtn" title="¿Qué significa esto?" onclick="toggleInfoBox('masteredInfoBox','masteredInfoBtn')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"/></svg></button>
           </div>
+          <div class="ranking-sub">Nunca fallas, 5+ aciertos</div>
         </div>
-        <div class="mastery-info-box" id="streakInfoBox">
-          <div><span>Un artículo aparece aquí en cuanto acumula <b>3 o más intentos</b> con siempre el mismo resultado, sin ninguna excepción: todo fallos o todo aciertos. En "Siempre fallas" ninguna de sus preguntas la has acertado nunca; en "Siempre aciertas" ninguna la has fallado nunca.</span></div>
+        <div class="mastery-info-box" id="masteredInfoBox">
+          <div><span>Un artículo aparece aquí cuando llevas <b>5 o más aciertos seguidos sin ningún fallo</b> entre todas sus preguntas, ordenado de más a menos.</span></div>
         </div>
-        <div class="streak-two-col">
-          <div>
-            <div class="streak-col-title coral">Siempre fallas</div>
-            <div class="ranking-list" id="streakAlwaysFailList"></div>
-          </div>
-          <div>
-            <div class="streak-col-title green">Siempre aciertas</div>
-            <div class="ranking-list" id="streakAlwaysCorrectList"></div>
-          </div>
-        </div>
+        <div class="ranking-list" id="masteredArticlesList"></div>
       </div>
     </section>
 
@@ -2525,11 +2518,11 @@ function toggleMasteryInfo(){
   if(btn) btn.classList.toggle('active', box.classList.contains('show'));
 }
 
-/* Igual que toggleMasteryInfo pero para la caja de ayuda de "Extremos por
-   artículo" (Estadísticas). */
-function toggleStreakInfo(){
-  const box = document.getElementById('streakInfoBox');
-  const btn = document.getElementById('streakInfoBtn');
+/* Versión genérica de toggleMasteryInfo, para las cajas de ayuda de
+   "Artículos que más fallas" y "Mejor progreso" (Estadísticas). */
+function toggleInfoBox(boxId, btnId){
+  const box = document.getElementById(boxId);
+  const btn = document.getElementById(btnId);
   if(!box) return;
   box.classList.toggle('show');
   if(btn) btn.classList.toggle('active', box.classList.contains('show'));
@@ -2540,44 +2533,48 @@ function toggleStreakInfo(){
    preguntas "generales" sin artículo concreto se ignoran aquí) y suma,
    para cada artículo, los fallos y aciertos de TODAS sus preguntas
    (Q.failCount / Q.timesSeen, ya calculados en loadAppData a partir de
-   session_answers). Un artículo solo cuenta si tiene 3 o más intentos
-   totales con siempre el mismo resultado, sin ninguna excepción desde el
-   principio: 0 aciertos (siempre fallas) o 0 fallos (siempre aciertas). */
-const ARTICLE_STREAK_MIN = 3;
+   session_answers).
+   - "Artículos que más fallas": ranking por nº total de fallos, a partir
+     de ARTICLE_FAIL_MIN fallos acumulados (sin importar si alguna vez
+     también se acertó).
+   - "Mejor progreso": artículos con 0 fallos y ARTICLE_MASTERED_MIN o
+     más aciertos (nunca se ha fallado ninguna de sus preguntas). */
+const ARTICLE_FAIL_MIN = 5;
+const ARTICLE_MASTERED_MIN = 5;
 function computeArticleStreakStats(){
   const groups = {};
   QUESTIONS_POOL.forEach(q => {
     if(!q.nodo_id) return;
     const node = NODES_BY_ID[q.nodo_id];
     if(!node || node.tipo !== 'articulo') return; // solo artículos reales
-    if(!q.timesSeen) return; // nunca respondida: no cuenta para rachas
+    if(!q.timesSeen) return; // nunca respondida: no cuenta
     const g = groups[q.nodo_id] || (groups[q.nodo_id] = {
-      nodoId: q.nodo_id, name: nodeFullPath(q.nodo_id), fails: 0, corrects: 0, questionIds: []
+      nodoId: q.nodo_id, name: nodeDisplayName(node), topicName: topicTitle(q.topic_id),
+      fails: 0, corrects: 0, questionIds: []
     });
     g.fails += (q.failCount || 0);
     g.corrects += (q.timesSeen - (q.failCount || 0));
     g.questionIds.push(q.id);
   });
   const all = Object.values(groups);
-  const alwaysFail = all
-    .filter(g => g.corrects === 0 && g.fails >= ARTICLE_STREAK_MIN)
+  const mostFailed = all
+    .filter(g => g.fails >= ARTICLE_FAIL_MIN)
     .sort((a, b) => b.fails - a.fails);
-  const alwaysCorrect = all
-    .filter(g => g.fails === 0 && g.corrects >= ARTICLE_STREAK_MIN)
+  const mastered = all
+    .filter(g => g.fails === 0 && g.corrects >= ARTICLE_MASTERED_MIN)
     .sort((a, b) => b.corrects - a.corrects);
-  return { alwaysFail, alwaysCorrect };
+  return { mostFailed, mastered };
 }
 function streakRowHtml(g, i, kind){
   const count = kind === 'fail' ? g.fails : g.corrects;
   const label = kind === 'fail' ? 'fallos' : 'aciertos';
   const badgeClass = kind === 'fail' ? 'coral' : 'green';
-  const nQuestions = g.questionIds.length;
   return (
-    '<button type="button" class="streak-row" onclick="openArticuloPreguntas(\'' + g.nodoId + '\')">' +
+    '<button type="button" class="streak-row" onclick="openArticuloPreguntas(\'' + g.nodoId + '\',\'' + kind + '\')">' +
       '<div class="streak-pos">' + (i + 1) + '</div>' +
       '<div class="streak-body">' +
         '<div class="streak-name">' + escapeHtml(g.name) + '</div>' +
-        '<div class="streak-meta">' + nQuestions + (nQuestions === 1 ? ' pregunta' : ' preguntas') + '</div>' +
+        '<div class="streak-meta">Tema: ' + escapeHtml(g.topicName) + '</div>' +
       '</div>' +
       '<div class="streak-count ' + badgeClass + '">' + count + ' ' + label + '</div>' +
       '<svg class="streak-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>' +
@@ -2586,41 +2583,44 @@ function streakRowHtml(g, i, kind){
 }
 function renderStreakStats(){
   const worstEl = document.getElementById('worstArticlesList');
-  const failEl = document.getElementById('streakAlwaysFailList');
-  const correctEl = document.getElementById('streakAlwaysCorrectList');
-  if(!worstEl || !failEl || !correctEl) return;
+  const masteredEl = document.getElementById('masteredArticlesList');
+  if(!worstEl || !masteredEl) return;
 
-  const { alwaysFail, alwaysCorrect } = computeArticleStreakStats();
+  const { mostFailed, mastered } = computeArticleStreakStats();
 
-  worstEl.innerHTML = alwaysFail.length
-    ? alwaysFail.map((g, i) => streakRowHtml(g, i, 'fail')).join('')
-    : '<div class="streak-empty">Todavía no hay ningún artículo que falles siempre (3+ fallos sin ningún acierto). ¡Bien!</div>';
+  worstEl.innerHTML = mostFailed.length
+    ? mostFailed.map((g, i) => streakRowHtml(g, i, 'fail')).join('')
+    : '<div class="streak-empty">Todavía no hay ningún artículo con 5 o más fallos. ¡Bien!</div>';
 
-  failEl.innerHTML = alwaysFail.length
-    ? alwaysFail.map((g, i) => streakRowHtml(g, i, 'fail')).join('')
-    : '<div class="streak-empty">Ninguno todavía.</div>';
-
-  correctEl.innerHTML = alwaysCorrect.length
-    ? alwaysCorrect.map((g, i) => streakRowHtml(g, i, 'correct')).join('')
-    : '<div class="streak-empty">Ninguno todavía.</div>';
+  masteredEl.innerHTML = mastered.length
+    ? mastered.map((g, i) => streakRowHtml(g, i, 'correct')).join('')
+    : '<div class="streak-empty">Todavía no hay ningún artículo con 5 o más aciertos seguidos sin fallar.</div>';
 }
 
 /* Pantalla de detalle: preguntas de un artículo concreto, a la que se
-   llega pulsando una fila en "Peor de lo peor" o "Extremos por artículo".
-   Reutiliza openMyAddition para ver cada pregunta individual (opciones,
-   correcta marcada y explicación), pasando esta pantalla como "volver". */
-function openArticuloPreguntas(nodoId){
+   llega pulsando una fila en "Artículos que más fallas" o "Mejor
+   progreso". Reutiliza openMyAddition para ver cada pregunta individual
+   (opciones, correcta marcada y explicación), pasando esta pantalla
+   como "volver". Si mode==='fail' solo se listan las preguntas que se
+   han fallado alguna vez (para revisar justo lo que falla); si no,
+   se listan todas las preguntas del artículo. */
+function openArticuloPreguntas(nodoId, mode){
   const node = NODES_BY_ID[nodoId];
   const title = document.getElementById('articuloPreguntasTitle');
   const sub = document.getElementById('articuloPreguntasSub');
   const list = document.getElementById('articuloPreguntasList');
   if(!list) return;
-  if(title) title.textContent = node ? nodeFullPath(nodoId) : 'Artículo';
+  if(title) title.textContent = node ? nodeDisplayName(node) : 'Artículo';
 
-  const questions = QUESTIONS_POOL.filter(q => q.nodo_id === nodoId);
-  if(sub) sub.textContent = questions.length === 1
-    ? 'Esta es la pregunta de este artículo. Pulsa para verla.'
-    : 'Estas son las ' + questions.length + ' preguntas de este artículo. Pulsa una para verla.';
+  const topicName = node ? topicTitle(node.topic_id) : '';
+  let questions = QUESTIONS_POOL.filter(q => q.nodo_id === nodoId);
+  if(mode === 'fail') questions = questions.filter(q => (q.failCount || 0) > 0);
+
+  if(sub) sub.textContent =
+    'Tema: ' + topicName + ' · ' +
+    (questions.length === 1
+      ? (mode === 'fail' ? 'la pregunta que has fallado.' : 'esta es su pregunta.')
+      : (mode === 'fail' ? 'las ' + questions.length + ' preguntas que has fallado.' : 'sus ' + questions.length + ' preguntas.'));
 
   list.innerHTML = questions.length
     ? questions.map(q => {
