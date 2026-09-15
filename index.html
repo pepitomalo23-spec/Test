@@ -1699,6 +1699,7 @@
         </div>
         <div class="mastery-info-box" id="failInfoBox">
           <div><span>Un artículo aparece aquí en cuanto suma <b>5 o más fallos</b> entre todas sus preguntas, ordenado de más a menos. Pulsa uno para ver solo las preguntas que has fallado de ese artículo.</span></div>
+          <div><span>Desaparece en cuanto lo recuperas: si el artículo tiene 1 o 2 preguntas, con encadenar <b>5 aciertos seguidos</b> ya sale de esta lista; si tiene 3 o más, hace falta <b>acertarlas todas sin fallar ninguna entre medias</b> y sumar <b>3 aciertos más</b> de margen.</span></div>
         </div>
         <div class="ranking-list" id="worstArticlesList"></div>
       </div>
@@ -1709,10 +1710,11 @@
             <div class="ranking-title">Mejor progreso</div>
             <button type="button" class="mastery-info-btn" id="masteredInfoBtn" title="¿Qué significa esto?" onclick="toggleInfoBox('masteredInfoBox','masteredInfoBtn')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"/></svg></button>
           </div>
-          <div class="ranking-sub">Nunca fallas, 5+ aciertos</div>
+          <div class="ranking-sub">Nunca fallas, o ya recuperado</div>
         </div>
         <div class="mastery-info-box" id="masteredInfoBox">
-          <div><span>Un artículo aparece aquí cuando llevas <b>5 o más aciertos seguidos sin ningún fallo</b> entre todas sus preguntas, ordenado de más a menos.</span></div>
+          <div><span>Un artículo aparece aquí si nunca has fallado ninguna de sus preguntas y llevas <b>5 o más aciertos</b>.</span></div>
+          <div><span>También aparece si fallaste alguna vez pero ya te has recuperado: <b>5 aciertos seguidos</b> si el artículo tiene 1 o 2 preguntas, o <b>todas acertadas sin fallar ninguna entre medias + 3 aciertos más</b> si tiene 3 o más.</span></div>
         </div>
         <div class="ranking-list" id="masteredArticlesList"></div>
       </div>
@@ -2287,6 +2289,11 @@ let TOPICS = [];                // topics, with live `fails` count from DB
 let TOPIC_GROUPS = {};          // { [topicId]: [{id,label}] } — grupos raíz (títulos u otro nivel), nunca artículos
 let NODES_BY_ID = {};           // { [nodeId]: fila de nodos_temario } del árbol de temario
 let QUESTIONS_POOL = [];        // all questions (DB rows mapped to quiz shape)
+// Intentos "en crudo" (session_answers ya ordenados cronológicamente) de la
+// última llamada a computeQuestionMastery(), indexados por question_id. Se
+// reutiliza para calcular rachas a nivel de ARTÍCULO (varias preguntas a la
+// vez) sin tener que volver a consultar Supabase — ver computeArticleTrailingStreak().
+let RAW_ATTEMPTS_BY_QUESTION = {};
 
 const COUNT_OPTIONS = [10, 20, 30, 40];
 const TIME_OPTIONS = [15, 30, 45, 60];
@@ -2396,11 +2403,13 @@ async function computeQuestionMastery(questionIds){
     (byQuestion[row.question_id] = byQuestion[row.question_id] || []).push(row);
   });
 
+  RAW_ATTEMPTS_BY_QUESTION = {}; // se recalcula entero en cada llamada (ver arriba)
   Object.keys(byQuestion).forEach(qid => {
     const attempts = byQuestion[qid].slice().sort((a, b) => {
       const diff = new Date(a.test_sessions.created_at) - new Date(b.test_sessions.created_at);
       return diff !== 0 ? diff : (a.answer_order - b.answer_order);
     });
+    RAW_ATTEMPTS_BY_QUESTION[qid] = attempts; // guardado para rachas a nivel de artículo
     let streak = 0;
     for(let i = attempts.length - 1; i >= 0; i--){
       if(attempts[i].is_correct) streak++; else break;
@@ -2418,6 +2427,34 @@ async function computeQuestionMastery(questionIds){
     stats[qid] = { timesSeen: attempts.length, failCount, streak, status, lastAttemptAt };
   });
   return stats;
+}
+/* Junta los intentos "en crudo" (RAW_ATTEMPTS_BY_QUESTION) de varias preguntas
+   —todas las de un mismo artículo— en una única línea temporal y calcula la
+   racha de aciertos seguidos al final de esa línea (desde el último fallo,
+   contando cualquier pregunta del artículo, no solo una). También devuelve
+   cuántas preguntas DISTINTAS del artículo caen dentro de esa racha, para
+   saber si se han acertado todas sin fallar ninguna entre medias.
+   Requiere que computeQuestionMastery() se haya ejecutado antes (loadAppData
+   la llama siempre al cargar los datos del usuario). */
+function computeArticleTrailingStreak(questionIds){
+  let all = [];
+  (questionIds || []).forEach(qid => {
+    (RAW_ATTEMPTS_BY_QUESTION[qid] || []).forEach(a => {
+      all.push({ qid: qid, correct: a.is_correct, at: a.test_sessions.created_at, order: a.answer_order });
+    });
+  });
+  all.sort((a, b) => {
+    const diff = new Date(a.at) - new Date(b.at);
+    return diff !== 0 ? diff : (a.order - b.order);
+  });
+  let streak = 0;
+  const covered = new Set();
+  for(let i = all.length - 1; i >= 0; i--){
+    if(!all[i].correct) break;
+    streak++;
+    covered.add(all[i].qid);
+  }
+  return { streak, coveredCount: covered.size };
 }
 /* Para preguntas generales, si tienen un nodo (Tema/Título/Capítulo/Sección) mostramos
    también ese ámbito junto al sello "General"; si son de todo el tema (sin nodo), solo "General". */
@@ -2562,12 +2599,41 @@ function toggleInfoBox(boxId, btnId){
    (Q.failCount / Q.timesSeen, ya calculados en loadAppData a partir de
    session_answers).
    - "Artículos que más fallas": ranking por nº total de fallos, a partir
-     de ARTICLE_FAIL_MIN fallos acumulados (sin importar si alguna vez
-     también se acertó).
-   - "Mejor progreso": artículos con 0 fallos y ARTICLE_MASTERED_MIN o
-     más aciertos (nunca se ha fallado ninguna de sus preguntas). */
+     de ARTICLE_FAIL_MIN fallos acumulados, EXCEPTO los artículos que ya
+     se consideran "recuperados" (ver isArticleRecovered): un artículo
+     puede haber acumulado 5+ fallos en el pasado, pero si el alumno ya
+     ha encadenado la racha de aciertos necesaria, desaparece de aquí.
+   - "Mejor progreso": todos los artículos "recuperados" (isArticleRecovered),
+     ya sea porque nunca se han fallado (con ARTICLE_MASTERED_MIN+ aciertos)
+     o porque se han recuperado tras fallar (racha de aciertos seguidos). */
 const ARTICLE_FAIL_MIN = 5;
 const ARTICLE_MASTERED_MIN = 5;
+// Aciertos seguidos necesarios para dar un artículo por recuperado cuando
+// tiene pocas preguntas (1 o 2): basta una racha "a secas".
+const ARTICLE_RECOVERY_STREAK_SMALL = 5;
+// Margen extra de aciertos que se exige, por encima de haber acertado ya
+// TODAS las preguntas del artículo sin fallar ninguna entre medias, cuando
+// el artículo tiene 3 preguntas o más.
+const ARTICLE_RECOVERY_EXTRA = 3;
+/* Un artículo se considera "recuperado" (no debe salir en "más fallas", y sí
+   puede salir en "Mejor progreso") cuando:
+   - Nunca se ha fallado ninguna de sus preguntas: con ARTICLE_MASTERED_MIN
+     o más aciertos ya vale (regla de siempre).
+   - Se ha fallado alguna vez, pero desde el último fallo el alumno ha
+     encadenado una racha de aciertos que:
+       · si el artículo tiene 1 o 2 preguntas: llega a
+         ARTICLE_RECOVERY_STREAK_SMALL aciertos seguidos.
+       · si el artículo tiene 3 o más: cubre TODAS las preguntas del
+         artículo (las ha acertado todas sin fallar ninguna entre medias)
+         y además suma ARTICLE_RECOVERY_EXTRA aciertos de margen por encima
+         de esa vuelta completa. */
+function isArticleRecovered(g){
+  if(g.fails === 0) return g.corrects >= ARTICLE_MASTERED_MIN;
+  const numQ = g.questionIds.length;
+  const { streak, coveredCount } = computeArticleTrailingStreak(g.questionIds);
+  if(numQ <= 2) return streak >= ARTICLE_RECOVERY_STREAK_SMALL;
+  return coveredCount >= numQ && streak >= (numQ + ARTICLE_RECOVERY_EXTRA);
+}
 function computeArticleStreakStats(){
   const groups = {};
   QUESTIONS_POOL.forEach(q => {
@@ -2586,10 +2652,10 @@ function computeArticleStreakStats(){
   });
   const all = Object.values(groups);
   const mostFailed = all
-    .filter(g => g.fails >= ARTICLE_FAIL_MIN)
+    .filter(g => g.fails >= ARTICLE_FAIL_MIN && !isArticleRecovered(g))
     .sort((a, b) => b.fails - a.fails);
   const mastered = all
-    .filter(g => g.fails === 0 && g.corrects >= ARTICLE_MASTERED_MIN)
+    .filter(g => isArticleRecovered(g))
     .sort((a, b) => b.corrects - a.corrects);
   return { mostFailed, mastered };
 }
@@ -2640,7 +2706,7 @@ function openStreakFull(kind){
   const title = document.getElementById('streakFullTitle');
   const sub = document.getElementById('streakFullSub');
   if(title) title.textContent = kind === 'fail' ? 'Artículos que más fallas' : 'Mejor progreso';
-  if(sub) sub.textContent = kind === 'fail' ? 'A partir de 5 fallos' : 'Nunca fallas, 5+ aciertos';
+  if(sub) sub.textContent = kind === 'fail' ? 'A partir de 5 fallos' : 'Nunca fallas, o ya recuperado';
   renderStreakFullSortTabs();
   renderStreakFullList();
   showScreen('screen-streak-full');
