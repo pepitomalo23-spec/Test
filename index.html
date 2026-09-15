@@ -409,6 +409,13 @@
   .streak-count.green{ color: var(--green); background: rgba(52,211,153,0.14); }
   .streak-chevron{ width:14px; height:14px; flex-shrink:0; color: var(--muted-2); }
   .streak-empty{ font-size:13px; color: var(--muted-2); padding:6px 0; }
+  .streak-toggle{
+    display:flex; align-items:center; justify-content:center; gap:6px; width:100%;
+    margin-top:6px; padding:9px 0; background:none; border:none; border-top:1px solid var(--line-soft);
+    font:inherit; font-size:12.5px; font-weight:600; color: var(--muted-2); cursor:pointer;
+  }
+  .streak-toggle:hover{ color: var(--text); }
+  .streak-toggle .streak-chevron{ transition: transform .15s ease; }
 
 
   main{ max-width: 1080px; margin:0 auto; padding: 32px 24px 76px; }
@@ -2587,14 +2594,33 @@ function renderStreakStats(){
   if(!worstEl || !masteredEl) return;
 
   const { mostFailed, mastered } = computeArticleStreakStats();
-
-  worstEl.innerHTML = mostFailed.length
-    ? mostFailed.map((g, i) => streakRowHtml(g, i, 'fail')).join('')
-    : '<div class="streak-empty">Todavía no hay ningún artículo con 5 o más fallos. ¡Bien!</div>';
-
-  masteredEl.innerHTML = mastered.length
-    ? mastered.map((g, i) => streakRowHtml(g, i, 'correct')).join('')
-    : '<div class="streak-empty">Todavía no hay ningún artículo con 5 o más aciertos seguidos sin fallar.</div>';
+  worstEl.innerHTML = streakListHtml(mostFailed, 'fail', 'ningún artículo con 5 o más fallos. ¡Bien!');
+  masteredEl.innerHTML = streakListHtml(mastered, 'correct', 'ningún artículo con 5 o más aciertos seguidos sin fallar.');
+}
+/* Muestra solo un resumen (STREAK_PREVIEW_COUNT filas) y, si hay más,
+   un botón "Ver todos" que despliega el resto en el mismo sitio (sin
+   pantalla nueva ni recargar nada). El estado de expandido/plegado de
+   cada lista se recuerda en streakExpanded mientras dure la sesión. */
+const STREAK_PREVIEW_COUNT = 3;
+const streakExpanded = { fail: false, correct: false };
+function streakListHtml(items, kind, emptyMsg){
+  if(!items.length) return '<div class="streak-empty">Todavía no hay ' + emptyMsg + '</div>';
+  const expanded = streakExpanded[kind];
+  const shown = expanded ? items : items.slice(0, STREAK_PREVIEW_COUNT);
+  let html = shown.map((g, i) => streakRowHtml(g, i, kind)).join('');
+  if(items.length > STREAK_PREVIEW_COUNT){
+    html += (
+      '<button type="button" class="streak-toggle" onclick="toggleStreakExpand(\'' + kind + '\')">' +
+        (expanded ? 'Ver menos' : 'Ver todos (' + items.length + ')') +
+        '<svg class="streak-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(' + (expanded ? '-90' : '90') + 'deg)"><polyline points="9,6 15,12 9,18"/></svg>' +
+      '</button>'
+    );
+  }
+  return html;
+}
+function toggleStreakExpand(kind){
+  streakExpanded[kind] = !streakExpanded[kind];
+  renderStreakStats();
 }
 
 /* Pantalla de detalle: preguntas de un artículo concreto, a la que se
