@@ -15,6 +15,7 @@
 // =====================================================================
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { encodeBase64 } from "jsr:@std/encoding/base64";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -35,7 +36,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { prompt, image } = await req.json();
+    const { prompt, image, imageUrl } = await req.json();
     if (!prompt || typeof prompt !== "string") {
       return new Response(JSON.stringify({ error: "Falta el prompt." }), {
         status: 400,
@@ -43,11 +44,12 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // La imagen (foto del artículo) es opcional: { mimeType, data } con
-    // data en base64 sin el prefijo "data:...;base64,". Se limita el
-    // tamaño en base64 (~6MB) para no aceptar payloads desproporcionados;
-    // el cliente ya reduce la foto antes de mandarla, así que en la
-    // práctica pesa mucho menos.
+    // La imagen del artículo es opcional y puede llegar de dos formas:
+    // - "image": { mimeType, data } en base64, mandada directamente por el cliente.
+    // - "imageUrl": la URL pública de una imagen que el usuario ya subió antes
+    //   (p.ej. la foto adjunta a su nota de la pregunta); en ese caso la
+    //   descargamos aquí mismo, sin que el cliente tenga que volver a leerla
+    //   ni codificarla.
     let imagePart: { inlineData: { mimeType: string; data: string } } | null = null;
     if (image && typeof image.data === "string" && typeof image.mimeType === "string") {
       if (image.data.length > 8_000_000) {
@@ -57,6 +59,20 @@ Deno.serve(async (req: Request) => {
         });
       }
       imagePart = { inlineData: { mimeType: image.mimeType, data: image.data } };
+    } else if (typeof imageUrl === "string" && imageUrl) {
+      try {
+        const imgResp = await fetch(imageUrl);
+        if (imgResp.ok) {
+          const buf = await imgResp.arrayBuffer();
+          if (buf.byteLength <= 8_000_000) {
+            const mimeType = imgResp.headers.get("content-type") || "image/jpeg";
+            imagePart = { inlineData: { mimeType, data: encodeBase64(new Uint8Array(buf)) } };
+          }
+        }
+      } catch (_e) {
+        // si no se puede descargar la imagen (red, URL caducada, etc.) seguimos
+        // sin ella: nunca bloqueamos la explicación por esto.
+      }
     }
 
     const sb = supabaseAdmin();

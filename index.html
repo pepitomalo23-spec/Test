@@ -1026,47 +1026,6 @@
   }
   .ia-incorrect-opt{ font-family: var(--sans); font-weight:700; font-size:12.5px; color: var(--coral); margin-bottom:3px; }
   .ia-incorrect-reason{ font-size:12.5px; line-height:1.55; color: var(--muted); }
-  /* --- Panel para adjuntar (opcional) una foto del artículo antes de
-     generar la explicación con IA --- */
-  .ia-upload-card{
-    position:relative; overflow:hidden;
-    background: linear-gradient(160deg, rgba(140,125,245,0.14), rgba(47,191,174,0.05) 55%, rgba(20,20,20,0.4));
-    border:1px solid rgba(140,125,245,0.32); border-radius:16px; padding:18px 20px 20px;
-  }
-  .ia-upload-label{
-    display:flex; align-items:center; gap:8px; font-family: var(--sans); font-weight:800; font-size:11px;
-    letter-spacing:.08em; text-transform:uppercase; color: var(--text); margin-bottom:10px;
-  }
-  .ia-upload-hint{ font-size:12.5px; line-height:1.6; color: var(--muted); margin-bottom:14px; }
-  .ia-upload-filebtn{
-    display:inline-flex; align-items:center; gap:7px; font-family: var(--sans); font-weight:700; font-size:12.5px;
-    color: var(--text); background: rgba(255,255,255,0.05); border:1px solid var(--line-soft);
-    border-radius:10px; padding:9px 14px; cursor:pointer;
-  }
-  .ia-upload-filebtn svg{ width:14px; height:14px; }
-  .ia-upload-preview{ margin-top:12px; position:relative; display:inline-block; }
-  .ia-upload-preview img{ max-width:180px; max-height:180px; border-radius:10px; display:block; border:1px solid var(--line-soft); }
-  .ia-upload-remove-img{
-    position:absolute; top:-7px; right:-7px; width:22px; height:22px; border-radius:50%;
-    display:flex; align-items:center; justify-content:center; cursor:pointer;
-    background: var(--coral); border:none; color:#fff;
-  }
-  .ia-upload-remove-img svg{ width:10px; height:10px; }
-  .ia-upload-actions{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
-  .ia-upload-generate{
-    font-family: var(--sans); font-weight:700; font-size:12.5px; color:#0A0A0A;
-    background: linear-gradient(90deg, var(--purple), var(--teal)); border:none;
-    border-radius:20px; padding:9px 16px; cursor:pointer;
-  }
-  .ia-upload-generate:disabled{ opacity:.6; cursor:default; }
-  .ia-upload-cancel{
-    font-family: var(--sans); font-weight:600; font-size:12.5px; color: var(--muted);
-    background:none; border:1px solid var(--line-soft); border-radius:20px; padding:9px 16px; cursor:pointer;
-  }
-  .ia-explain-retry{
-    font-family: var(--sans); font-weight:700; font-size:12px; color: var(--teal);
-    background:none; border:1px solid var(--line-soft); border-radius:20px; padding:7px 14px; cursor:pointer; margin-top:10px;
-  }
   .ia-glossary-item{
     background: rgba(255,255,255,0.03); border:1px solid var(--line-soft); border-radius:10px; padding:10px 12px;
   }
@@ -1083,8 +1042,8 @@
      acordeón ya es la misma para todos los tamaños, ver reglas base de
      arriba). */
   @media (max-width:640px){
-    .ia-explain-card, .ia-upload-card{ padding:14px 14px 16px; border-radius:14px; }
-    .ia-explain-label, .ia-upload-label{ font-size:10px; margin-bottom:10px; }
+    .ia-explain-card{ padding:14px 14px 16px; border-radius:14px; }
+    .ia-explain-label{ font-size:10px; margin-bottom:10px; }
     .ia-explain-text{ font-size:13px; }
     .ia-explain-glossary, .ia-explain-incorrect{ gap:7px; }
     .ia-glossary-item, .ia-incorrect-item{ padding:9px 10px; }
@@ -4331,7 +4290,7 @@ function refreshQuickImageBtnUI(questionId){
   if(wrap) wrap.innerHTML = quickImageBtnInnerHtml(questionId);
 }
 function explainBodyHtml(q){
-  const generateBtn = '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();openIAImagePanel(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
+  const generateBtn = '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();generateIAExplain(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
       ICONS.brain + '<span>IA</span>' +
     '</button>';
   return '<div class="explain-body" data-qid="' + q.id + '">' +
@@ -5125,9 +5084,10 @@ function openMyAddition(questionId, returnScreen){
    configurada por el administrador en el servidor. Lanza un Error con
    un mensaje ya listo para mostrar al usuario si algo falla (incluida
    la falta de clave configurada). */
-async function callGeminiProxy(prompt, imagePart){
+async function callGeminiProxy(prompt, imageRef){
   const body = { prompt };
-  if(imagePart && imagePart.data) body.image = imagePart; // { mimeType, data(base64) }
+  if(imageRef && imageRef.url) body.imageUrl = imageRef.url;
+  else if(imageRef && imageRef.data) body.image = imageRef; // { mimeType, data(base64) }
   const { data, error } = await sb.functions.invoke('gemini-proxy', { body });
   if(error){
     let message = error.message || 'Error llamando a la IA.';
@@ -5144,119 +5104,34 @@ async function callGeminiProxy(prompt, imagePart){
   return (data && data.text) || '';
 }
 
-/* Foto del artículo pendiente de enviar a la IA, guardada por pregunta
-   mientras el panel de subida está abierto (se descarta en cuanto se
-   genera la explicación o se cancela el panel). */
-const IA_PENDING_IMAGES = {};
-
-/* Convierte un File a base64 "puro" (sin el prefijo data:...;base64,)
-   para poder mandarlo tal cual a la Edge Function. */
-function fileToBase64(file){
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result || '';
-      const comma = String(result).indexOf(',');
-      resolve(comma >= 0 ? String(result).slice(comma + 1) : String(result));
-    };
-    reader.onerror = () => reject(new Error('No se ha podido leer la imagen.'));
-    reader.readAsDataURL(file);
-  });
-}
-
-/* Primer paso al pulsar el botón "IA": antes de generar nada, se ofrece
-   adjuntar (opcional) una foto del artículo de la ley, para que la IA la
-   lea y pueda explicar con más precisión por qué las demás opciones no
-   son correctas. Un segundo toque sobre "IA" mientras el panel está
-   abierto lo cierra sin generar nada. */
-function openIAImagePanel(questionId, btnEl){
-  const body = btnEl.closest('.explain-body');
-  const resultEl = body ? body.querySelector('.ia-explain-result') : null;
-  if(!resultEl) return;
-
-  if(resultEl.dataset.uploadOpen === '1'){
-    cancelIAImagePanel(questionId, btnEl);
-    return;
-  }
-
-  resultEl.dataset.uploadOpen = '1';
-  resultEl.innerHTML = iaUploadPanelHtml(questionId);
-  resultEl.classList.add('show');
-}
-
-function iaUploadPanelHtml(questionId){
-  const inputId = 'iaImgInput_' + questionId;
-  return '<div class="ia-upload-card" data-qid="' + questionId + '">' +
-    '<div class="ia-upload-label"><span class="ia-explain-icon-badge">' + ICONS.brain + '</span><span>Explicación con IA</span></div>' +
-    '<div class="ia-upload-hint">Si quieres, adjunta una foto del artículo de la ley del que sale la pregunta: la IA la leerá para explicar mejor por qué la respuesta correcta lo es y por qué las demás no lo son. Es opcional; también puedes generar la explicación sin foto.</div>' +
-    '<label class="ia-upload-filebtn" for="' + inputId + '">' + ICONS.image + '<span>Adjuntar foto del artículo</span></label>' +
-    '<input type="file" id="' + inputId + '" accept="image/*" style="display:none" onchange="onIAImagePicked(this,\'' + questionId + '\')">' +
-    '<div class="ia-upload-preview" id="iaImgPreview_' + questionId + '"></div>' +
-    '<div class="ia-upload-actions">' +
-      '<button type="button" class="ia-upload-generate" onclick="generateIAExplain(\'' + questionId + '\', this)">Generar explicación</button>' +
-      '<button type="button" class="ia-upload-cancel" onclick="cancelIAImagePanel(\'' + questionId + '\', this)">Cancelar</button>' +
-    '</div>' +
-  '</div>';
-}
-
-function onIAImagePicked(inputEl, questionId){
-  const file = inputEl.files && inputEl.files[0];
-  const previewEl = document.getElementById('iaImgPreview_' + questionId);
-  if(!file){
-    delete IA_PENDING_IMAGES[questionId];
-    if(previewEl) previewEl.innerHTML = '';
-    return;
-  }
-  IA_PENDING_IMAGES[questionId] = file;
-  if(previewEl){
-    const url = URL.createObjectURL(file);
-    previewEl.innerHTML = '<img src="' + url + '" alt="Foto del artículo">' +
-      '<button type="button" class="ia-upload-remove-img" onclick="removeIAPendingImage(\'' + questionId + '\')" title="Quitar foto">' + ICONS.cross + '</button>';
-  }
-}
-
-function removeIAPendingImage(questionId){
-  delete IA_PENDING_IMAGES[questionId];
-  const previewEl = document.getElementById('iaImgPreview_' + questionId);
-  if(previewEl) previewEl.innerHTML = '';
-  const input = document.getElementById('iaImgInput_' + questionId);
-  if(input) input.value = '';
-}
-
-function cancelIAImagePanel(questionId, btnEl){
-  delete IA_PENDING_IMAGES[questionId];
-  const body = btnEl.closest('.explain-body');
-  const resultEl = body ? body.querySelector('.ia-explain-result') : null;
-  if(resultEl){
-    resultEl.classList.remove('show');
-    resultEl.innerHTML = '';
-    delete resultEl.dataset.uploadOpen;
-  }
-}
-
-/* Genera de verdad la explicación (llamada desde el botón "Generar
-   explicación" del panel de subida). Si hay foto adjunta, la reduce de
-   tamaño igual que las fotos de notas propias y la manda junto al
-   prompt para que Gemini pueda leer el texto literal del artículo. */
 async function generateIAExplain(questionId, btnEl){
-  const panel = btnEl.closest('.ia-upload-card');
   const body = btnEl.closest('.explain-body');
   const resultEl = body ? body.querySelector('.ia-explain-result') : null;
   if(!resultEl) return;
+
+  // si ya se generó/cargó antes para esta pregunta, solo mostrar/ocultar sin repetir la llamada
+  if(resultEl.dataset.loaded === '1'){
+    resultEl.classList.toggle('show');
+    return;
+  }
 
   const q = findQuestionById(questionId);
   if(!q){
     resultEl.innerHTML = '<div class="ia-explain-empty">No se ha podido identificar la pregunta.</div>';
+    resultEl.classList.add('show');
     return;
   }
 
-  const pendingFile = IA_PENDING_IMAGES[questionId] || null;
-  const cancelBtn = panel ? panel.querySelector('.ia-upload-cancel') : null;
+  // Si la pregunta ya tiene una foto subida en su nota propia (botón "Nota"),
+  // se reutiliza automáticamente como imagen del artículo: no se vuelve a
+  // pedir. Si hay varias, se usa la primera.
+  const noteImageUrl = ownNoteImageUrls(q.own_note)[0] || null;
+
+  const originalBtnHtml = btnEl.innerHTML;
   btnEl.disabled = true;
-  if(cancelBtn) cancelBtn.disabled = true;
-  btnEl.textContent = 'Generando…';
-  delete resultEl.dataset.uploadOpen;
-  resultEl.innerHTML = '<div class="ia-explain-loading">' + (pendingFile ? 'Leyendo la foto del artículo y generando una explicación estructurada…' : 'Generando una explicación estructurada…') + '</div>';
+  btnEl.innerHTML = '<span>Generando…</span>';
+  resultEl.classList.add('show');
+  resultEl.innerHTML = '<div class="ia-explain-loading">' + (noteImageUrl ? 'Leyendo la foto del artículo que ya subiste y generando una explicación estructurada…' : 'Generando una explicación estructurada…') + '</div>';
 
   const letters = ['A','B','C','D'];
   const optionsText = q.options.map((opt,i) => letters[i] + ') ' + opt).join('\n');
@@ -5264,8 +5139,8 @@ async function generateIAExplain(questionId, btnEl){
 
   let prompt = 'Eres un profesor que prepara opositores para un examen tipo test de legislación. ' +
     'Te doy una pregunta, sus opciones, la respuesta correcta y una explicación breve ya existente. ';
-  if(pendingFile){
-    prompt += 'Además te adjunto una foto del artículo de la ley del que sale la pregunta: básate en su texto literal siempre que sea legible tanto para justificar la respuesta correcta como para explicar cada opción incorrecta. Si la foto no se lee bien o no coincide con esta pregunta, dilo brevemente dentro del campo correspondiente y apóyate en tu conocimiento general. ';
+  if(noteImageUrl){
+    prompt += 'Además te adjunto una foto del artículo de la ley del que sale la pregunta (la subió el propio usuario como nota de esta pregunta): básate en su texto literal siempre que sea legible tanto para justificar la respuesta correcta como para explicar cada opción incorrecta. Si la foto no se lee bien o no coincide con esta pregunta, dilo brevemente dentro del campo correspondiente y apóyate en tu conocimiento general. ';
   }
   prompt += 'Devuelve EXCLUSIVAMENTE un objeto JSON (sin markdown, sin ```, sin texto antes ni después) con esta forma exacta:\n' +
     '{\n' +
@@ -5282,14 +5157,13 @@ async function generateIAExplain(questionId, btnEl){
     'EXPLICACIÓN BREVE YA EXISTENTE: ' + (q.explain ? q.explain.replace(/<[^>]+>/g, ' ') : '(ninguna)');
 
   try{
-    let imagePart = null;
-    if(pendingFile){
-      const resized = await resizeImageForUpload(pendingFile, 1400, 0.85);
-      const base64 = await fileToBase64(resized);
-      imagePart = { mimeType: resized.type || 'image/jpeg', data: base64 };
-    }
-
-    const text = await callGeminiProxy(prompt, imagePart);
+    // Gemini a veces devuelve "modelo saturado" (alta demanda) de forma
+    // puntual; se reintenta un par de veces antes de rendirse, en vez de
+    // que el usuario tenga que darle a "Reintentar" a mano cada vez.
+    const text = await withRetry(
+      () => callGeminiProxy(prompt, noteImageUrl ? { url: noteImageUrl } : null),
+      3, 1500
+    );
     const cleanText = text.trim().replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
     if(!cleanText){ throw new Error('La IA no ha devuelto ninguna explicación.'); }
 
@@ -5309,10 +5183,7 @@ async function generateIAExplain(questionId, btnEl){
     resultEl.innerHTML = aiExplainCardHtml(parsed, q.id);
     resultEl.dataset.loaded = '1';
     q.ai_explain = parsed;
-    delete IA_PENDING_IMAGES[questionId];
-
-    const origBtn = body ? body.querySelector('.ia-explain-btn') : null;
-    if(origBtn) origBtn.remove(); // ya no hace falta el botón "IA": la explicación queda permanente hasta que se quite con la X
+    btnEl.remove(); // ya no hace falta el botón "IA": la explicación queda permanente hasta que se quite con la X
 
     // Guardarla de forma permanente en la pregunta (RPC que solo toca la columna ai_explain)
     try{
@@ -5322,9 +5193,9 @@ async function generateIAExplain(questionId, btnEl){
       console.error('No se ha podido guardar la explicación de forma permanente', saveErr);
     }
   } catch(err){
-    delete IA_PENDING_IMAGES[questionId];
-    resultEl.innerHTML = '<div class="ia-explain-empty">No se ha podido generar la explicación: ' + esc(err.message || 'error desconocido') + '</div>' +
-      '<button type="button" class="ia-explain-retry" onclick="openIAImagePanel(\'' + questionId + '\', this)">Reintentar</button>';
+    resultEl.innerHTML = '<div class="ia-explain-empty">No se ha podido generar la explicación: ' + esc(err.message || 'error desconocido') + '</div>';
+    btnEl.disabled = false;
+    btnEl.innerHTML = originalBtnHtml;
   }
 }
 
@@ -5352,7 +5223,7 @@ async function removeAIExplain(questionId, btnEl){
     const head = body ? body.querySelector('.explain-section-head') : null;
     if(head && !head.querySelector('.ia-explain-btn')){
       head.insertAdjacentHTML('beforeend',
-        '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();openIAImagePanel(\'' + questionId + '\', this)" title="Pedir una explicación más completa con IA">' +
+        '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();generateIAExplain(\'' + questionId + '\', this)" title="Pedir una explicación más completa con IA">' +
           ICONS.brain + '<span>IA</span>' +
         '</button>');
     }
