@@ -2309,8 +2309,11 @@ const DIFICULTAD_OPTIONS = ["aleatoria", "facil", "media", "dificil"];
 const DIFICULTAD_LABELS = { aleatoria:"Aleatoria", facil:"Fácil", media:"Media", dificil:"Difícil" };
 const AYUDA_OPTIONS = ["ocultar", "mostrar"];
 const AYUDA_LABELS = { ocultar:"Ocultar tema", mostrar:"Mostrar tema" };
-// "Vuelta": prioriza las preguntas menos vistas del tema (ver buildVueltaPool).
-// "Normal": todas las preguntas del tema, sin ningún orden ni filtro especial.
+// "Vuelta": cola fija tipo "libro" (ver buildVueltaQueue): el tema se baraja
+// UNA vez y a partir de ahí el orden queda fijo; cada test sigue exactamente
+// por donde se quedó el anterior (pregunta 61, 62...) y al llegar al final
+// se vuelve a empezar por la 1 automáticamente.
+// "Normal": todas las preguntas del tema, orden aleatorio en cada test, sin filtro.
 const REPASO_OPTIONS = ["normal", "vuelta"];
 const REPASO_LABELS = { normal:"Normal", vuelta:"Vuelta" };
 
@@ -3727,8 +3730,11 @@ function updateConfigFooter(){
       const candidates = buildQuestionsFromTopics(configState.topics);
       btn.disabled = candidates.length === 0;
       if(configState.repaso === 'vuelta' && candidates.length > 0){
-        const pool = buildVueltaPool(candidates);
-        btn.textContent = 'Iniciar test (' + pool.length + ' sin ver en esta vuelta)';
+        const topicKey = vueltaKey(configState.topics);
+        const vState = buildVueltaQueue(candidates, topicKey);
+        const total = vState.order.length;
+        const desde = total ? (vState.position % total) + 1 : 0;
+        btn.textContent = 'Iniciar test (sigue en la pregunta ' + desde + ' de ' + total + ')';
       } else {
         btn.textContent = 'Iniciar test';
       }
@@ -3761,29 +3767,74 @@ function buildQuestionsFromTopics(topicIdSet){
   });
 }
 
-/* ---------- Repaso "Vuelta": ofrece primero las preguntas menos vistas ----------
-   Cada pregunta trae q.timesSeen: el nº de veces que ha aparecido en CUALQUIER
-   test ya finalizado (se recalcula en loadAppData()/computeQuestionMastery()
-   a partir de session_answers, así que se actualiza solo, sin ningún contador
-   aparte que se pueda desincronizar).
+/* ---------- Repaso "Vuelta": cola fija tipo "libro" ----------
+   El tema (o combinación de temas) elegido se convierte en una lista con un
+   orden fijo: se baraja UNA sola vez (la primera vez que se usa "Vuelta"
+   sobre esa selección) y a partir de ahí el orden ya no cambia. Cada vez que
+   se entra, el test continúa exactamente por donde se dejó el anterior (p.
+   ej. la pregunta 61, 62...), como leer un libro por capítulos. Al llegar al
+   final de la lista, se vuelve a empezar por la 1 automáticamente (índice
+   circular), sin ningún botón de "reiniciar".
 
-   En modo "Vuelta", en vez de ofrecer siempre el tema entero, se calcula cuál
-   es el nº mínimo de veces vista entre las preguntas candidatas y solo se
-   entregan esas: las que van "más atrasadas". Ejemplo: un tema con 169
-   preguntas, todas con timesSeen 0 la primera vez. Si el alumno responde 60
-   y sale ("Finalizar"), esas 60 quedan con timesSeen >= 1 (aunque estén en
-   blanco, cuentan como vistas) y las otras 109 siguen en 0. La próxima vez
-   que entre en "Vuelta" sobre ese mismo tema, el mínimo sigue siendo 0 y el
-   test se genera solo con esas 109.
-
-   Cuando TODAS las preguntas del tema ya se han visto al menos una vez, el
-   mínimo sube solo (de 0 a 1, de 1 a 2...) y la "vuelta" vuelve a empezar
-   automáticamente por las que llevan más tiempo sin repasarse — no hace
-   falta ningún botón de "reiniciar". */
-function buildVueltaPool(candidates){
-  if(!candidates.length) return candidates;
-  const minSeen = candidates.reduce((min, q) => Math.min(min, q.timesSeen || 0), Infinity);
-  return candidates.filter(q => (q.timesSeen || 0) === minSeen);
+   Se guarda en localStorage (por usuario + combinación de temas) solo el
+   ORDEN de ids de pregunta y la POSICIÓN actual — nada que dependa de si se
+   ha acertado o fallado, es solo un marcapáginas. Si el conjunto de
+   preguntas del tema cambia (se añaden o quitan preguntas), se conserva el
+   orden ya existente para las que siguen y las nuevas se añaden barajadas
+   al final; las que ya no existen se descartan. */
+function vueltaKey(topicIdSet){
+  return Array.from(topicIdSet).map(String).sort().join(',');
+}
+function vueltaStorageKey(topicKey){
+  return 'legis_vuelta_' + (currentUser ? currentUser.id : 'anon') + '_' + topicKey;
+}
+function loadVueltaState(topicKey){
+  try{
+    const raw = localStorage.getItem(vueltaStorageKey(topicKey));
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    if(!parsed || !Array.isArray(parsed.order)) return null;
+    return { order: parsed.order, position: parsed.position || 0 };
+  }catch(e){ return null; }
+}
+function saveVueltaState(topicKey, state){
+  try{ localStorage.setItem(vueltaStorageKey(topicKey), JSON.stringify(state)); }catch(e){ /* sin persistencia si no hay localStorage */ }
+}
+/* Reconcilia (o crea) la cola fija de una combinación de temas con las
+   preguntas candidatas actuales, y devuelve { order, position } ya
+   guardado. Es seguro llamarla varias veces sin efectos raros: si nada
+   cambió, devuelve exactamente lo mismo que había guardado. */
+function buildVueltaQueue(candidates, topicKey){
+  const candidateIds = candidates.map(q => String(q.id));
+  const idSet = new Set(candidateIds);
+  const existing = loadVueltaState(topicKey);
+  let order;
+  if(!existing){
+    order = shuffleArray(candidateIds);
+  } else {
+    const kept = existing.order.filter(id => idSet.has(String(id))).map(String);
+    const keptSet = new Set(kept);
+    const nuevas = shuffleArray(candidateIds.filter(id => !keptSet.has(id)));
+    order = kept.concat(nuevas);
+  }
+  const position = (existing && order.length) ? (existing.position % order.length) : 0;
+  const state = { order, position };
+  saveVueltaState(topicKey, state);
+  return state;
+}
+/* Devuelve los siguientes `count` ids a partir de `position` (circular; si
+   count es null/0, se toma la lista entera) y la nueva posición ya avanzada,
+   para que el siguiente test siga justo después. */
+function takeVueltaSlice(order, position, count){
+  const n = order.length;
+  if(!n) return { ids: [], newPosition: 0 };
+  const take = count ? Math.min(count, n) : n;
+  const ids = [];
+  for(let i = 0; i < take; i++){ ids.push(order[(position + i) % n]); }
+  return { ids, newPosition: (position + take) % n };
+}
+function commitVueltaPosition(topicKey, order, newPosition){
+  saveVueltaState(topicKey, { order, position: newPosition });
 }
 
 /* Baraja un array sin modificar el original (Fisher–Yates). */
@@ -3847,19 +3898,26 @@ function buildQuestionSet(pool, count){
 function startFromConfig(){
   const mode = configState.mode;
   if(mode === 'estudio'){
-    let questions = buildQuestionsFromTopics(configState.topics);
-    // "Vuelta": antes de aplicar el límite de "Preguntas", nos quedamos solo
-    // con las menos vistas del tema (ver buildVueltaPool). "Normal": todas,
-    // tal cual, sin ningún filtro.
+    const candidates = buildQuestionsFromTopics(configState.topics);
+    let questions = candidates;
+    let startOpts = null;
     if(configState.repaso === 'vuelta'){
-      questions = buildVueltaPool(questions);
-    }
-    // Respeta el ajuste "Preguntas" (10/20/30/40 o "Sin límite"); antes se
-    // ignoraba y siempre entraban todas las preguntas del tema.
-    if(configState.preguntas){
+      // "Vuelta": cola fija tipo libro (ver buildVueltaQueue). Se reserva ya
+      // el siguiente tramo y se guarda la nueva posición, para que el
+      // próximo test (aunque este se abandone a medias) continúe después.
+      const topicKey = vueltaKey(configState.topics);
+      const vState = buildVueltaQueue(candidates, topicKey);
+      const slice = takeVueltaSlice(vState.order, vState.position, configState.preguntas);
+      commitVueltaPosition(topicKey, vState.order, slice.newPosition);
+      const byId = new Map(candidates.map(q => [String(q.id), q]));
+      questions = slice.ids.map(id => byId.get(id)).filter(Boolean);
+      startOpts = { preserveOrder: true };
+    } else if(configState.preguntas){
+      // "Normal": respeta el ajuste "Preguntas" (10/20/30/40 o "Sin
+      // límite"), todas en orden aleatorio, sin ningún filtro ni cola fija.
       questions = shuffleArray(questions).slice(0, configState.preguntas);
     }
-    startQuiz('estudio', questions, null);
+    startQuiz('estudio', questions, null, startOpts);
   } else if(mode === 'examen'){
     const pool = buildQuestionsFromTopics(configState.topics);
     const questions = buildQuestionSet(pool, configState.count);
@@ -4074,9 +4132,15 @@ function startSmartTest(){
 
 /* ---------- quiz ---------- */
 const QUIZ_LIST_MODES = ['examen', 'simulacro']; // estas modalidades muestran todas las preguntas seguidas, sin corrección inmediata
-function startQuiz(mode, questions, timeMinutes){
+function startQuiz(mode, questions, timeMinutes, opts){
+  opts = opts || {};
   const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
-  ACTIVE_QUESTIONS = shuffleArray(base).map(shuffleQuestionOptions); // el orden de las preguntas Y de sus opciones A/B/C/D es aleatorio en cada intento (salvo preguntas del tipo "A y B son correctas")
+  // "Vuelta" (opts.preserveOrder): el orden de las preguntas viene ya fijado
+  // por la cola tipo libro y no se reordena. En el resto de casos, el orden
+  // de las preguntas Y de sus opciones A/B/C/D es aleatorio en cada intento
+  // (salvo preguntas del tipo "A y B son correctas", que no se barajan).
+  const ordered = opts.preserveOrder ? base : shuffleArray(base);
+  ACTIVE_QUESTIONS = ordered.map(shuffleQuestionOptions);
   const viewMode = QUIZ_LIST_MODES.includes(mode) ? 'list' : 'card';
   // "visited" marca qué preguntas ha llegado a ver realmente el usuario (se
   // rellena en renderQuestion). Es clave en modo tarjeta (estudio/fallos):
