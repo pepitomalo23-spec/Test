@@ -2309,7 +2309,10 @@ const DIFICULTAD_OPTIONS = ["aleatoria", "facil", "media", "dificil"];
 const DIFICULTAD_LABELS = { aleatoria:"Aleatoria", facil:"Fácil", media:"Media", dificil:"Difícil" };
 const AYUDA_OPTIONS = ["ocultar", "mostrar"];
 const AYUDA_LABELS = { ocultar:"Ocultar tema", mostrar:"Mostrar tema" };
-const REPASO_OPTIONS = [false, true];
+// "Vuelta": prioriza las preguntas menos vistas del tema (ver buildVueltaPool).
+// "Normal": todas las preguntas del tema, sin ningún orden ni filtro especial.
+const REPASO_OPTIONS = ["normal", "vuelta"];
+const REPASO_LABELS = { normal:"Normal", vuelta:"Vuelta" };
 
 let HISTORY = [];
 // El Test Inteligente tiene su propio historial, separado del Historial
@@ -2507,7 +2510,7 @@ const ICONS = {
 
 let quizState = { mode:null, index:0, correctCount:0, answered:false };
 let ACTIVE_QUESTIONS = SAMPLE_QUESTIONS;
-let configState = { mode:null, topics:new Set(), nodeSelections:{}, count:20, time:30, minutos:null, preguntas:null, dificultad:'aleatoria', ayuda:'ocultar', repaso:false };
+let configState = { mode:null, topics:new Set(), nodeSelections:{}, count:20, time:30, minutos:null, preguntas:null, dificultad:'aleatoria', ayuda:'ocultar', repaso:'normal' };
 let timerInterval = null;
 
 /* ---------- persistencia local del test en curso ----------
@@ -3515,7 +3518,7 @@ function renderSettings(){
     { key:'ayuda', icon: ICONS.info, label:'Ayuda',
       options: AYUDA_OPTIONS.map(v => ({ value:v, label: AYUDA_LABELS[v] })) },
     { key:'repaso', icon: ICONS.brain, label:'Repaso Inteligente',
-      options: REPASO_OPTIONS.map(v => ({ value:v, label: v ? 'Sí' : 'No' })) }
+      options: REPASO_OPTIONS.map(v => ({ value:v, label: REPASO_LABELS[v] })) }
   ];
   const el = document.getElementById('settingsList');
   el.innerHTML = '';
@@ -3721,9 +3724,14 @@ function updateConfigFooter(){
   }else{
     btn.disabled = false;
     if(mode === 'estudio'){
-      const totalQ = buildQuestionsFromTopics(configState.topics).length;
-      btn.disabled = totalQ === 0;
-      btn.textContent = 'Iniciar test';
+      const candidates = buildQuestionsFromTopics(configState.topics);
+      btn.disabled = candidates.length === 0;
+      if(configState.repaso === 'vuelta' && candidates.length > 0){
+        const pool = buildVueltaPool(candidates);
+        btn.textContent = 'Iniciar test (' + pool.length + ' sin ver en esta vuelta)';
+      } else {
+        btn.textContent = 'Iniciar test';
+      }
     } else if(mode === 'examen'){
       const totalQ = buildQuestionsFromTopics(configState.topics).length;
       btn.disabled = totalQ === 0;
@@ -3751,6 +3759,31 @@ function buildQuestionsFromTopics(topicIdSet){
     if(!q.nodo_id) return false; // pregunta "general de todo el tema": no pertenece a ningún título concreto
     return nodeIsInSelectedGroups(q.nodo_id, sel);
   });
+}
+
+/* ---------- Repaso "Vuelta": ofrece primero las preguntas menos vistas ----------
+   Cada pregunta trae q.timesSeen: el nº de veces que ha aparecido en CUALQUIER
+   test ya finalizado (se recalcula en loadAppData()/computeQuestionMastery()
+   a partir de session_answers, así que se actualiza solo, sin ningún contador
+   aparte que se pueda desincronizar).
+
+   En modo "Vuelta", en vez de ofrecer siempre el tema entero, se calcula cuál
+   es el nº mínimo de veces vista entre las preguntas candidatas y solo se
+   entregan esas: las que van "más atrasadas". Ejemplo: un tema con 169
+   preguntas, todas con timesSeen 0 la primera vez. Si el alumno responde 60
+   y sale ("Finalizar"), esas 60 quedan con timesSeen >= 1 (aunque estén en
+   blanco, cuentan como vistas) y las otras 109 siguen en 0. La próxima vez
+   que entre en "Vuelta" sobre ese mismo tema, el mínimo sigue siendo 0 y el
+   test se genera solo con esas 109.
+
+   Cuando TODAS las preguntas del tema ya se han visto al menos una vez, el
+   mínimo sube solo (de 0 a 1, de 1 a 2...) y la "vuelta" vuelve a empezar
+   automáticamente por las que llevan más tiempo sin repasarse — no hace
+   falta ningún botón de "reiniciar". */
+function buildVueltaPool(candidates){
+  if(!candidates.length) return candidates;
+  const minSeen = candidates.reduce((min, q) => Math.min(min, q.timesSeen || 0), Infinity);
+  return candidates.filter(q => (q.timesSeen || 0) === minSeen);
 }
 
 /* Baraja un array sin modificar el original (Fisher–Yates). */
@@ -3815,6 +3848,12 @@ function startFromConfig(){
   const mode = configState.mode;
   if(mode === 'estudio'){
     let questions = buildQuestionsFromTopics(configState.topics);
+    // "Vuelta": antes de aplicar el límite de "Preguntas", nos quedamos solo
+    // con las menos vistas del tema (ver buildVueltaPool). "Normal": todas,
+    // tal cual, sin ningún filtro.
+    if(configState.repaso === 'vuelta'){
+      questions = buildVueltaPool(questions);
+    }
     // Respeta el ajuste "Preguntas" (10/20/30/40 o "Sin límite"); antes se
     // ignoraba y siempre entraban todas las preguntas del tema.
     if(configState.preguntas){
