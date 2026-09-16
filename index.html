@@ -989,24 +989,83 @@
   .ia-explain-remove svg{ width:11px; height:11px; }
   .ia-explain-remove:hover{ background: rgba(242,102,92,0.16); border-color: rgba(242,102,92,0.45); color: var(--coral); }
   .ia-explain-remove:disabled{ opacity:.5; cursor:default; }
-  .ia-explain-block{ }
-  .ia-explain-block + .ia-explain-block{ margin-top:16px; padding-top:16px; border-top:1px dashed rgba(255,255,255,0.09); }
+  /* Cada bloque de la tarjeta IA (fácil / detalle / por qué las demás no
+     son correctas / palabras clave) es un acordeón: empieza cerrado y se
+     abre al pulsar su cabecera, en cualquier tamaño de pantalla (antes
+     esto solo pasaba en móvil; ver toggleIABlock). */
+  .ia-explain-block{
+    background: rgba(255,255,255,0.03); border:1px solid var(--line-soft);
+    border-radius:12px; padding:2px 12px;
+  }
+  .ia-explain-block + .ia-explain-block{ margin-top:8px; padding-top:2px; border-top:1px solid var(--line-soft); }
   .ia-explain-block-head{
     display:flex; align-items:center; gap:8px; font-family: var(--sans); font-weight:700; font-size:12px;
-    color: var(--text); margin-bottom:8px;
+    color: var(--text); margin-bottom:0; padding:11px 0; cursor:pointer; user-select:none;
+    -webkit-tap-highlight-color: transparent;
   }
+  .ia-explain-block-head:active{ opacity:.72; }
   .ia-block-icon{
     width:21px; height:21px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
   }
   .ia-block-icon svg{ width:12px; height:12px; }
   .ia-block-icon.simple{ background: rgba(47,191,174,0.16); color: var(--teal); }
   .ia-block-icon.technical{ background: rgba(140,125,245,0.16); color: var(--purple); }
+  .ia-block-icon.incorrect{ background: rgba(242,102,92,0.16); color: var(--coral); }
   .ia-block-icon.glossary{ background: rgba(78,155,247,0.16); color: var(--blue); }
-  .ia-block-chev{ display:none; margin-left:auto; width:14px; height:14px; flex-shrink:0; color: var(--muted-2); transition: transform .18s ease; }
+  .ia-block-chev{ display:flex; margin-left:auto; width:14px; height:14px; flex-shrink:0; color: var(--muted-2); transition: transform .18s ease; }
   .ia-block-chev svg{ width:14px; height:14px; }
-  .ia-explain-block-body{ display:block; }
+  .ia-explain-block-body{ display:none; padding:0 0 13px; }
+  .ia-explain-block.ia-block-open .ia-block-chev{ transform: rotate(90deg); color: var(--teal); }
+  .ia-explain-block.ia-block-open .ia-explain-block-body{ display:block; animation: failPanelIn .16s ease; }
   .ia-explain-glossary{
     display:flex; flex-direction:column; gap:8px;
+  }
+  .ia-explain-incorrect{ display:flex; flex-direction:column; gap:8px; }
+  .ia-incorrect-item{
+    background: rgba(255,255,255,0.03); border:1px solid var(--line-soft); border-radius:10px; padding:10px 12px;
+  }
+  .ia-incorrect-opt{ font-family: var(--sans); font-weight:700; font-size:12.5px; color: var(--coral); margin-bottom:3px; }
+  .ia-incorrect-reason{ font-size:12.5px; line-height:1.55; color: var(--muted); }
+  /* --- Panel para adjuntar (opcional) una foto del artículo antes de
+     generar la explicación con IA --- */
+  .ia-upload-card{
+    position:relative; overflow:hidden;
+    background: linear-gradient(160deg, rgba(140,125,245,0.14), rgba(47,191,174,0.05) 55%, rgba(20,20,20,0.4));
+    border:1px solid rgba(140,125,245,0.32); border-radius:16px; padding:18px 20px 20px;
+  }
+  .ia-upload-label{
+    display:flex; align-items:center; gap:8px; font-family: var(--sans); font-weight:800; font-size:11px;
+    letter-spacing:.08em; text-transform:uppercase; color: var(--text); margin-bottom:10px;
+  }
+  .ia-upload-hint{ font-size:12.5px; line-height:1.6; color: var(--muted); margin-bottom:14px; }
+  .ia-upload-filebtn{
+    display:inline-flex; align-items:center; gap:7px; font-family: var(--sans); font-weight:700; font-size:12.5px;
+    color: var(--text); background: rgba(255,255,255,0.05); border:1px solid var(--line-soft);
+    border-radius:10px; padding:9px 14px; cursor:pointer;
+  }
+  .ia-upload-filebtn svg{ width:14px; height:14px; }
+  .ia-upload-preview{ margin-top:12px; position:relative; display:inline-block; }
+  .ia-upload-preview img{ max-width:180px; max-height:180px; border-radius:10px; display:block; border:1px solid var(--line-soft); }
+  .ia-upload-remove-img{
+    position:absolute; top:-7px; right:-7px; width:22px; height:22px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    background: var(--coral); border:none; color:#fff;
+  }
+  .ia-upload-remove-img svg{ width:10px; height:10px; }
+  .ia-upload-actions{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+  .ia-upload-generate{
+    font-family: var(--sans); font-weight:700; font-size:12.5px; color:#0A0A0A;
+    background: linear-gradient(90deg, var(--purple), var(--teal)); border:none;
+    border-radius:20px; padding:9px 16px; cursor:pointer;
+  }
+  .ia-upload-generate:disabled{ opacity:.6; cursor:default; }
+  .ia-upload-cancel{
+    font-family: var(--sans); font-weight:600; font-size:12.5px; color: var(--muted);
+    background:none; border:1px solid var(--line-soft); border-radius:20px; padding:9px 16px; cursor:pointer;
+  }
+  .ia-explain-retry{
+    font-family: var(--sans); font-weight:700; font-size:12px; color: var(--teal);
+    background:none; border:1px solid var(--line-soft); border-radius:20px; padding:7px 14px; cursor:pointer; margin-top:10px;
   }
   .ia-glossary-item{
     background: rgba(255,255,255,0.03); border:1px solid var(--line-soft); border-radius:10px; padding:10px 12px;
@@ -1020,31 +1079,15 @@
   .ia-explain-text p:last-child{ margin-bottom:0; }
   .ia-explain-loading, .ia-explain-empty{ font-family: var(--mono); font-size:11.5px; color: var(--muted-2); }
 
-  /* --- Estructura exclusiva para móvil: la tarjeta de explicación IA pasa
-     de "todo abierto de golpe" a un acordeón con un bloque tocable por
-     fila. Mismo contenido y mismo estilo visual (colores, iconos), solo
-     cambia cómo se organiza para que no sea un muro de texto en pantallas
-     pequeñas. En escritorio (fuera de este @media) no cambia nada. --- */
+  /* Ajustes finos solo de tamaño para pantallas pequeñas (la lógica de
+     acordeón ya es la misma para todos los tamaños, ver reglas base de
+     arriba). */
   @media (max-width:640px){
-    .ia-explain-card{ padding:14px 14px 16px; border-radius:14px; }
-    .ia-explain-label{ font-size:10px; margin-bottom:10px; }
-    .ia-explain-block{
-      background: rgba(255,255,255,0.03); border:1px solid var(--line-soft);
-      border-radius:12px; padding:2px 12px;
-    }
-    .ia-explain-block + .ia-explain-block{ margin-top:8px; padding-top:2px; border-top:1px solid var(--line-soft); }
-    .ia-explain-block-head{
-      cursor:pointer; user-select:none; margin-bottom:0; padding:11px 0;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .ia-explain-block-head:active{ opacity:.72; }
-    .ia-block-chev{ display:flex; }
-    .ia-explain-block.ia-block-open .ia-block-chev{ transform: rotate(90deg); color: var(--teal); }
-    .ia-explain-block-body{ display:none; padding:0 0 13px; }
-    .ia-explain-block.ia-block-open .ia-explain-block-body{ display:block; animation: failPanelIn .16s ease; }
+    .ia-explain-card, .ia-upload-card{ padding:14px 14px 16px; border-radius:14px; }
+    .ia-explain-label, .ia-upload-label{ font-size:10px; margin-bottom:10px; }
     .ia-explain-text{ font-size:13px; }
-    .ia-explain-glossary{ gap:7px; }
-    .ia-glossary-item{ padding:9px 10px; }
+    .ia-explain-glossary, .ia-explain-incorrect{ gap:7px; }
+    .ia-glossary-item, .ia-incorrect-item{ padding:9px 10px; }
   }
   .ia-explain-loading{ display:flex; align-items:center; gap:8px; }
   .ia-explain-loading::before{
@@ -4288,7 +4331,7 @@ function refreshQuickImageBtnUI(questionId){
   if(wrap) wrap.innerHTML = quickImageBtnInnerHtml(questionId);
 }
 function explainBodyHtml(q){
-  const generateBtn = '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
+  const generateBtn = '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();openIAImagePanel(\'' + q.id + '\', this)" title="Pedir una explicación más completa con IA">' +
       ICONS.brain + '<span>IA</span>' +
     '</button>';
   return '<div class="explain-body" data-qid="' + q.id + '">' +
@@ -4721,7 +4764,7 @@ async function uploadOwnNoteImage(questionId, file){
 
 /* Guarda la nota (texto y/o hasta 5 imágenes) de forma permanente para
    todo el mundo, vía la RPC set_question_own_note (solo toca esa
-   columna). Sigue el mismo patrón que explainWithAI: al guardar,
+   columna). Sigue el mismo patrón que generateIAExplain: al guardar,
    sustituye el editor por la tarjeta ya renderizada y quita el botón
    "Nota" (o lo vuelve a mostrar si la nota se queda totalmente vacía). */
 async function saveOwnNote(questionId, btnEl){
@@ -4860,12 +4903,26 @@ function aiExplainCardHtml(data, questionId){
       '</div>'
     : '';
 
+  const incorrect = Array.isArray(data.incorrect) ? data.incorrect.filter(x => x && x.reason) : [];
+  const incorrectItemsHtml = incorrect.map(x =>
+    '<div class="ia-incorrect-item">' +
+      '<div class="ia-incorrect-opt">' + esc(x.option || '') + '</div>' +
+      '<div class="ia-incorrect-reason">' + esc(x.reason || '') + '</div>' +
+    '</div>'
+  ).join('');
+  const incorrectHtml = incorrect.length
+    ? '<div class="ia-explain-block" data-ia-block>' +
+        '<div class="ia-explain-block-head" role="button" tabindex="0" onclick="toggleIABlock(this)"><span class="ia-block-icon incorrect">' + ICONS.warn + '</span><span>Por qué las demás no son correctas</span><span class="ia-block-chev">' + ICONS.chevron + '</span></div>' +
+        '<div class="ia-explain-block-body"><div class="ia-explain-incorrect">' + incorrectItemsHtml + '</div></div>' +
+      '</div>'
+    : '';
+
   return '<div class="ia-explain-card">' +
     '<div class="ia-explain-label">' +
       '<span class="ia-explain-icon-badge">' + ICONS.brain + '</span><span>Explicación ampliada con IA</span>' +
       '<button type="button" class="ia-explain-remove" onclick="event.stopPropagation();removeAIExplain(\'' + questionId + '\', this)" title="Quitar esta explicación generada por IA">' + ICONS.cross + '</button>' +
     '</div>' +
-    '<div class="ia-explain-block ia-block-open" data-ia-block>' +
+    '<div class="ia-explain-block" data-ia-block>' +
       '<div class="ia-explain-block-head" role="button" tabindex="0" onclick="toggleIABlock(this)"><span class="ia-block-icon simple">' + ICONS.smile + '</span><span>Explicado fácil</span><span class="ia-block-chev">' + ICONS.chevron + '</span></div>' +
       '<div class="ia-explain-block-body"><div class="ia-explain-text">' + formatAIParagraphs(data.simple) + '</div></div>' +
     '</div>' +
@@ -4873,14 +4930,15 @@ function aiExplainCardHtml(data, questionId){
       '<div class="ia-explain-block-head" role="button" tabindex="0" onclick="toggleIABlock(this)"><span class="ia-block-icon technical">' + ICONS.graduation + '</span><span>Explicado con más detalle</span><span class="ia-block-chev">' + ICONS.chevron + '</span></div>' +
       '<div class="ia-explain-block-body"><div class="ia-explain-text">' + formatAIParagraphs(data.technical) + '</div></div>' +
     '</div>' +
+    incorrectHtml +
     glossaryHtml +
   '</div>';
 }
 
-/* En móvil, cada bloque de la tarjeta IA (fácil / detalle / glosario) se
-   pliega como un acordeón para no soltar un muro de texto de golpe; en
-   pantallas grandes esto no tiene ningún efecto (los tres siguen
-   mostrándose abiertos como hasta ahora, ver CSS @media max-width:640px). */
+/* Cada bloque de la tarjeta IA (fácil / detalle / por qué las demás no
+   son correctas / palabras clave) empieza cerrado y se pliega/despliega
+   como un acordeón al tocar su cabecera, en cualquier tamaño de pantalla
+   (ver CSS: reglas base de .ia-explain-block, ya no solo en móvil). */
 function toggleIABlock(headEl){
   const block = headEl.closest('.ia-explain-block');
   if(block) block.classList.toggle('ia-block-open');
@@ -5067,8 +5125,10 @@ function openMyAddition(questionId, returnScreen){
    configurada por el administrador en el servidor. Lanza un Error con
    un mensaje ya listo para mostrar al usuario si algo falla (incluida
    la falta de clave configurada). */
-async function callGeminiProxy(prompt){
-  const { data, error } = await sb.functions.invoke('gemini-proxy', { body: { prompt } });
+async function callGeminiProxy(prompt, imagePart){
+  const body = { prompt };
+  if(imagePart && imagePart.data) body.image = imagePart; // { mimeType, data(base64) }
+  const { data, error } = await sb.functions.invoke('gemini-proxy', { body });
   if(error){
     let message = error.message || 'Error llamando a la IA.';
     try{
@@ -5084,48 +5144,152 @@ async function callGeminiProxy(prompt){
   return (data && data.text) || '';
 }
 
-async function explainWithAI(questionId, btnEl){
+/* Foto del artículo pendiente de enviar a la IA, guardada por pregunta
+   mientras el panel de subida está abierto (se descarta en cuanto se
+   genera la explicación o se cancela el panel). */
+const IA_PENDING_IMAGES = {};
+
+/* Convierte un File a base64 "puro" (sin el prefijo data:...;base64,)
+   para poder mandarlo tal cual a la Edge Function. */
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result || '';
+      const comma = String(result).indexOf(',');
+      resolve(comma >= 0 ? String(result).slice(comma + 1) : String(result));
+    };
+    reader.onerror = () => reject(new Error('No se ha podido leer la imagen.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/* Primer paso al pulsar el botón "IA": antes de generar nada, se ofrece
+   adjuntar (opcional) una foto del artículo de la ley, para que la IA la
+   lea y pueda explicar con más precisión por qué las demás opciones no
+   son correctas. Un segundo toque sobre "IA" mientras el panel está
+   abierto lo cierra sin generar nada. */
+function openIAImagePanel(questionId, btnEl){
   const body = btnEl.closest('.explain-body');
   const resultEl = body ? body.querySelector('.ia-explain-result') : null;
   if(!resultEl) return;
 
-  // si ya se generó/cargó antes para esta pregunta, solo mostrar/ocultar sin repetir la llamada
-  if(resultEl.dataset.loaded === '1'){
-    resultEl.classList.toggle('show');
+  if(resultEl.dataset.uploadOpen === '1'){
+    cancelIAImagePanel(questionId, btnEl);
     return;
   }
+
+  resultEl.dataset.uploadOpen = '1';
+  resultEl.innerHTML = iaUploadPanelHtml(questionId);
+  resultEl.classList.add('show');
+}
+
+function iaUploadPanelHtml(questionId){
+  const inputId = 'iaImgInput_' + questionId;
+  return '<div class="ia-upload-card" data-qid="' + questionId + '">' +
+    '<div class="ia-upload-label"><span class="ia-explain-icon-badge">' + ICONS.brain + '</span><span>Explicación con IA</span></div>' +
+    '<div class="ia-upload-hint">Si quieres, adjunta una foto del artículo de la ley del que sale la pregunta: la IA la leerá para explicar mejor por qué la respuesta correcta lo es y por qué las demás no lo son. Es opcional; también puedes generar la explicación sin foto.</div>' +
+    '<label class="ia-upload-filebtn" for="' + inputId + '">' + ICONS.image + '<span>Adjuntar foto del artículo</span></label>' +
+    '<input type="file" id="' + inputId + '" accept="image/*" style="display:none" onchange="onIAImagePicked(this,\'' + questionId + '\')">' +
+    '<div class="ia-upload-preview" id="iaImgPreview_' + questionId + '"></div>' +
+    '<div class="ia-upload-actions">' +
+      '<button type="button" class="ia-upload-generate" onclick="generateIAExplain(\'' + questionId + '\', this)">Generar explicación</button>' +
+      '<button type="button" class="ia-upload-cancel" onclick="cancelIAImagePanel(\'' + questionId + '\', this)">Cancelar</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function onIAImagePicked(inputEl, questionId){
+  const file = inputEl.files && inputEl.files[0];
+  const previewEl = document.getElementById('iaImgPreview_' + questionId);
+  if(!file){
+    delete IA_PENDING_IMAGES[questionId];
+    if(previewEl) previewEl.innerHTML = '';
+    return;
+  }
+  IA_PENDING_IMAGES[questionId] = file;
+  if(previewEl){
+    const url = URL.createObjectURL(file);
+    previewEl.innerHTML = '<img src="' + url + '" alt="Foto del artículo">' +
+      '<button type="button" class="ia-upload-remove-img" onclick="removeIAPendingImage(\'' + questionId + '\')" title="Quitar foto">' + ICONS.cross + '</button>';
+  }
+}
+
+function removeIAPendingImage(questionId){
+  delete IA_PENDING_IMAGES[questionId];
+  const previewEl = document.getElementById('iaImgPreview_' + questionId);
+  if(previewEl) previewEl.innerHTML = '';
+  const input = document.getElementById('iaImgInput_' + questionId);
+  if(input) input.value = '';
+}
+
+function cancelIAImagePanel(questionId, btnEl){
+  delete IA_PENDING_IMAGES[questionId];
+  const body = btnEl.closest('.explain-body');
+  const resultEl = body ? body.querySelector('.ia-explain-result') : null;
+  if(resultEl){
+    resultEl.classList.remove('show');
+    resultEl.innerHTML = '';
+    delete resultEl.dataset.uploadOpen;
+  }
+}
+
+/* Genera de verdad la explicación (llamada desde el botón "Generar
+   explicación" del panel de subida). Si hay foto adjunta, la reduce de
+   tamaño igual que las fotos de notas propias y la manda junto al
+   prompt para que Gemini pueda leer el texto literal del artículo. */
+async function generateIAExplain(questionId, btnEl){
+  const panel = btnEl.closest('.ia-upload-card');
+  const body = btnEl.closest('.explain-body');
+  const resultEl = body ? body.querySelector('.ia-explain-result') : null;
+  if(!resultEl) return;
 
   const q = findQuestionById(questionId);
   if(!q){
     resultEl.innerHTML = '<div class="ia-explain-empty">No se ha podido identificar la pregunta.</div>';
-    resultEl.classList.add('show');
     return;
   }
 
-  const originalBtnHtml = btnEl.innerHTML;
+  const pendingFile = IA_PENDING_IMAGES[questionId] || null;
+  const cancelBtn = panel ? panel.querySelector('.ia-upload-cancel') : null;
   btnEl.disabled = true;
-  btnEl.innerHTML = '<span>Generando…</span>';
-  resultEl.classList.add('show');
-  resultEl.innerHTML = '<div class="ia-explain-loading">Generando una explicación estructurada…</div>';
+  if(cancelBtn) cancelBtn.disabled = true;
+  btnEl.textContent = 'Generando…';
+  delete resultEl.dataset.uploadOpen;
+  resultEl.innerHTML = '<div class="ia-explain-loading">' + (pendingFile ? 'Leyendo la foto del artículo y generando una explicación estructurada…' : 'Generando una explicación estructurada…') + '</div>';
 
   const letters = ['A','B','C','D'];
   const optionsText = q.options.map((opt,i) => letters[i] + ') ' + opt).join('\n');
-  const prompt = 'Eres un profesor que prepara opositores para un examen tipo test de legislación. ' +
-    'Te doy una pregunta, sus opciones, la respuesta correcta y una explicación breve ya existente. ' +
-    'Devuelve EXCLUSIVAMENTE un objeto JSON (sin markdown, sin ```, sin texto antes ni después) con esta forma exacta:\n' +
+  const incorrectLetters = letters.slice(0, q.options.length).filter((_, i) => i !== q.correct);
+
+  let prompt = 'Eres un profesor que prepara opositores para un examen tipo test de legislación. ' +
+    'Te doy una pregunta, sus opciones, la respuesta correcta y una explicación breve ya existente. ';
+  if(pendingFile){
+    prompt += 'Además te adjunto una foto del artículo de la ley del que sale la pregunta: básate en su texto literal siempre que sea legible tanto para justificar la respuesta correcta como para explicar cada opción incorrecta. Si la foto no se lee bien o no coincide con esta pregunta, dilo brevemente dentro del campo correspondiente y apóyate en tu conocimiento general. ';
+  }
+  prompt += 'Devuelve EXCLUSIVAMENTE un objeto JSON (sin markdown, sin ```, sin texto antes ni después) con esta forma exacta:\n' +
     '{\n' +
     '  "simple": "por qué es correcta esa opción, en lenguaje MUY sencillo y cercano, como si se lo explicaras a un niño o a una persona mayor sin conocimientos de leyes, con algún ejemplo cotidiano y sin tecnicismos",\n' +
     '  "technical": "la misma idea explicada de otra forma: más completa y precisa, con el rigor y el vocabulario propios de una oposición, citando el artículo o concepto de fondo",\n' +
-    '  "glossary": [ { "term": "palabra técnica que aparezca en \'technical\'", "meaning": "qué significa, explicado de forma simple", "synonyms": ["sinónimo 1", "sinónimo 2"] } ]\n' +
+    '  "incorrect": [ { "option": "letra de una opción incorrecta (' + incorrectLetters.join(', ') + ')", "reason": "por qué esa opción concreta NO es correcta, en 1-2 frases" } ],\n' +
+    '  "glossary": [ { "term": "palabra o expresión clave que aparezca en el ENUNCIADO o en las OPCIONES de la pregunta (no en el texto que generes tú)", "meaning": "qué significa, explicado de forma simple", "synonyms": ["sinónimo 1", "sinónimo 2"] } ]\n' +
     '}\n\n' +
-    'En "glossary" incluye solo palabras realmente técnicas o poco comunes que aparezcan en "technical" (deja el array vacío si no hay ninguna). ' +
+    'En "incorrect" incluye SIEMPRE una entrada por cada opción incorrecta (' + incorrectLetters.join(', ') + '), cada una explicada por separado y de forma concreta (no una frase genérica repetida). ' +
+    'En "glossary" incluye entre 2 y 5 palabras o expresiones clave reales de la pregunta (del enunciado o de las opciones, nunca inventadas ni sacadas de tu propio texto); deja el array vacío solo si de verdad no hay ninguna palabra destacable. ' +
     'Responde siempre en español, en texto plano dentro de cada campo (sin markdown ni asteriscos), y separa los párrafos de "simple" y "technical" con una línea en blanco si hace falta más de uno.\n\n' +
     'PREGUNTA: ' + q.q + '\n\nOPCIONES:\n' + optionsText + '\n\n' +
     'RESPUESTA CORRECTA: ' + letters[q.correct] + ') ' + q.options[q.correct] + '\n\n' +
     'EXPLICACIÓN BREVE YA EXISTENTE: ' + (q.explain ? q.explain.replace(/<[^>]+>/g, ' ') : '(ninguna)');
 
   try{
-    const text = await callGeminiProxy(prompt);
+    let imagePart = null;
+    if(pendingFile){
+      const resized = await resizeImageForUpload(pendingFile, 1400, 0.85);
+      const base64 = await fileToBase64(resized);
+      imagePart = { mimeType: resized.type || 'image/jpeg', data: base64 };
+    }
+
+    const text = await callGeminiProxy(prompt, imagePart);
     const cleanText = text.trim().replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
     if(!cleanText){ throw new Error('La IA no ha devuelto ninguna explicación.'); }
 
@@ -5134,16 +5298,21 @@ async function explainWithAI(questionId, btnEl){
       parsed = JSON.parse(cleanText);
     } catch(parseErr){
       // si por lo que sea no ha devuelto JSON válido, lo mostramos igualmente como explicación "fácil"
-      parsed = { simple: cleanText, technical: '', glossary: [] };
+      parsed = { simple: cleanText, technical: '', incorrect: [], glossary: [] };
     }
     if(!parsed || (!parsed.simple && !parsed.technical)){
       throw new Error('La IA no ha devuelto ninguna explicación.');
     }
+    if(!Array.isArray(parsed.incorrect)) parsed.incorrect = [];
+    if(!Array.isArray(parsed.glossary)) parsed.glossary = [];
 
     resultEl.innerHTML = aiExplainCardHtml(parsed, q.id);
     resultEl.dataset.loaded = '1';
     q.ai_explain = parsed;
-    btnEl.remove(); // ya no hace falta el botón "IA": la explicación queda permanente hasta que se quite con la X
+    delete IA_PENDING_IMAGES[questionId];
+
+    const origBtn = body ? body.querySelector('.ia-explain-btn') : null;
+    if(origBtn) origBtn.remove(); // ya no hace falta el botón "IA": la explicación queda permanente hasta que se quite con la X
 
     // Guardarla de forma permanente en la pregunta (RPC que solo toca la columna ai_explain)
     try{
@@ -5153,9 +5322,9 @@ async function explainWithAI(questionId, btnEl){
       console.error('No se ha podido guardar la explicación de forma permanente', saveErr);
     }
   } catch(err){
-    resultEl.innerHTML = '<div class="ia-explain-empty">No se ha podido generar la explicación: ' + esc(err.message || 'error desconocido') + '</div>';
-    btnEl.disabled = false;
-    btnEl.innerHTML = originalBtnHtml;
+    delete IA_PENDING_IMAGES[questionId];
+    resultEl.innerHTML = '<div class="ia-explain-empty">No se ha podido generar la explicación: ' + esc(err.message || 'error desconocido') + '</div>' +
+      '<button type="button" class="ia-explain-retry" onclick="openIAImagePanel(\'' + questionId + '\', this)">Reintentar</button>';
   }
 }
 
@@ -5183,7 +5352,7 @@ async function removeAIExplain(questionId, btnEl){
     const head = body ? body.querySelector('.explain-section-head') : null;
     if(head && !head.querySelector('.ia-explain-btn')){
       head.insertAdjacentHTML('beforeend',
-        '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();explainWithAI(\'' + questionId + '\', this)" title="Pedir una explicación más completa con IA">' +
+        '<button type="button" class="ia-explain-btn" onclick="event.stopPropagation();openIAImagePanel(\'' + questionId + '\', this)" title="Pedir una explicación más completa con IA">' +
           ICONS.brain + '<span>IA</span>' +
         '</button>');
     }

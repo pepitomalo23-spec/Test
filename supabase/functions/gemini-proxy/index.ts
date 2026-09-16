@@ -35,12 +35,28 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { prompt } = await req.json();
+    const { prompt, image } = await req.json();
     if (!prompt || typeof prompt !== "string") {
       return new Response(JSON.stringify({ error: "Falta el prompt." }), {
         status: 400,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
+    }
+
+    // La imagen (foto del artículo) es opcional: { mimeType, data } con
+    // data en base64 sin el prefijo "data:...;base64,". Se limita el
+    // tamaño en base64 (~6MB) para no aceptar payloads desproporcionados;
+    // el cliente ya reduce la foto antes de mandarla, así que en la
+    // práctica pesa mucho menos.
+    let imagePart: { inlineData: { mimeType: string; data: string } } | null = null;
+    if (image && typeof image.data === "string" && typeof image.mimeType === "string") {
+      if (image.data.length > 8_000_000) {
+        return new Response(JSON.stringify({ error: "image_too_large", message: "La foto del artículo pesa demasiado. Prueba con otra más pequeña." }), {
+          status: 413,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      imagePart = { inlineData: { mimeType: image.mimeType, data: image.data } };
     }
 
     const sb = supabaseAdmin();
@@ -59,7 +75,11 @@ Deno.serve(async (req: Request) => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        body: JSON.stringify({
+          contents: [{
+            parts: imagePart ? [imagePart, { text: prompt }] : [{ text: prompt }],
+          }],
+        }),
       },
     );
     const data = await resp.json();
