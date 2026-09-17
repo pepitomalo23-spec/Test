@@ -13,6 +13,19 @@
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+<script>
+  /* Aplica el tema guardado (claro/oscuro) lo antes posible, antes de que
+     se procese cualquier CSS, para no arrancar en un tema para cambiar al
+     otro un instante después. Por defecto, oscuro (comportamiento de
+     siempre si el usuario no ha elegido nada). */
+  (function(){
+    try{
+      if(localStorage.getItem('pjfire_theme') === 'light'){
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    }catch(e){}
+  })();
+</script>
 <style>
   /* Estilos críticos "de emergencia": van en un <style> aparte, SIN el
      @import de Google Fonts, para que el navegador los pueda aplicar de
@@ -53,6 +66,18 @@
     --serif: 'Source Serif 4', serif;
     --mono: 'JetBrains Mono', monospace;
     --title: 'Anton', 'Inter', sans-serif;
+  }
+  /* ---------- tema claro: mismas variables, solo cambian fondo/texto/líneas;
+     los colores de acento (--purple, --coral, etc.) se mantienen igual ---------- */
+  :root[data-theme="light"]{
+    --bg: #FFFFFF;
+    --card: #F3F3F5;
+    --card-hi: #E9E9EC;
+    --line: #E1E1E5;
+    --line-soft: #ECECEF;
+    --text: #16171A;
+    --muted: #5B6068;
+    --muted-2: #82868D;
   }
   *{ box-sizing:border-box; margin:0; padding:0; }
   html{ background: var(--bg); height:100%; overflow:hidden; }
@@ -1436,6 +1461,11 @@
         </div>
       </div>
       <div class="header-user-email" id="headerUserEmail"></div>
+      <div class="header-user-boe" id="headerThemeRow" role="button" tabindex="0" onclick="toggleTheme()" onkeydown="if(event.key==='Enter')toggleTheme()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+        <span style="flex:1;">Modo claro</span>
+        <span class="switch" id="themeSwitch"><span class="knob"></span></span>
+      </div>
       <button class="header-user-boe" id="headerBoeBtn" onclick="closeUserMenu(); showScreen('screen-boe-cambios');">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
         Cambios BOE
@@ -5931,11 +5961,30 @@ function onLoggedOut(){
 function toggleUserMenu(){
   const overlay = document.getElementById('profileSheetOverlay');
   if(overlay) overlay.classList.toggle('show');
+  syncThemeSwitch();
 }
 function closeUserMenu(){
   const overlay = document.getElementById('profileSheetOverlay');
   if(overlay) overlay.classList.remove('show');
 }
+/* ---------- tema claro/oscuro ---------- */
+function syncThemeSwitch(){
+  const sw = document.getElementById('themeSwitch');
+  if(!sw) return;
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  sw.classList.toggle('on', isLight);
+}
+function toggleTheme(){
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  if(isLight){
+    document.documentElement.removeAttribute('data-theme');
+  }else{
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+  try{ localStorage.setItem('pjfire_theme', isLight ? 'dark' : 'light'); }catch(e){}
+  syncThemeSwitch();
+}
+syncThemeSwitch();
 
 /* ==================== ADMIN PANEL ==================== */
 function esc(s){ return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
