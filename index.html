@@ -529,15 +529,6 @@
   .hist-counts{ display:flex; gap:13px; font-family: var(--mono); font-size:12px; }
   .hist-counts span{ display:flex; align-items:center; gap:4px; }
   .hist-counts svg{ width:13px; height:13px; }
-  .hist-resume-row{ margin-top:10px; }
-  .hist-resume-btn{
-    width:100%; border:1px solid var(--purple); background: transparent; color: var(--purple);
-    font-family: var(--mono); font-size:12.5px; padding:8px 10px; border-radius:9px;
-    display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;
-    transition: background-color .12s, color .12s;
-  }
-  .hist-resume-btn:hover{ background: var(--purple); color: var(--text); }
-  .hist-resume-btn[disabled]{ opacity:.5; cursor:not-allowed; }
   .c-ok{ color: var(--green); }
   .c-bad{ color: var(--coral); }
   .c-pending{ color: var(--muted-2); }
@@ -2147,6 +2138,9 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="11,6 5,12 11,18"/></svg>
           Volver
         </span>
+        <div class="quiz-head-right">
+          <button class="quiz-finish-btn hidden" id="reviewResumeBtn" type="button" onclick="retomarPendientesReview()">Retomar</button>
+        </div>
       </div>
       <h1 id="reviewTitle">Corrección</h1>
       <div class="review-topbar" id="reviewFilters"></div>
@@ -2387,7 +2381,11 @@ function mapDbQuestionToQuiz(row){
     // fecha del intento más reciente (da igual acierto o fallo). null si
     // nunca se ha respondido. La usa el Test Inteligente para saber cuánto
     // tiempo lleva "dormida" una pregunta ya dominada.
-    lastAttemptAt: row._lastAttemptAt || null
+    lastAttemptAt: row._lastAttemptAt || null,
+    // Ver arriba (loadAppData): solo para el algoritmo de Test Inteligente.
+    smartMasteryStatus: row._smartStatus || null,
+    smartTimesSeen: row._smartTimesSeen || 0,
+    smartLastAttemptAt: row._smartLastAttemptAt || null
   };
 }
 
@@ -2404,13 +2402,40 @@ function mapDbQuestionToQuiz(row){
                 con menos de 3 aciertos seguidos (racha de recuperación
                 en progreso).
    - 'green'  → nunca se ha fallado, o se falló alguna vez pero ya hay
-                3 o más aciertos seguidos (pregunta dominada). */
+                3 o más aciertos seguidos (pregunta dominada).
+
+   Los intentos hechos DENTRO de Test Inteligente cuentan para su propio
+   funcionamiento (ver SMART_MASTERY_BY_QUESTION más abajo) pero NO para
+   este estado "general": fallar una pregunta en Test Inteligente no debe
+   hacer que aparezca en Fallos ni mover las Estadísticas — Test Inteligente
+   ya tiene su repaso adaptativo propio para volver a traerla. */
+function statusFromAttempts(attempts){
+  if(!attempts.length) return null;
+  let streak = 0;
+  for(let i = attempts.length - 1; i >= 0; i--){
+    if(attempts[i].is_correct) streak++; else break;
+  }
+  const failCount = attempts.filter(a => !a.is_correct).length;
+  let status;
+  if(failCount === 0) status = 'green';
+  else if(streak >= 3) status = 'green';
+  else if(streak >= 1) status = 'yellow';
+  else status = 'red';
+  const lastAttemptAt = attempts[attempts.length - 1].test_sessions.created_at;
+  return { timesSeen: attempts.length, failCount, streak, status, lastAttemptAt };
+}
+// Estado de cada pregunta calculado SOLO con sus intentos dentro de Test
+// Inteligente (incluidos los suyos propios): así, si allí se falla una
+// pregunta, sigue volviendo a salir en los próximos Test Inteligente sin
+// depender de las estadísticas generales. Lo rellena computeQuestionMastery().
+let SMART_MASTERY_BY_QUESTION = {};
 async function computeQuestionMastery(questionIds){
   const stats = {};
+  SMART_MASTERY_BY_QUESTION = {};
   if(!currentUser || !questionIds || !questionIds.length) return stats;
   const { data, error } = await sb
     .from('session_answers')
-    .select('question_id, is_correct, answer_order, test_sessions!inner(created_at)')
+    .select('question_id, is_correct, answer_order, test_sessions!inner(created_at, mode)')
     .eq('user_id', currentUser.id)
     .in('question_id', questionIds);
   if(error){ console.error('Error calculando el dominio de preguntas', error); return stats; }
@@ -2423,26 +2448,18 @@ async function computeQuestionMastery(questionIds){
 
   RAW_ATTEMPTS_BY_QUESTION = {}; // se recalcula entero en cada llamada (ver arriba)
   Object.keys(byQuestion).forEach(qid => {
-    const attempts = byQuestion[qid].slice().sort((a, b) => {
+    const allAttempts = byQuestion[qid].slice().sort((a, b) => {
       const diff = new Date(a.test_sessions.created_at) - new Date(b.test_sessions.created_at);
       return diff !== 0 ? diff : (a.answer_order - b.answer_order);
     });
-    RAW_ATTEMPTS_BY_QUESTION[qid] = attempts; // guardado para rachas a nivel de artículo
-    let streak = 0;
-    for(let i = attempts.length - 1; i >= 0; i--){
-      if(attempts[i].is_correct) streak++; else break;
-    }
-    const failCount = attempts.filter(a => !a.is_correct).length;
-    let status;
-    if(failCount === 0) status = 'green';           // nunca ha fallado
-    else if(streak >= 3) status = 'green';           // falló antes, ahora dominada
-    else if(streak >= 1) status = 'yellow';          // falló y acertó, racha corta aún
-    else status = 'red';                             // el último intento fue un fallo
-    // Fecha del intento más reciente (da igual acierto o fallo): sirve para
-    // saber si una pregunta "descartada" de Fallos se ha vuelto a fallar
-    // después del descarte (ver dismissed_fails / _fallosHidden).
-    const lastAttemptAt = attempts[attempts.length - 1].test_sessions.created_at;
-    stats[qid] = { timesSeen: attempts.length, failCount, streak, status, lastAttemptAt };
+    RAW_ATTEMPTS_BY_QUESTION[qid] = allAttempts; // guardado para rachas a nivel de artículo (todos los intentos)
+
+    const generalAttempts = allAttempts.filter(a => a.test_sessions.mode !== 'inteligente');
+    const general = statusFromAttempts(generalAttempts);
+    if(general) stats[qid] = general;
+
+    const smart = statusFromAttempts(allAttempts);
+    if(smart) SMART_MASTERY_BY_QUESTION[qid] = smart;
   });
   return stats;
 }
@@ -3056,6 +3073,14 @@ async function loadAppData(){
     row._timesSeen = m ? m.timesSeen : 0;
     row._status = m ? m.status : null;
     row._lastAttemptAt = m ? m.lastAttemptAt : null;
+    // Estado propio de Test Inteligente (incluye sus propios intentos, ver
+    // computeQuestionMastery/SMART_MASTERY_BY_QUESTION): así, fallar una
+    // pregunta ahí sigue trayéndola en próximos Test Inteligente, sin
+    // afectar al estado "general" de arriba (Fallos/Estadísticas).
+    const sm = SMART_MASTERY_BY_QUESTION[row.id];
+    row._smartStatus = sm ? sm.status : null;
+    row._smartTimesSeen = sm ? sm.timesSeen : 0;
+    row._smartLastAttemptAt = sm ? sm.lastAttemptAt : null;
     // Oculta de Fallos si se descartó Y no hay ningún intento (fallado o no)
     // posterior a ese descarte. Si vuelve a fallarse, el nuevo intento es
     // más reciente y esto pasa a false automáticamente.
@@ -3100,7 +3125,6 @@ function renderHistoryEntry(container, h){
   item.className = 'hist-item t-' + h.type;
   item.setAttribute('role','button');
   item.setAttribute('tabindex','0');
-  const pendingCount = (h.pendingQuestionIds || []).length;
   item.innerHTML =
     '<div class="hist-icon">' + ICONS[h.type] + '</div>' +
     '<div class="hist-content">' +
@@ -3119,10 +3143,6 @@ function renderHistoryEntry(container, h){
           '<span class="c-pending">' + ICONS.pending + h.pending + '</span>' +
         '</div>' +
       '</div>' +
-      (pendingCount ?
-        '<div class="hist-resume-row">' +
-          '<button class="hist-resume-btn" type="button">Retomar (' + pendingCount + ' pendiente' + (pendingCount === 1 ? '' : 's') + ')</button>' +
-        '</div>' : '') +
     '</div>';
   item.onclick = async () => {
     if(h.review){ openReview(h.review, h.title + ' · Nota ' + h.nota); return; }
@@ -3137,7 +3157,8 @@ function renderHistoryEntry(container, h){
     }
     const review = {
       questions: rows.map(r => mapDbQuestionToQuiz(r.questions)),
-      answers: rows.map(r => r.selected_index)
+      answers: rows.map(r => r.selected_index),
+      mode: h.type
     };
     h.review = review;
     openReview(review, h.title + ' · Nota ' + h.nota);
@@ -3146,36 +3167,70 @@ function renderHistoryEntry(container, h){
   const delBtn = item.querySelector('.hist-delete-btn');
   delBtn.onclick = (e) => { e.stopPropagation(); deleteHistoryItem(h, delBtn); };
   delBtn.onkeydown = (e) => { e.stopPropagation(); };
-  const resumeBtn = item.querySelector('.hist-resume-btn');
-  if(resumeBtn){
-    resumeBtn.onclick = (e) => { e.stopPropagation(); retomarPendientesHistorial(h, resumeBtn); };
-    resumeBtn.onkeydown = (e) => { e.stopPropagation(); };
-  }
   container.appendChild(item);
 }
 
-/* ---------- "Retomar" las preguntas pendientes de un test ya finalizado ----------
-   Cuando un test se finaliza antes de completarlo del todo (ver finishQuiz:
-   pendingQuestionIds), queda guardado en el propio test_sessions qué
-   preguntas se quedaron sin ver/responder. Desde el Historial, "Retomar"
-   arranca un test nuevo — normal y corriente, del mismo tipo que el
-   original — con exactamente esas preguntas. No tiene nada que ver con
-   "Repaso Inteligente"/Vuelta: es un test más, como cualquier otro. */
-function retomarPendientesHistorial(h, btnEl){
+/* ---------- "Retomar" las preguntas pendientes, dentro de la propia corrección ----------
+   El botón "Retomar" vive en la esquina superior derecha de la pantalla de
+   Corrección (screen-review), no en la tarjeta del Historial: se calcula al
+   vuelo a partir de currentReview, así que funciona igual para un test
+   recién terminado que para uno antiguo abierto desde el Historial (la
+   corrección siempre trae questions/answers, sea cual sea su antigüedad).
+
+   Qué cuenta como "pendiente" depende del tipo de test:
+   - Test Inteligente: las preguntas FALLADAS (o sin responder), porque ahí
+     lo que importa es seguir practicando hasta dominarlas. Esto se queda
+     dentro del propio Test Inteligente (al retomar, se arranca otro test
+     inteligente): no pasan a "Fallos" como sí pasaría con un fallo de
+     Estudio/Examen/Simulacro (esa separación ya la hace
+     computeQuestionMastery, que excluye el modo "inteligente" del cálculo
+     general de dominio/Fallos).
+   - Resto de modos (Estudio/Fallos/Examen/Simulacro): las preguntas que se
+     quedaron SIN RESPONDER — tanto las que nunca se llegaron a ver (si se
+     finalizó antes de tiempo) como las que se vieron pero se dejaron en
+     blanco. */
+function reviewPendingQuestions(){
+  if(!currentReview || !currentReview.questions) return [];
+  const isSmart = currentReview.mode === 'inteligente';
+  return currentReview.questions.filter((q, i) => {
+    const a = currentReview.answers[i];
+    return isSmart ? (a !== q.correct) : (a === null || a === undefined);
+  });
+}
+function updateReviewResumeButton(){
+  const btn = document.getElementById('reviewResumeBtn');
+  if(!btn) return;
+  const pending = reviewPendingQuestions();
+  if(pending.length){
+    btn.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Retomar (' + pending.length + ')';
+  } else {
+    btn.classList.add('hidden');
+  }
+}
+function retomarPendientesReview(){
   if(quizState && quizState.mode){
     alert('Ya tienes un test en curso. Termínalo o vuelve a él antes de retomar este.');
     return;
   }
-  const ids = (h.pendingQuestionIds || []).map(String);
-  if(!ids.length) return;
-  const idSet = new Set(ids);
+  const pending = reviewPendingQuestions();
+  if(!pending.length) return;
+  // Se buscan las preguntas por id en QUESTIONS_POOL (canónicas, sin
+  // barajar) en vez de reutilizar los objetos de currentReview directamente:
+  // esos ya llevan el orden de opciones barajado del intento anterior
+  // (_optionOrder), y volver a barajarlos encima rompería la conversión a
+  // índice canónico al guardar esta nueva sesión.
+  const idSet = new Set(pending.map(q => String(q.id)));
   const questions = QUESTIONS_POOL.filter(q => idSet.has(String(q.id)));
   if(!questions.length){
     alert('Esas preguntas ya no están disponibles (puede que se hayan borrado o modificado).');
     return;
   }
-  if(btnEl) btnEl.disabled = true;
-  startQuiz(h.type, questions, null);
+  const btn = document.getElementById('reviewResumeBtn');
+  if(btn) btn.disabled = true;
+  const mode = currentReview.mode || 'estudio';
+  startQuiz(mode, questions, null);
 }
 /* Como mucho las 10 entradas más recientes del historial (ya viene
    ordenado del más nuevo al más viejo); si hay más, se ve una 11ª tarjeta
@@ -3321,7 +3376,6 @@ function mapSessionRowToHistoryEntry(row){
     nota: formatNota(row.score),
     time: formatMMSS(row.time_seconds),
     ok: row.ok, bad: row.bad, pending: row.pending,
-    pendingQuestionIds: Array.isArray(row.pending_question_ids) ? row.pending_question_ids : [],
     review: null
   };
 }
@@ -3988,9 +4042,14 @@ async function eliminarFallosPendientes(){
 
 /* ---------- Test Inteligente (repaso adaptativo tipo Anki) ----------
    No guarda nada nuevo en Supabase: se apoya en los mismos datos que ya
-   calcula computeQuestionMastery() (masteryStatus, failCount, timesSeen,
-   lastAttemptAt). Solo entran preguntas que TOCAN hoy, en 3 grupos reales
-   (los mismos que usa el resto de la app para masteryStatus):
+   calcula computeQuestionMastery(), pero con su propia versión de
+   masteryStatus/failCount/timesSeen (smartMasteryStatus, etc. — ver
+   SMART_MASTERY_BY_QUESTION) que SÍ cuenta los intentos hechos dentro del
+   propio Test Inteligente. Así, fallar aquí una pregunta sigue haciendo que
+   vuelva a salir en los próximos Test Inteligente, pero no la mete en
+   Fallos ni mueve las Estadísticas (esas usan el estado "general", que
+   ignora los intentos de Test Inteligente). Solo entran preguntas que
+   TOCAN hoy, en 3 grupos reales:
    - Fallos: el último intento fue un fallo.
    - Progreso: falladas antes y ahora en racha de recuperación (aciertos
      seguidos, pero todavía menos de 3).
@@ -4021,7 +4080,7 @@ function smartIsToday(iso){
 // en riesgo de olvido, según cuántas veces se ha visto ya. Crece con cada
 // repaso (como el intervalo de Anki), con un tope de 90 días.
 function smartReviewInterval(q){
-  const seen = Math.max(1, q.timesSeen || 1);
+  const seen = Math.max(1, q.smartTimesSeen || 1);
   return Math.min(90, 4 * Math.pow(1.7, seen - 1));
 }
 function smartDifficultyWeight(q){
@@ -4032,18 +4091,22 @@ function smartDifficultyWeight(q){
 // Categoría real de cada pregunta para HOY. Devuelve null si hoy no le toca
 // (nunca vista, o dominada pero su intervalo de repaso aún no ha vencido):
 // esas quedan fuera del Test Inteligente por completo.
+// Usa smartMasteryStatus/smartLastAttemptAt (incluye los propios intentos
+// de Test Inteligente), no masteryStatus/lastAttemptAt "generales": así,
+// fallar aquí sigue afectando a los próximos Test Inteligente, aunque esa
+// misma pregunta no aparezca en Fallos ni mueva las Estadísticas.
 function smartClassify(q){
-  if(q.masteryStatus === 'red') return 'red';
-  if(q.masteryStatus === 'yellow'){
+  if(q.smartMasteryStatus === 'red') return 'red';
+  if(q.smartMasteryStatus === 'yellow'){
     // Está en racha de recuperación (ya acertó al menos una vez tras
     // fallarla, pero todavía no lleva los 3 aciertos seguidos). Si ese
     // último acierto fue HOY, descansa hasta mañana: no vuelve a salir
     // en Test Inteligente el mismo día en que se acaba de acertar.
-    if(smartIsToday(q.lastAttemptAt)) return null;
+    if(smartIsToday(q.smartLastAttemptAt)) return null;
     return 'yellow';
   }
-  if(q.masteryStatus === 'green'){
-    const days = smartDaysSince(q.lastAttemptAt);
+  if(q.smartMasteryStatus === 'green'){
+    const days = smartDaysSince(q.smartLastAttemptAt);
     const interval = smartReviewInterval(q);
     return (days !== null && days >= interval) ? 'memory' : null;
   }
@@ -4054,7 +4117,7 @@ function smartScore(q, cat){
   if(cat === 'red') return 100 * w;
   if(cat === 'yellow') return 60 * w;
   // 'memory': cuanto más se haya pasado del intervalo esperado, más urge
-  const days = smartDaysSince(q.lastAttemptAt);
+  const days = smartDaysSince(q.smartLastAttemptAt);
   const interval = smartReviewInterval(q);
   const ratio = interval > 0 ? (days / interval) : 1;
   return Math.min(55, 25 * ratio) * w;
@@ -5560,18 +5623,15 @@ async function finishQuiz(){
   const SESSION_ANSWERS = sessionIndices.map(i => quizState.answers[i]);
 
   // ---------- "Retomar": qué preguntas quedan pendientes de este test ----------
-  // En modo tarjeta: las que nunca se llegaron a ver (fuera de la sesión).
-  // En modo lista (examen/simulacro), todas las preguntas ya estaban
-  // visibles desde el principio, así que "pendiente" es la que se dejó en
-  // blanco. Se guardan sus ids para poder ofrecer "Retomar" desde el
-  // Historial: un test nuevo, normal y corriente, con exactamente esas.
-  const sessionIndexSet = new Set(sessionIndices);
-  const leftoverQuestions = (quizState.viewMode === 'card')
-    ? ACTIVE_QUESTIONS.filter((_, i) => !sessionIndexSet.has(i))
-    : sessionIndices
-        .filter(i => quizState.answers[i] === null || quizState.answers[i] === undefined)
-        .map(i => ACTIVE_QUESTIONS[i]);
-  const pendingQuestionIds = leftoverQuestions.map(q => q.id);
+  // Se guarda en test_sessions como referencia, aunque el botón "Retomar" de
+  // la pantalla de Corrección en realidad recalcula esto mismo al vuelo a
+  // partir de currentReview (ver reviewPendingQuestions), así que funciona
+  // igual para un test antiguo abierto desde el Historial que no tenga este
+  // campo guardado.
+  const isSmart = quizState.mode === 'inteligente';
+  const pendingQuestionIds = ACTIVE_QUESTIONS
+    .filter((q, i) => isSmart ? (quizState.answers[i] !== q.correct) : (quizState.answers[i] === null || quizState.answers[i] === undefined))
+    .map(q => q.id);
 
   const total = SESSION_QUESTIONS.length;
   const correctCount = SESSION_QUESTIONS.reduce((acc, q, j) => acc + (SESSION_ANSWERS[j] === q.correct ? 1 : 0), 0);
@@ -5662,8 +5722,13 @@ async function finishQuiz(){
     ok: quizState.correctCount,
     bad: bad,
     pending: blank,
-    pendingQuestionIds: pendingQuestionIds,
-    review: { questions: SESSION_QUESTIONS.slice(), answers: SESSION_ANSWERS.slice() }
+    // El "review" lleva TODAS las preguntas de este intento (ACTIVE_QUESTIONS),
+    // no solo las de la sesión puntuada (SESSION_QUESTIONS): así, si se
+    // finalizó antes de tiempo, las que nunca se llegaron a ver también
+    // aparecen en la Corrección como "en blanco" — y "Retomar" (ver
+    // reviewPendingQuestions) puede encontrarlas ahí. El total/nota que se
+    // ve en el Historial sigue calculándose solo con SESSION_QUESTIONS.
+    review: { questions: ACTIVE_QUESTIONS.slice(), answers: quizState.answers.slice(), mode: quizState.mode }
   };
   // El Test Inteligente va a su propio historial (dentro de su pantalla),
   // no al Historial general de Examen/Estudio/Simulacro/Fallos.
@@ -5716,6 +5781,7 @@ function openReview(review, title){
   document.getElementById('reviewTitle').textContent = title || 'Corrección';
   renderReviewFilters();
   renderReviewList();
+  updateReviewResumeButton();
   showScreen('screen-review');
 }
 function renderReviewFilters(){
