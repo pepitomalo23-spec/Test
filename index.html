@@ -529,15 +529,6 @@
   .hist-counts{ display:flex; gap:13px; font-family: var(--mono); font-size:12px; }
   .hist-counts span{ display:flex; align-items:center; gap:4px; }
   .hist-counts svg{ width:13px; height:13px; }
-  .hist-resume-row{ margin-top:10px; }
-  .hist-resume-btn{
-    width:100%; border:1px solid var(--purple); background: transparent; color: var(--purple);
-    font-family: var(--mono); font-size:12.5px; padding:8px 10px; border-radius:9px;
-    display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;
-    transition: background-color .12s, color .12s;
-  }
-  .hist-resume-btn:hover{ background: var(--purple); color: var(--text); }
-  .hist-resume-btn[disabled]{ opacity:.5; cursor:not-allowed; }
   .c-ok{ color: var(--green); }
   .c-bad{ color: var(--coral); }
   .c-pending{ color: var(--muted-2); }
@@ -3100,7 +3091,6 @@ function renderHistoryEntry(container, h){
   item.className = 'hist-item t-' + h.type;
   item.setAttribute('role','button');
   item.setAttribute('tabindex','0');
-  const pendingCount = (h.pendingQuestionIds || []).length;
   item.innerHTML =
     '<div class="hist-icon">' + ICONS[h.type] + '</div>' +
     '<div class="hist-content">' +
@@ -3119,10 +3109,6 @@ function renderHistoryEntry(container, h){
           '<span class="c-pending">' + ICONS.pending + h.pending + '</span>' +
         '</div>' +
       '</div>' +
-      (pendingCount ?
-        '<div class="hist-resume-row">' +
-          '<button class="hist-resume-btn" type="button">Retomar (' + pendingCount + ' pendiente' + (pendingCount === 1 ? '' : 's') + ')</button>' +
-        '</div>' : '') +
     '</div>';
   item.onclick = async () => {
     if(h.review){ openReview(h.review, h.title + ' · Nota ' + h.nota); return; }
@@ -3146,36 +3132,7 @@ function renderHistoryEntry(container, h){
   const delBtn = item.querySelector('.hist-delete-btn');
   delBtn.onclick = (e) => { e.stopPropagation(); deleteHistoryItem(h, delBtn); };
   delBtn.onkeydown = (e) => { e.stopPropagation(); };
-  const resumeBtn = item.querySelector('.hist-resume-btn');
-  if(resumeBtn){
-    resumeBtn.onclick = (e) => { e.stopPropagation(); retomarPendientesHistorial(h, resumeBtn); };
-    resumeBtn.onkeydown = (e) => { e.stopPropagation(); };
-  }
   container.appendChild(item);
-}
-
-/* ---------- "Retomar" las preguntas pendientes de un test ya finalizado ----------
-   Cuando un test se finaliza antes de completarlo del todo (ver finishQuiz:
-   pendingQuestionIds), queda guardado en el propio test_sessions qué
-   preguntas se quedaron sin ver/responder. Desde el Historial, "Retomar"
-   arranca un test nuevo — normal y corriente, del mismo tipo que el
-   original — con exactamente esas preguntas. No tiene nada que ver con
-   "Repaso Inteligente"/Vuelta: es un test más, como cualquier otro. */
-function retomarPendientesHistorial(h, btnEl){
-  if(quizState && quizState.mode){
-    alert('Ya tienes un test en curso. Termínalo o vuelve a él antes de retomar este.');
-    return;
-  }
-  const ids = (h.pendingQuestionIds || []).map(String);
-  if(!ids.length) return;
-  const idSet = new Set(ids);
-  const questions = QUESTIONS_POOL.filter(q => idSet.has(String(q.id)));
-  if(!questions.length){
-    alert('Esas preguntas ya no están disponibles (puede que se hayan borrado o modificado).');
-    return;
-  }
-  if(btnEl) btnEl.disabled = true;
-  startQuiz(h.type, questions, null);
 }
 /* Como mucho las 10 entradas más recientes del historial (ya viene
    ordenado del más nuevo al más viejo); si hay más, se ve una 11ª tarjeta
@@ -3321,7 +3278,6 @@ function mapSessionRowToHistoryEntry(row){
     nota: formatNota(row.score),
     time: formatMMSS(row.time_seconds),
     ok: row.ok, bad: row.bad, pending: row.pending,
-    pendingQuestionIds: Array.isArray(row.pending_question_ids) ? row.pending_question_ids : [],
     review: null
   };
 }
@@ -5559,20 +5515,6 @@ async function finishQuiz(){
   const SESSION_QUESTIONS = sessionIndices.map(i => ACTIVE_QUESTIONS[i]);
   const SESSION_ANSWERS = sessionIndices.map(i => quizState.answers[i]);
 
-  // ---------- "Retomar": qué preguntas quedan pendientes de este test ----------
-  // En modo tarjeta: las que nunca se llegaron a ver (fuera de la sesión).
-  // En modo lista (examen/simulacro), todas las preguntas ya estaban
-  // visibles desde el principio, así que "pendiente" es la que se dejó en
-  // blanco. Se guardan sus ids para poder ofrecer "Retomar" desde el
-  // Historial: un test nuevo, normal y corriente, con exactamente esas.
-  const sessionIndexSet = new Set(sessionIndices);
-  const leftoverQuestions = (quizState.viewMode === 'card')
-    ? ACTIVE_QUESTIONS.filter((_, i) => !sessionIndexSet.has(i))
-    : sessionIndices
-        .filter(i => quizState.answers[i] === null || quizState.answers[i] === undefined)
-        .map(i => ACTIVE_QUESTIONS[i]);
-  const pendingQuestionIds = leftoverQuestions.map(q => q.id);
-
   const total = SESSION_QUESTIONS.length;
   const correctCount = SESSION_QUESTIONS.reduce((acc, q, j) => acc + (SESSION_ANSWERS[j] === q.correct ? 1 : 0), 0);
   quizState.correctCount = correctCount;
@@ -5610,8 +5552,7 @@ async function finishQuiz(){
         mode: quizState.mode,
         score: Number(notaNum.toFixed(2)),
         total, ok: quizState.correctCount, bad, pending: blank,
-        time_seconds: elapsedSec,
-        pending_question_ids: pendingQuestionIds
+        time_seconds: elapsedSec
       }).select().single();
       if(sErr) throw sErr;
       sessionId = sessionRow.id;
@@ -5662,7 +5603,6 @@ async function finishQuiz(){
     ok: quizState.correctCount,
     bad: bad,
     pending: blank,
-    pendingQuestionIds: pendingQuestionIds,
     review: { questions: SESSION_QUESTIONS.slice(), answers: SESSION_ANSWERS.slice() }
   };
   // El Test Inteligente va a su propio historial (dentro de su pantalla),
