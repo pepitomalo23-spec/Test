@@ -3155,30 +3155,11 @@ function renderHistoryEntry(container, h){
       alert('Este test no tiene datos de corrección guardados.');
       return;
     }
-    const questions = rows.map(r => mapDbQuestionToQuiz(r.questions));
-    const answers = rows.map(r => r.selected_index);
-    // Las preguntas que se quedaron SIN VER (test dejado a medias antes de
-    // llegar a ellas, p. ej. un Estudio de 170 preguntas abandonado en la
-    // 80) no tienen fila en session_answers -solo se guardan ahí las que sí
-    // se llegaron a mostrar-, pero sí están en pending_question_ids. Sin
-    // esto, al reabrir la app en otro momento (recargando la página) esas
-    // preguntas desaparecían del todo de la Corrección y "Retomar" ya no
-    // las encontraba -aunque el mismo día, sin recargar, si funcionaban,
-    // porque entonces se usaba el "review" que se queda en memoria (ver
-    // saveQuizSession). Aquí se completan igual, como "en blanco", para que
-    // Retomar las encuentre también en sesiones posteriores.
-    const answeredIds = new Set(rows.map(r => String(r.question_id)));
-    const missingPendingIds = (h.pendingQuestionIds || [])
-      .map(String)
-      .filter(id => !answeredIds.has(id));
-    if(missingPendingIds.length){
-      const idSet = new Set(missingPendingIds);
-      QUESTIONS_POOL.filter(q => idSet.has(String(q.id))).forEach(q => {
-        questions.push(q);
-        answers.push(null);
-      });
-    }
-    const review = { questions, answers, mode: h.type };
+    const review = {
+      questions: rows.map(r => mapDbQuestionToQuiz(r.questions)),
+      answers: rows.map(r => r.selected_index),
+      mode: h.type
+    };
     h.review = review;
     openReview(review, h.title + ' · Nota ' + h.nota);
   };
@@ -3395,12 +3376,6 @@ function mapSessionRowToHistoryEntry(row){
     nota: formatNota(row.score),
     time: formatMMSS(row.time_seconds),
     ok: row.ok, bad: row.bad, pending: row.pending,
-    // Ids de las preguntas pendientes (falladas, en blanco o nunca vistas)
-    // en el momento de guardar. Se usan en renderHistoryEntry para poder
-    // reconstruir "Retomar" incluso tras recargar la página / en una
-    // sesión posterior, cuando session_answers ya no basta por sí solo
-    // (ver comentario en ese punto).
-    pendingQuestionIds: row.pending_question_ids || [],
     review: null
   };
 }
