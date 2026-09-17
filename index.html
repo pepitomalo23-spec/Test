@@ -3476,6 +3476,12 @@ function openOverlay(id){
 /* ---------- config screen (estudio / examen / simulacro) ---------- */
 function openConfig(mode){
   if(quizState && quizState.mode && quizState.mode !== mode) return; // hay un test en curso en otro apartado
+  // Si se reabre "Estudio" con un test de "Vuelta" a medias sin finalizar,
+  // se liquida ya su marcapáginas (solo avanza lo que de verdad se vio) para
+  // que la vista previa ("sigue en la pregunta X de Y") sea siempre exacta.
+  if(mode === 'estudio' && quizState && quizState.mode === 'estudio' && quizState.vueltaTopicKey){
+    settleVueltaProgress(quizState, (quizState.visited || []).filter(Boolean).length);
+  }
   configState.mode = mode;
   // Antes se marcaban todos los temas por defecto al abrir esta pantalla
   // por primera vez. Ahora "Seleccionar todo" y cada tema individual se
@@ -3833,9 +3839,6 @@ function takeVueltaSlice(order, position, count){
   for(let i = 0; i < take; i++){ ids.push(order[(position + i) % n]); }
   return { ids, newPosition: (position + take) % n };
 }
-function commitVueltaPosition(topicKey, order, newPosition){
-  saveVueltaState(topicKey, { order, position: newPosition });
-}
 
 /* Baraja un array sin modificar el original (Fisher–Yates). */
 function shuffleArray(arr){
@@ -3896,22 +3899,31 @@ function buildQuestionSet(pool, count){
 }
 
 function startFromConfig(){
+  // Si se reabre "Estudio" habiendo dejado un test de "Vuelta" a medias (sin
+  // pulsar "Finalizar"), hay que liquidarlo YA, antes de mirar por dónde va
+  // la cola: si no, el nuevo test se calcularía con la posición antigua (la
+  // de antes de dejarlo a medias) y repetiría preguntas ya vistas en vez de
+  // continuar justo después de la última vista de verdad.
+  if(quizState && quizState.mode === 'estudio' && quizState.vueltaTopicKey){
+    settleVueltaProgress(quizState, (quizState.visited || []).filter(Boolean).length);
+  }
   const mode = configState.mode;
   if(mode === 'estudio'){
     const candidates = buildQuestionsFromTopics(configState.topics);
     let questions = candidates;
     let startOpts = null;
     if(configState.repaso === 'vuelta'){
-      // "Vuelta": cola fija tipo libro (ver buildVueltaQueue). Se reserva ya
-      // el siguiente tramo y se guarda la nueva posición, para que el
-      // próximo test (aunque este se abandone a medias) continúe después.
+      // "Vuelta": cola fija tipo libro (ver buildVueltaQueue). El tramo
+      // reservado NO se confirma todavía: solo se guarda de verdad al
+      // terminar el test (ver settleVueltaProgress), y solo lo que se haya
+      // llegado a ver de verdad — así, si se deja el test a medias, la
+      // próxima vez no se saltan las preguntas nunca vistas.
       const topicKey = vueltaKey(configState.topics);
       const vState = buildVueltaQueue(candidates, topicKey);
       const slice = takeVueltaSlice(vState.order, vState.position, configState.preguntas);
-      commitVueltaPosition(topicKey, vState.order, slice.newPosition);
       const byId = new Map(candidates.map(q => [String(q.id), q]));
       questions = slice.ids.map(id => byId.get(id)).filter(Boolean);
-      startOpts = { preserveOrder: true };
+      startOpts = { preserveOrder: true, vueltaTopicKey: topicKey, vueltaStartPosition: vState.position };
     } else if(configState.preguntas){
       // "Normal": respeta el ajuste "Preguntas" (10/20/30/40 o "Sin
       // límite"), todas en orden aleatorio, sin ningún filtro ni cola fija.
@@ -4132,8 +4144,32 @@ function startSmartTest(){
 
 /* ---------- quiz ---------- */
 const QUIZ_LIST_MODES = ['examen', 'simulacro']; // estas modalidades muestran todas las preguntas seguidas, sin corrección inmediata
+/* Cuando un test de "Vuelta" termina (se finaliza o se abandona empezando
+   otro), se avanza el marcapáginas SOLO lo que de verdad se ha visto
+   (quizState.visited cuenta las preguntas realmente mostradas, igual que ya
+   se usa para no contarlas ni como acierto ni como fallo si se sale antes
+   de tiempo). Así, si se deja un test a medias sin terminarlo, la próxima
+   vez no se saltan las preguntas que nunca se llegaron a ver. */
+function settleVueltaProgress(qs, advanceCount){
+  if(!qs || qs.mode !== 'estudio' || !qs.vueltaTopicKey) return;
+  const state = loadVueltaState(qs.vueltaTopicKey);
+  if(!state || !state.order.length) return;
+  const start = (typeof qs.vueltaStartPosition === 'number') ? qs.vueltaStartPosition : state.position;
+  const newPosition = (start + (advanceCount || 0)) % state.order.length;
+  saveVueltaState(qs.vueltaTopicKey, { order: state.order, position: newPosition });
+}
+
 function startQuiz(mode, questions, timeMinutes, opts){
   opts = opts || {};
+  // Si había un test de "Vuelta" sin terminar (se dejó a medias y ahora se
+  // arranca uno nuevo por encima), se liquida antes de perder su rastro:
+  // el marcapáginas solo avanza lo que de verdad se llegó a ver.
+  if(quizState && quizState.mode && quizState.vueltaTopicKey){
+    const prevVisited = (quizState.viewMode === 'card' && quizState.visited)
+      ? quizState.visited.filter(Boolean).length
+      : (ACTIVE_QUESTIONS ? ACTIVE_QUESTIONS.length : 0);
+    settleVueltaProgress(quizState, prevVisited);
+  }
   const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
   // "Vuelta" (opts.preserveOrder): el orden de las preguntas viene ya fijado
   // por la cola tipo libro y no se reordena. En el resto de casos, el orden
@@ -4147,7 +4183,7 @@ function startQuiz(mode, questions, timeMinutes, opts){
   // si se finaliza el test antes de llegar al final, las preguntas
   // posteriores que nunca se mostraron no deben contar en absoluto (ni
   // como falladas ni como pendientes) en las Estadísticas.
-  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), visited:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes };
+  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), visited:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes, vueltaTopicKey: opts.vueltaTopicKey || null, vueltaStartPosition: (typeof opts.vueltaStartPosition === 'number') ? opts.vueltaStartPosition : null };
   saveQuizProgress();
   showScreen('screen-quiz');
   document.getElementById('quizCardView').style.display = (viewMode === 'card') ? 'block' : 'none';
@@ -5578,6 +5614,10 @@ async function finishQuiz(){
     : ACTIVE_QUESTIONS.map((_, i) => i);
   const SESSION_QUESTIONS = sessionIndices.map(i => ACTIVE_QUESTIONS[i]);
   const SESSION_ANSWERS = sessionIndices.map(i => quizState.answers[i]);
+
+  // "Vuelta": el marcapáginas avanza solo lo que de verdad se ha visto en
+  // esta sesión (sessionIndices.length), nunca el tramo entero reservado.
+  settleVueltaProgress(quizState, sessionIndices.length);
 
   const total = SESSION_QUESTIONS.length;
   const correctCount = SESSION_QUESTIONS.reduce((acc, q, j) => acc + (SESSION_ANSWERS[j] === q.correct ? 1 : 0), 0);
