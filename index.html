@@ -4181,148 +4181,7 @@ function startSmartTest(){
 
 /* ---------- quiz ---------- */
 const QUIZ_LIST_MODES = ['examen', 'simulacro']; // estas modalidades muestran todas las preguntas seguidas, sin corrección inmediata
-/* ---------- guarda una sesión de test (Supabase + Historial) ----------
-   Código compartido entre finishQuiz() (cuando se pulsa "Finalizar") y
-   settleAbandonedQuiz() (cuando se abandona un test sin finalizarlo y se
-   arranca otro por encima): en ambos casos se guarda igual, para que un
-   test dejado a medias no se pierda sin más — queda en el Historial con
-   sus preguntas pendientes listas para "Retomar" en la Corrección. */
-async function saveQuizSession(qs, activeQuestions){
-  const visited = qs.visited;
-  const sessionIndices = (qs.viewMode === 'card' && visited)
-    ? activeQuestions.map((_, i) => i).filter(i => visited[i])
-    : activeQuestions.map((_, i) => i);
-  const SESSION_QUESTIONS = sessionIndices.map(i => activeQuestions[i]);
-  const SESSION_ANSWERS = sessionIndices.map(i => qs.answers[i]);
-
-  const isSmart = qs.mode === 'inteligente';
-  const pendingQuestionIds = activeQuestions
-    .filter((q, i) => isSmart ? (qs.answers[i] !== q.correct) : (qs.answers[i] === null || qs.answers[i] === undefined))
-    .map(q => q.id);
-
-  const total = SESSION_QUESTIONS.length;
-  const correctCount = SESSION_QUESTIONS.reduce((acc, q, j) => acc + (SESSION_ANSWERS[j] === q.correct ? 1 : 0), 0);
-  qs.correctCount = correctCount;
-
-  const blank = SESSION_ANSWERS.filter(a => a === null || a === undefined).length;
-  const bad = total - correctCount - blank;
-  // Sistema de puntuación tipo oposición: acertar suma 1 punto, fallar
-  // resta 1/(nº de opciones de esa pregunta - 1) —es decir, lo que en
-  // media "cuesta" un fallo si se responde al azar—, y dejar en blanco
-  // ("no me la juego") no suma ni resta nada. La nota nunca baja de 0.
-  let earnedPoints = 0;
-  SESSION_QUESTIONS.forEach((q, j) => {
-    const a = SESSION_ANSWERS[j];
-    if(a === null || a === undefined) return; // en blanco: no cuenta
-    if(a === q.correct){
-      earnedPoints += 1;
-    } else {
-      const numOptions = (q.options && q.options.length) || 4;
-      const penalty = numOptions > 1 ? 1 / (numOptions - 1) : 0;
-      earnedPoints -= penalty;
-    }
-  });
-  const notaNum = total ? Math.max(0, (earnedPoints / total) * 10) : 0;
-  const elapsedSec = qs.startedAt ? Math.round((Date.now() - qs.startedAt) / 1000) : 0;
-  const MODE_LABELS = HISTORY_MODE_LABELS;
-
-  let sessionId = 'r' + Date.now();
-
-  if(currentUser){
-    try{
-      const { data: sessionRow, error: sErr } = await sb.from('test_sessions').insert({
-        user_id: currentUser.id,
-        mode: qs.mode,
-        score: Number(notaNum.toFixed(2)),
-        total, ok: qs.correctCount, bad, pending: blank,
-        time_seconds: elapsedSec,
-        pending_question_ids: pendingQuestionIds
-      }).select().single();
-      if(sErr) throw sErr;
-      sessionId = sessionRow.id;
-
-      const answerRows = SESSION_QUESTIONS.map((q, j) => {
-        const a = SESSION_ANSWERS[j];
-        // Si esta pregunta se barajó para este intento (q._optionOrder),
-        // lo que se guarda es el índice de la opción en su orden
-        // ORIGINAL de la base de datos, no la posición en la que se
-        // mostró aquí. Así, si más adelante se revisa este test desde el
-        // historial (p. ej. tras recargar la página, cuando la pregunta
-        // se vuelve a pedir a la BD en su orden canónico), la corrección
-        // sigue siendo exacta.
-        const canonicalIndex = (a === null || a === undefined)
-          ? null
-          : (q._optionOrder ? q._optionOrder[a] : a);
-        // En blanco (a === null/undefined) cuenta como fallada: se guarda
-        // is_correct = false, igual que una respuesta incorrecta. Así entra
-        // en Fallos y en Test Inteligente como cualquier otro fallo.
-        return {
-          session_id: sessionId, user_id: currentUser.id, question_id: q.id,
-          selected_index: canonicalIndex,
-          is_correct: a === q.correct, answer_order: j
-        };
-      });
-      if(answerRows.length){
-        const { error: aErr } = await sb.from('session_answers').insert(answerRows);
-        if(aErr) throw aErr;
-      }
-
-      // El estado de cada pregunta (fallada / en progreso / dominada) ya no
-      // se guarda aparte: loadAppData() lo recalcula del tirón a partir de
-      // session_answers, que es lo que se acaba de insertar arriba.
-      await loadAppData();
-      await refreshGlobalStats();
-    } catch(err){
-      console.error('Error guardando la sesión en Supabase', err);
-    }
-  }
-
-  const entry = {
-    id: sessionId,
-    date: 'Ahora mismo',
-    type: qs.mode,
-    title: MODE_LABELS[qs.mode] || 'Test',
-    nota: formatNota(notaNum),
-    time: formatMMSS(elapsedSec),
-    ok: qs.correctCount,
-    bad: bad,
-    pending: blank,
-    // El "review" lleva TODAS las preguntas de este intento (activeQuestions),
-    // no solo las de la sesión puntuada (SESSION_QUESTIONS): así, si se
-    // finalizó (o se dejó a medias) antes de tiempo, las que nunca se
-    // llegaron a ver también aparecen en la Corrección como "en blanco" — y
-    // "Retomar" (ver reviewPendingQuestions) puede encontrarlas ahí. El
-    // total/nota que se ve en el Historial sigue calculándose solo con
-    // SESSION_QUESTIONS.
-    review: { questions: activeQuestions.slice(), answers: qs.answers.slice(), mode: qs.mode }
-  };
-  // El Test Inteligente va a su propio historial (dentro de su pantalla),
-  // no al Historial general de Examen/Estudio/Simulacro/Fallos.
-  if(qs.mode === 'inteligente'){ SMART_HISTORY.unshift(entry); renderSmartHistory(); }
-  else { HISTORY.unshift(entry); renderHistory(); }
-  lastFinishedReviewId = entry.id;
-
-  return { entry, total, correctCount };
-}
-
-/* Se llama al arrancar un test nuevo (startQuiz) cuando el anterior se dejó
-   a medias sin pulsar "Finalizar" (p. ej. se salió con "Volver" y luego se
-   reconfiguró el mismo modo desde cero). En vez de perderlo sin más, se
-   guarda en segundo plano exactamente igual que si se hubiera finalizado en
-   ese momento: aparece en el Historial de ese día, con sus preguntas
-   pendientes listas para "Retomar" más adelante. No bloquea el arranque del
-   test nuevo (no se espera a que termine de guardar). */
-function settleAbandonedQuiz(qs, activeQuestions){
-  if(!qs || !qs.mode || qs.finishing) return;
-  saveQuizSession(qs, activeQuestions).catch(err => {
-    console.error('Error guardando el test abandonado', err);
-  });
-}
-
 function startQuiz(mode, questions, timeMinutes){
-  if(quizState && quizState.mode){
-    settleAbandonedQuiz(quizState, ACTIVE_QUESTIONS);
-  }
   const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
   ACTIVE_QUESTIONS = shuffleArray(base).map(shuffleQuestionOptions); // el orden de las preguntas Y de sus opciones A/B/C/D es aleatorio en cada intento (salvo preguntas del tipo "A y B son correctas")
   const viewMode = QUIZ_LIST_MODES.includes(mode) ? 'list' : 'card';
@@ -5749,9 +5608,132 @@ async function finishQuiz(){
 
   clearInterval(timerInterval);
 
-  const { entry, total, correctCount } = await saveQuizSession(quizState, ACTIVE_QUESTIONS);
+  // En modo tarjeta (estudio/fallos), si se finaliza antes de tiempo, las
+  // preguntas posteriores que nunca se llegaron a ver (quizState.visited)
+  // no forman parte de esta sesión: no cuentan como falladas, ni como
+  // pendientes, ni en el total. Es como si el test hubiera tenido desde el
+  // principio solo las preguntas que de verdad se han visto. En modo lista
+  // (examen/simulacro) no cambia nada: ahí todas las preguntas están
+  // visibles desde el principio.
+  const visited = quizState.visited;
+  const sessionIndices = (quizState.viewMode === 'card' && visited)
+    ? ACTIVE_QUESTIONS.map((_, i) => i).filter(i => visited[i])
+    : ACTIVE_QUESTIONS.map((_, i) => i);
+  const SESSION_QUESTIONS = sessionIndices.map(i => ACTIVE_QUESTIONS[i]);
+  const SESSION_ANSWERS = sessionIndices.map(i => quizState.answers[i]);
+
+  // ---------- "Retomar": qué preguntas quedan pendientes de este test ----------
+  // Se guarda en test_sessions como referencia, aunque el botón "Retomar" de
+  // la pantalla de Corrección en realidad recalcula esto mismo al vuelo a
+  // partir de currentReview (ver reviewPendingQuestions), así que funciona
+  // igual para un test antiguo abierto desde el Historial que no tenga este
+  // campo guardado.
+  const isSmart = quizState.mode === 'inteligente';
+  const pendingQuestionIds = ACTIVE_QUESTIONS
+    .filter((q, i) => isSmart ? (quizState.answers[i] !== q.correct) : (quizState.answers[i] === null || quizState.answers[i] === undefined))
+    .map(q => q.id);
+
+  const total = SESSION_QUESTIONS.length;
+  const correctCount = SESSION_QUESTIONS.reduce((acc, q, j) => acc + (SESSION_ANSWERS[j] === q.correct ? 1 : 0), 0);
+  quizState.correctCount = correctCount;
   document.getElementById('resultScore').textContent = correctCount;
   document.getElementById('resultTotal').textContent = total;
+
+  const blank = SESSION_ANSWERS.filter(a => a === null || a === undefined).length;
+  const bad = total - correctCount - blank;
+  // Sistema de puntuación tipo oposición: acertar suma 1 punto, fallar
+  // resta 1/(nº de opciones de esa pregunta - 1) —es decir, lo que en
+  // media "cuesta" un fallo si se responde al azar—, y dejar en blanco
+  // ("no me la juego") no suma ni resta nada. La nota nunca baja de 0.
+  let earnedPoints = 0;
+  SESSION_QUESTIONS.forEach((q, j) => {
+    const a = SESSION_ANSWERS[j];
+    if(a === null || a === undefined) return; // en blanco: no cuenta
+    if(a === q.correct){
+      earnedPoints += 1;
+    } else {
+      const numOptions = (q.options && q.options.length) || 4;
+      const penalty = numOptions > 1 ? 1 / (numOptions - 1) : 0;
+      earnedPoints -= penalty;
+    }
+  });
+  const notaNum = total ? Math.max(0, (earnedPoints / total) * 10) : 0;
+  const elapsedSec = quizState.startedAt ? Math.round((Date.now() - quizState.startedAt) / 1000) : 0;
+  const MODE_LABELS = HISTORY_MODE_LABELS;
+
+  let sessionId = 'r' + Date.now();
+
+  if(currentUser){
+    try{
+      const { data: sessionRow, error: sErr } = await sb.from('test_sessions').insert({
+        user_id: currentUser.id,
+        mode: quizState.mode,
+        score: Number(notaNum.toFixed(2)),
+        total, ok: quizState.correctCount, bad, pending: blank,
+        time_seconds: elapsedSec,
+        pending_question_ids: pendingQuestionIds
+      }).select().single();
+      if(sErr) throw sErr;
+      sessionId = sessionRow.id;
+
+      const answerRows = SESSION_QUESTIONS.map((q, j) => {
+        const a = SESSION_ANSWERS[j];
+        // Si esta pregunta se barajó para este intento (q._optionOrder),
+        // lo que se guarda es el índice de la opción en su orden
+        // ORIGINAL de la base de datos, no la posición en la que se
+        // mostró aquí. Así, si más adelante se revisa este test desde el
+        // historial (p. ej. tras recargar la página, cuando la pregunta
+        // se vuelve a pedir a la BD en su orden canónico), la corrección
+        // sigue siendo exacta.
+        const canonicalIndex = (a === null || a === undefined)
+          ? null
+          : (q._optionOrder ? q._optionOrder[a] : a);
+        // En blanco (a === null/undefined) cuenta como fallada: se guarda
+        // is_correct = false, igual que una respuesta incorrecta. Así entra
+        // en Fallos y en Test Inteligente como cualquier otro fallo.
+        return {
+          session_id: sessionId, user_id: currentUser.id, question_id: q.id,
+          selected_index: canonicalIndex,
+          is_correct: a === q.correct, answer_order: j
+        };
+      });
+      if(answerRows.length){
+        const { error: aErr } = await sb.from('session_answers').insert(answerRows);
+        if(aErr) throw aErr;
+      }
+
+      // El estado de cada pregunta (fallada / en progreso / dominada) ya no
+      // se guarda aparte: loadAppData() lo recalcula del tirón a partir de
+      // session_answers, que es lo que se acaba de insertar arriba.
+      await loadAppData();
+      await refreshGlobalStats();
+    } catch(err){
+      console.error('Error guardando la sesión en Supabase', err);
+    }
+  }
+
+  const entry = {
+    id: sessionId,
+    date: 'Ahora mismo',
+    type: quizState.mode,
+    title: MODE_LABELS[quizState.mode] || 'Test',
+    nota: formatNota(notaNum),
+    time: formatMMSS(elapsedSec),
+    ok: quizState.correctCount,
+    bad: bad,
+    pending: blank,
+    // El "review" lleva TODAS las preguntas de este intento (ACTIVE_QUESTIONS),
+    // no solo las de la sesión puntuada (SESSION_QUESTIONS): así, si se
+    // finalizó antes de tiempo, las que nunca se llegaron a ver también
+    // aparecen en la Corrección como "en blanco" — y "Retomar" (ver
+    // reviewPendingQuestions) puede encontrarlas ahí. El total/nota que se
+    // ve en el Historial sigue calculándose solo con SESSION_QUESTIONS.
+    review: { questions: ACTIVE_QUESTIONS.slice(), answers: quizState.answers.slice(), mode: quizState.mode }
+  };
+  // El Test Inteligente va a su propio historial (dentro de su pantalla),
+  // no al Historial general de Examen/Estudio/Simulacro/Fallos.
+  if(quizState.mode === 'inteligente'){ SMART_HISTORY.unshift(entry); renderSmartHistory(); }
+  else { HISTORY.unshift(entry); renderHistory(); }
   lastFinishedReviewId = entry.id;
 
   // el test ya ha terminado: se libera el bloqueo de las demás tarjetas de home
