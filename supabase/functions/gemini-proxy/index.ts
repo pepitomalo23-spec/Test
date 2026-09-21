@@ -86,22 +86,49 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{
-            parts: imagePart ? [imagePart, { text: prompt }] : [{ text: prompt }],
-          }],
-        }),
-      },
-    );
-    const data = await resp.json();
-    if (!resp.ok) {
-      const message = (data && data.error && data.error.message) || "Error llamando a la API de Gemini.";
-      return new Response(JSON.stringify({ error: "gemini_error", message }), {
+    const reqBody = JSON.stringify({
+      contents: [{
+        parts: imagePart ? [imagePart, { text: prompt }] : [{ text: prompt }],
+      }],
+    });
+    const callModel = async (model: string) => {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: reqBody },
+      );
+      const d = await r.json().catch(() => ({}));
+      return { ok: r.ok, data: d };
+    };
+
+    // Modelo preferido; si Google lo rechaza para esta clave (p. ej. acceso
+    // denegado o modelo retirado), probamos otros modelos flash que la
+    // propia clave tenga disponibles.
+    const PREFERRED = "gemini-3.6-flash";
+    const errors: string[] = [];
+    let result = await callModel(PREFERRED);
+    if (!result.ok) {
+      errors.push(`${PREFERRED}: ${result.data?.error?.message || "error"}`);
+      try {
+        const lm = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(apiKey)}`,
+        );
+        const lmData = await lm.json();
+        const names: string[] = (lmData?.models || [])
+          .filter((m: any) => (m.supportedGenerationMethods || []).includes("generateContent"))
+          .map((m: any) => String(m.name).replace(/^models\//, ""))
+          .filter((n: string) => /flash/.test(n) && !/(image|tts|live|audio|embed)/.test(n) && n !== PREFERRED);
+        for (const n of names.slice(0, 3)) {
+          const r2 = await callModel(n);
+          if (r2.ok) { result = r2; break; }
+          errors.push(`${n}: ${r2.data?.error?.message || "error"}`);
+        }
+      } catch (_e) {
+        // si no se puede listar, nos quedamos con el error original
+      }
+    }
+    const data = result.data;
+    if (!result.ok) {
+      return new Response(JSON.stringify({ error: "gemini_error", message: errors.join(" | ") || "Error llamando a la API de Gemini." }), {
         status: 502,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
