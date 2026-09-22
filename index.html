@@ -2265,6 +2265,7 @@ let currentUserIsAdmin = false;
    El administrador siempre ve todo, tenga lo que tenga en su propio
    feature_flags. */
 const FEATURES = {
+  normativas: 'Normativas',
   inteligente: 'Test Inteligente',
   notas_ia: 'Notas y explicaciones con IA',
   stats_avanzadas: 'Estadísticas avanzadas',
@@ -2276,6 +2277,9 @@ function featureEnabled(key){
   return myFeatureFlags[key] !== false;
 }
 function applyFeatureVisibility(){
+  const navNormativas = document.getElementById('navNormativas');
+  if(navNormativas) navNormativas.classList.toggle('hidden', !featureEnabled('normativas'));
+
   const modeCardInteligente = document.getElementById('modeCardInteligente');
   if(modeCardInteligente) modeCardInteligente.classList.toggle('hidden', !featureEnabled('inteligente'));
 
@@ -3498,6 +3502,8 @@ function getLastScreen(){
   return 'screen-home';
 }
 function showScreen(id){
+  if(id === 'screen-normativas' && !featureEnabled('normativas')) id = 'screen-home';
+  if(id === 'screen-my-additions' && !featureEnabled('notas_ia')) id = 'screen-home';
   if(id !== 'screen-quiz'){ clearInterval(timerInterval); }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
