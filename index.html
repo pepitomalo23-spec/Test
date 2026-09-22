@@ -1394,6 +1394,19 @@
     </div>
   </div>
 
+  <div class="auth-overlay hidden" id="verifyOverlay">
+    <div class="auth-panel">
+      <div class="auth-title">Verificación de acceso</div>
+      <div class="auth-sub">Por seguridad, cada inicio de sesión necesita un código que solo ve el administrador. Pídeselo (WhatsApp, teléfono…) e introdúcelo aquí.</div>
+      <input class="auth-input" id="verifyCodeInput" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Código de 6 dígitos" autocomplete="one-time-code" />
+      <div class="auth-error" id="verifyError"></div>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button class="btn btn-primary btn-block btn-light" id="verifySubmitBtn">Entrar</button>
+        <button class="btn btn-ghost btn-block" id="verifyCancelBtn">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <header>
     <div class="header-nav">
       <span id="navNormativas" role="button" tabindex="0" onclick="showScreen('screen-normativas')" onkeydown="if(event.key==='Enter')showScreen('screen-normativas')">
@@ -1979,6 +1992,10 @@
         <div class="admin-card-meta" style="margin-bottom:14px;">Consulta quién está registrado, en cuántos dispositivos ha entrado y ajusta el límite de dispositivos permitido por cuenta.</div>
         <div id="adminList-users"></div>
 
+        <div class="section-row" style="margin-top:30px;"><div class="section-title">Códigos de verificación pendientes</div><div class="section-rule"></div></div>
+        <div class="admin-card-meta" style="margin-bottom:14px;">Cuando alguien inicia sesión aparece aquí su código. Pásaselo por fuera de la app (WhatsApp, teléfono…) para que pueda entrar; caduca a los 10 minutos.</div>
+        <div id="adminList-verifications"></div>
+
         <div class="section-row" style="margin-top:30px;"><div class="section-title">Intentos de inicio de sesión</div><div class="section-rule"></div></div>
         <div class="admin-card-meta" style="margin-bottom:14px;">Incluye intentos correctos y fallidos, con el dispositivo desde el que se hicieron.</div>
         <div id="adminList-loginAttempts"></div>
@@ -2256,6 +2273,7 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(updateQuiz
 
 let currentUser = null;
 let currentUserIsAdmin = false;
+let adminPollInterval = null;
 
 /* ---------- Permisos por función (control individual por usuario) ----------
    El administrador puede activar/desactivar, para cada usuario concreto,
@@ -2355,7 +2373,7 @@ async function logLoginAttempt(email, success, errorMessage, userId){
     console.warn('No se pudo registrar el intento de acceso', e);
   }
 }
-const adminData = { topics: [], articles: [], nodes: [], questions: [], users: [], loginAttempts: [] };
+const adminData = { topics: [], articles: [], nodes: [], questions: [], users: [], loginAttempts: [], verifications: [] };
 const adminEditing = { topic: null, question: null, node: null };
 let adminTreeTopicId = null;   // tema seleccionado en la pestaña Estructura
 let treeAddParentId = null;    // padre del nodo que se está creando (null = raíz del tema)
@@ -6005,6 +6023,34 @@ async function onLoggedIn(user){
     return;
   }
 
+  // Verificación por código en cada inicio de sesión (salvo administradores,
+  // que son quienes deben ver y transmitir el código: si solo hay uno,
+  // exigírselo a sí mismo le dejaría fuera sin nadie que pudiera dárselo).
+  if(!currentUserIsAdmin){
+    let verifyId = null, verifyError = null;
+    try{
+      const vres = await sb.rpc('request_login_verification', {
+        p_device_id: deviceId,
+        p_user_agent: navigator.userAgent
+      });
+      verifyId = vres.data; verifyError = vres.error;
+    }catch(e){ verifyError = e; }
+
+    if(verifyError || !verifyId){
+      currentUser = null;
+      await sb.auth.signOut();
+      showAuthError('No se ha podido iniciar la verificación de acceso. Inténtalo de nuevo o contacta con el administrador.');
+      return;
+    }
+
+    const verified = await waitForLoginCodeVerification(verifyId);
+    if(!verified){
+      currentUser = null;
+      await sb.auth.signOut();
+      return; // el motivo (cancelado, código agotado, etc.) ya se ha mostrado
+    }
+  }
+
   document.getElementById('authOverlay').classList.add('hidden');
   const emailEl = document.getElementById('headerUserEmail');
   if(emailEl) emailEl.textContent = user.email || '';
@@ -6022,7 +6068,14 @@ async function onLoggedIn(user){
 
   const adminBtn = document.getElementById('headerAdminBtn');
   if(adminBtn) adminBtn.classList.toggle('hidden', !currentUserIsAdmin);
-  if(currentUserIsAdmin) refreshAdminPendingBadge();
+  if(currentUserIsAdmin){
+    refreshAdminPendingBadge();
+    if(adminPollInterval) clearInterval(adminPollInterval);
+    // Sondeo cada pocos segundos para que el admin vea enseguida el
+    // código en cuanto alguien intenta iniciar sesión, esté o no con el
+    // panel abierto.
+    adminPollInterval = setInterval(refreshAdminPendingBadge, 6000);
+  }
 
   // loadHistory() no depende de nada que calcule loadAppData() (solo de
   // currentUser), así que se lanzan en paralelo en vez de uno detrás de
@@ -6044,9 +6097,74 @@ async function onLoggedIn(user){
     showScreen(lastScreen);
   }
 }
+function waitForLoginCodeVerification(verifyId){
+  return new Promise(resolve => {
+    const overlay = document.getElementById('verifyOverlay');
+    const input = document.getElementById('verifyCodeInput');
+    const errorEl = document.getElementById('verifyError');
+    const submitBtn = document.getElementById('verifySubmitBtn');
+    const cancelBtn = document.getElementById('verifyCancelBtn');
+    if(!overlay || !input || !submitBtn || !cancelBtn){ resolve(false); return; }
+
+    let settled = false;
+    input.value = '';
+    if(errorEl) errorEl.textContent = '';
+    overlay.classList.remove('hidden');
+    setTimeout(() => input.focus(), 50);
+
+    function setBusy(busy){
+      submitBtn.disabled = busy;
+      cancelBtn.disabled = busy;
+      input.disabled = busy;
+    }
+    function finish(result, message){
+      if(settled) return;
+      settled = true;
+      submitBtn.onclick = null;
+      cancelBtn.onclick = null;
+      input.onkeydown = null;
+      overlay.classList.add('hidden');
+      if(!result && message) showAuthError(message);
+      resolve(result);
+    }
+    async function onSubmit(){
+      const code = (input.value || '').trim();
+      if(!/^[0-9]{6}$/.test(code)){
+        if(errorEl) errorEl.textContent = 'Introduce el código de 6 dígitos que te ha dado el administrador.';
+        return;
+      }
+      setBusy(true);
+      let data = null, error = null;
+      try{
+        const r = await sb.rpc('verify_login_code', { p_verification_id: verifyId, p_code: code });
+        data = r.data; error = r.error;
+      }catch(e){ error = e; }
+      setBusy(false);
+      if(error || !data){
+        if(errorEl) errorEl.textContent = 'No se ha podido comprobar el código. Inténtalo de nuevo.';
+        return;
+      }
+      if(data.allowed){ finish(true); return; }
+      const reasons = {
+        invalid_code: 'Código incorrecto' + (data.remaining_attempts != null ? ' (te quedan ' + data.remaining_attempts + ' intentos)' : '') + '.',
+        expired: 'El código ha caducado. Vuelve a iniciar sesión para pedir uno nuevo.',
+        too_many_attempts: 'Has agotado los intentos. Vuelve a iniciar sesión para pedir un código nuevo.',
+        not_found: 'No se encuentra la verificación. Vuelve a iniciar sesión.'
+      };
+      if(errorEl) errorEl.textContent = reasons[data.reason] || ('No se ha podido verificar (' + (data.reason || 'motivo desconocido') + ').');
+      if(data.reason === 'expired' || data.reason === 'too_many_attempts'){
+        finish(false, reasons[data.reason]);
+      }
+    }
+    submitBtn.onclick = onSubmit;
+    cancelBtn.onclick = () => finish(false, 'Inicio de sesión cancelado: no se introdujo el código de verificación.');
+    input.onkeydown = (e) => { if(e.key === 'Enter') onSubmit(); };
+  });
+}
 function onLoggedOut(){
   currentUser = null;
   currentUserIsAdmin = false;
+  if(adminPollInterval){ clearInterval(adminPollInterval); adminPollInterval = null; }
   const adminBtn = document.getElementById('headerAdminBtn');
   if(adminBtn) adminBtn.classList.add('hidden');
   const dot = document.getElementById('headerPendingDot');
@@ -6118,6 +6236,7 @@ function switchAdminTab(name){
   }
   if(name === 'users'){
     adminLoadUsers();
+    adminLoadVerifications();
     adminLoadLoginAttempts();
   }
 }
@@ -6336,12 +6455,54 @@ async function adminApproveUser(userId){
   await adminLoadUsers();
   await refreshAdminPendingBadge();
 }
+async function adminLoadVerifications(){
+  const el = document.getElementById('adminList-verifications');
+  if(!el) return;
+  const { data, error } = await sb.rpc('admin_list_pending_verifications');
+  if(error){ el.innerHTML = '<div class="admin-empty">No se pudo cargar los códigos pendientes.</div>'; console.error(error); return; }
+  adminData.verifications = data || [];
+  adminRenderVerifications();
+}
+function adminRenderVerifications(){
+  const el = document.getElementById('adminList-verifications');
+  if(!el) return;
+  if(!adminData.verifications || !adminData.verifications.length){
+    el.innerHTML = '<div class="admin-empty">No hay nadie esperando un código ahora mismo.</div>';
+    return;
+  }
+  el.innerHTML = adminData.verifications.map(v => {
+    const secondsLeft = Math.max(0, Math.round((new Date(v.expires_at).getTime() - Date.now()) / 1000));
+    return (
+      '<div class="admin-card">' +
+        '<div class="admin-user-row">' +
+          '<div>' +
+            '<div class="admin-card-title">'+esc(v.email || '(sin correo)')+'</div>' +
+            '<div class="admin-card-meta">Pedido: '+formatDateTime(v.created_at)+' · Caduca en '+Math.max(1, Math.floor(secondsLeft/60))+' min</div>' +
+            (v.attempts ? '<div class="admin-card-meta" style="color:var(--coral);">Intentos fallidos: '+esc(v.attempts)+'</div>' : '') +
+          '</div>' +
+          '<div style="font-size:28px; font-weight:800; letter-spacing:4px; font-family:monospace;">'+esc(v.code)+'</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }).join('');
+}
 async function refreshAdminPendingBadge(){
   if(!currentUserIsAdmin) return;
   const { data, error } = await sb.rpc('admin_list_users');
   if(error){ console.error(error); return; }
   adminData.users = data || [];
-  const pendingCount = adminData.users.filter(u => !u.is_admin && !u.approved).length;
+  const pendingApprovals = adminData.users.filter(u => !u.is_admin && !u.approved).length;
+
+  let pendingCodes = 0;
+  try{
+    const vres = await sb.rpc('admin_list_pending_verifications');
+    if(!vres.error){
+      adminData.verifications = vres.data || [];
+      pendingCodes = adminData.verifications.length;
+    }
+  }catch(e){ /* un fallo aquí no debe romper el resto del indicador */ }
+
+  const pendingCount = pendingApprovals + pendingCodes;
 
   const dot = document.getElementById('headerPendingDot');
   if(dot){
@@ -6355,7 +6516,10 @@ async function refreshAdminPendingBadge(){
   }
   // Si el panel de usuarios ya está en pantalla, lo refrescamos también.
   const usersSection = document.getElementById('adminSection-users');
-  if(usersSection && usersSection.classList.contains('active')) adminRenderUsers();
+  if(usersSection && usersSection.classList.contains('active')){
+    adminRenderUsers();
+    adminRenderVerifications();
+  }
 }
 async function adminSaveDeviceLimit(userId){
   const input = document.getElementById('deviceLimit-'+userId);
