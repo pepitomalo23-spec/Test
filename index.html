@@ -1470,7 +1470,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
         Cambios BOE
       </button>
-      <button class="header-user-boe" id="headerMyAdditionsBtn" onclick="closeUserMenu(); showScreen('screen-my-additions');">
+      <button class="header-user-boe" id="headerMyAdditionsBtn" onclick="closeUserMenu(); openMyAdditions();">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
         Notas y explicaciones IA
       </button>
@@ -1581,9 +1581,11 @@
         </div>
       </div>
 
+      <div id="historySection">
       <div class="section-row"><div class="section-title">Historial</div><div class="section-rule"></div></div>
       <div class="history" id="historyList">
         <div class="empty" id="historyLoadingPlaceholder">Cargando historial…</div>
+      </div>
       </div>
     </section>
 
@@ -1732,6 +1734,7 @@
           <div class="stat-sub">Nivel general: <b id="statLevelPct">—</b></div>
         </div>
       </div>
+      <div id="statsAdvancedWrap">
       <div class="ranking-card">
         <div class="ranking-head">
           <div class="ranking-title">Ranking de temas</div>
@@ -1753,6 +1756,7 @@
           <div><span>Desaparece en cuanto lo recuperas: si el artículo tiene 1 o 2 preguntas, con encadenar <b>5 aciertos seguidos</b> ya sale de esta lista; si tiene 3 o más, hace falta <b>acertarlas todas sin fallar ninguna entre medias</b> y sumar <b>3 aciertos más</b> de margen.</span></div>
         </div>
         <div class="ranking-list" id="worstArticlesList"></div>
+      </div>
       </div>
     </section>
 
@@ -2252,6 +2256,38 @@ if(document.fonts && document.fonts.ready){ document.fonts.ready.then(updateQuiz
 
 let currentUser = null;
 let currentUserIsAdmin = false;
+
+/* ---------- Permisos por función (control individual por usuario) ----------
+   El administrador puede activar/desactivar, para cada usuario concreto,
+   el acceso a ciertas funciones de la app. Si una clave no está presente
+   en feature_flags para ese usuario, se trata como ACTIVADA (para no
+   quitarle a nadie algo que ya venía usando el día que se despliega esto).
+   El administrador siempre ve todo, tenga lo que tenga en su propio
+   feature_flags. */
+const FEATURES = {
+  inteligente: 'Test Inteligente',
+  notas_ia: 'Notas y explicaciones con IA',
+  stats_avanzadas: 'Estadísticas avanzadas',
+  historial: 'Historial'
+};
+let myFeatureFlags = {};
+function featureEnabled(key){
+  if(currentUserIsAdmin) return true;
+  return myFeatureFlags[key] !== false;
+}
+function applyFeatureVisibility(){
+  const modeCardInteligente = document.getElementById('modeCardInteligente');
+  if(modeCardInteligente) modeCardInteligente.classList.toggle('hidden', !featureEnabled('inteligente'));
+
+  const headerMyAdditionsBtn = document.getElementById('headerMyAdditionsBtn');
+  if(headerMyAdditionsBtn) headerMyAdditionsBtn.classList.toggle('hidden', !featureEnabled('notas_ia'));
+
+  const statsAdvancedWrap = document.getElementById('statsAdvancedWrap');
+  if(statsAdvancedWrap) statsAdvancedWrap.classList.toggle('hidden', !featureEnabled('stats_avanzadas'));
+
+  const historySection = document.getElementById('historySection');
+  if(historySection) historySection.classList.toggle('hidden', !featureEnabled('historial'));
+}
 
 /* ---------- device identification & login attempt logging ---------- */
 function getDeviceId(){
@@ -4114,6 +4150,7 @@ function renderSmartIntro(){
   if(startBtn) startBtn.disabled = smartTestPicked.length === 0;
 }
 function openInteligente(){
+  if(!featureEnabled('inteligente')) return; // el administrador ha desactivado esta función para este usuario
   if(quizState && quizState.mode && quizState.mode !== 'inteligente') return; // hay un test en curso en otro apartado
   if(!QUESTIONS_POOL.length) return;
   renderSmartIntro();
@@ -4390,9 +4427,9 @@ function explainBodyHtml(q){
     '<div class="explain-section-head">' +
       '<div class="explain-section-label"><span class="explain-icon-badge">' + ICONS.bulb + '</span><span>Explicación</span></div>' +
       '<div class="explain-section-actions">' +
-        (q.ai_explain ? '' : generateBtn) +
-        quickImageBtnHtml(q.id) +
-        (q.own_note ? '' : noteBtnHtml(q.id)) +
+        (!featureEnabled('notas_ia') ? '' : (q.ai_explain ? '' : generateBtn)) +
+        (!featureEnabled('notas_ia') ? '' : quickImageBtnHtml(q.id)) +
+        (!featureEnabled('notas_ia') ? '' : (q.own_note ? '' : noteBtnHtml(q.id))) +
       '</div>' +
     '</div>' +
     '<div class="explain-text">' + q.explain + '</div>' +
@@ -5087,6 +5124,10 @@ function renderMyAdditionsList(){
    debajo la lista completa agrupada por ficha; si se elige una ficha
    concreta, solo se ve el grupo de esa ficha. */
 let notasTemaFilter = 'todas';
+function openMyAdditions(){
+  if(!featureEnabled('notas_ia')) return; // el administrador ha desactivado esta función para este usuario
+  showScreen('screen-my-additions');
+}
 function openNotasOrganizadas(){
   notasTemaFilter = 'todas';
   renderNotasTemaFilters();
@@ -5872,6 +5913,8 @@ async function onLoggedIn(user){
     profile = created;
   }
   currentUserIsAdmin = !!(profile && profile.is_admin);
+  myFeatureFlags = (profile && profile.feature_flags) || {};
+  applyFeatureVisibility();
 
   if(!currentUserIsAdmin && !(profile && profile.approved)){
     currentUser = null;
@@ -6097,6 +6140,23 @@ function adminRenderUsers(){
         '</div>')
       : '';
     const blockedBadge = (!u.is_admin && u.blocked) ? '<span class="admin-badge over">Bloqueada</span>' : '';
+    const featureTogglesRow = u.is_admin ? '' : (
+      '<div class="admin-user-row" style="margin-top:10px; flex-direction:column; align-items:stretch; gap:8px;">' +
+        '<div class="admin-card-meta">Funciones visibles para esta cuenta:</div>' +
+        Object.keys(FEATURES).map(key => {
+          const flags = u.feature_flags || {};
+          const on = flags[key] !== false;
+          return '<div class="admin-user-row" style="justify-content:space-between;">' +
+              '<span style="font-size:13px;">' + esc(FEATURES[key]) + '</span>' +
+              '<span class="switch' + (on ? ' on' : '') + '" role="button" tabindex="0" ' +
+                'onclick="adminSetFeatureFlag(\'' + u.id + '\', \'' + key + '\', ' + !on + ', this)" ' +
+                'onkeydown="if(event.key===\'Enter\')adminSetFeatureFlag(\'' + u.id + '\', \'' + key + '\', ' + !on + ', this)">' +
+                '<span class="knob"></span>' +
+              '</span>' +
+            '</div>';
+        }).join('') +
+      '</div>'
+    );
     const manageRow = u.is_admin
       ? ''
       : ('<div class="admin-user-row" style="margin-top:10px; gap:8px;">' +
@@ -6122,8 +6182,10 @@ function adminRenderUsers(){
         '</div>' +
         pendingRow +
         manageRow +
+        featureTogglesRow +
         '<div class="admin-status" id="adminStatus-deviceLimit-'+esc(u.id)+'"></div>' +
         '<div class="admin-status" id="adminStatus-manage-'+esc(u.id)+'"></div>' +
+        '<div class="admin-status" id="adminStatus-features-'+esc(u.id)+'"></div>' +
         '<div class="admin-devices-toggle" role="button" tabindex="0" onclick="adminToggleDevices(\''+u.id+'\')">Ver dispositivos</div>' +
         '<div class="admin-devices-list" id="adminDevices-'+esc(u.id)+'" style="display:none;"></div>' +
       '</div>'
@@ -6142,6 +6204,20 @@ async function adminToggleBlocked(userId, currentlyBlocked){
   }
   if(statusEl){ statusEl.textContent = ''; }
   await adminLoadUsers();
+}
+async function adminSetFeatureFlag(userId, featureKey, nextEnabled, switchEl){
+  if(switchEl) switchEl.classList.toggle('on', nextEnabled); // respuesta visual inmediata
+  const statusEl = document.getElementById('adminStatus-features-'+userId);
+  if(statusEl){ statusEl.textContent = 'Guardando…'; statusEl.className = 'admin-status'; }
+  const { error } = await sb.rpc('admin_set_feature_flag', { p_user_id: userId, p_feature: featureKey, p_enabled: nextEnabled });
+  if(error){
+    if(switchEl) switchEl.classList.toggle('on', !nextEnabled); // revertimos si falla
+    if(statusEl){ statusEl.textContent = 'No se pudo actualizar: ' + error.message; statusEl.className = 'admin-status err'; }
+    return;
+  }
+  if(statusEl) statusEl.textContent = '';
+  const u = (adminData.users || []).find(x => x.id === userId);
+  if(u){ u.feature_flags = Object.assign({}, u.feature_flags || {}, { [featureKey]: nextEnabled }); }
 }
 async function adminDeleteUser(userId, email){
   const confirmText = email || 'esta cuenta';
