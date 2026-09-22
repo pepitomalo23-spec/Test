@@ -3058,18 +3058,25 @@ async function loadAppData(){
 
   let masteryByQuestion = {};
   let dismissedMap = {}; // { question_id: dismissed_at } — preguntas descartadas de Fallos
+  let myNotesMap = {}; // { question_id: { own_note, ai_explain } } — privado del usuario actual
   if(currentUser){
     const qIds = (questionsData || []).map(q => q.id);
-    // Estas dos consultas no dependen una de la otra, así que van en
-    // paralelo en vez de una detrás de otra (ahorra un viaje de ida y
-    // vuelta completo a Supabase en cada entrada a la app).
-    const [mastery, { data: dismissedData, error: dismissedErr }] = await Promise.all([
+    // Estas consultas no dependen una de otra, así que van en paralelo en
+    // vez de una detrás de otra (ahorra viajes de ida y vuelta a Supabase
+    // en cada entrada a la app).
+    const [mastery, { data: dismissedData, error: dismissedErr }, { data: myNotesData, error: myNotesErr }] = await Promise.all([
       qIds.length ? computeQuestionMastery(qIds) : Promise.resolve({}),
-      sb.from('dismissed_fails').select('question_id, dismissed_at').eq('user_id', currentUser.id)
+      sb.from('dismissed_fails').select('question_id, dismissed_at').eq('user_id', currentUser.id),
+      // Notas propias y explicaciones de IA: viven en una tabla privada por
+      // usuario (question_user_data), no en la propia pregunta, para que no
+      // se vean entre distintas cuentas.
+      qIds.length ? sb.rpc('get_my_question_data', { p_question_ids: qIds }) : Promise.resolve({ data: [] })
     ]);
     masteryByQuestion = mastery;
     if(dismissedErr) console.error('Error cargando preguntas descartadas de Fallos', dismissedErr);
     (dismissedData || []).forEach(d => { dismissedMap[d.question_id] = d.dismissed_at; });
+    if(myNotesErr) console.error('Error cargando notas/explicaciones propias', myNotesErr);
+    (myNotesData || []).forEach(d => { myNotesMap[d.question_id] = { own_note: d.own_note || null, ai_explain: d.ai_explain || null }; });
   }
   QUESTIONS_POOL = (questionsData || []).map(row => {
     const m = masteryByQuestion[row.id];
@@ -3083,6 +3090,12 @@ async function loadAppData(){
     const dismissedAt = dismissedMap[row.id];
     const lastAttemptAt = m ? m.lastAttemptAt : null;
     row._fallosHidden = !!(dismissedAt && (!lastAttemptAt || new Date(dismissedAt) >= new Date(lastAttemptAt)));
+    // La columna own_note/ai_explain de la propia pregunta ya no se usa
+    // (era compartida entre todos los usuarios); se sustituye por el dato
+    // privado del usuario actual, si lo hay.
+    const mine = myNotesMap[row.id];
+    row.own_note = mine ? mine.own_note : null;
+    row.ai_explain = mine ? mine.ai_explain : null;
     return mapDbQuestionToQuiz(row);
   });
 
@@ -3152,7 +3165,18 @@ function renderHistoryEntry(container, h){
       return;
     }
     const review = {
-      questions: rows.map(r => mapDbQuestionToQuiz(r.questions)),
+      // own_note/ai_explain ya no viajan en la fila de la pregunta (son
+      // privados por usuario): se toman de QUESTIONS_POOL, donde ya se
+      // fusionaron al cargar la app.
+      questions: rows.map(r => {
+        const mapped = mapDbQuestionToQuiz(r.questions);
+        const pooled = QUESTIONS_POOL.find(pq => pq.id === mapped.id);
+        if(pooled){
+          mapped.own_note = pooled.own_note;
+          mapped.ai_explain = pooled.ai_explain;
+        }
+        return mapped;
+      }),
       answers: rows.map(r => r.selected_index)
     };
     h.review = review;
