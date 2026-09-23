@@ -7550,7 +7550,12 @@ async function adminSaveNode(){
   const tipo = document.getElementById('adminNodeType').value;
   const numero = document.getElementById('adminNodeNumber').value.trim();
   const nombre = document.getElementById('adminNodeName').value.trim();
-  if(!numero && !nombre){ showAdminStatus('node', 'Rellena al menos el número o el nombre.', true); return; }
+  // Título/Capítulo/Sección/Artículo necesitan al menos uno de los dos para
+  // identificarse; "libre" y "estructura" son niveles de posición libre y
+  // no lo necesitan (pueden crearse vacíos, p.ej. como contenedor, y
+  // rellenarse después).
+  const esFlexible = NODE_TYPE_LEVEL[tipo] === 0;
+  if(!esFlexible && !numero && !nombre){ showAdminStatus('node', 'Rellena al menos el número o el nombre.', true); return; }
   const payload = { topic_id: adminTreeTopicId, padre_id: treeAddParentId, tipo, numero: numero || null, nombre: nombre || null };
   const { error } = adminEditing.node
     ? await sb.from('nodos_temario').update(payload).eq('id', adminEditing.node)
