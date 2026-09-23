@@ -3839,10 +3839,18 @@ function toggleTopicGroup(topicId, groupId){
   // Tocar un título enciende el tema automáticamente si estaba apagado, para
   // que la acción tenga efecto inmediato y visible (antes, con el tema
   // apagado, tocar un título no se reflejaba en nada).
-  if(!configState.topics.has(topicId)) configState.topics.add(topicId);
+  const wasTopicActive = configState.topics.has(topicId);
+  if(!wasTopicActive) configState.topics.add(topicId);
   const groups = TOPIC_GROUPS[topicId] || [];
   if(!configState.nodeSelections[topicId]){
-    configState.nodeSelections[topicId] = new Set(groups.map(g => g.id));
+    // Si el tema YA estaba encendido (con "todos incluidos" implícito),
+    // tocar un título es EXCLUIRLO: partimos de todos y le quitamos ese.
+    // Si el tema estaba APAGADO, no había nada incluido todavía de verdad:
+    // tocar un título es EMPEZAR a elegir, así que partimos de vacío y
+    // añadimos solo ese. Antes siempre se partía de "todos", así que tocar
+    // un título con el tema apagado dejaba seleccionados todos MENOS ese,
+    // justo al revés de lo que se esperaba.
+    configState.nodeSelections[topicId] = wasTopicActive ? new Set(groups.map(g => g.id)) : new Set();
   }
   const selected = configState.nodeSelections[topicId];
   if(selected.has(groupId)) selected.delete(groupId); else selected.add(groupId);
