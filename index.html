@@ -725,7 +725,7 @@
   .modal-footer{ position:sticky; bottom:0; background: var(--card); padding:18px 0 4px; margin-top:4px; }
 
   /* ---------- Modales de modo de test (Estudio / Examen / Simulacro / Fallos / Test Inteligente) ----------
-     Diseño: recuadro con esquinas rectas, cabecera fija con línea divisoria,
+     Diseño: recuadro con esquinas redondeadas, cabecera fija con línea divisoria,
      cuerpo con scroll propio y botón principal fijo abajo en forma de píldora.
      Tarjetas redondeadas, filas sin divisores en Ajustes y casillas cuadradas. */
   #screen-config.screen.overlay, #screen-fallos.screen.overlay, #screen-inteligente.screen.overlay{
@@ -734,7 +734,7 @@
   #screen-config .modal-panel, #screen-fallos .modal-panel, #screen-inteligente .modal-panel{
     display:flex; flex-direction:column; padding:0; margin:0 auto; overflow:hidden;
     max-width:640px; max-height:calc(100dvh - 86px);
-    background: var(--bg); border:1px solid var(--line); border-radius:0;
+    background: var(--bg); border:1px solid var(--line); border-radius:20px;
   }
   #screen-config .modal-panel{ height:min(calc(100dvh - 86px), 820px); }
   #screen-config .modal-head, #screen-fallos .modal-head, #screen-inteligente .modal-head{
@@ -782,6 +782,21 @@
   #screen-config[data-mode="examen"] .topic-row.selected .topic-check,
   #screen-config[data-mode="examen"] .topic-check.indeterminate{ border-color: var(--blue); }
   #screen-config .config-sub{ max-width:none; }
+
+  /* Desplegable de un tema (Estudio/Examen): filas planas, sin recuadros, con la casilla sangrada */
+  #screen-config .topic-row:has(+ .topic-detail-inline){ border-bottom:none; }
+  #screen-config .topic-detail-inline{ padding:0 0 6px; background:transparent; border-bottom:1px solid var(--line); }
+  #screen-config .topic-detail-inline.inactive{ opacity:1; }
+  #screen-config .article-list{ gap:0; }
+  #screen-config .article-row{
+    padding:11px 0 11px 15px; border:none; border-radius:0; background:transparent; gap:14px;
+  }
+  #screen-config .article-row:hover, #screen-config .article-row.selected{ background:transparent; border:none; }
+  #screen-config .article-check{ width:17px; height:17px; border:2px solid var(--text); border-radius:3px; }
+  #screen-config .article-check svg{ width:11px; height:11px; }
+  #screen-config .article-row.selected .article-check{ background: var(--purple); border-color: var(--purple); }
+  #screen-config[data-mode="examen"] .article-row.selected .article-check{ background: var(--blue); border-color: var(--blue); }
+  #screen-config .article-name{ font-size:14.5px; }
 
   @media (max-width:640px){
     #screen-config.screen.overlay, #screen-fallos.screen.overlay, #screen-inteligente.screen.overlay{ padding:56px 8px 16px; }
@@ -3970,11 +3985,7 @@ function renderTemas(){
     if(hasGroups && isOpen){
       const detail = document.createElement('div');
       detail.className = 'topic-detail-inline' + (topicSelected ? '' : ' inactive');
-      detail.innerHTML =
-        '<div class="topic-detail-inline-sub">' + (topicSelected
-          ? 'Elige qué ' + topicGroupTypeLabel(t.id).toLowerCase() + ' quieres incluir en el test. Se añaden todas las preguntas de cada uno (también las de sus subniveles).'
-          : 'Este tema está desactivado, así que no entrará ningún título en el test. Actívalo con el check de arriba; tu selección de aquí se conserva.') + '</div>' +
-        renderTopicGroupList(t.id, topicSelected);
+      detail.innerHTML = renderTopicGroupList(t.id, topicSelected);
       card.appendChild(detail);
     }
   });
