@@ -3817,17 +3817,16 @@ function closeTopicDetail(){
 }
 function renderTopicGroupList(topicId, topicSelected){
   const groups = TOPIC_GROUPS[topicId] || [];
-  // Solo lectura: si no hay restricción guardada, se usa un set local con
-  // todos incluidos para pintar los checks, pero SIN grabarlo en
-  // configState. Antes se grababa aquí mismo, así que con solo desplegar el
-  // panel (sin tocar nada) ya aparecía un badge "4/4" que antes no estaba.
-  // Ahora la restricción solo se crea de verdad cuando el usuario toca un
-  // título (ver toggleTopicGroup).
-  const selected = configState.nodeSelections[topicId] || new Set(groups.map(g => g.id));
+  // Solo lectura, sin grabar nada en configState solo por pintarse. Si no
+  // hay restricción guardada, no hay NINGÚN título marcado (aunque todas
+  // sus preguntas cuenten igualmente): el marcado morado solo aparece
+  // cuando el usuario ha tocado títulos concretos a mano.
+  const selected = configState.nodeSelections[topicId] || new Set();
   return '<div class="article-list">' + groups.map(g => {
-    // Si el tema en general está apagado, ningún título se muestra como activo
-    // (aunque su selección se conserve por dentro para cuando vuelvas a activarlo).
-    const isSel = topicSelected && selected.has(g.id);
+    // El marcado de cada título es independiente de si el tema está
+    // encendido o apagado: se ve igual en ambos casos (el check del tema
+    // solo decide si el tema entra o no en el test, no toca esto).
+    const isSel = selected.has(g.id);
     return '<div class="article-row' + (isSel ? ' selected' : '') + '" role="checkbox" aria-checked="' + isSel + '" tabindex="0" ' +
       'onclick="toggleTopicGroup(\'' + topicId + '\', \'' + g.id + '\')" ' +
       'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleTopicGroup(\'' + topicId + '\', \'' + g.id + '\');}">' +
@@ -3837,27 +3836,23 @@ function renderTopicGroupList(topicId, topicSelected){
 }
 function toggleTopicGroup(topicId, groupId){
   // Tocar un título enciende el tema automáticamente si estaba apagado, para
-  // que la acción tenga efecto inmediato y visible (antes, con el tema
-  // apagado, tocar un título no se reflejaba en nada).
-  const wasTopicActive = configState.topics.has(topicId);
-  if(!wasTopicActive) configState.topics.add(topicId);
+  // que la acción tenga efecto inmediato y visible. A partir de aquí, tema y
+  // títulos van cada uno por su lado: el check del tema (toggleTopic) nunca
+  // toca esta selección, y esta selección nunca fuerza el check del tema.
+  if(!configState.topics.has(topicId)) configState.topics.add(topicId);
   const groups = TOPIC_GROUPS[topicId] || [];
-  if(!configState.nodeSelections[topicId]){
-    // Si el tema YA estaba encendido (con "todos incluidos" implícito),
-    // tocar un título es EXCLUIRLO: partimos de todos y le quitamos ese.
-    // Si el tema estaba APAGADO, no había nada incluido todavía de verdad:
-    // tocar un título es EMPEZAR a elegir, así que partimos de vacío y
-    // añadimos solo ese. Antes siempre se partía de "todos", así que tocar
-    // un título con el tema apagado dejaba seleccionados todos MENOS ese,
-    // justo al revés de lo que se esperaba.
-    configState.nodeSelections[topicId] = wasTopicActive ? new Set(groups.map(g => g.id)) : new Set();
-  }
+  // Sin restricción previa = estaban TODOS incluidos sin que ninguno
+  // apareciera marcado. Tocar un título aquí siempre significa "quiero
+  // elegir a mano": se empieza de una selección vacía y se añade solo el
+  // que se acaba de tocar (nunca "todos menos ese").
+  if(!configState.nodeSelections[topicId]) configState.nodeSelections[topicId] = new Set();
   const selected = configState.nodeSelections[topicId];
   if(selected.has(groupId)) selected.delete(groupId); else selected.add(groupId);
-  // Antes, al llegar a 0 seleccionados se forzaba de vuelta a "todos", lo que
-  // hacía que el check del último subtema no respondiera al pulsarlo. Ahora sí
-  // se puede dejar en 0 (el badge mostrará "0/N" y ese tema no aportará preguntas).
-  if(selected.size === groups.length) delete configState.nodeSelections[topicId]; // todos = sin restricción
+  // Si se marcan todos los títulos a mano, es lo mismo que "sin restricción"
+  // (todos incluidos): se limpia la restricción para no dejar un estado
+  // redundante. Si se desmarcan todos, se deja en 0 a propósito (el badge
+  // mostrará "0/N" y ese tema no aportará preguntas mientras esté así).
+  if(selected.size === groups.length) delete configState.nodeSelections[topicId];
   renderTemas();
 }
 
