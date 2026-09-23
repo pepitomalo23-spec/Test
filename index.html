@@ -3817,10 +3817,13 @@ function closeTopicDetail(){
 }
 function renderTopicGroupList(topicId, topicSelected){
   const groups = TOPIC_GROUPS[topicId] || [];
-  if(!configState.nodeSelections[topicId]){
-    configState.nodeSelections[topicId] = new Set(groups.map(g => g.id)); // por defecto, todos incluidos
-  }
-  const selected = configState.nodeSelections[topicId];
+  // Solo lectura: si no hay restricción guardada, se usa un set local con
+  // todos incluidos para pintar los checks, pero SIN grabarlo en
+  // configState. Antes se grababa aquí mismo, así que con solo desplegar el
+  // panel (sin tocar nada) ya aparecía un badge "4/4" que antes no estaba.
+  // Ahora la restricción solo se crea de verdad cuando el usuario toca un
+  // título (ver toggleTopicGroup).
+  const selected = configState.nodeSelections[topicId] || new Set(groups.map(g => g.id));
   return '<div class="article-list">' + groups.map(g => {
     // Si el tema en general está apagado, ningún título se muestra como activo
     // (aunque su selección se conserve por dentro para cuando vuelvas a activarlo).
@@ -3903,13 +3906,14 @@ function renderTemas(){
 }
 
 function toggleTopic(id){
-  // El check del tema principal tiene prioridad sobre la selección de
-  // títulos de dentro: actives o desactives el tema, siempre se reinicia a
-  // "todos incluidos" (se borra cualquier exclusión que hubiera en el panel).
-  // El panel sigue sirviendo para excluir títulos concretos después, pero
-  // cada vez que tocas este check se parte de cero.
+  // El check del tema principal solo enciende/apaga el tema entero: la
+  // restricción de títulos de dentro (si la hay) se conserva tal cual,
+  // tanto al apagar como al volver a encender, como ya decía el texto del
+  // panel ("tu selección de aquí se conserva"). Antes esta función borraba
+  // configState.nodeSelections[id] en cada toque, así que esa frase era
+  // falsa: apagar y reencender un tema hacía perder la selección de
+  // títulos sin ningún aviso.
   if(configState.topics.has(id)) configState.topics.delete(id); else configState.topics.add(id);
-  delete configState.nodeSelections[id];
   renderTemas();
 }
 
