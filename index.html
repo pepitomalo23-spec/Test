@@ -1769,6 +1769,25 @@
   .nq-toggle span::after{ content:''; position:absolute; left:3px; top:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition: transform .2s; }
   .nq-toggle input:checked + span{ background: var(--blue); }
   .nq-toggle input:checked + span::after{ transform: translateX(18px); }
+  /* Edición de temas y tarjetas (solo admin) */
+  .nq-lib-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .nq-lib-head h1{ margin-bottom:20px; }
+  .nq-btn.nq-btn-sm{ padding:9px 15px; font-size:13px; }
+  .nq-btn svg{ width:16px; height:16px; }
+  .nq-mode:disabled{ opacity:.45; cursor:default; }
+  .nq-ccard-empty{ cursor:default; }
+  .nq-ccard-empty .nq-ccard-face{ color: var(--muted); font-size:15px; border-style:dashed; }
+  .nq-set-meta .nq-sec-link{ padding:0; font-size:12.5px; }
+  .nq-danger{ color:#E5484D !important; }
+  .nq-admin-tag{ font-size:10.5px; font-weight:700; color: var(--blue); background: color-mix(in srgb, var(--blue) 14%, transparent); border-radius:999px; padding:2px 8px; margin-left:6px; vertical-align:middle; }
+  .nq-ib-del:hover{ color:#E5484D; }
+  .nq-term-edit{ border-color: var(--blue); }
+  .nq-add{ border-style:dashed; border-color: var(--line); }
+  .nq-add-title{ display:flex; align-items:center; gap:6px; font-size:14px; font-weight:700; margin-bottom:6px; }
+  .nq-add-title svg{ width:16px; height:16px; color: var(--blue); }
+  .nq-edit-lbl{ display:block; font-size:11px; font-weight:700; color: var(--muted); text-transform:uppercase; letter-spacing:.4px; margin: 10px 0 5px; }
+  .nq-ta{ resize:vertical; min-height:48px; font-size:14.5px; padding:11px 13px; line-height:1.4; }
+  .nq-edit-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
 </style>
 </head>
 <body>
@@ -4035,6 +4054,7 @@ function showScreen(id){
   }
   if(id === 'screen-home'){ updateModeCardsLockState(); renderHistory(); }
   if(id === 'screen-boe-cambios') loadNormativas();
+  if(id === 'screen-normativas' && typeof NQ !== 'undefined') NQ.load();
   if(id === 'screen-my-additions'){ renderMyAdditionsList(); }
 }
 function showHome(){ showScreen('screen-home'); }
@@ -6548,6 +6568,8 @@ async function onLoggedIn(user, isFreshSignIn){
   currentUserIsAdmin = !!(profile && profile.is_admin);
   myFeatureFlags = (profile && profile.feature_flags) || {};
   applyFeatureVisibility();
+  // Los temas de Normativas dependen de la sesión (RLS) y de si es admin.
+  if(typeof NQ !== 'undefined') NQ.load();
 
   if(!currentUserIsAdmin && !(profile && profile.approved)){
     currentUser = null;
@@ -8796,32 +8818,17 @@ sb.auth.onAuthStateChange((event, session) => {
 <script>
 /* ============================================================
    NORMATIVAS · Fichas estilo Quizlet
-   Unidades de términos (término → normativa) con los modos Fichas,
-   Aprender, Probar y Combinar. El avance de cada término se guarda en
-   localStorage (no hace falta estar conectado para estudiar).
-   Para añadir una unidad nueva basta con añadirla a NQ_SETS.
+   Temas de tarjetas (término → normativa) con los modos Fichas,
+   Aprender, Probar y Combinar. Los temas y tarjetas viven en Supabase
+   (tablas nq_sets / nq_cards): los crea y edita solo el admin y los ven
+   todos. El avance de estudio de cada usuario se guarda en su
+   dispositivo (localStorage), indexado por el id de cada tarjeta.
    ============================================================ */
-const NQ_SETS = [
-  {
-    id: 'forestales',
-    title: 'Forestales',
-    terms: [
-      ['Plan de emergencias por incendios forestales de Andalucía (Plan INFOCA)', 'RD 371/2010 del 14 de septiembre'],
-      ['Directriz básica de planificaciones contra incendios forestales', 'RD 893/2013 del 15 de noviembre'],
-      ['Normativa para traje para rescate técnico', 'UNE EN 16689'],
-      ['Normativa para cascos de rescate técnico', 'UNE EN 16473'],
-      ['Normativa para cascos para industrias', 'UNE EN 397'],
-      ['Normativa para cascos de bomberos', 'UNE EN 443'],
-      ['Normativa de botas de los bomberos', 'UNE EN 15090'],
-      ['Normativa de los trajes forestales', 'UNE EN ISO 15384'],
-      ['Normativa de los cascos forestales', 'UNE EN 16471'],
-      ['Normativa de las motobombas portátiles', 'UNE EN 14466']
-    ]
-  }
-];
+let NQ_SETS = [];
 
 const NQ = (function(){
-  const STORE_KEY = 'nq_progress_v1';
+  const STORE_KEY = 'nq_progress_v2';
+  const CACHE_KEY = 'nq_sets_cache_v1';
   const ROUND_SIZE = 7;
   let db = {};
   try{ db = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }catch(e){ db = {}; }
@@ -8830,6 +8837,59 @@ const NQ = (function(){
   let view = { name: 'library' };   // library | set
   let study = null;                 // estado del modo de estudio abierto
   let matchTimer = null;
+  let loaded = false, loading = false, loadError = false, busy = false;
+
+  /* ---------- datos (Supabase) ---------- */
+  function buildSets(sets, cards){
+    NQ_SETS = sets.map(s => {
+      const cs = cards.filter(c => c.set_id === s.id);
+      return { id: s.id, title: s.title, cards: cs, ids: cs.map(c => c.id), terms: cs.map(c => [c.term, c.definition]) };
+    });
+  }
+  try{
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
+    if(cached && cached.sets){ buildSets(cached.sets, cached.cards || []); loaded = true; }
+  }catch(e){}
+
+  // sb y currentUserIsAdmin viven en el script principal; los leemos con
+  // try por si ese script no llegó a inicializarlos (p. ej. sin conexión).
+  function client(){ try{ return sb; }catch(e){ return null; } }
+  async function load(){
+    if(loading || !client()) return;
+    loading = true;
+    try{
+      const [rs, rc] = await Promise.all([
+        sb.from('nq_sets').select('id,title,orden,created_at').order('orden').order('created_at'),
+        sb.from('nq_cards').select('id,set_id,term,definition,orden,created_at').order('orden').order('created_at')
+      ]);
+      if(rs.error || rc.error) throw (rs.error || rc.error);
+      buildSets(rs.data || [], rc.data || []);
+      loaded = true; loadError = false;
+      try{ localStorage.setItem(CACHE_KEY, JSON.stringify({ sets: rs.data, cards: rc.data })); }catch(e){}
+    }catch(e){
+      loadError = true;
+      console.warn('No se pudieron cargar los temas de Normativas', e);
+    }finally{
+      loading = false;
+    }
+    if(view.name === 'set' && !getSet(view.setId)) view = { name: 'library' };
+    if(!study) render();
+  }
+  function isAdmin(){ try{ return !!currentUserIsAdmin; }catch(e){ return false; } }
+  async function run(fn){
+    if(busy) return false;
+    busy = true;
+    try{
+      const { error } = await fn();
+      if(error) throw error;
+      return true;
+    }catch(e){
+      alert('No se pudo guardar el cambio: ' + (e.message || e));
+      return false;
+    }finally{
+      busy = false;
+    }
+  }
 
   /* ---------- utilidades ---------- */
   const $root = () => document.getElementById('nqRoot');
@@ -8860,6 +8920,9 @@ const NQ = (function(){
     x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
     undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
     shuffle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+    pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
     cards: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="14" height="14" rx="2"/><path d="M7 6V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"/></svg>',
     mFichas: '<svg viewBox="0 0 24 24"><rect x="6" y="3" width="15" height="13" rx="2.5" fill="#7FB3FF"/><rect x="3" y="7" width="15" height="13" rx="2.5" fill="#4255FF"/></svg>',
     mAprender: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.6" stroke-linecap="round"><path d="M12 3a9 9 0 0 1 9 9" stroke="#4255FF"/><path d="M21 12a9 9 0 0 1-9 9" stroke="#98E3FF" stroke-dasharray="2 3.2"/><path d="M12 21a9 9 0 0 1-9-9" stroke="#4255FF" stroke-dasharray="2 3.2"/><path d="M3 12a9 9 0 0 1 9-9" stroke="#98E3FF"/></svg>',
@@ -8877,15 +8940,19 @@ const NQ = (function(){
     p.opt = Object.assign({ shuffle: false, starred: false, answerWith: 'def', written: false, fcFront: 'term', testN: 0, testTF: true }, p.opt);
     return p;
   }
-  function tstate(set, i){ return Object.assign({ s: 0, seen: false }, sp(set).t[i]); }
-  function setT(set, i, patch){ const p = sp(set); p.t[i] = Object.assign(tstate(set, i), patch); save(); }
+  // Todo el avance se indexa por el id de la tarjeta (no por su posición),
+  // para que editar o borrar tarjetas no mezcle el progreso de otras.
+  function tstate(set, i){ return Object.assign({ s: 0, seen: false }, sp(set).t[set.ids[i]]); }
+  function setT(set, i, patch){ const p = sp(set); p.t[set.ids[i]] = Object.assign(tstate(set, i), patch); save(); }
+  function restoreT(set, i, prev){ sp(set).t[set.ids[i]] = prev; save(); }
   function status(set, i){ const t = tstate(set, i); if(!t.seen) return 'new'; return t.s >= 2 ? 'mastered' : 'learning'; }
-  function isStar(set, i){ return sp(set).stars.includes(i); }
+  function isStar(set, i){ return sp(set).stars.includes(set.ids[i]); }
   function toggleStar(set, i){
-    const p = sp(set);
-    p.stars = p.stars.includes(i) ? p.stars.filter(x => x !== i) : p.stars.concat(i);
+    const p = sp(set), id = set.ids[i];
+    p.stars = p.stars.includes(id) ? p.stars.filter(x => x !== id) : p.stars.concat(id);
     save();
   }
+  function hasStars(set){ return set.ids.some(id => sp(set).stars.includes(id)); }
   function counts(set){
     const c = { new: 0, learning: 0, mastered: 0 };
     set.terms.forEach((_, i) => c[status(set, i)]++);
@@ -8926,25 +8993,53 @@ const NQ = (function(){
     const root = $root();
     if(!root) return;
     const set = view.name === 'set' ? getSet(view.setId) : null;
-    root.innerHTML = set ? renderSet(set) : renderLibrary();
+    // Si se está editando una tarjeta, no perdemos lo que el admin lleva escrito.
+    const drafts = {};
+    root.querySelectorAll('[data-draft]').forEach(el => { drafts[el.dataset.draft] = el.value; });
+    root.innerHTML = (set ? renderSet(set) : renderLibrary()) + renderRootSheet();
+    Object.keys(drafts).forEach(k => {
+      const el = root.querySelector('[data-draft="' + k + '"]');
+      if(el && !el.value) el.value = drafts[k];
+    });
     if(set) bindCarousel();
+    const f = root.querySelector('[data-autofocus]');
+    if(f) setTimeout(() => f.focus(), 30);
   }
 
   function renderLibrary(){
-    return '<h1>Normativas</h1>' +
-      '<div class="nq-lib-sub">Tus unidades</div>' +
-      '<div class="nq-lib-list">' + NQ_SETS.map(set => {
-        const c = counts(set), n = set.terms.length;
-        return '<button class="nq-lib-item" data-act="open-set" data-set="' + set.id + '">' +
-          '<span class="nq-lib-ico">' + I.cards + '</span>' +
-          '<span class="nq-lib-main"><div class="nq-lib-name">' + esc(set.title) + '</div>' +
-          '<div class="nq-lib-meta">Unidad · ' + n + ' términos · ' + c.mastered + ' dominados</div>' +
-          '<div class="nq-lib-bar"><i style="width:' + (c.mastered / n * 100) + '%;background:var(--green)"></i><i style="width:' + (c.learning / n * 100) + '%;background:var(--orange)"></i></div></span>' +
-          I.chev.replace('class="chev"', '') + '</button>';
-      }).join('') + '</div>';
+    const admin = isAdmin();
+    let list;
+    if(!loaded && !loadError) list = '<div class="empty">Cargando temas…</div>';
+    else if(!NQ_SETS.length) list = '<div class="empty">' + (loadError ? 'No se pudieron cargar los temas. Revisa la conexión.' : admin ? 'Aún no hay temas. Crea el primero con «Nuevo tema».' : 'Todavía no hay temas disponibles.') + '</div>';
+    else list = '<div class="nq-lib-list">' + NQ_SETS.map(set => {
+      const c = counts(set), n = set.terms.length || 1;
+      return '<button class="nq-lib-item" data-act="open-set" data-set="' + set.id + '">' +
+        '<span class="nq-lib-ico">' + I.cards + '</span>' +
+        '<span class="nq-lib-main"><div class="nq-lib-name">' + esc(set.title) + '</div>' +
+        '<div class="nq-lib-meta">' + set.terms.length + ' tarjetas · ' + c.mastered + ' dominadas</div>' +
+        '<div class="nq-lib-bar"><i style="width:' + (c.mastered / n * 100) + '%;background:var(--green)"></i><i style="width:' + (c.learning / n * 100) + '%;background:var(--orange)"></i></div></span>' +
+        I.chev.replace('class="chev"', '') + '</button>';
+    }).join('') + '</div>';
+    return '<div class="nq-lib-head"><h1>Normativas</h1>' +
+      (admin ? '<button class="nq-btn nq-btn-sm" data-act="new-set">' + I.plus + 'Nuevo tema</button>' : '') + '</div>' +
+      '<div class="nq-lib-sub">Temas</div>' + list;
+  }
+
+  function renderRootSheet(){
+    const sh = view.sheet;
+    if(!sh) return '';
+    const set = sh.setId ? getSet(sh.setId) : null;
+    const isNew = sh.type === 'new-set';
+    return '<div class="nq-sheet-bg" data-act="root-sheet-bg"><form class="nq-sheet" data-submit="' + (isNew ? 'create-set' : 'rename-set') + '" autocomplete="off">' +
+      '<div class="nq-sheet-grip"></div><h3>' + (isNew ? 'Nuevo tema' : 'Renombrar tema') + '</h3>' +
+      '<p>' + (isNew ? 'Ponle un nombre (por ejemplo «Forestales» o «EPIs»). Después podrás añadirle tarjetas.' : 'Cambia el nombre del tema.') + '</p>' +
+      '<input class="nq-input" name="title" maxlength="120" placeholder="Nombre del tema" required data-autofocus value="' + (set ? esc(set.title) : '') + '">' +
+      '<div class="nq-sum-actions" style="margin-top:16px"><button class="nq-btn block" type="submit">' + (isNew ? 'Crear tema' : 'Guardar') + '</button>' +
+      '<button class="nq-btn ghost block" type="button" data-act="root-sheet-close">Cancelar</button></div></form></div>';
   }
 
   function renderSet(set){
+    const admin = isAdmin();
     const n = set.terms.length, c = counts(set);
     const sort = view.sort || 'original';
     let idxs = set.terms.map((_, i) => i);
@@ -8952,50 +9047,126 @@ const NQ = (function(){
     if(sort === 'alpha') idxs.sort((a, b) => set.terms[a][0].localeCompare(set.terms[b][0], 'es'));
     if(sort === 'starred') idxs = idxs.filter(i => isStar(set, i));
     const filterNames = { new: 'No estudiados', learning: 'En progreso', mastered: 'Dominados' };
+    const canStudy = n >= 2;
 
-    const carousel = '<div class="nq-carousel" id="nqCarousel">' + set.terms.map(([t, d], i) =>
+    const carousel = n ? '<div class="nq-carousel" id="nqCarousel">' + set.terms.map(([t, d], i) =>
       '<div class="nq-ccard" data-act="flip-c"><div class="nq-ccard-inner">' +
         '<div class="nq-ccard-face">' + esc(t) + '<button class="nq-ccard-exp" data-act="fc-at" data-i="' + i + '" title="Pantalla completa">' + I.expand + '</button></div>' +
         '<div class="nq-ccard-face nq-ccard-back">' + esc(d) + '<button class="nq-ccard-exp" data-act="fc-at" data-i="' + i + '" title="Pantalla completa">' + I.expand + '</button></div>' +
       '</div></div>').join('') + '</div>' +
-      '<div class="nq-dots" id="nqDots">' + set.terms.map((_, i) => '<i' + (i === 0 ? ' class="on"' : '') + '></i>').join('') + '</div>';
+      '<div class="nq-dots" id="nqDots">' + set.terms.map((_, i) => '<i' + (i === 0 ? ' class="on"' : '') + '></i>').join('') + '</div>'
+      : '<div class="nq-ccard nq-ccard-empty"><div class="nq-ccard-face">' + (admin ? 'Este tema aún no tiene tarjetas.<br>Añádelas abajo del todo.' : 'Este tema aún no tiene tarjetas.') + '</div></div><div class="nq-dots"></div>';
 
-    const modes = '<div class="nq-modes">' +
-      '<button class="nq-mode" data-act="study" data-mode="fc">' + I.mFichas + 'Fichas</button>' +
-      '<button class="nq-mode" data-act="study" data-mode="learn">' + I.mAprender + 'Aprender</button>' +
-      '<button class="nq-mode" data-act="study" data-mode="test">' + I.mProbar + 'Probar</button>' +
-      '<button class="nq-mode" data-act="study" data-mode="match">' + I.mCombinar + 'Combinar</button>' +
-      '</div>';
+    const mode = (m, icon, label) => '<button class="nq-mode" data-act="study" data-mode="' + m + '"' + (canStudy ? '' : ' disabled') + '>' + icon + label + '</button>';
+    const modes = '<div class="nq-modes">' + mode('fc', I.mFichas, 'Fichas') + mode('learn', I.mAprender, 'Aprender') +
+      mode('test', I.mProbar, 'Probar') + mode('match', I.mCombinar, 'Combinar') + '</div>' +
+      (canStudy ? '' : '<div class="nq-hint" style="text-align:left">Hacen falta al menos 2 tarjetas para estudiar este tema.</div>');
 
     const av = (key, label, color) => {
       const k = c[key];
       return '<button class="nq-av' + (k === 0 ? ' zero' : '') + (view.filter === key ? ' sel' : '') + '" data-act="filter" data-f="' + key + '">' +
         ring(k, n, color, k === 0) + '<span class="lbl">' + label + '</span>' + I.chev + '</button>';
     };
-    const avance = '<div class="nq-sec"><div class="nq-sec-title">Tu avance</div>' +
+    const avance = n ? '<div class="nq-sec"><div class="nq-sec-title">Tu avance</div>' +
       (c.new < n ? '<button class="nq-sec-link" data-act="reset">Reiniciar avance</button>' : '') + '</div>' +
-      '<div class="nq-avance">' + av('new', 'No estudiados', 'var(--blue)') + av('learning', 'En progreso', 'var(--orange)') + av('mastered', 'Dominados', 'var(--green)') + '</div>';
+      '<div class="nq-avance">' + av('new', 'No estudiados', 'var(--blue)') + av('learning', 'En progreso', 'var(--orange)') + av('mastered', 'Dominados', 'var(--green)') + '</div>' : '';
 
-    const terms = '<div class="nq-sec" id="nqTermsHead"><div class="nq-sec-title">Términos</div>' +
-      '<select class="nq-select" data-change="sort" aria-label="Ordenar términos">' +
+    const row = i => {
+      const [t, d] = set.terms[i], id = set.ids[i];
+      if(admin && view.editing === id){
+        return '<form class="nq-term nq-term-edit" data-submit="save-card" data-i="' + i + '" autocomplete="off"><div class="nq-term-main">' +
+          '<label class="nq-edit-lbl">Término</label><textarea class="nq-input nq-ta" name="term" rows="2" required data-autofocus>' + esc(t) + '</textarea>' +
+          '<label class="nq-edit-lbl">Normativa</label><textarea class="nq-input nq-ta" name="definition" rows="2" required>' + esc(d) + '</textarea>' +
+          '<div class="nq-edit-actions"><button class="nq-btn ghost nq-btn-sm" type="button" data-act="cancel-edit">Cancelar</button><button class="nq-btn nq-btn-sm" type="submit">Guardar</button></div>' +
+          '</div></form>';
+      }
+      return '<div class="nq-term"><div class="nq-term-main"><div class="nq-term-t">' + esc(t) + '</div><div class="nq-term-d">' + esc(d) + '</div></div>' +
+        '<div class="nq-term-tools"><button class="nq-ib" data-act="speak" data-i="' + i + '" title="Escuchar">' + I.speaker + '</button>' +
+        '<button class="nq-ib' + (isStar(set, i) ? ' star-on' : '') + '" data-act="star" data-i="' + i + '" title="Destacar">' + I.star + '</button>' +
+        (admin ? '<button class="nq-ib" data-act="edit-card" data-i="' + i + '" title="Editar">' + I.pencil + '</button>' +
+          '<button class="nq-ib nq-ib-del" data-act="del-card" data-i="' + i + '" title="Eliminar">' + I.trash + '</button>' : '') +
+        '</div></div>';
+    };
+    const addForm = admin ? '<form class="nq-term nq-term-edit nq-add" data-submit="add-card" autocomplete="off"><div class="nq-term-main">' +
+      '<div class="nq-add-title">' + I.plus + 'Añadir tarjeta</div>' +
+      '<label class="nq-edit-lbl">Término</label><textarea class="nq-input nq-ta" name="term" rows="2" required placeholder="Ej.: Normativa de los guantes de bombero" data-draft="new-term"></textarea>' +
+      '<label class="nq-edit-lbl">Normativa</label><textarea class="nq-input nq-ta" name="definition" rows="2" required placeholder="Ej.: UNE EN 659" data-draft="new-def"></textarea>' +
+      '<div class="nq-edit-actions"><button class="nq-btn nq-btn-sm" type="submit">Añadir</button></div>' +
+      '</div></form>' : '';
+
+    const terms = '<div class="nq-sec" id="nqTermsHead"><div class="nq-sec-title">Términos' + (admin ? ' <span class="nq-admin-tag">Editar</span>' : '') + '</div>' +
+      (n ? '<select class="nq-select" data-change="sort" aria-label="Ordenar términos">' +
         '<option value="original"' + (sort === 'original' ? ' selected' : '') + '>Original</option>' +
         '<option value="alpha"' + (sort === 'alpha' ? ' selected' : '') + '>Alfabético</option>' +
         '<option value="starred"' + (sort === 'starred' ? ' selected' : '') + '>Destacados</option>' +
-      '</select></div>' +
+      '</select>' : '') + '</div>' +
       (view.filter ? '<button class="nq-filter-chip" data-act="filter" data-f="' + view.filter + '">Mostrando: ' + filterNames[view.filter] + ' ✕</button>' : '') +
-      '<div class="nq-terms">' + (idxs.length ? idxs.map(i => {
-        const [t, d] = set.terms[i];
-        return '<div class="nq-term"><div class="nq-term-main"><div class="nq-term-t">' + esc(t) + '</div><div class="nq-term-d">' + esc(d) + '</div></div>' +
-          '<div class="nq-term-tools"><button class="nq-ib" data-act="speak" data-i="' + i + '" title="Escuchar">' + I.speaker + '</button>' +
-          '<button class="nq-ib' + (isStar(set, i) ? ' star-on' : '') + '" data-act="star" data-i="' + i + '" title="Destacar">' + I.star + '</button></div></div>';
-      }).join('') : '<div class="nq-empty-terms">' + (sort === 'starred' ? 'Aún no has destacado ningún término. Pulsa la estrella de un término para destacarlo.' : 'No hay términos en esta categoría.') + '</div>') + '</div>';
+      '<div class="nq-terms">' + (idxs.length ? idxs.map(row).join('') :
+        (n ? '<div class="nq-empty-terms">' + (sort === 'starred' ? 'Aún no has destacado ningún término. Pulsa la estrella de un término para destacarlo.' : 'No hay términos en esta categoría.') + '</div>' : '')) +
+      addForm + '</div>';
 
     return '<button class="nq-back" data-act="library">' + I.back + 'Normativas</button>' +
       carousel +
       '<div class="nq-set-title">' + esc(set.title) + '</div>' +
-      '<div class="nq-set-meta"><span>Normativas</span><span class="sep"></span><span>' + n + ' términos</span></div>' +
+      '<div class="nq-set-meta"><span>Normativas</span><span class="sep"></span><span>' + n + ' tarjetas</span>' +
+        (admin ? '<span class="sep"></span><button class="nq-sec-link" data-act="rename-set">Renombrar</button><button class="nq-sec-link nq-danger" data-act="del-set">Eliminar tema</button>' : '') + '</div>' +
       modes + avance + terms +
-      '<div class="nq-cta-wrap"><button class="nq-btn block" data-act="study" data-mode="learn">Estudiar esta unidad</button></div>';
+      (canStudy ? '<div class="nq-cta-wrap"><button class="nq-btn block" data-act="study" data-mode="learn">Estudiar este tema</button></div>' : '');
+  }
+
+  /* ---------- edición (solo admin; la base de datos lo exige igualmente) ---------- */
+  async function createSet(title){
+    const orden = NQ_SETS.length;
+    let newId = null;
+    const ok = await run(async () => {
+      const r = await sb.from('nq_sets').insert({ title, orden }).select('id').single();
+      if(r.data) newId = r.data.id;
+      return r;
+    });
+    if(!ok) return;
+    view = { name: 'set', setId: newId };
+    await load();
+  }
+  async function renameSet(set, title){
+    if(await run(() => sb.from('nq_sets').update({ title }).eq('id', set.id))){ view.sheet = null; await load(); }
+  }
+  async function deleteSet(set){
+    if(!confirm('¿Eliminar el tema «' + set.title + '» y sus ' + set.terms.length + ' tarjetas? No se puede deshacer.')) return;
+    if(await run(() => sb.from('nq_sets').delete().eq('id', set.id))){ view = { name: 'library' }; await load(); }
+  }
+  async function addCard(set, term, definition){
+    const orden = set.cards.reduce((m, c) => Math.max(m, c.orden || 0), -1) + 1;
+    return run(() => sb.from('nq_cards').insert({ set_id: set.id, term, definition, orden }));
+  }
+  async function saveCard(set, i, term, definition){
+    if(await run(() => sb.from('nq_cards').update({ term, definition }).eq('id', set.ids[i]))){ view.editing = null; await load(); }
+  }
+  async function deleteCard(set, i){
+    if(!confirm('¿Eliminar esta tarjeta?\n\n' + set.terms[i][0] + ' → ' + set.terms[i][1])) return;
+    if(await run(() => sb.from('nq_cards').delete().eq('id', set.ids[i]))) await load();
+  }
+  async function onRootSubmit(e){
+    const form = e.target;
+    const kind = form.dataset.submit;
+    if(!kind) return;
+    e.preventDefault();
+    const val = name => (form.elements[name] ? form.elements[name].value : '').trim();
+    const set = view.setId ? getSet(view.setId) : null;
+    if(kind === 'create-set'){ const t = val('title'); if(t){ view.sheet = null; await createSet(t); } }
+    else if(kind === 'rename-set' && set){ const t = val('title'); if(t) await renameSet(set, t); }
+    else if(kind === 'save-card' && set){
+      const t = val('term'), d = val('definition');
+      if(t && d) await saveCard(set, +form.dataset.i, t, d);
+    } else if(kind === 'add-card' && set){
+      const t = val('term'), d = val('definition');
+      if(!t || !d) return;
+      if(await addCard(set, t, d)){
+        form.reset();
+        await load();
+        const f = $root().querySelector('[data-draft="new-term"]');
+        if(f){ f.focus(); f.scrollIntoView({ block: 'center' }); }
+      }
+    }
   }
 
   function bindCarousel(){
@@ -9075,10 +9246,10 @@ const NQ = (function(){
         '<button class="nq-btn ghost block" data-act="sheet-close">Cancelar</button></div></div></div>';
     }
     const o = opts(study.set);
-    const hasStars = sp(study.set).stars.length > 0;
+    const anyStars = hasStars(study.set);
     const tog = (key, label, on, disabled) => '<div class="nq-cfg-row"><span>' + label + '</span><label class="nq-toggle"><input type="checkbox" data-opt="' + key + '"' + (on ? ' checked' : '') + (disabled ? ' disabled' : '') + '><span></span></label></div>';
     let rows = tog('shuffle', 'Mezclar términos', o.shuffle) +
-      tog('starred', 'Estudiar solo destacados' + (hasStars ? '' : ' <small style="color:var(--muted-2)">(no hay)</small>'), o.starred && hasStars, !hasStars);
+      tog('starred', 'Estudiar solo destacados' + (anyStars ? '' : ' <small style="color:var(--muted-2)">(no hay)</small>'), o.starred && anyStars, !anyStars);
     if(study.mode === 'fc'){
       rows += '<div class="nq-cfg-row"><span>Mostrar primero</span><select class="nq-select" data-opt="fcFront"><option value="term"' + (o.fcFront === 'term' ? ' selected' : '') + '>Término</option><option value="def"' + (o.fcFront === 'def' ? ' selected' : '') + '>Normativa</option></select></div>';
     } else {
@@ -9164,7 +9335,7 @@ const NQ = (function(){
     const i = st.order[h.pos];
     const list = h.know ? st.known : st.learning;
     list.splice(list.lastIndexOf(i), 1);
-    sp(st.set).t[i] = h.prev; save();
+    restoreT(st.set, i, h.prev);
     st.pos = h.pos; st.done = false; st.flipped = false;
     renderStudy();
   }
@@ -9541,6 +9712,14 @@ const NQ = (function(){
     const sset = study ? study.set : set;
     const i = el.dataset.i != null ? +el.dataset.i : null;
     switch(act){
+      case 'new-set': view.sheet = { type: 'new-set' }; render(); break;
+      case 'rename-set': view.sheet = { type: 'rename', setId: set.id }; render(); break;
+      case 'root-sheet-close': view.sheet = null; render(); break;
+      case 'root-sheet-bg': if(e.target === el){ view.sheet = null; render(); } break;
+      case 'del-set': deleteSet(set); break;
+      case 'edit-card': view.editing = set.ids[i]; render(); break;
+      case 'cancel-edit': view.editing = null; render(); break;
+      case 'del-card': deleteCard(set, i); break;
       case 'open-set': view = { name: 'set', setId: el.dataset.set }; render(); document.getElementById('app').scrollTop = 0; break;
       case 'library': view = { name: 'library' }; render(); break;
       case 'flip-c': el.classList.toggle('flipped'); break;
@@ -9636,7 +9815,10 @@ const NQ = (function(){
   }
 
   function onKey(e){
-    if(!study) return;
+    if(!study){
+      if(e.key === 'Escape' && (view.sheet || view.editing)){ view.sheet = null; view.editing = null; render(); }
+      return;
+    }
     const tag = (e.target.tagName || '').toLowerCase();
     if(e.key === 'Escape'){
       if(study.sheet){ study.sheet = null; renderStudy(); } else tryClose();
@@ -9663,6 +9845,7 @@ const NQ = (function(){
     if(!root || !ov) return;
     root.addEventListener('click', onClick);
     root.addEventListener('change', onChange);
+    root.addEventListener('submit', onRootSubmit);
     ov.addEventListener('click', e => {
       const el = e.target.closest('[data-act]');
       if(el && el.dataset.act === 'close'){ e.preventDefault(); tryClose(); return; }
@@ -9678,12 +9861,13 @@ const NQ = (function(){
     });
     document.addEventListener('keydown', onKey);
     render();
+    load();
   }
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  return { render, close: closeStudy };
+  return { render, load, close: closeStudy };
 })();
 </script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
