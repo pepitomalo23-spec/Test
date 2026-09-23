@@ -1549,6 +1549,227 @@
   .quiz-list-item .option.selected .opt-badge{ border-color: var(--purple); color:#fff; background: var(--purple); font-weight:700; }
   .quiz-list-footer{ display:flex; justify-content:center; margin: 10px 0 4px; }
 </style>
+<style>
+  /* ============================================================
+     NORMATIVAS · Fichas estilo Quizlet (unidades de términos)
+     Todo lleva el prefijo nq- para no chocar con el resto de la app.
+     ============================================================ */
+  .nq-lib-sub{ font-size:13px; font-weight:600; color: var(--muted); margin: -6px 0 14px; }
+  .nq-lib-list{ display:flex; flex-direction:column; gap:10px; }
+  .nq-lib-item{ display:flex; align-items:center; gap:14px; width:100%; text-align:left; background: var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; color: var(--text); cursor:pointer; font-family: var(--sans); transition: border-color .15s, background .15s; }
+  .nq-lib-item:hover{ border-color: var(--muted-2); background: var(--card-hi); }
+  .nq-lib-ico{ width:40px; height:40px; border-radius:10px; background: var(--card-hi); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; color: var(--blue); flex-shrink:0; }
+  .nq-lib-ico svg{ width:20px; height:20px; }
+  .nq-lib-main{ flex:1; min-width:0; }
+  .nq-lib-name{ font-size:15px; font-weight:700; }
+  .nq-lib-meta{ font-size:12.5px; color: var(--muted); margin-top:3px; }
+  .nq-lib-bar{ height:4px; border-radius:4px; background: var(--line); margin-top:9px; overflow:hidden; display:flex; }
+  .nq-lib-bar i{ display:block; height:100%; }
+  .nq-lib-item > svg{ width:18px; height:18px; color: var(--muted-2); flex-shrink:0; }
+
+  .nq-back{ display:inline-flex; align-items:center; gap:6px; background:none; border:none; color: var(--muted); font-family: var(--sans); font-size:13.5px; font-weight:600; cursor:pointer; padding:6px 0; margin-bottom:14px; }
+  .nq-back:hover{ color: var(--text); }
+  .nq-back svg{ width:18px; height:18px; }
+
+  /* Carrusel de fichas de la unidad */
+  .nq-carousel{ display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding: 2px 2px 4px; }
+  .nq-carousel::-webkit-scrollbar{ display:none; }
+  .nq-ccard{ flex: 0 0 100%; scroll-snap-align:center; height: clamp(200px, 34vh, 300px); perspective:1400px; cursor:pointer; }
+  .nq-ccard-inner{ position:relative; width:100%; height:100%; transition: transform .45s cubic-bezier(.2,.7,.2,1); transform-style:preserve-3d; }
+  .nq-ccard.flipped .nq-ccard-inner{ transform: rotateY(180deg); }
+  .nq-ccard-face{ position:absolute; inset:0; -webkit-backface-visibility:hidden; backface-visibility:hidden; background: var(--card); border:1px solid var(--line); border-radius:18px; display:flex; align-items:center; justify-content:center; text-align:center; padding: 30px 34px; font-size: clamp(17px, 2.6vw, 22px); line-height:1.35; }
+  .nq-ccard-back{ transform: rotateY(180deg); }
+  .nq-ccard-exp{ position:absolute; right:12px; bottom:12px; width:32px; height:32px; border-radius:50%; border:none; background:none; color: var(--muted); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .nq-ccard-exp:hover{ background: var(--card-hi); color: var(--text); }
+  .nq-ccard-exp svg{ width:17px; height:17px; }
+  .nq-dots{ display:flex; justify-content:center; gap:6px; margin: 14px 0 22px; flex-wrap:wrap; }
+  .nq-dots i{ width:6px; height:6px; border-radius:50%; background: var(--line); transition: background .2s, transform .2s; }
+  .nq-dots i.on{ background: var(--blue); transform: scale(1.25); }
+
+  .nq-set-title{ font-family: var(--title); font-weight:400; font-size:26px; letter-spacing:.3px; }
+  .nq-set-meta{ display:flex; align-items:center; gap:10px; font-size:12.5px; color: var(--muted); margin: 8px 0 18px; }
+  .nq-set-meta .sep{ width:1px; height:14px; background: var(--line); }
+
+  .nq-modes{ display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; }
+  .nq-mode{ display:flex; align-items:center; gap:12px; background: var(--card); border:1px solid var(--line); border-radius:12px; padding:13px 14px; color: var(--text); font-family: var(--sans); font-size:14px; font-weight:600; cursor:pointer; text-align:left; transition: border-color .15s, background .15s; }
+  .nq-mode:hover{ border-color: var(--muted-2); background: var(--card-hi); }
+  .nq-mode svg{ width:24px; height:24px; flex-shrink:0; }
+
+  .nq-sec{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 30px 0 12px; }
+  .nq-sec-title{ font-size:15px; font-weight:700; }
+  .nq-sec-link{ background:none; border:none; color: var(--muted); font-family: var(--sans); font-size:12.5px; cursor:pointer; }
+  .nq-sec-link:hover{ color: var(--text); }
+  .nq-select{ background: var(--card); color: var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-family: var(--sans); font-size:12.5px; }
+
+  .nq-avance{ display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; }
+  .nq-av{ display:flex; align-items:center; gap:12px; background: var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 14px; color: var(--text); font-family: var(--sans); font-size:13.5px; font-weight:600; cursor:pointer; text-align:left; }
+  .nq-av:hover{ border-color: var(--muted-2); }
+  .nq-av.sel{ border-color: var(--blue); box-shadow: inset 0 0 0 1px var(--blue); }
+  .nq-av.zero{ color: var(--muted-2); }
+  .nq-av .lbl{ flex:1; min-width:0; }
+  .nq-av > svg.chev{ width:16px; height:16px; color: var(--muted-2); flex-shrink:0; }
+  .nq-ring{ width:42px; height:42px; flex-shrink:0; }
+  .nq-ring text{ font-family: var(--sans); font-size:13px; font-weight:700; fill: currentColor; }
+  @media (max-width:640px){
+    .nq-avance{ grid-template-columns: 1fr; }
+    .nq-modes{ gap:8px; }
+  }
+
+  .nq-filter-chip{ display:inline-flex; align-items:center; gap:6px; background: var(--card-hi); border:1px solid var(--line); border-radius:999px; padding:5px 11px; font-size:12px; color: var(--text); cursor:pointer; margin-bottom:10px; font-family: var(--sans); }
+  .nq-terms{ display:flex; flex-direction:column; gap:10px; }
+  .nq-term{ display:flex; gap:12px; background: var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 14px 14px 16px; }
+  .nq-term-main{ flex:1; min-width:0; }
+  .nq-term-t{ font-size:14px; line-height:1.4; }
+  .nq-term-d{ font-size:14px; line-height:1.4; margin-top:10px; padding-top:10px; border-top:1px solid var(--line-soft); font-weight:600; }
+  .nq-term-tools{ display:flex; gap:2px; align-items:flex-start; flex-shrink:0; }
+  .nq-ib{ width:34px; height:34px; border-radius:50%; border:none; background:none; color: var(--muted); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
+  .nq-ib:hover{ background: var(--card-hi); color: var(--text); }
+  .nq-ib svg{ width:18px; height:18px; }
+  .nq-ib.star-on{ color: var(--amber); }
+  .nq-ib.star-on svg{ fill: currentColor; }
+  .nq-empty-terms{ color: var(--muted); font-size:13px; padding: 24px 0; text-align:center; }
+
+  .nq-cta-wrap{ position:sticky; bottom:0; padding: 18px 0 6px; background: linear-gradient(to top, var(--bg) 60%, transparent); margin-top:8px; }
+  /* En móvil la barra de navegación va fija abajo: el botón se queda justo encima */
+  @media (max-width:640px){ .nq-cta-wrap{ bottom: calc(82px + env(safe-area-inset-bottom, 0px)); } }
+  .nq-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; border:none; border-radius:999px; padding:14px 22px; font-family: var(--sans); font-size:14.5px; font-weight:700; cursor:pointer; background: var(--blue); color:#fff; transition: filter .15s, transform .1s; }
+  .nq-btn:hover{ filter: brightness(1.08); }
+  .nq-btn:active{ transform: scale(.98); }
+  .nq-btn.block{ width:100%; }
+  .nq-btn.ghost{ background: var(--card); color: var(--text); border:1px solid var(--line); }
+  .nq-btn.danger{ background:#C62839; }
+  .nq-btn:disabled{ opacity:.45; cursor:default; }
+
+  /* ---------- Pantalla completa de estudio ---------- */
+  .nq-study{ position:fixed; inset:0; z-index:50; background: var(--bg); overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .nq-si{ max-width:860px; margin:0 auto; min-height:100%; display:flex; flex-direction:column; padding: calc(env(safe-area-inset-top, 0px) + 12px) 18px calc(env(safe-area-inset-bottom, 0px) + 22px); }
+  .nq-sh{ display:grid; grid-template-columns: 40px 1fr 40px; align-items:center; min-height:44px; }
+  .nq-sh-title{ text-align:center; font-size:15px; font-weight:700; }
+  .nq-sh .nq-ib{ width:40px; height:40px; background: var(--card); }
+  .nq-sh .nq-ib svg{ width:20px; height:20px; }
+
+  .nq-pbar{ height:4px; background: var(--line); border-radius:4px; overflow:hidden; margin: 10px 0 16px; }
+  .nq-pbar i{ display:block; height:100%; background: var(--blue); transition: width .3s; }
+
+  .nq-fc-counts{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; font-size:12.5px; font-weight:600; }
+  .nq-fc-counts span{ display:inline-flex; align-items:center; gap:8px; }
+  .nq-pill{ min-width:30px; height:26px; padding:0 8px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; border:1.5px solid; }
+  .nq-pill.orange{ color: var(--orange); border-color: var(--orange); background: color-mix(in srgb, var(--orange) 12%, transparent); }
+  .nq-pill.green{ color: var(--green); border-color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
+  .nq-c-orange{ color: var(--orange); }
+  .nq-c-green{ color: var(--green); }
+
+  .nq-fc-stage{ perspective:1600px; height: min(58vh, 540px); min-height:280px; }
+  .nq-fc-card{ position:relative; width:100%; height:100%; touch-action: pan-y; cursor:pointer; user-select:none; -webkit-user-select:none; }
+  .nq-fc-card.dragging{ cursor:grabbing; }
+  .nq-fc-inner{ position:relative; width:100%; height:100%; transition: transform .45s cubic-bezier(.2,.7,.2,1); transform-style:preserve-3d; }
+  .nq-fc-card.flipped .nq-fc-inner{ transform: rotateY(180deg); }
+  .nq-fc-face{ position:absolute; inset:0; -webkit-backface-visibility:hidden; backface-visibility:hidden; background: var(--card); border:1px solid var(--line); border-radius:20px; display:flex; align-items:center; justify-content:center; text-align:center; padding: 64px 30px; font-size: clamp(22px, 4.2vw, 38px); line-height:1.25; overflow:hidden; transition: box-shadow .15s, border-color .15s; }
+  .nq-fc-back{ transform: rotateY(180deg); }
+  .nq-fc-tools{ position:absolute; top:12px; left:12px; right:12px; display:flex; justify-content:space-between; }
+  .nq-fc-side{ position:absolute; bottom:16px; left:0; right:0; text-align:center; font-size:11.5px; color: var(--muted-2); font-weight:600; letter-spacing:.3px; text-transform:uppercase; }
+  .nq-fc-card[data-tint="know"] .nq-fc-face{ border-color: var(--green); box-shadow: inset 0 0 0 2px var(--green); }
+  .nq-fc-card[data-tint="learn"] .nq-fc-face{ border-color: var(--orange); box-shadow: inset 0 0 0 2px var(--orange); }
+  .nq-fc-controls{ display:flex; align-items:center; justify-content:space-between; margin-top:18px; }
+  .nq-fc-mid{ display:flex; gap:18px; }
+  .nq-round{ width:58px; height:58px; border-radius:50%; background: var(--card); border:1.5px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .nq-round svg{ width:24px; height:24px; }
+  .nq-round.x{ color: var(--orange); }
+  .nq-round.x:hover{ border-color: var(--orange); }
+  .nq-round.ok{ color: var(--green); }
+  .nq-round.ok:hover{ border-color: var(--green); }
+  .nq-hint{ text-align:center; font-size:12px; color: var(--muted-2); margin-top:14px; }
+
+  /* Aprender */
+  .nq-lprog{ display:flex; align-items:center; gap:8px; margin: 12px 0 8px; }
+  .nq-lprog .nq-pbar{ flex:1; margin:0; height:6px; }
+  .nq-lprog .nq-pbar i{ background: var(--green); }
+  .nq-num{ min-width:30px; height:30px; padding:0 6px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; background: var(--card-hi); color: var(--muted); }
+  .nq-num.green{ background: var(--green); color:#062b1d; }
+  .nq-num.orange{ background: var(--orange); color:#2b1204; }
+  .nq-q{ flex:1; display:flex; flex-direction:column; justify-content:center; padding: 24px 0 8px; }
+  .nq-q-tag{ align-self:flex-start; font-size:11px; font-weight:700; color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent); border-radius:999px; padding:3px 9px; margin-bottom:10px; }
+  .nq-q-lbl{ font-size:11.5px; font-weight:700; color: var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-bottom:8px; }
+  .nq-q-prompt{ font-size: clamp(19px, 3vw, 26px); line-height:1.35; min-height: 18vh; }
+  .nq-q-msg{ font-size:13px; font-weight:700; margin: 18px 0 10px; color: var(--muted); }
+  .nq-q-msg.ok{ color: var(--green); }
+  .nq-q-msg.bad{ color: var(--orange); }
+  .nq-opts{ display:flex; flex-direction:column; gap:10px; }
+  .nq-opt{ display:flex; align-items:center; gap:12px; width:100%; text-align:left; background: var(--bg); border:1.5px solid var(--line); border-radius:12px; padding:15px 16px; font-family: var(--sans); font-size:15px; color: var(--text); cursor:pointer; transition: border-color .15s, background .15s, opacity .15s; }
+  .nq-opt:hover:not(:disabled){ border-color: var(--muted-2); background: var(--card); }
+  .nq-opt:disabled{ cursor:default; }
+  .nq-opt .k{ width:24px; height:24px; border-radius:6px; background: var(--card-hi); color: var(--muted); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .nq-opt svg{ width:20px; height:20px; flex-shrink:0; }
+  .nq-opt.correct{ border-color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
+  .nq-opt.correct svg{ color: var(--green); }
+  .nq-opt.reveal{ border:2px dashed var(--green); }
+  .nq-opt.reveal svg{ color: var(--green); }
+  .nq-opt.wrong{ border-color: var(--orange); background: color-mix(in srgb, var(--orange) 8%, transparent); }
+  .nq-opt.wrong svg{ color: var(--orange); }
+  .nq-opt.dim{ opacity:.45; }
+  .nq-opt.sel{ border-color: var(--blue); background: color-mix(in srgb, var(--blue) 10%, transparent); }
+  .nq-q-foot{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:16px; min-height:48px; }
+  .nq-link{ background:none; border:none; color: var(--blue); font-family: var(--sans); font-size:13.5px; font-weight:600; cursor:pointer; padding:8px 0; }
+  .nq-input{ width:100%; background: var(--card); border:1.5px solid var(--line); border-radius:12px; padding:15px 16px; color: var(--text); font-family: var(--sans); font-size:16px; }
+  .nq-input:focus{ outline:none; border-color: var(--blue); }
+  .nq-answer-box{ border-radius:12px; padding:13px 16px; font-size:15px; margin-top:10px; }
+  .nq-answer-box.bad{ border:1.5px solid var(--orange); }
+  .nq-answer-box.good{ border:2px dashed var(--green); }
+  .nq-answer-box small{ display:block; font-size:11px; font-weight:700; color: var(--muted); text-transform:uppercase; letter-spacing:.3px; margin-bottom:4px; }
+
+  /* Resúmenes */
+  .nq-sum{ flex:1; display:flex; flex-direction:column; justify-content:center; padding: 24px 0; }
+  .nq-sum-emoji{ font-size:44px; margin-bottom:10px; }
+  .nq-sum-title{ font-family: var(--title); font-weight:400; font-size:30px; letter-spacing:.3px; margin-bottom:8px; }
+  .nq-sum-sub{ color: var(--muted); font-size:14px; margin-bottom:22px; line-height:1.5; }
+  .nq-sum-stats{ display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; margin-bottom:22px; }
+  .nq-stat{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; }
+  .nq-stat b{ display:block; font-size:24px; }
+  .nq-stat span{ font-size:12.5px; color: var(--muted); }
+  .nq-sum-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:22px; }
+  .nq-sum-row{ display:flex; gap:12px; align-items:flex-start; background: var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:13.5px; line-height:1.4; }
+  .nq-sum-row svg{ width:18px; height:18px; flex-shrink:0; margin-top:1px; }
+  .nq-sum-row .d{ color: var(--muted); margin-top:3px; }
+  .nq-sum-actions{ display:flex; flex-direction:column; gap:10px; }
+
+  /* Probar */
+  .nq-test-q{ background: var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px; }
+  .nq-test-head{ display:flex; justify-content:space-between; font-size:12px; color: var(--muted); font-weight:600; margin-bottom:12px; }
+  .nq-test-prompt{ font-size:17px; line-height:1.4; margin-bottom:14px; }
+  .nq-test-tf-def{ font-size:15px; line-height:1.4; padding:12px 14px; border-radius:10px; background: var(--bg); border:1px solid var(--line); margin-bottom:14px; }
+  .nq-tf{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  .nq-test-q .nq-opt{ background: var(--bg); }
+  .nq-cfg-row{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--line-soft); font-size:14.5px; }
+  .nq-score{ display:flex; align-items:center; gap:18px; margin-bottom:22px; }
+  .nq-score svg{ width:96px; height:96px; flex-shrink:0; }
+  .nq-score svg text{ font-family: var(--sans); font-size:20px; font-weight:800; fill: var(--text); }
+
+  /* Combinar */
+  .nq-match-time{ text-align:center; font-family: var(--mono); font-size:15px; color: var(--muted); margin: 8px 0 16px; }
+  .nq-match{ display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; }
+  .nq-tile{ min-height:110px; background: var(--card); border:1.5px solid var(--line); border-radius:14px; padding:12px; font-family: var(--sans); font-size:13.5px; line-height:1.35; color: var(--text); cursor:pointer; display:flex; align-items:center; justify-content:center; text-align:center; transition: border-color .15s, background .15s, opacity .3s, transform .3s; }
+  .nq-tile:hover{ border-color: var(--muted-2); }
+  .nq-tile.sel{ border-color: var(--blue); background: color-mix(in srgb, var(--blue) 12%, transparent); }
+  .nq-tile.bad{ border-color: #E5484D; background: color-mix(in srgb, #E5484D 12%, transparent); animation: nq-shake .35s; }
+  .nq-tile.good{ border-color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+  .nq-tile.gone{ opacity:0; transform: scale(.9); pointer-events:none; }
+  @keyframes nq-shake{ 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+  @media (max-width:560px){ .nq-match{ grid-template-columns: repeat(2, 1fr); } .nq-tile{ min-height:92px; font-size:12.5px; } }
+
+  /* Hoja inferior (ajustes / confirmar salida) */
+  .nq-sheet-bg{ position:fixed; inset:0; z-index:55; background: rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:18px; }
+  .nq-sheet{ width:100%; max-width:440px; background: var(--card); border:1px solid var(--line); border-radius:22px; padding:12px 20px 20px; }
+  .nq-sheet-grip{ width:40px; height:4px; border-radius:4px; background: var(--line); margin: 0 auto 14px; }
+  .nq-sheet h3{ font-size:17px; font-weight:800; margin-bottom:8px; }
+  .nq-sheet p{ font-size:13.5px; color: var(--muted); line-height:1.5; margin-bottom:18px; }
+  .nq-sheet .nq-sum-actions{ margin-top:6px; }
+  .nq-toggle{ position:relative; width:44px; height:26px; flex-shrink:0; }
+  .nq-toggle input{ opacity:0; width:0; height:0; position:absolute; }
+  .nq-toggle span{ position:absolute; inset:0; border-radius:999px; background: var(--line); transition: background .2s; cursor:pointer; }
+  .nq-toggle span::after{ content:''; position:absolute; left:3px; top:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition: transform .2s; }
+  .nq-toggle input:checked + span{ background: var(--blue); }
+  .nq-toggle input:checked + span::after{ transform: translateX(18px); }
+</style>
 </head>
 <body>
 <div id="appSplash">
@@ -1785,8 +2006,10 @@
 
     <!-- ===== NORMATIVAS SCREEN ===== -->
     <section class="screen" id="screen-normativas">
-      <h1>Normativas</h1>
-      <div class="empty">Aquí aparecerán las normativas disponibles.</div>
+      <div id="nqRoot"><h1>Normativas</h1></div>
+      <!-- Pantalla completa de los modos de estudio (Fichas, Aprender, Probar, Combinar).
+           Va dentro de la sección para que se oculte sola al cambiar de pantalla. -->
+      <div class="nq-study hidden" id="nqStudy" role="dialog" aria-modal="true"></div>
     </section>
 
     <!-- ===== CAMBIOS BOE SCREEN (accesible desde Tu cuenta) ===== -->
@@ -8569,6 +8792,899 @@ sb.auth.onAuthStateChange((event, session) => {
     onLoggedOut();
   }
 });
+</script>
+<script>
+/* ============================================================
+   NORMATIVAS · Fichas estilo Quizlet
+   Unidades de términos (término → normativa) con los modos Fichas,
+   Aprender, Probar y Combinar. El avance de cada término se guarda en
+   localStorage (no hace falta estar conectado para estudiar).
+   Para añadir una unidad nueva basta con añadirla a NQ_SETS.
+   ============================================================ */
+const NQ_SETS = [
+  {
+    id: 'forestales',
+    title: 'Forestales',
+    terms: [
+      ['Plan de emergencias por incendios forestales de Andalucía (Plan INFOCA)', 'RD 371/2010 del 14 de septiembre'],
+      ['Directriz básica de planificaciones contra incendios forestales', 'RD 893/2013 del 15 de noviembre'],
+      ['Normativa para traje para rescate técnico', 'UNE EN 16689'],
+      ['Normativa para cascos de rescate técnico', 'UNE EN 16473'],
+      ['Normativa para cascos para industrias', 'UNE EN 397'],
+      ['Normativa para cascos de bomberos', 'UNE EN 443'],
+      ['Normativa de botas de los bomberos', 'UNE EN 15090'],
+      ['Normativa de los trajes forestales', 'UNE EN ISO 15384'],
+      ['Normativa de los cascos forestales', 'UNE EN 16471'],
+      ['Normativa de las motobombas portátiles', 'UNE EN 14466']
+    ]
+  }
+];
+
+const NQ = (function(){
+  const STORE_KEY = 'nq_progress_v1';
+  const ROUND_SIZE = 7;
+  let db = {};
+  try{ db = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }catch(e){ db = {}; }
+  function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); }catch(e){} }
+
+  let view = { name: 'library' };   // library | set
+  let study = null;                 // estado del modo de estudio abierto
+  let matchTimer = null;
+
+  /* ---------- utilidades ---------- */
+  const $root = () => document.getElementById('nqRoot');
+  const $ov = () => document.getElementById('nqStudy');
+  function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function shuffle(a){ a = a.slice(); for(let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function getSet(id){ return NQ_SETS.find(s => s.id === id); }
+  function norm(s){ return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function speak(text){
+    if(!('speechSynthesis' in window)) return;
+    try{
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'es-ES';
+      speechSynthesis.speak(u);
+    }catch(e){}
+  }
+
+  const I = {
+    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    chev: '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
+    speaker: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>',
+    star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+    expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+    undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
+    shuffle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>',
+    cards: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="14" height="14" rx="2"/><path d="M7 6V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"/></svg>',
+    mFichas: '<svg viewBox="0 0 24 24"><rect x="6" y="3" width="15" height="13" rx="2.5" fill="#7FB3FF"/><rect x="3" y="7" width="15" height="13" rx="2.5" fill="#4255FF"/></svg>',
+    mAprender: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.6" stroke-linecap="round"><path d="M12 3a9 9 0 0 1 9 9" stroke="#4255FF"/><path d="M21 12a9 9 0 0 1-9 9" stroke="#98E3FF" stroke-dasharray="2 3.2"/><path d="M12 21a9 9 0 0 1-9-9" stroke="#4255FF" stroke-dasharray="2 3.2"/><path d="M3 12a9 9 0 0 1 9-9" stroke="#98E3FF"/></svg>',
+    mProbar: '<svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#4255FF"/><path d="M15 2v5h5" fill="#98B8FF"/><rect x="7.5" y="11" width="9" height="1.8" rx=".9" fill="#fff"/><rect x="7.5" y="15" width="6" height="1.8" rx=".9" fill="#fff"/></svg>',
+    mCombinar: '<svg viewBox="0 0 24 24"><rect x="2" y="3" width="15" height="10" rx="2.5" fill="#4255FF"/><rect x="7" y="11" width="15" height="10" rx="2.5" fill="#2FBFAE"/><rect x="5" y="6.5" width="7" height="1.8" rx=".9" fill="#fff"/><rect x="10" y="14.5" width="8" height="1.8" rx=".9" fill="#fff"/></svg>'
+  };
+
+  /* ---------- avance guardado ---------- */
+  function sp(set){
+    if(!db[set.id]) db[set.id] = {};
+    const p = db[set.id];
+    if(!p.t) p.t = {};
+    if(!p.stars) p.stars = [];
+    if(!p.opt) p.opt = {};
+    p.opt = Object.assign({ shuffle: false, starred: false, answerWith: 'def', written: false, fcFront: 'term', testN: 0, testTF: true }, p.opt);
+    return p;
+  }
+  function tstate(set, i){ return Object.assign({ s: 0, seen: false }, sp(set).t[i]); }
+  function setT(set, i, patch){ const p = sp(set); p.t[i] = Object.assign(tstate(set, i), patch); save(); }
+  function status(set, i){ const t = tstate(set, i); if(!t.seen) return 'new'; return t.s >= 2 ? 'mastered' : 'learning'; }
+  function isStar(set, i){ return sp(set).stars.includes(i); }
+  function toggleStar(set, i){
+    const p = sp(set);
+    p.stars = p.stars.includes(i) ? p.stars.filter(x => x !== i) : p.stars.concat(i);
+    save();
+  }
+  function counts(set){
+    const c = { new: 0, learning: 0, mastered: 0 };
+    set.terms.forEach((_, i) => c[status(set, i)]++);
+    return c;
+  }
+  function opts(set){ return sp(set).opt; }
+  function pool(set){
+    const all = set.terms.map((_, i) => i);
+    if(opts(set).starred){
+      const st = all.filter(i => isStar(set, i));
+      if(st.length) return st;
+    }
+    return all;
+  }
+  function qa(set, i){
+    const [t, d] = set.terms[i];
+    return opts(set).answerWith === 'term' ? { prompt: d, answer: t } : { prompt: t, answer: d };
+  }
+  function makeChoices(set, i){
+    const correct = qa(set, i).answer;
+    const others = shuffle(set.terms.map((_, j) => j).filter(j => j !== i))
+      .map(j => qa(set, j).answer)
+      .filter((a, k, arr) => a !== correct && arr.indexOf(a) === k)
+      .slice(0, 3);
+    return shuffle([correct].concat(others));
+  }
+  function ring(count, total, color, zero){
+    const r = 17, c = 2 * Math.PI * r, f = total ? count / total : 0;
+    return '<svg class="nq-ring" viewBox="0 0 44 44"><circle cx="22" cy="22" r="' + r + '" fill="none" stroke="var(--line)" stroke-width="4"/>' +
+      (f > 0 ? '<circle cx="22" cy="22" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="4" stroke-linecap="round" stroke-dasharray="' + (c * f).toFixed(2) + ' ' + c.toFixed(2) + '" transform="rotate(-90 22 22)"/>' : '') +
+      '<text x="22" y="26.5" text-anchor="middle"' + (zero ? ' style="fill:var(--muted-2)"' : '') + '>' + count + '</text></svg>';
+  }
+
+  /* ============================================================
+     BIBLIOTECA Y UNIDAD
+     ============================================================ */
+  function render(){
+    const root = $root();
+    if(!root) return;
+    const set = view.name === 'set' ? getSet(view.setId) : null;
+    root.innerHTML = set ? renderSet(set) : renderLibrary();
+    if(set) bindCarousel();
+  }
+
+  function renderLibrary(){
+    return '<h1>Normativas</h1>' +
+      '<div class="nq-lib-sub">Tus unidades</div>' +
+      '<div class="nq-lib-list">' + NQ_SETS.map(set => {
+        const c = counts(set), n = set.terms.length;
+        return '<button class="nq-lib-item" data-act="open-set" data-set="' + set.id + '">' +
+          '<span class="nq-lib-ico">' + I.cards + '</span>' +
+          '<span class="nq-lib-main"><div class="nq-lib-name">' + esc(set.title) + '</div>' +
+          '<div class="nq-lib-meta">Unidad · ' + n + ' términos · ' + c.mastered + ' dominados</div>' +
+          '<div class="nq-lib-bar"><i style="width:' + (c.mastered / n * 100) + '%;background:var(--green)"></i><i style="width:' + (c.learning / n * 100) + '%;background:var(--orange)"></i></div></span>' +
+          I.chev.replace('class="chev"', '') + '</button>';
+      }).join('') + '</div>';
+  }
+
+  function renderSet(set){
+    const n = set.terms.length, c = counts(set);
+    const sort = view.sort || 'original';
+    let idxs = set.terms.map((_, i) => i);
+    if(view.filter) idxs = idxs.filter(i => status(set, i) === view.filter);
+    if(sort === 'alpha') idxs.sort((a, b) => set.terms[a][0].localeCompare(set.terms[b][0], 'es'));
+    if(sort === 'starred') idxs = idxs.filter(i => isStar(set, i));
+    const filterNames = { new: 'No estudiados', learning: 'En progreso', mastered: 'Dominados' };
+
+    const carousel = '<div class="nq-carousel" id="nqCarousel">' + set.terms.map(([t, d], i) =>
+      '<div class="nq-ccard" data-act="flip-c"><div class="nq-ccard-inner">' +
+        '<div class="nq-ccard-face">' + esc(t) + '<button class="nq-ccard-exp" data-act="fc-at" data-i="' + i + '" title="Pantalla completa">' + I.expand + '</button></div>' +
+        '<div class="nq-ccard-face nq-ccard-back">' + esc(d) + '<button class="nq-ccard-exp" data-act="fc-at" data-i="' + i + '" title="Pantalla completa">' + I.expand + '</button></div>' +
+      '</div></div>').join('') + '</div>' +
+      '<div class="nq-dots" id="nqDots">' + set.terms.map((_, i) => '<i' + (i === 0 ? ' class="on"' : '') + '></i>').join('') + '</div>';
+
+    const modes = '<div class="nq-modes">' +
+      '<button class="nq-mode" data-act="study" data-mode="fc">' + I.mFichas + 'Fichas</button>' +
+      '<button class="nq-mode" data-act="study" data-mode="learn">' + I.mAprender + 'Aprender</button>' +
+      '<button class="nq-mode" data-act="study" data-mode="test">' + I.mProbar + 'Probar</button>' +
+      '<button class="nq-mode" data-act="study" data-mode="match">' + I.mCombinar + 'Combinar</button>' +
+      '</div>';
+
+    const av = (key, label, color) => {
+      const k = c[key];
+      return '<button class="nq-av' + (k === 0 ? ' zero' : '') + (view.filter === key ? ' sel' : '') + '" data-act="filter" data-f="' + key + '">' +
+        ring(k, n, color, k === 0) + '<span class="lbl">' + label + '</span>' + I.chev + '</button>';
+    };
+    const avance = '<div class="nq-sec"><div class="nq-sec-title">Tu avance</div>' +
+      (c.new < n ? '<button class="nq-sec-link" data-act="reset">Reiniciar avance</button>' : '') + '</div>' +
+      '<div class="nq-avance">' + av('new', 'No estudiados', 'var(--blue)') + av('learning', 'En progreso', 'var(--orange)') + av('mastered', 'Dominados', 'var(--green)') + '</div>';
+
+    const terms = '<div class="nq-sec" id="nqTermsHead"><div class="nq-sec-title">Términos</div>' +
+      '<select class="nq-select" data-change="sort" aria-label="Ordenar términos">' +
+        '<option value="original"' + (sort === 'original' ? ' selected' : '') + '>Original</option>' +
+        '<option value="alpha"' + (sort === 'alpha' ? ' selected' : '') + '>Alfabético</option>' +
+        '<option value="starred"' + (sort === 'starred' ? ' selected' : '') + '>Destacados</option>' +
+      '</select></div>' +
+      (view.filter ? '<button class="nq-filter-chip" data-act="filter" data-f="' + view.filter + '">Mostrando: ' + filterNames[view.filter] + ' ✕</button>' : '') +
+      '<div class="nq-terms">' + (idxs.length ? idxs.map(i => {
+        const [t, d] = set.terms[i];
+        return '<div class="nq-term"><div class="nq-term-main"><div class="nq-term-t">' + esc(t) + '</div><div class="nq-term-d">' + esc(d) + '</div></div>' +
+          '<div class="nq-term-tools"><button class="nq-ib" data-act="speak" data-i="' + i + '" title="Escuchar">' + I.speaker + '</button>' +
+          '<button class="nq-ib' + (isStar(set, i) ? ' star-on' : '') + '" data-act="star" data-i="' + i + '" title="Destacar">' + I.star + '</button></div></div>';
+      }).join('') : '<div class="nq-empty-terms">' + (sort === 'starred' ? 'Aún no has destacado ningún término. Pulsa la estrella de un término para destacarlo.' : 'No hay términos en esta categoría.') + '</div>') + '</div>';
+
+    return '<button class="nq-back" data-act="library">' + I.back + 'Normativas</button>' +
+      carousel +
+      '<div class="nq-set-title">' + esc(set.title) + '</div>' +
+      '<div class="nq-set-meta"><span>Normativas</span><span class="sep"></span><span>' + n + ' términos</span></div>' +
+      modes + avance + terms +
+      '<div class="nq-cta-wrap"><button class="nq-btn block" data-act="study" data-mode="learn">Estudiar esta unidad</button></div>';
+  }
+
+  function bindCarousel(){
+    const car = document.getElementById('nqCarousel');
+    const dots = document.getElementById('nqDots');
+    if(!car || !dots) return;
+    car.addEventListener('scroll', () => {
+      const w = car.firstElementChild ? car.firstElementChild.offsetWidth + 14 : 1;
+      const k = Math.round(car.scrollLeft / w);
+      [...dots.children].forEach((d, i) => d.classList.toggle('on', i === k));
+    }, { passive: true });
+  }
+
+  /* ============================================================
+     MODOS DE ESTUDIO (pantalla completa)
+     ============================================================ */
+  function openStudy(mode, set, extra){
+    stopMatchTimer();
+    if(mode === 'fc') study = fcInit(set, extra && extra.start);
+    else if(mode === 'learn') study = lnInit(set);
+    else if(mode === 'test') study = { mode: 'test', set, phase: 'config' };
+    else if(mode === 'match') study = mtInit(set);
+    $ov().classList.remove('hidden');
+    $ov().scrollTop = 0;
+    renderStudy();
+  }
+  function closeStudy(){
+    stopMatchTimer();
+    if('speechSynthesis' in window){ try{ speechSynthesis.cancel(); }catch(e){} }
+    study = null;
+    $ov().classList.add('hidden');
+    $ov().innerHTML = '';
+    render();
+  }
+  function restartStudy(){ if(study) openStudy(study.mode, study.set); }
+  function wantsExitConfirm(){
+    if(!study) return false;
+    if(study.mode === 'learn') return study.answeredCount > 0 && !study.finished;
+    if(study.mode === 'test') return study.phase === 'doing' && Object.keys(study.ans).length > 0;
+    return false;
+  }
+  function tryClose(){
+    if(wantsExitConfirm()){ study.sheet = 'confirm'; renderStudy(); }
+    else closeStudy();
+  }
+
+  function studyHeader(title, withGear){
+    return '<div class="nq-sh"><button class="nq-ib" data-act="close" title="Cerrar">' + I.close + '</button>' +
+      '<div class="nq-sh-title">' + title + '</div>' +
+      (withGear ? '<button class="nq-ib" data-act="settings" title="Opciones">' + I.gear + '</button>' : '<span></span>') + '</div>';
+  }
+
+  function renderStudy(){
+    const ov = $ov();
+    if(!study){ ov.innerHTML = ''; return; }
+    let html = '';
+    if(study.mode === 'fc') html = renderFc();
+    else if(study.mode === 'learn') html = renderLearn();
+    else if(study.mode === 'test') html = renderTest();
+    else if(study.mode === 'match') html = renderMatch();
+    ov.innerHTML = '<div class="nq-si">' + html + '</div>' + renderSheet();
+    if(study.mode === 'fc') bindFcDrag();
+    const inp = ov.querySelector('#nqWritten');
+    if(inp) setTimeout(() => inp.focus(), 30);
+  }
+
+  function renderSheet(){
+    if(!study || !study.sheet) return '';
+    if(study.sheet === 'confirm'){
+      const name = study.mode === 'learn' ? 'Aprender' : 'Probar';
+      const msg = study.mode === 'learn'
+        ? 'Tu avance en los términos que ya has respondido se ha guardado. Podrás seguir donde lo dejaste.'
+        : 'No se guardarán las respuestas de esta prueba.';
+      return '<div class="nq-sheet-bg" data-act="sheet-bg"><div class="nq-sheet"><div class="nq-sheet-grip"></div>' +
+        '<h3>Confirma si quieres salir del modo ' + name + '</h3><p>' + msg + '</p>' +
+        '<div class="nq-sum-actions"><button class="nq-btn danger block" data-act="close-force">Salir</button>' +
+        '<button class="nq-btn ghost block" data-act="sheet-close">Cancelar</button></div></div></div>';
+    }
+    const o = opts(study.set);
+    const hasStars = sp(study.set).stars.length > 0;
+    const tog = (key, label, on, disabled) => '<div class="nq-cfg-row"><span>' + label + '</span><label class="nq-toggle"><input type="checkbox" data-opt="' + key + '"' + (on ? ' checked' : '') + (disabled ? ' disabled' : '') + '><span></span></label></div>';
+    let rows = tog('shuffle', 'Mezclar términos', o.shuffle) +
+      tog('starred', 'Estudiar solo destacados' + (hasStars ? '' : ' <small style="color:var(--muted-2)">(no hay)</small>'), o.starred && hasStars, !hasStars);
+    if(study.mode === 'fc'){
+      rows += '<div class="nq-cfg-row"><span>Mostrar primero</span><select class="nq-select" data-opt="fcFront"><option value="term"' + (o.fcFront === 'term' ? ' selected' : '') + '>Término</option><option value="def"' + (o.fcFront === 'def' ? ' selected' : '') + '>Normativa</option></select></div>';
+    } else {
+      rows += '<div class="nq-cfg-row"><span>Responder con</span><select class="nq-select" data-opt="answerWith"><option value="def"' + (o.answerWith === 'def' ? ' selected' : '') + '>Normativa</option><option value="term"' + (o.answerWith === 'term' ? ' selected' : '') + '>Término</option></select></div>';
+      if(study.mode === 'learn') rows += tog('written', 'Preguntas escritas (2ª vuelta)', o.written);
+    }
+    return '<div class="nq-sheet-bg" data-act="sheet-bg"><div class="nq-sheet"><div class="nq-sheet-grip"></div><h3>Opciones</h3>' +
+      '<p>Al cambiar una opción se reinicia la sesión actual.</p>' + rows +
+      '<div class="nq-sum-actions" style="margin-top:18px"><button class="nq-btn block" data-act="sheet-close">Listo</button></div></div></div>';
+  }
+
+  /* ---------- FICHAS ---------- */
+  function fcInit(set, start){
+    let order = pool(set);
+    if(opts(set).shuffle) order = shuffle(order);
+    if(start != null){
+      const k = order.indexOf(start);
+      if(k > 0) order = order.slice(k).concat(order.slice(0, k));
+    }
+    return { mode: 'fc', set, order, pos: 0, flipped: false, known: [], learning: [], hist: [], done: false };
+  }
+  function renderFc(){
+    const st = study, set = st.set, n = st.order.length;
+    if(st.done){
+      const k = st.known.length, l = st.learning.length;
+      return studyHeader('Fichas', true) +
+        '<div class="nq-sum">' +
+          '<div class="nq-sum-emoji">' + (l === 0 ? '🏆' : '💪') + '</div>' +
+          '<div class="nq-sum-title">' + (l === 0 ? '¡Te las sabes todas!' : '¡Buen trabajo!') + '</div>' +
+          '<div class="nq-sum-sub">Has repasado las ' + n + ' fichas. ' + (l ? 'Sigue practicando las que aún tienes en progreso.' : 'Pasa a Aprender para dominarlas del todo.') + '</div>' +
+          '<div class="nq-sum-stats"><div class="nq-stat"><b class="nq-c-green">' + k + '</b><span>Conocidas</span></div><div class="nq-stat"><b class="nq-c-orange">' + l + '</b><span>En progreso</span></div></div>' +
+          '<div class="nq-sum-actions">' +
+            (l ? '<button class="nq-btn block" data-act="fc-again-learning">Repasar las ' + l + ' en progreso</button>' : '<button class="nq-btn block" data-act="goto-learn">Ir a Aprender</button>') +
+            '<button class="nq-btn ghost block" data-act="restart">Reiniciar fichas</button>' +
+            '<button class="nq-btn ghost block" data-act="fc-undo">' + 'Volver a la última ficha' + '</button>' +
+          '</div></div>';
+    }
+    const i = st.order[st.pos];
+    const [t, d] = set.terms[i];
+    const defFirst = opts(set).fcFront === 'def';
+    const front = defFirst ? d : t, back = defFirst ? t : d;
+    const tools = '<div class="nq-fc-tools"><button class="nq-ib" data-act="speak-fc" title="Escuchar">' + I.speaker + '</button>' +
+      '<button class="nq-ib' + (isStar(set, i) ? ' star-on' : '') + '" data-act="star" data-i="' + i + '" title="Destacar">' + I.star + '</button></div>';
+    return studyHeader((st.pos + 1) + ' / ' + n, true) +
+      '<div class="nq-pbar"><i style="width:' + (st.pos / n * 100) + '%"></i></div>' +
+      '<div class="nq-fc-counts"><span class="nq-c-orange"><span class="nq-pill orange">' + st.learning.length + '</span>En progreso</span>' +
+        '<span class="nq-c-green">Conocida<span class="nq-pill green">' + st.known.length + '</span></span></div>' +
+      '<div class="nq-fc-stage"><div class="nq-fc-card' + (st.flipped ? ' flipped' : '') + '" id="nqFcCard"><div class="nq-fc-inner">' +
+        '<div class="nq-fc-face">' + tools + '<div>' + esc(front) + '</div><div class="nq-fc-side">' + (defFirst ? 'Normativa' : 'Término') + '</div></div>' +
+        '<div class="nq-fc-face nq-fc-back">' + tools + '<div>' + esc(back) + '</div><div class="nq-fc-side">' + (defFirst ? 'Término' : 'Normativa') + '</div></div>' +
+      '</div></div></div>' +
+      '<div class="nq-fc-controls">' +
+        '<button class="nq-ib" data-act="fc-undo" title="Deshacer"' + (st.hist.length ? '' : ' disabled style="opacity:.35"') + '>' + I.undo + '</button>' +
+        '<div class="nq-fc-mid"><button class="nq-round x" data-act="fc-mark" data-know="0" title="Aún no me la sé">' + I.x + '</button>' +
+        '<button class="nq-round ok" data-act="fc-mark" data-know="1" title="Me la sé">' + I.check + '</button></div>' +
+        '<button class="nq-ib" data-act="fc-shuffle" title="Mezclar"' + (opts(set).shuffle ? ' style="color:var(--blue)"' : '') + '>' + I.shuffle + '</button>' +
+      '</div>' +
+      '<div class="nq-hint">Toca la ficha para darle la vuelta · desliza → si te la sabes, ← si aún no</div>';
+  }
+  function fcFlip(){
+    if(!study || study.mode !== 'fc' || study.done) return;
+    study.flipped = !study.flipped;
+    const card = document.getElementById('nqFcCard');
+    if(card) card.classList.toggle('flipped', study.flipped);
+  }
+  function fcMark(know){
+    const st = study;
+    if(!st || st.mode !== 'fc' || st.done) return;
+    const i = st.order[st.pos];
+    (know ? st.known : st.learning).push(i);
+    const prev = tstate(st.set, i);
+    st.hist.push({ pos: st.pos, know, prev });
+    setT(st.set, i, { seen: true, s: know ? Math.max(prev.s, 1) : Math.min(prev.s, 1) });
+    st.pos++;
+    st.flipped = false;
+    if(st.pos >= st.order.length) st.done = true;
+    renderStudy();
+  }
+  function fcUndo(){
+    const st = study;
+    if(!st || !st.hist.length) return;
+    const h = st.hist.pop();
+    const i = st.order[h.pos];
+    const list = h.know ? st.known : st.learning;
+    list.splice(list.lastIndexOf(i), 1);
+    sp(st.set).t[i] = h.prev; save();
+    st.pos = h.pos; st.done = false; st.flipped = false;
+    renderStudy();
+  }
+  function bindFcDrag(){
+    const card = document.getElementById('nqFcCard');
+    if(!card) return;
+    let x0 = null, y0 = 0, dx = 0, dragging = false, pid = null;
+    card.addEventListener('pointerdown', e => {
+      if(e.target.closest('button')) return;
+      x0 = e.clientX; y0 = e.clientY; dx = 0; dragging = false; pid = e.pointerId;
+    });
+    card.addEventListener('pointermove', e => {
+      if(x0 === null || e.pointerId !== pid) return;
+      dx = e.clientX - x0;
+      const dy = e.clientY - y0;
+      if(!dragging && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)){
+        dragging = true;
+        try{ card.setPointerCapture(pid); }catch(err){}
+        card.classList.add('dragging');
+      }
+      if(dragging){
+        card.style.transform = 'translateX(' + dx + 'px) rotate(' + (dx / 28) + 'deg)';
+        card.dataset.tint = dx > 70 ? 'know' : dx < -70 ? 'learn' : '';
+      }
+    });
+    const end = e => {
+      if(x0 === null) return;
+      const wasDrag = dragging;
+      x0 = null; dragging = false;
+      card.classList.remove('dragging');
+      if(!wasDrag){ if(e.type === 'pointerup') fcFlip(); return; }
+      if(Math.abs(dx) > 100){
+        const know = dx > 0;
+        card.style.transition = 'transform .22s ease-in, opacity .22s';
+        card.style.transform = 'translateX(' + (know ? 1 : -1) * window.innerWidth + 'px) rotate(' + (know ? 18 : -18) + 'deg)';
+        card.style.opacity = '0';
+        setTimeout(() => fcMark(know), 200);
+      } else {
+        card.style.transition = 'transform .2s';
+        card.style.transform = '';
+        card.dataset.tint = '';
+        setTimeout(() => { card.style.transition = ''; }, 220);
+      }
+    };
+    card.addEventListener('pointerup', end);
+    card.addEventListener('pointercancel', end);
+  }
+
+  /* ---------- APRENDER ---------- */
+  function lnInit(set){
+    let terms = pool(set);
+    if(opts(set).shuffle) terms = shuffle(terms);
+    const level = {};
+    terms.forEach(i => { level[i] = Math.min(2, tstate(set, i).s || 0); });
+    const st = { mode: 'learn', set, terms, level, round: 0, queue: [], roundItems: [], cur: null, answered: null, summary: false, finished: false, answeredCount: 0, qid: 0 };
+    if(terms.every(i => level[i] >= 2)) st.finished = true;
+    else lnNextRound(st);
+    return st;
+  }
+  function lnNextRound(st){
+    const rem = st.terms.filter(i => st.level[i] < 2).sort((a, b) => st.level[a] - st.level[b]).slice(0, ROUND_SIZE);
+    if(!rem.length){ st.finished = true; st.summary = false; return; }
+    st.round++;
+    st.roundItems = rem.slice();
+    st.queue = rem.map(i => ({ i, retry: false }));
+    st.summary = false;
+    lnNextQ(st);
+  }
+  function lnNextQ(st){
+    st.answered = null;
+    st.qid++;
+    if(!st.queue.length){
+      st.cur = null;
+      if(st.terms.every(i => st.level[i] >= 2)) st.finished = true;
+      else st.summary = true;
+      return;
+    }
+    const it = st.queue.shift();
+    const type = (st.level[it.i] >= 1 && opts(st.set).written) ? 'written' : 'mc';
+    const q = qa(st.set, it.i);
+    st.cur = { i: it.i, retry: it.retry, type, prompt: q.prompt, answer: q.answer, choices: type === 'mc' ? makeChoices(st.set, it.i) : null };
+  }
+  function lnAnswer(value){
+    const st = study;
+    if(!st || st.mode !== 'learn' || !st.cur || st.answered) return;
+    const cur = st.cur;
+    let correct;
+    if(value === null) correct = false;
+    else if(cur.type === 'mc') correct = cur.choices[value] === cur.answer;
+    else correct = norm(value) !== '' && norm(value) === norm(cur.answer);
+    lnResolve(correct, value);
+  }
+  function lnResolve(correct, value){
+    const st = study, cur = st.cur;
+    st.answered = { value, correct };
+    st.answeredCount++;
+    if(correct) st.level[cur.i] = Math.min(2, st.level[cur.i] + 1);
+    else st.queue.push({ i: cur.i, retry: true });
+    setT(st.set, cur.i, { seen: true, s: st.level[cur.i] });
+    renderStudy();
+    if(correct){
+      const qid = st.qid;
+      setTimeout(() => { if(study === st && st.qid === qid && st.answered){ lnNextQ(st); renderStudy(); } }, 950);
+    }
+  }
+  function lnOverride(){
+    // En preguntas escritas: "Contar como correcta" si la respuesta era válida con otra redacción.
+    const st = study;
+    if(!st || !st.answered || st.answered.correct) return;
+    const cur = st.cur;
+    // deshacer el fallo y darla por buena
+    const k = st.queue.map(q => q.i).lastIndexOf(cur.i);
+    if(k >= 0) st.queue.splice(k, 1);
+    st.answered = null;
+    st.answeredCount--;
+    lnResolve(true, st.cur.type === 'mc' ? null : '');
+  }
+  function lnContinue(){
+    const st = study;
+    if(!st || st.mode !== 'learn') return;
+    if(st.summary){ lnNextRound(st); }
+    else if(st.answered){ lnNextQ(st); }
+    renderStudy();
+  }
+  function renderLearn(){
+    const st = study, set = st.set;
+    const total = st.terms.length * 2;
+    const done = st.terms.reduce((a, i) => a + st.level[i], 0);
+    const mastered = st.terms.filter(i => st.level[i] >= 2).length;
+    const last = st.answered;
+    const prog = '<div class="nq-lprog"><span class="nq-num ' + (last && !last.correct ? 'orange' : 'green') + '">' + done + '</span>' +
+      '<div class="nq-pbar"><i style="width:' + (done / total * 100) + '%"></i></div><span class="nq-num">' + total + '</span></div>';
+
+    if(st.finished){
+      return studyHeader('Aprender', true) + prog +
+        '<div class="nq-sum"><div class="nq-sum-emoji">🎉</div><div class="nq-sum-title">¡Lo has conseguido!</div>' +
+        '<div class="nq-sum-sub">Has dominado los ' + st.terms.length + ' términos de «' + esc(set.title) + '». Repásalos de vez en cuando para no olvidarlos.</div>' +
+        '<div class="nq-sum-actions"><button class="nq-btn block" data-act="study" data-mode="test">Hacer una prueba</button>' +
+        '<button class="nq-btn ghost block" data-act="learn-reset">Reiniciar Aprender</button>' +
+        '<button class="nq-btn ghost block" data-act="close">Volver a la unidad</button></div></div>';
+    }
+    if(st.summary){
+      return studyHeader('Ronda ' + st.round, true) + prog +
+        '<div class="nq-sum"><div class="nq-sum-title">Ronda ' + st.round + ' completada</div>' +
+        '<div class="nq-sum-sub">Has dominado ' + mastered + ' de ' + st.terms.length + ' términos. ¡Sigue así!</div>' +
+        '<div class="nq-sum-list">' + st.roundItems.map(i => {
+          const ok = st.level[i] >= 2;
+          return '<div class="nq-sum-row"><span class="' + (ok ? 'nq-c-green' : 'nq-c-orange') + '">' + (ok ? I.check : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="8"/></svg>') + '</span>' +
+            '<div><div>' + esc(set.terms[i][0]) + '</div><div class="d">' + esc(set.terms[i][1]) + '</div></div></div>';
+        }).join('') + '</div>' +
+        '<div class="nq-sum-actions"><button class="nq-btn block" data-act="learn-continue">Continuar</button></div></div>';
+    }
+
+    const cur = st.cur;
+    let body = '';
+    let msg = '';
+    if(last) msg = last.correct ? '<div class="nq-q-msg ok">¡Genial!</div>' : '<div class="nq-q-msg bad">¡No hay problema, todavía estás aprendiendo!</div>';
+    if(cur.type === 'mc'){
+      body = (msg || '<div class="nq-q-msg">Selecciona la respuesta</div>') + '<div class="nq-opts">' + cur.choices.map((c, k) => {
+        let cls = '', icon = '<span class="k">' + (k + 1) + '</span>';
+        if(last){
+          const isAns = c === cur.answer;
+          if(k === last.value && last.correct){ cls = 'correct'; icon = I.check; }
+          else if(k === last.value){ cls = 'wrong'; icon = I.x; }
+          else if(isAns && !last.correct){ cls = 'reveal'; icon = I.check; }
+          else cls = 'dim';
+        }
+        return '<button class="nq-opt ' + cls + '" data-act="ln-pick" data-k="' + k + '"' + (last ? ' disabled' : '') + '>' + icon + '<span>' + esc(c) + '</span></button>';
+      }).join('') + '</div>';
+    } else {
+      if(!last){
+        body = '<div class="nq-q-msg">Escribe la respuesta</div>' +
+          '<form data-submit="ln-written" autocomplete="off"><input class="nq-input" id="nqWritten" placeholder="Escribe la respuesta" autocapitalize="off" spellcheck="false"></form>';
+      } else {
+        body = msg + (last.correct
+          ? '<div class="nq-answer-box good"><small>Tu respuesta</small>' + esc(cur.answer) + '</div>'
+          : '<div class="nq-answer-box bad"><small>Tu respuesta</small>' + (last.value ? esc(last.value) : '<i style="color:var(--muted)">Sin respuesta</i>') + '</div>' +
+            '<div class="nq-answer-box good"><small>Respuesta correcta</small>' + esc(cur.answer) + '</div>');
+      }
+    }
+    let foot;
+    if(!last){
+      foot = '<button class="nq-link" data-act="ln-skip">¿No lo sabes?</button>' +
+        (cur.type === 'written' ? '<button class="nq-btn" data-act="ln-written-go">Responder</button>' : '<span></span>');
+    } else if(!last.correct){
+      foot = (cur.type === 'written' && last.value ? '<button class="nq-link" data-act="ln-override">Contar como correcta</button>' : '<span></span>') +
+        '<button class="nq-btn" data-act="learn-continue">Continuar</button>';
+    } else foot = '<span></span>';
+
+    return studyHeader('Ronda ' + st.round, true) + prog +
+      '<div class="nq-q">' +
+        (cur.retry ? '<span class="nq-q-tag">Vuelve a intentarlo</span>' : '') +
+        '<div class="nq-q-lbl">' + (opts(set).answerWith === 'term' ? 'Normativa' : 'Término') + '</div>' +
+        '<div class="nq-q-prompt">' + esc(cur.prompt) + '</div>' +
+        body +
+        '<div class="nq-q-foot">' + foot + '</div>' +
+      '</div>';
+  }
+
+  /* ---------- PROBAR ---------- */
+  function tsStart(){
+    const st = study, set = st.set, o = opts(set);
+    let idxs = shuffle(pool(set));
+    const n = o.testN > 0 ? Math.min(o.testN, idxs.length) : idxs.length;
+    idxs = idxs.slice(0, n);
+    st.questions = idxs.map(i => {
+      const q = qa(set, i);
+      if(o.testTF && Math.random() < 0.35){
+        const truth = Math.random() < 0.5;
+        let shown = q.answer;
+        if(!truth){
+          const alts = makeChoices(set, i).filter(c => c !== q.answer);
+          if(alts.length) shown = alts[0];
+        }
+        return { i, type: 'tf', prompt: q.prompt, shown, answer: shown === q.answer, correctText: q.answer };
+      }
+      return { i, type: 'mc', prompt: q.prompt, choices: makeChoices(set, i), answer: q.answer };
+    });
+    st.ans = {};
+    st.phase = 'doing';
+    renderStudy();
+    $ov().scrollTop = 0;
+  }
+  function tsCorrect(q, a){
+    if(a === undefined) return false;
+    return q.type === 'mc' ? q.choices[a] === q.answer : a === q.answer;
+  }
+  function tsSubmit(){
+    const st = study;
+    st.phase = 'result';
+    st.questions.forEach((q, k) => {
+      const ok = tsCorrect(q, st.ans[k]);
+      const prev = tstate(st.set, q.i);
+      setT(st.set, q.i, { seen: true, s: ok ? Math.max(prev.s, 1) : Math.min(prev.s, 1) });
+    });
+    renderStudy();
+    $ov().scrollTop = 0;
+  }
+  function renderTest(){
+    const st = study, set = st.set, o = opts(set);
+    if(st.phase === 'config'){
+      const n = set.terms.length;
+      const counts = [5, 10, 20].filter(x => x < pool(set).length);
+      return studyHeader('Probar', true) +
+        '<div class="nq-sum"><div class="nq-sum-title">Prepara tu prueba</div>' +
+        '<div class="nq-sum-sub">Pon a prueba lo que sabes de «' + esc(set.title) + '» (' + n + ' términos).</div>' +
+        '<div class="nq-cfg-row"><span>Preguntas</span><select class="nq-select" data-opt="testN">' +
+          counts.map(c => '<option value="' + c + '"' + (o.testN === c ? ' selected' : '') + '>' + c + '</option>').join('') +
+          '<option value="0"' + (!counts.includes(o.testN) ? ' selected' : '') + '>Todas (' + pool(set).length + ')</option></select></div>' +
+        '<div class="nq-cfg-row"><span>Incluir verdadero / falso</span><label class="nq-toggle"><input type="checkbox" data-opt="testTF"' + (o.testTF ? ' checked' : '') + '><span></span></label></div>' +
+        '<div class="nq-sum-actions" style="margin-top:24px"><button class="nq-btn block" data-act="test-start">Empezar prueba</button></div></div>';
+    }
+    const total = st.questions.length;
+    if(st.phase === 'doing'){
+      const answered = Object.keys(st.ans).length;
+      return studyHeader(answered + ' / ' + total, true) +
+        '<div class="nq-pbar"><i style="width:' + (answered / total * 100) + '%"></i></div>' +
+        st.questions.map((q, k) => tsQuestion(q, k, false)).join('') +
+        '<div class="nq-sum-actions" style="margin-top:6px"><button class="nq-btn block" data-act="test-submit">Enviar prueba' + (answered < total ? ' (' + (total - answered) + ' sin responder)' : '') + '</button></div>';
+    }
+    const ok = st.questions.filter((q, k) => tsCorrect(q, st.ans[k])).length;
+    const pct = Math.round(ok / total * 100);
+    const r = 40, c = 2 * Math.PI * r;
+    const col = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--amber)' : 'var(--orange)';
+    return studyHeader('Resultado', false) +
+      '<div class="nq-score"><svg viewBox="0 0 96 96"><circle cx="48" cy="48" r="' + r + '" fill="none" stroke="var(--line)" stroke-width="8"/>' +
+        '<circle cx="48" cy="48" r="' + r + '" fill="none" stroke="' + col + '" stroke-width="8" stroke-linecap="round" stroke-dasharray="' + (c * pct / 100).toFixed(2) + ' ' + c.toFixed(2) + '" transform="rotate(-90 48 48)"/>' +
+        '<text x="48" y="55" text-anchor="middle">' + pct + '%</text></svg>' +
+        '<div><div class="nq-sum-title" style="margin-bottom:4px">' + (pct === 100 ? '¡Perfecto!' : pct >= 80 ? '¡Muy bien!' : pct >= 50 ? 'Vas por buen camino' : 'Sigue practicando') + '</div>' +
+        '<div class="nq-sum-sub" style="margin:0"><span class="nq-c-green">' + ok + ' correctas</span> · <span class="nq-c-orange">' + (total - ok) + ' incorrectas</span></div></div></div>' +
+      '<div class="nq-sum-actions" style="margin-bottom:22px"><button class="nq-btn block" data-act="restart">Nueva prueba</button>' +
+        (ok < total ? '<button class="nq-btn ghost block" data-act="goto-learn">Practicar con Aprender</button>' : '') +
+        '<button class="nq-btn ghost block" data-act="close">Volver a la unidad</button></div>' +
+      st.questions.map((q, k) => tsQuestion(q, k, true)).join('');
+  }
+  function tsQuestion(q, k, review){
+    const st = study, a = st.ans[k], total = st.questions.length;
+    const lbl = opts(st.set).answerWith === 'term' ? 'Normativa' : 'Término';
+    let body;
+    if(q.type === 'mc'){
+      body = '<div class="nq-opts">' + q.choices.map((c, j) => {
+        let cls = '', icon = '<span class="k">' + (j + 1) + '</span>';
+        if(review){
+          if(c === q.answer){ cls = a === j ? 'correct' : 'reveal'; icon = I.check; }
+          else if(a === j){ cls = 'wrong'; icon = I.x; }
+          else cls = 'dim';
+        } else if(a === j) cls = 'sel';
+        return '<button class="nq-opt ' + cls + '" data-act="ts-pick" data-q="' + k + '" data-v="' + j + '"' + (review ? ' disabled' : '') + '>' + icon + '<span>' + esc(c) + '</span></button>';
+      }).join('') + '</div>';
+    } else {
+      const btn = (v, text) => {
+        let cls = '';
+        if(review){
+          if(v === q.answer) cls = a === v ? 'correct' : 'reveal';
+          else if(a === v) cls = 'wrong';
+          else cls = 'dim';
+        } else if(a === v) cls = 'sel';
+        return '<button class="nq-opt ' + cls + '" data-act="ts-pick" data-q="' + k + '" data-v="' + v + '"' + (review ? ' disabled' : '') + ' style="justify-content:center">' + text + '</button>';
+      };
+      body = '<div class="nq-test-tf-def">' + esc(q.shown) + '</div><div class="nq-tf">' + btn(true, 'Verdadero') + btn(false, 'Falso') + '</div>' +
+        (review && !q.answer ? '<div class="nq-answer-box good" style="margin-top:12px"><small>Respuesta correcta</small>' + esc(q.correctText) + '</div>' : '');
+    }
+    const status = review ? (tsCorrect(q, a) ? '<span class="nq-c-green">Correcta</span>' : '<span class="nq-c-orange">' + (a === undefined ? 'Sin responder' : 'Incorrecta') + '</span>') : (q.type === 'tf' ? 'Verdadero o falso' : 'Elige la respuesta');
+    return '<div class="nq-test-q"><div class="nq-test-head"><span>' + lbl + '</span><span>' + status + ' · ' + (k + 1) + ' de ' + total + '</span></div>' +
+      '<div class="nq-test-prompt">' + esc(q.prompt) + '</div>' + body + '</div>';
+  }
+
+  /* ---------- COMBINAR ---------- */
+  function mtInit(set){
+    const idxs = shuffle(pool(set)).slice(0, 6);
+    const tiles = shuffle(idxs.flatMap(i => [{ i, text: set.terms[i][0] }, { i, text: set.terms[i][1] }]));
+    return { mode: 'match', set, tiles, sel: null, gone: [], bad: [], start: 0, end: 0 };
+  }
+  function stopMatchTimer(){ if(matchTimer){ clearInterval(matchTimer); matchTimer = null; } }
+  function mtTime(st){ return ((st.end || Date.now()) - st.start) / 1000; }
+  function renderMatch(){
+    const st = study;
+    if(st.end){
+      const t = mtTime(st);
+      const p = sp(st.set);
+      const best = p.bestMatch;
+      return studyHeader('Combinar', true) +
+        '<div class="nq-sum"><div class="nq-sum-emoji">⚡</div><div class="nq-sum-title">¡' + t.toFixed(1) + ' segundos!</div>' +
+        '<div class="nq-sum-sub">' + (st.newRecord ? '¡Nuevo récord personal!' : 'Tu récord es de ' + best.toFixed(1) + ' s. ¿Puedes batirlo?') + '</div>' +
+        '<div class="nq-sum-actions"><button class="nq-btn block" data-act="restart">Jugar otra vez</button>' +
+        '<button class="nq-btn ghost block" data-act="close">Volver a la unidad</button></div></div>';
+    }
+    return studyHeader('Combinar', true) +
+      '<div class="nq-match-time" id="nqMatchTime">' + (st.start ? mtTime(st).toFixed(1) : '0.0') + ' s</div>' +
+      '<div class="nq-match">' + st.tiles.map((tl, k) =>
+        '<button class="nq-tile' + (st.gone.includes(k) ? ' gone' : '') + (st.sel === k ? ' sel' : '') + (st.bad.includes(k) ? ' bad' : '') + '" data-act="mt-pick" data-k="' + k + '">' + esc(tl.text) + '</button>'
+      ).join('') + '</div>' +
+      '<div class="nq-hint">Une cada término con su normativa lo más rápido que puedas</div>';
+  }
+  function mtPick(k){
+    const st = study;
+    if(!st || st.mode !== 'match' || st.end || st.gone.includes(k)) return;
+    if(!st.start){
+      st.start = Date.now();
+      matchTimer = setInterval(() => {
+        const el = document.getElementById('nqMatchTime');
+        if(el && study === st) el.textContent = mtTime(st).toFixed(1) + ' s';
+      }, 100);
+    }
+    st.bad = [];
+    if(st.sel === null){ st.sel = k; renderStudy(); return; }
+    if(st.sel === k){ st.sel = null; renderStudy(); return; }
+    const a = st.tiles[st.sel], b = st.tiles[k];
+    if(a.i === b.i){
+      st.gone.push(st.sel, k);
+      const i = a.i, prev = tstate(st.set, i);
+      setT(st.set, i, { seen: true, s: Math.max(prev.s, 1) });
+      st.sel = null;
+      if(st.gone.length === st.tiles.length){
+        st.end = Date.now();
+        stopMatchTimer();
+        const p = sp(st.set), t = mtTime(st);
+        st.newRecord = !p.bestMatch || t < p.bestMatch;
+        if(st.newRecord){ p.bestMatch = t; save(); }
+      }
+    } else {
+      st.bad = [st.sel, k];
+      st.sel = null;
+      setTimeout(() => { if(study === st && st.bad.length){ st.bad = []; renderStudy(); } }, 450);
+    }
+    renderStudy();
+  }
+
+  /* ============================================================
+     EVENTOS
+     ============================================================ */
+  function onAction(act, el, e){
+    const set = view.setId ? getSet(view.setId) : null;
+    const sset = study ? study.set : set;
+    const i = el.dataset.i != null ? +el.dataset.i : null;
+    switch(act){
+      case 'open-set': view = { name: 'set', setId: el.dataset.set }; render(); document.getElementById('app').scrollTop = 0; break;
+      case 'library': view = { name: 'library' }; render(); break;
+      case 'flip-c': el.classList.toggle('flipped'); break;
+      case 'fc-at': e.stopPropagation(); openStudy('fc', set, { start: i }); break;
+      case 'study': openStudy(el.dataset.mode, sset); break;
+      case 'filter': {
+        view.filter = view.filter === el.dataset.f ? null : el.dataset.f;
+        render();
+        const h = document.getElementById('nqTermsHead');
+        if(h && view.filter) h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        break;
+      }
+      case 'reset':
+        if(confirm('¿Reiniciar tu avance en esta unidad? Se perderá el progreso de todos los términos.')){
+          sp(set).t = {}; save(); view.filter = null; render();
+        }
+        break;
+      case 'speak': speak(sset.terms[i][0] + '. ' + sset.terms[i][1]); break;
+      case 'star':
+        toggleStar(sset, i);
+        if(study) renderStudy(); else render();
+        break;
+      case 'close': closeStudy(); break;
+      case 'close-force': closeStudy(); break;
+      case 'settings': study.sheet = 'settings'; renderStudy(); break;
+      case 'sheet-close': study.sheet = null; renderStudy(); break;
+      case 'sheet-bg': if(e.target === el){ study.sheet = null; renderStudy(); } break;
+      case 'restart': restartStudy(); break;
+      case 'goto-learn': openStudy('learn', sset); break;
+      case 'speak-fc': {
+        const idx = study.order[study.pos];
+        const defFirst = opts(sset).fcFront === 'def';
+        const showingTerm = defFirst ? study.flipped : !study.flipped;
+        speak(sset.terms[idx][showingTerm ? 0 : 1]);
+        break;
+      }
+      case 'fc-mark': fcMark(el.dataset.know === '1'); break;
+      case 'fc-undo': fcUndo(); break;
+      case 'fc-shuffle': opts(sset).shuffle = !opts(sset).shuffle; save(); restartStudy(); break;
+      case 'fc-again-learning': {
+        const learning = study.learning.slice();
+        study = { mode: 'fc', set: sset, order: opts(sset).shuffle ? shuffle(learning) : learning, pos: 0, flipped: false, known: [], learning: [], hist: [], done: false };
+        renderStudy();
+        break;
+      }
+      case 'ln-pick': lnAnswer(+el.dataset.k); break;
+      case 'ln-skip': lnAnswer(null); break;
+      case 'ln-written-go': { const inp = document.getElementById('nqWritten'); lnAnswer(inp ? inp.value : ''); break; }
+      case 'ln-override': lnOverride(); break;
+      case 'learn-continue': lnContinue(); break;
+      case 'learn-reset':
+        pool(sset).forEach(k => setT(sset, k, { s: 0 }));
+        openStudy('learn', sset);
+        break;
+      case 'test-start': tsStart(); break;
+      case 'test-submit': tsSubmit(); break;
+      case 'ts-pick': {
+        const v = el.dataset.v;
+        study.ans[+el.dataset.q] = v === 'true' ? true : v === 'false' ? false : +v;
+        const y = $ov().scrollTop;
+        renderStudy();
+        $ov().scrollTop = y;
+        break;
+      }
+      case 'mt-pick': mtPick(+el.dataset.k); break;
+    }
+  }
+
+  function onClick(e){
+    const el = e.target.closest('[data-act]');
+    if(!el || el.disabled) return;
+    // Los botones dentro de la ficha del carrusel no deben girarla.
+    if(el.dataset.act === 'flip-c' && e.target.closest('button')) return;
+    onAction(el.dataset.act, el, e);
+  }
+
+  function onChange(e){
+    const el = e.target;
+    if(el.dataset.change === 'sort'){ view.sort = el.value; render(); return; }
+    if(el.dataset.opt && study){
+      const o = opts(study.set);
+      const key = el.dataset.opt;
+      if(el.type === 'checkbox') o[key] = el.checked;
+      else if(key === 'testN') o[key] = +el.value;
+      else o[key] = el.value;
+      save();
+      if(study.mode === 'test' && study.phase === 'config') return;
+      const keepSheet = study.sheet;
+      openStudy(study.mode, study.set);
+      study.sheet = keepSheet;
+      renderStudy();
+    }
+  }
+
+  function onKey(e){
+    if(!study) return;
+    const tag = (e.target.tagName || '').toLowerCase();
+    if(e.key === 'Escape'){
+      if(study.sheet){ study.sheet = null; renderStudy(); } else tryClose();
+      return;
+    }
+    if(study.sheet) return;
+    if(tag === 'input' || tag === 'select' || tag === 'textarea') return;
+    if(study.mode === 'fc' && !study.done){
+      if(e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown'){ e.preventDefault(); fcFlip(); }
+      else if(e.key === 'ArrowRight'){ fcMark(true); }
+      else if(e.key === 'ArrowLeft'){ fcMark(false); }
+    } else if(study.mode === 'learn'){
+      if(study.cur && !study.answered && study.cur.type === 'mc' && /^[1-4]$/.test(e.key)){
+        const k = +e.key - 1;
+        if(k < study.cur.choices.length) lnAnswer(k);
+      } else if(e.key === 'Enter' && (study.summary || (study.answered && !study.answered.correct))){
+        e.preventDefault(); lnContinue();
+      }
+    }
+  }
+
+  function init(){
+    const root = $root(), ov = $ov();
+    if(!root || !ov) return;
+    root.addEventListener('click', onClick);
+    root.addEventListener('change', onChange);
+    ov.addEventListener('click', e => {
+      const el = e.target.closest('[data-act]');
+      if(el && el.dataset.act === 'close'){ e.preventDefault(); tryClose(); return; }
+      onClick(e);
+    });
+    ov.addEventListener('change', onChange);
+    ov.addEventListener('submit', e => {
+      if(e.target.dataset.submit === 'ln-written'){
+        e.preventDefault();
+        const inp = document.getElementById('nqWritten');
+        lnAnswer(inp ? inp.value : '');
+      }
+    });
+    document.addEventListener('keydown', onKey);
+    render();
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+
+  return { render, close: closeStudy };
+})();
 </script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
   <button type="button" class="image-lightbox-close" onclick="closeImageLightbox(event)" title="Cerrar">
