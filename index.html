@@ -8838,6 +8838,7 @@ async function adminDeleteQuestion(id){
 // de login (comprobación de dispositivo, recarga de datos, ir a inicio)
 // los eventos que representan un inicio de sesión real.
 let authInitialized = false;
+let loginScheduledFor = null; // usuario cuyo onLoggedIn ya está programado
 sb.auth.onAuthStateChange((event, session) => {
   if(event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED'){
     // El token se ha renovado en segundo plano: solo actualizamos el
@@ -8854,10 +8855,21 @@ sb.auth.onAuthStateChange((event, session) => {
   if(session && session.user){
     // Si ya estábamos logueados con este mismo usuario, no repetir todo
     // el flujo (comprobación de dispositivo incluida) sin necesidad.
-    if(currentUser && currentUser.id === session.user.id && event !== 'SIGNED_IN'){ return; }
-    onLoggedIn(session.user, consumeFreshLoginIntent());
+    const alreadyIn = (currentUser && currentUser.id === session.user.id) || loginScheduledFor === session.user.id;
+    if(alreadyIn && event !== 'SIGNED_IN'){ return; }
+    // IMPORTANTE: el flujo de entrada hace muchas consultas a Supabase y
+    // NO puede empezar dentro de este callback. Supabase lo ejecuta con su
+    // bloqueo interno de sesión cogido, y cualquier consulta lanzada aquí
+    // se queda esperando a ese mismo bloqueo: la app se quedaba a veces
+    // en «Cargando…» para siempre (sobre todo al volver tras un rato, cuando
+    // toca renovar la sesión) y solo se arreglaba cerrando la pestaña.
+    // Con setTimeout se ejecuta justo después, ya fuera del bloqueo.
+    const user = session.user, fresh = consumeFreshLoginIntent();
+    loginScheduledFor = user.id;
+    setTimeout(() => { loginScheduledFor = null; onLoggedIn(user, fresh); }, 0);
   } else {
-    onLoggedOut();
+    loginScheduledFor = null;
+    setTimeout(onLoggedOut, 0);
   }
 });
 </script>
@@ -8868,7 +8880,9 @@ sb.auth.onAuthStateChange((event, session) => {
    Aprender, Probar y Combinar. Los temas y tarjetas viven en Supabase
    (tablas nq_sets / nq_cards): los crea y edita solo el admin y los ven
    todos. El avance de estudio de cada usuario se guarda en su
-   dispositivo (localStorage), indexado por el id de cada tarjeta.
+   dispositivo (localStorage), indexado por el id de cada tarjeta, y se
+   sincroniza con su cuenta (nq_user_progress) para verlo en todos sus
+   dispositivos.
    ============================================================ */
 let NQ_SETS = [];
 
@@ -8878,7 +8892,10 @@ const NQ = (function(){
   const ROUND_SIZE = 7;
   let db = {};
   try{ db = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }catch(e){ db = {}; }
-  function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); }catch(e){} }
+  function save(){
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); }catch(e){}
+    schedulePush();
+  }
 
   let view = { name: 'library' };   // library | set
   let study = null;                 // estado del modo de estudio abierto
@@ -8900,14 +8917,23 @@ const NQ = (function(){
   // sb y currentUserIsAdmin viven en el script principal; los leemos con
   // try por si ese script no llegó a inicializarlos (p. ej. sin conexión).
   function client(){ try{ return sb; }catch(e){ return null; } }
+  function uid(){ try{ return (currentUser && currentUser.id) || null; }catch(e){ return null; } }
+  // Ninguna petición puede dejar la pantalla en «Cargando…» para siempre.
+  function withTimeout(promise, ms){
+    return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('Tiempo de espera agotado')), ms))]);
+  }
+  let pendingLoad = false;
   async function load(){
-    if(loading || !client()) return;
+    if(!client()) return;
+    // Si ya hay una carga en marcha (p. ej. la del arranque, antes de
+    // tener sesión), se repite al terminar en vez de descartar esta.
+    if(loading){ pendingLoad = true; return; }
     loading = true;
     try{
-      const [rs, rc] = await Promise.all([
+      const [rs, rc] = await withTimeout(Promise.all([
         sb.from('nq_sets').select('id,title,orden,created_at').order('orden').order('created_at'),
         sb.from('nq_cards').select('id,set_id,term,definition,trampas,orden,created_at').order('orden').order('created_at')
-      ]);
+      ]), 15000);
       if(rs.error || rc.error) throw (rs.error || rc.error);
       buildSets(rs.data || [], rc.data || []);
       loaded = true; loadError = false;
@@ -8920,7 +8946,82 @@ const NQ = (function(){
     }
     if(view.name === 'set' && !getSet(view.setId)) view = { name: 'library' };
     if(!study) render();
+    if(pendingLoad){ pendingLoad = false; load(); }
+    else pullProgress();
   }
+
+  /* ---------- avance sincronizado entre dispositivos ----------
+     Cada tarjeta guarda cuándo cambió (u). Al entrar se descarga el avance
+     de la cuenta y se fusiona con el del dispositivo: de cada tarjeta gana
+     la versión más reciente (igual con destacadas y opciones); luego se
+     sube el resultado. Cada cambio posterior se sube a los pocos segundos. */
+  let pushTimer = null, pulledFor = null, pulling = false;
+  function mergeProgress(remote){
+    let changed = false;
+    Object.keys(remote || {}).forEach(setId => {
+      if(setId.startsWith('__')) return;
+      const r = remote[setId] || {};
+      const l = db[setId] || (db[setId] = {});
+      l.t = l.t || {};
+      const rt = r.t || {};
+      const resetU = Math.max(l.resetU || 0, r.resetU || 0);
+      if(resetU !== (l.resetU || 0)){ l.resetU = resetU; changed = true; }
+      Object.keys(rt).forEach(id => {
+        const a = l.t[id], b = rt[id];
+        if(!a || (b && (b.u || 0) > (a.u || 0))){ l.t[id] = b; changed = true; }
+      });
+      Object.keys(l.t).forEach(id => { if((l.t[id].u || 0) < resetU){ delete l.t[id]; changed = true; } });
+      if(r.stars && (r.starsU || 0) > (l.starsU || 0)){ l.stars = r.stars; l.starsU = r.starsU; changed = true; }
+      if(r.opt && (r.optU || 0) > (l.optU || 0)){ l.opt = r.opt; l.optU = r.optU; changed = true; }
+      if(r.bestMatch && (!l.bestMatch || r.bestMatch < l.bestMatch)){ l.bestMatch = r.bestMatch; changed = true; }
+    });
+    return changed;
+  }
+  async function pullProgress(){
+    const me = uid(), cl = client();
+    if(!me || !cl || pulling || pulledFor === me) return;
+    pulling = true;
+    try{
+      const { data, error } = await withTimeout(cl.from('nq_user_progress').select('data').eq('user_id', me).maybeSingle(), 15000);
+      if(error) throw error;
+      // El avance guardado en este dispositivo era de otra cuenta: no se mezcla.
+      if(db.__owner && db.__owner !== me) db = {};
+      db.__owner = me;
+      const remote = (data && data.data) || {};
+      mergeProgress(remote);
+      try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); }catch(e){}
+      pulledFor = me;
+      if(JSON.stringify(remote) !== JSON.stringify(db)) pushProgress();
+      if(!study) render();
+    }catch(e){
+      console.warn('No se pudo sincronizar el avance de Normativas', e);
+    }finally{
+      pulling = false;
+    }
+  }
+  function schedulePush(){
+    if(pulledFor !== uid()) return; // hasta fusionar con la nube no se sube nada
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(pushProgress, 1500);
+  }
+  async function pushProgress(){
+    clearTimeout(pushTimer); pushTimer = null;
+    const me = uid(), cl = client();
+    if(!me || !cl || pulledFor !== me) return;
+    try{
+      const { error } = await withTimeout(cl.from('nq_user_progress').upsert({ user_id: me, data: db, updated_at: new Date().toISOString() }), 15000);
+      if(error) throw error;
+    }catch(e){
+      console.warn('No se pudo subir el avance de Normativas', e);
+      pushTimer = setTimeout(pushProgress, 20000);
+    }
+  }
+  // Al salir o mandar la app a segundo plano se sube lo pendiente.
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'hidden' && pushTimer) pushProgress();
+    // Al volver a la app (p. ej. después de estudiar en otro dispositivo) se trae lo último.
+    if(document.visibilityState === 'visible' && pulledFor){ pulledFor = null; pullProgress(); }
+  });
   function isAdmin(){ try{ return !!currentUserIsAdmin; }catch(e){ return false; } }
   async function run(fn){
     if(busy) return false;
@@ -8991,13 +9092,14 @@ const NQ = (function(){
   // Todo el avance se indexa por el id de la tarjeta (no por su posición),
   // para que editar o borrar tarjetas no mezcle el progreso de otras.
   function tstate(set, i){ return Object.assign({ s: 0, seen: false }, sp(set).t[set.ids[i]]); }
-  function setT(set, i, patch){ const p = sp(set); p.t[set.ids[i]] = Object.assign(tstate(set, i), patch); save(); }
-  function restoreT(set, i, prev){ sp(set).t[set.ids[i]] = prev; save(); }
+  function setT(set, i, patch){ const p = sp(set); p.t[set.ids[i]] = Object.assign(tstate(set, i), patch, { u: Date.now() }); save(); }
+  function restoreT(set, i, prev){ sp(set).t[set.ids[i]] = Object.assign({ s: 0, seen: false }, prev, { u: Date.now() }); save(); }
   function status(set, i){ const t = tstate(set, i); if(!t.seen) return 'new'; return t.s >= 2 ? 'mastered' : 'learning'; }
   function isStar(set, i){ return sp(set).stars.includes(set.ids[i]); }
   function toggleStar(set, i){
     const p = sp(set), id = set.ids[i];
     p.stars = p.stars.includes(id) ? p.stars.filter(x => x !== id) : p.stars.concat(id);
+    p.starsU = Date.now();
     save();
   }
   function hasStars(set){ return set.ids.some(id => sp(set).stars.includes(id)); }
@@ -9223,7 +9325,7 @@ const NQ = (function(){
     const admin = isAdmin();
     let list;
     if(!loaded && !loadError) list = '<div class="empty">Cargando temas…</div>';
-    else if(!NQ_SETS.length) list = '<div class="empty">' + (loadError ? 'No se pudieron cargar los temas. Revisa la conexión.' : admin ? 'Aún no hay temas. Crea el primero con «Nuevo tema».' : 'Todavía no hay temas disponibles.') + '</div>';
+    else if(!NQ_SETS.length) list = '<div class="empty">' + (loadError ? 'No se pudieron cargar los temas. Revisa la conexión.<br><br><button class="nq-btn nq-btn-sm" data-act="retry-load">Reintentar</button>' : admin ? 'Aún no hay temas. Crea el primero con «Nuevo tema».' : 'Todavía no hay temas disponibles.') + '</div>';
     else list = '<div class="nq-lib-list">' + NQ_SETS.map(set => {
       const c = counts(set), n = set.terms.length || 1;
       return '<button class="nq-lib-item" data-act="open-set" data-set="' + set.id + '">' +
@@ -10081,6 +10183,7 @@ const NQ = (function(){
     const sset = study ? study.set : set;
     const i = el.dataset.i != null ? +el.dataset.i : null;
     switch(act){
+      case 'retry-load': loadError = false; render(); load(); break;
       case 'new-set': view.sheet = { type: 'new-set' }; render(); break;
       case 'rename-set': view.sheet = { type: 'rename', setId: set.id }; render(); break;
       case 'root-sheet-close': view.sheet = null; render(); break;
@@ -10107,7 +10210,7 @@ const NQ = (function(){
       }
       case 'reset':
         if(confirm('¿Reiniciar tu avance en esta unidad? Se perderá el progreso de todos los términos.')){
-          sp(set).t = {}; save(); view.filter = null; render();
+          sp(set).t = {}; sp(set).resetU = Date.now(); save(); view.filter = null; render();
         }
         break;
       case 'speak': speak(sset.terms[i][0] + '. ' + sset.terms[i][1]); break;
@@ -10131,7 +10234,7 @@ const NQ = (function(){
       }
       case 'fc-mark': fcMark(el.dataset.know === '1'); break;
       case 'fc-undo': fcUndo(); break;
-      case 'fc-shuffle': opts(sset).shuffle = !opts(sset).shuffle; save(); restartStudy(); break;
+      case 'fc-shuffle': opts(sset).shuffle = !opts(sset).shuffle; sp(sset).optU = Date.now(); save(); restartStudy(); break;
       case 'fc-again-learning': {
         const learning = study.learning.slice();
         study = { mode: 'fc', set: sset, order: opts(sset).shuffle ? shuffle(learning) : learning, pos: 0, flipped: false, known: [], learning: [], hist: [], done: false };
@@ -10186,6 +10289,7 @@ const NQ = (function(){
       if(el.type === 'checkbox') o[key] = el.checked;
       else if(key === 'testN') o[key] = +el.value;
       else o[key] = el.value;
+      sp(study.set).optU = Date.now();
       save();
       if(study.mode === 'test' && study.phase === 'config') return;
       const keepSheet = study.sheet;
