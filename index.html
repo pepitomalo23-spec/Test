@@ -6135,14 +6135,12 @@ async function handleLogin(){
   }
 }
 // Evita que se puedan disparar varios registros seguidos para el mismo
-// correo: cada nuevo registro genera un enlace de confirmación nuevo que
-// invalida el anterior, así que si el usuario pulsa "Crear cuenta" varias
-// veces (por ejemplo, porque no ve respuesta inmediata) puede terminar
-// haciendo clic en un enlace de un correo antiguo ya inválido.
+// correo: si Supabase devuelve un límite de intentos (429), bloqueamos el
+// botón durante ese tiempo para que no se pueda reintentar de inmediato.
 let signupCooldownUntil = 0;
 function formatCooldownMsg(seconds){
   const s = Math.max(1, Math.ceil(seconds));
-  return 'Ya te hemos enviado un correo de confirmación. Espera ' + s + ' segundo' + (s === 1 ? '' : 's') + ' antes de volver a intentarlo, y usa el enlace del ÚLTIMO correo que recibas (los anteriores dejan de funcionar).';
+  return 'Espera ' + s + ' segundo' + (s === 1 ? '' : 's') + ' antes de volver a intentarlo.';
 }
 async function handleSignup(){
   const { email, password } = getAuthFields();
@@ -6153,10 +6151,10 @@ async function handleSignup(){
   if(remaining > 0){ showAuthError(formatCooldownMsg(remaining)); return; }
   setAuthBusy(true);
   markFreshLoginIntent();
-  const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: window.location.href } });
+  const { data, error } = await sb.auth.signUp({ email, password });
   setAuthBusy(false);
   if(error){
-    // Supabase limita el envío de correos de confirmación; en vez de mostrar
+    // Supabase puede limitar los intentos de registro; en vez de mostrar
     // el mensaje en inglés, damos una explicación clara en español y
     // bloqueamos el botón durante ese tiempo para que no se pueda reintentar.
     const match = /after (\d+) seconds?/i.exec(error.message || '');
@@ -6170,10 +6168,9 @@ async function handleSignup(){
     return;
   }
   if(!data.session){
-    // Cada envío exitoso invalida el enlace de confirmación anterior, así
-    // que fijamos también aquí un margen mínimo antes de permitir reenviar.
-    signupCooldownUntil = Date.now() + 30000;
-    showAuthStatus('Cuenta creada. Revisa tu correo y haz clic en el enlace del ÚLTIMO mensaje de confirmación que recibas (si pides el registro más de una vez, los enlaces anteriores dejan de funcionar). Después, un administrador debe confirmarla antes de que puedas iniciar sesión.');
+    // No hay confirmación por correo: la cuenta queda pendiente de que un
+    // administrador la apruebe manualmente desde el panel.
+    showAuthStatus('Cuenta creada. Un administrador debe confirmarla antes de que puedas iniciar sesión. Inténtalo de nuevo más tarde.');
   }
 }
 async function handleMagicLink(){
