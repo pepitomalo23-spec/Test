@@ -804,6 +804,20 @@
     #screen-config .modal-panel, #screen-fallos .modal-panel, #screen-inteligente .modal-panel{ max-height:calc(100dvh - 72px); }
   }
 
+  /* Aviso propio al finalizar un test con preguntas sin responder */
+  .fin-confirm-overlay{
+    position:fixed; inset:0; z-index:70; background:rgba(0,0,0,0.6);
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .fin-confirm-overlay.show{ display:flex; }
+  .fin-confirm-panel{
+    width:100%; max-width:360px; background: var(--card); border:1px solid var(--line);
+    border-radius:18px; padding:22px 20px 16px; text-align:center;
+  }
+  .fin-confirm-msg{ font-size:15px; line-height:1.45; margin-bottom:18px; }
+  .fin-confirm-actions{ display:flex; gap:10px; }
+  .fin-confirm-actions .btn{ flex:1; }
+
   /* Simulacro: solo dos botones desplegables (Minutos / Preguntas), todo centrado */
   #screen-config[data-mode="simulacro"] .modal-body{
     display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;
@@ -2378,6 +2392,16 @@
       <div class="sheet-handle"></div>
       <div class="sheet-title" id="sheetTitle">—</div>
       <div class="sheet-options" id="sheetOptions"></div>
+    </div>
+  </div>
+
+  <div class="fin-confirm-overlay" id="finConfirmOverlay">
+    <div class="fin-confirm-panel" role="dialog" aria-modal="true">
+      <div class="fin-confirm-msg" id="finConfirmMsg"></div>
+      <div class="fin-confirm-actions">
+        <button class="btn btn-ghost" id="finConfirmNo">Seguir</button>
+        <button class="btn btn-primary btn-light" id="finConfirmYes">Finalizar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -4461,7 +4485,7 @@ function startQuiz(mode, questions, timeMinutes){
   // el botón "Finalizar" de la esquina es propio de la vista tarjeta: en
   // examen/simulacro (vista lista) ya existe su propio botón "Finalizar"
   // al final del listado.
-  document.getElementById('quizFinishTopBtn').style.display = (viewMode === 'card') ? '' : 'none';
+  document.getElementById('quizFinishTopBtn').style.display = '';
   startTimer(timeMinutes);
   if(viewMode === 'card'){
     renderQuestion();
@@ -4477,7 +4501,7 @@ function resumeQuiz(){
   document.getElementById('quizCardView').style.display = (quizState.viewMode === 'card') ? 'block' : 'none';
   document.getElementById('quizListView').style.display = (quizState.viewMode === 'list') ? 'block' : 'none';
   document.getElementById('quizCount').style.display = '';
-  document.getElementById('quizFinishTopBtn').style.display = (quizState.viewMode === 'card') ? '' : 'none';
+  document.getElementById('quizFinishTopBtn').style.display = '';
   if(quizState.viewMode === 'card'){
     renderQuestion();
   } else {
@@ -5859,14 +5883,32 @@ function selectListOption(qi, i){
   saveQuizProgress();
 }
 const QUIZ_FINISH_LABELS = { examen:'examen', simulacro:'simulacro', estudio:'test de estudio', fallos:'repaso de fallos', inteligente:'test inteligente' };
-function confirmFinishQuiz(){
+function askFinishConfirm(blank, label){
+  return new Promise(resolve => {
+    const ov = document.getElementById('finConfirmOverlay');
+    document.getElementById('finConfirmMsg').textContent =
+      'Tienes ' + blank + ' pregunta' + (blank === 1 ? '' : 's') + ' sin responder. ¿Quieres finalizar el ' + label + ' igualmente?';
+    const yes = document.getElementById('finConfirmYes');
+    const no = document.getElementById('finConfirmNo');
+    const done = (val) => {
+      ov.classList.remove('show');
+      yes.onclick = null; no.onclick = null; ov.onclick = null;
+      resolve(val);
+    };
+    yes.onclick = () => done(true);
+    no.onclick = () => done(false);
+    ov.onclick = (e) => { if(e.target === ov) done(false); };
+    ov.classList.add('show');
+  });
+}
+async function confirmFinishQuiz(){
+  if(!quizState || !quizState.mode || quizState.finishing) return;
+  const label = QUIZ_FINISH_LABELS[quizState.mode] || 'test';
+  let blank;
   if(quizState.viewMode === 'card'){
     // En tarjeta (estudio/fallos), las preguntas que nunca se han llegado a
-    // ver (más allá de donde se ha navegado) NO cuentan como "sin
-    // responder": directamente no forman parte de esta sesión, así que no
-    // avisamos por ellas. Solo avisamos si, de las que SÍ se han visto,
-    // alguna se quedó sin responder ni marcar "en blanco" (normalmente,
-    // como mucho, la pregunta actual).
+    // ver NO cuentan como "sin responder": solo se avisa por las vistas sin
+    // responder ni marcar "en blanco".
     const visited = quizState.visited || [];
     const visitedIndices = ACTIVE_QUESTIONS.map((_, i) => i).filter(i => visited[i]);
     const answeredOrBlanked = visitedIndices.reduce((acc, i) => {
@@ -5874,23 +5916,34 @@ function confirmFinishQuiz(){
       const isBlanked = !!(quizState.blanked && quizState.blanked[i]);
       return acc + (((a !== null && a !== undefined) || isBlanked) ? 1 : 0);
     }, 0);
-    const blank = visitedIndices.length - answeredOrBlanked;
-    if(blank > 0){
-      const label = QUIZ_FINISH_LABELS[quizState.mode] || 'test';
-      if(!confirm('Tienes ' + blank + ' pregunta' + (blank === 1 ? '' : 's') + ' sin responder. ¿Quieres finalizar el ' + label + ' igualmente?')) return;
-    }
-    finishQuiz();
-    return;
+    blank = visitedIndices.length - answeredOrBlanked;
+  } else {
+    blank = ACTIVE_QUESTIONS.length - countAnsweredList();
   }
-  const blank = ACTIVE_QUESTIONS.length - countAnsweredList();
+  // Se puede finalizar en cualquier momento, con las preguntas que sean sin
+  // responder (cuentan como en blanco). Solo se pide una confirmación.
   if(blank > 0){
-    const label = QUIZ_FINISH_LABELS[quizState.mode] || 'test';
-    if(!confirm('Tienes ' + blank + ' pregunta' + (blank === 1 ? '' : 's') + ' sin responder. ¿Quieres finalizar el ' + label + ' igualmente?')) return;
+    const ok = await askFinishConfirm(blank, label);
+    if(!ok) return;
   }
   finishQuiz();
 }
 
 async function finishQuiz(){
+  const qs = quizState;
+  try{
+    await finishQuizInner();
+  }catch(err){
+    console.error('Error al finalizar el test', err);
+    if(qs && qs.mode){
+      qs.finishing = false;
+      ['quizFinishBtn','quizFinishTopBtn','quizNextBtn'].forEach(id => {
+        const el = document.getElementById(id); if(el) el.disabled = false;
+      });
+    }
+  }
+}
+async function finishQuizInner(){
   // Si finishQuiz() ya está en marcha (p. ej. el usuario ha pulsado "Finalizar"
   // varias veces mientras se guardaba en Supabase), ignoramos las llamadas
   // repetidas: sin esto, cada clic de más creaba una sesión duplicada en el
@@ -5949,6 +6002,7 @@ async function finishQuiz(){
   let sessionId = 'r' + Date.now();
 
   if(currentUser){
+    await Promise.race([ (async () => {
     try{
       const { data: sessionRow, error: sErr } = await sb.from('test_sessions').insert({
         user_id: currentUser.id,
@@ -5994,6 +6048,7 @@ async function finishQuiz(){
     } catch(err){
       console.error('Error guardando la sesión en Supabase', err);
     }
+    })(), new Promise(res => setTimeout(res, 15000)) ]);
   }
 
   const entry = {
