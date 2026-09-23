@@ -9004,17 +9004,19 @@ const NQ = (function(){
   /* ---------- Opciones difíciles ("trampas") ----------
      Cuando un término ya se sabe bastante bien (lo has acertado al
      menos una vez), las preguntas dejan de mezclar normativas de otras
-     tarjetas y pasan a usar opciones casi idénticas a la correcta:
-     números con dígitos cambiados, fechas cercanas, UNE EN ↔ UNE EN ISO,
-     normas reales del mismo ámbito que se suelen confundir...
+     tarjetas y pasan a usar opciones casi idénticas a la correcta en
+     las que SOLO cambian los números (dígitos traspuestos o cambiados,
+     año o día cercanos); el resto del texto queda exactamente igual.
      1) Gemini (vía gemini-proxy) las genera una vez por tarjeta y se
         guardan en nq_cards.trampas para todos los usuarios.
      2) Mientras no existan (o si la IA falla), un generador local crea
         variaciones al momento, así nunca hay que esperar. */
   const aiBusy = {};      // id de tarjeta -> true mientras se genera
   const aiFailed = {};    // id de tarjeta -> true si la IA ya falló en esta sesión
-  const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
+  // Misma "forma" = mismo texto con los dígitos tapados: solo pueden
+  // cambiar los números, y cada número conserva su cantidad de cifras.
+  function shape(s){ return String(s).trim().replace(/\s+/g, ' ').replace(/\d/g, '#'); }
   function cleanTrampas(list, correct){
     if(!Array.isArray(list)) return [];
     const seen = new Set([norm(correct)]);
@@ -9024,6 +9026,7 @@ const NQ = (function(){
       const s = x.trim().replace(/\s+/g, ' ');
       const k = norm(s);
       if(!s || s.length > 150 || !k || seen.has(k)) return;
+      if(/\d/.test(correct) && shape(s) !== shape(correct)) return;
       seen.add(k); out.push(s);
     });
     return out.slice(0, 8);
@@ -9034,9 +9037,9 @@ const NQ = (function(){
   }
 
   function nearMisses(ans){
-    // Se agrupan por tipo de cambio (cada número, el mes, ISO, tipo de
-    // norma) y luego se intercalan, para que las opciones no se parezcan
-    // todas entre sí de la misma forma.
+    // Solo se tocan los números. Se agrupan por número (p. ej. en
+    // «RD 371/2010 del 14 de...» el 371, el 2010 y el 14) y luego se
+    // intercalan, para que cada opción cambie un número distinto.
     const groups = [];
     let out = [];
     const push = s => { if(s && s !== ans) out.push(s); };
@@ -9047,9 +9050,9 @@ const NQ = (function(){
       const s = m[0], at = m.index;
       const put = v => push(ans.slice(0, at) + v + ans.slice(at + s.length));
       const n = +s;
-      if(s.length === 4 && n >= 1900 && n <= 2100){ [1, -1, 2, -2, 3].forEach(d => put(String(n + d))); return; }
+      if(s.length === 4 && n >= 1900 && n <= 2100){ [1, -1, 2, -2].forEach(d => put(String(n + d))); return; }
       if(s.length <= 2 && n >= 1 && n <= 31 && /de\s/i.test(ans.slice(at + s.length, at + s.length + 4))){
-        [1, -1, 10, -10].forEach(d => { const v = n + d; if(v >= 1 && v <= 31) put(String(v)); });
+        [1, -1, 2, -2].forEach(d => { const v = n + d; if(v >= 1 && v <= 31) put(String(v)); });
         return;
       }
       for(let k = 0; k < s.length - 1; k++){
@@ -9065,19 +9068,6 @@ const NQ = (function(){
         });
       }
     });
-    group();
-    MONTHS.forEach((mo, k) => {
-      const re = new RegExp('\\b' + mo + '\\b', 'i');
-      if(re.test(ans)){
-        push(ans.replace(re, MONTHS[(k + 1) % 12]));
-        push(ans.replace(re, MONTHS[(k + 11) % 12]));
-      }
-    });
-    group();
-    if(/UNE[\s-]+EN[\s-]+ISO/i.test(ans)) push(ans.replace(/UNE[\s-]+EN[\s-]+ISO/i, 'UNE EN'));
-    else if(/UNE[\s-]+EN/i.test(ans)) push(ans.replace(/UNE[\s-]+EN/i, 'UNE EN ISO'));
-    if(/^RD\b/i.test(ans)) push(ans.replace(/^RD\b/i, 'Decreto'));
-    else if(/^Decreto\b/i.test(ans)) push(ans.replace(/^Decreto\b/i, 'RD'));
     group();
     const mixed = [];
     const gs = shuffle(groups);
@@ -9103,10 +9093,12 @@ const NQ = (function(){
   function trampasPrompt(items){
     return 'Eres un experto en normativa técnica y legislación española de bomberos, emergencias y EPIs (normas UNE, EN, ISO, Reales Decretos, Decretos, Leyes...).\n' +
       'Estoy haciendo un test de estudio. Para CADA elemento de la lista te doy un concepto y su normativa CORRECTA. ' +
-      'Genera 6 respuestas INCORRECTAS pero MUY parecidas a la correcta, para que sea difícil distinguirlas. Mezcla:\n' +
-      '- normas reales que existan y se confundan con la correcta (misma familia o ámbito parecido), y\n' +
-      '- variaciones sutiles de la correcta: dígitos cambiados o traspuestos, añadir/quitar "ISO", año, día o mes cercanos, tipo de norma cambiado (RD / Decreto / Ley / Orden)...\n' +
-      'Reglas: mismo formato y estilo exacto que la respuesta correcta; NUNCA repitas la correcta ni una forma equivalente de ella; sin explicaciones.\n' +
+      'Genera 6 respuestas INCORRECTAS que se parezcan MUCHÍSIMO a la correcta, para que sea difícil distinguirlas.\n' +
+      'REGLA PRINCIPAL: cambia SOLO los números. Todo el texto que no sea un número (siglas como UNE, EN, ISO, RD, «del», «de», el mes, espacios, barras...) debe quedar EXACTAMENTE igual, letra por letra.\n' +
+      '- Cada número debe conservar la misma cantidad de cifras.\n' +
+      '- Cambios pequeños y creíbles: dos cifras traspuestas (16689 → 16698), una cifra cambiada por la de al lado (443 → 433), año o día cercanos (2010 → 2011, 14 → 15).\n' +
+      '- Si puedes, usa números de normas reales parecidas que se suelan confundir, siempre que cumplan las reglas anteriores.\n' +
+      '- NUNCA repitas la respuesta correcta. Sin explicaciones.\n' +
       'Responde SOLO con un objeto JSON cuyas claves sean los números de la lista y cuyos valores sean arrays de 6 strings. Ejemplo: {"1":["...","..."],"2":[...]}\n\n' +
       items.map((c, k) => (k + 1) + '. Concepto: ' + c.term + '\n   Correcta: ' + c.definition).join('\n');
   }
