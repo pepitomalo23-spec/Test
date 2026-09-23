@@ -1809,6 +1809,31 @@
   .nq-q-tags{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
   .nq-q-tags .nq-q-tag{ margin-bottom:0; }
   .nq-q-tag.hard{ color: #fff; background: linear-gradient(90deg, #F2665C, #FF7A3D); }
+
+  /* Repaso estilo Anki */
+  .nq-srs-panel{ display:flex; align-items:center; gap:14px; background: var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:22px; }
+  .nq-srs-panel.due{ border-color: color-mix(in srgb, var(--blue) 55%, var(--line)); background: color-mix(in srgb, var(--blue) 7%, var(--card)); }
+  .nq-srs-ico{ width:44px; height:44px; border-radius:12px; background: color-mix(in srgb, var(--purple) 18%, transparent); color: var(--purple); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .nq-srs-ico svg{ width:24px; height:24px; }
+  .nq-srs-main{ flex:1; min-width:0; }
+  .nq-srs-title{ font-size:15.5px; font-weight:800; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .nq-srs-count{ font-size:11.5px; font-weight:800; color:#fff; background: var(--blue); border-radius:999px; padding:2px 9px; }
+  .nq-srs-sub{ font-size:12.5px; color: var(--muted); margin-top:4px; line-height:1.45; }
+  .nq-srs-stage{ height: min(52vh, 480px); }
+  .nq-srs-stage .nq-fc-card{ cursor:pointer; }
+  .nq-srs-set{ font-size:11px; font-weight:700; color: var(--muted); background: var(--card-hi); border:1px solid var(--line); border-radius:999px; padding:3px 10px; align-self:center; max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .nq-srs-q{ font-size:14px; color: var(--muted); margin-bottom:14px; line-height:1.35; }
+  .nq-srs-btns{ display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; margin-top:18px; }
+  .nq-srs-btns.one{ grid-template-columns: 1fr; }
+  .nq-srs-btn{ display:flex; flex-direction:column; align-items:center; gap:3px; padding:12px 6px; border-radius:14px; border:1.5px solid var(--line); background: var(--card); color: var(--text); font-family: var(--sans); cursor:pointer; }
+  .nq-srs-btn b{ font-size:14px; }
+  .nq-srs-btn span{ font-size:11.5px; color: var(--muted); font-weight:600; }
+  .nq-srs-btn.again b{ color:#E5484D; } .nq-srs-btn.again:hover{ border-color:#E5484D; }
+  .nq-srs-btn.hard b{ color: var(--orange); } .nq-srs-btn.hard:hover{ border-color: var(--orange); }
+  .nq-srs-btn.good b{ color: var(--green); } .nq-srs-btn.good:hover{ border-color: var(--green); }
+  .nq-srs-btn.easy b{ color: var(--blue); } .nq-srs-btn.easy:hover{ border-color: var(--blue); }
+  .nq-srs-stats{ grid-template-columns: repeat(4, 1fr); }
+  @media (max-width:560px){ .nq-srs-stats{ grid-template-columns: repeat(2, 1fr); } }
 </style>
 </head>
 <body>
@@ -8944,6 +8969,7 @@ const NQ = (function(){
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
     pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+    brain: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04Z"/></svg>',
     cards: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="14" height="14" rx="2"/><path d="M7 6V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"/></svg>',
     mFichas: '<svg viewBox="0 0 24 24"><rect x="6" y="3" width="15" height="13" rx="2.5" fill="#7FB3FF"/><rect x="3" y="7" width="15" height="13" rx="2.5" fill="#4255FF"/></svg>',
     mAprender: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.6" stroke-linecap="round"><path d="M12 3a9 9 0 0 1 9 9" stroke="#4255FF"/><path d="M21 12a9 9 0 0 1-9 9" stroke="#98E3FF" stroke-dasharray="2 3.2"/><path d="M12 21a9 9 0 0 1-9-9" stroke="#4255FF" stroke-dasharray="2 3.2"/><path d="M3 12a9 9 0 0 1 9-9" stroke="#98E3FF"/></svg>',
@@ -9208,6 +9234,7 @@ const NQ = (function(){
     }).join('') + '</div>';
     return '<div class="nq-lib-head"><h1>Normativas</h1>' +
       (admin ? '<button class="nq-btn nq-btn-sm" data-act="new-set">' + I.plus + 'Nuevo tema</button>' : '') + '</div>' +
+      (loaded && NQ_SETS.length ? srsPanel() : '') +
       '<div class="nq-lib-sub">Temas</div>' + list;
   }
 
@@ -9415,6 +9442,7 @@ const NQ = (function(){
     if(!study){ ov.innerHTML = ''; return; }
     let html = '';
     if(study.mode === 'fc') html = renderFc();
+    else if(study.mode === 'srs') html = renderSrs();
     else if(study.mode === 'learn') html = renderLearn();
     else if(study.mode === 'test') html = renderTest();
     else if(study.mode === 'match') html = renderMatch();
@@ -9451,6 +9479,152 @@ const NQ = (function(){
     return '<div class="nq-sheet-bg" data-act="sheet-bg"><div class="nq-sheet"><div class="nq-sheet-grip"></div><h3>Opciones</h3>' +
       '<p>Al cambiar una opción se reinicia la sesión actual.</p>' + rows +
       '<div class="nq-sum-actions" style="margin-top:18px"><button class="nq-btn block" data-act="sheet-close">Listo</button></div></div></div>';
+  }
+
+  /* ---------- REPASO (estilo Anki) ----------
+     Repetición espaciada de TODAS las tarjetas que ya has estudiado
+     alguna vez (en cualquier tema y modo); las que aún no has visto no
+     entran nunca. Cada tarjeta guarda su propio calendario (srs) junto a
+     su avance en localStorage: intervalo en días, facilidad y fecha del
+     próximo repaso. Una tarjeta vista pero sin calendario está pendiente
+     desde ya. */
+  const DAY = 86400000;
+  const SRS_SESSION_MAX = 100;
+  function startOfDay(t){ const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); }
+  function srsOf(set, i){ return tstate(set, i).srs || null; }
+  function srsItems(){
+    const now = Date.now();
+    const due = [], later = [];
+    NQ_SETS.forEach(set => set.terms.forEach((_, i) => {
+      const t = tstate(set, i);
+      if(!t.seen) return;
+      const s = t.srs;
+      const when = s ? s.due : 0;
+      (when <= now ? due : later).push({ set, i, when });
+    }));
+    due.sort((a, b) => a.when - b.when);
+    later.sort((a, b) => a.when - b.when);
+    return { due, later };
+  }
+  function srsNext(s, r){
+    // r: 0 otra vez · 1 difícil · 2 bien · 3 fácil
+    const cur = Object.assign({ ivl: 0, ease: 2.5, reps: 0, lapses: 0 }, s);
+    const n = Object.assign({}, cur);
+    const today = startOfDay(Date.now());
+    if(r === 0){
+      n.lapses++; n.reps = 0; n.ivl = 0; n.ease = Math.max(1.3, cur.ease - 0.2);
+      n.due = Date.now() + 60000;
+      return n;
+    }
+    if(r === 1){ n.ivl = cur.reps === 0 ? 1 : Math.max(cur.ivl + 1, Math.round(cur.ivl * 1.2)); n.ease = Math.max(1.3, cur.ease - 0.15); }
+    if(r === 2){ n.ivl = cur.reps === 0 ? 1 : cur.reps === 1 ? 3 : Math.max(cur.ivl + 1, Math.round(cur.ivl * cur.ease)); }
+    if(r === 3){ n.ivl = cur.reps === 0 ? 4 : Math.max(cur.ivl + 2, Math.round(cur.ivl * cur.ease * 1.3)); n.ease = cur.ease + 0.15; }
+    n.reps = cur.reps + 1;
+    n.due = today + n.ivl * DAY;
+    return n;
+  }
+  function fmtIvl(s){
+    if(!s || !s.ivl) return '<1 min';
+    const d = s.ivl;
+    if(d < 30) return d + ' d';
+    if(d < 365) return Math.round(d / 30) + ' mes' + (Math.round(d / 30) > 1 ? 'es' : '');
+    return (d / 365).toFixed(1).replace('.0', '') + ' año' + (d >= 730 ? 's' : '');
+  }
+  function fmtWhen(t){
+    const days = Math.round((startOfDay(t) - startOfDay(Date.now())) / DAY);
+    if(days <= 0){
+      const m = Math.max(1, Math.round((t - Date.now()) / 60000));
+      return m < 60 ? 'en ' + m + ' min' : 'hoy';
+    }
+    if(days === 1) return 'mañana';
+    return 'en ' + days + ' días';
+  }
+
+  function srsPanel(){
+    const { due, later } = srsItems();
+    const total = due.length + later.length;
+    let body, btn = '';
+    if(!total){
+      body = '<div class="nq-srs-sub">Aquí aparecerán las tarjetas que ya hayas estudiado en algún tema, para repasarlas justo antes de olvidarlas. Las nuevas no entran.</div>';
+    } else if(due.length){
+      body = '<div class="nq-srs-sub">' + total + ' tarjeta' + (total === 1 ? '' : 's') + ' en tu mazo de repaso</div>';
+      btn = '<button class="nq-btn" data-act="srs-start">Repasar</button>';
+    } else {
+      body = '<div class="nq-srs-sub">¡Al día! Próximo repaso ' + fmtWhen(later[0].when) + ' · ' + total + ' en tu mazo</div>';
+    }
+    return '<div class="nq-srs-panel' + (due.length ? ' due' : '') + '">' +
+      '<div class="nq-srs-ico">' + I.brain + '</div>' +
+      '<div class="nq-srs-main"><div class="nq-srs-title">Repaso diario' +
+        (due.length ? ' <span class="nq-srs-count">' + due.length + ' pendiente' + (due.length === 1 ? '' : 's') + '</span>' : '') + '</div>' + body + '</div>' +
+      btn + '</div>';
+  }
+
+  function srsInit(){
+    const { due } = srsItems();
+    const queue = due.slice(0, SRS_SESSION_MAX).map(x => ({ set: x.set, i: x.i, id: x.set.ids[x.i] }));
+    return { mode: 'srs', set: null, queue, shown: false, done: 0, total: queue.length, counts: [0, 0, 0, 0], hist: [] };
+  }
+  function srsCur(){ return study && study.queue[0]; }
+  function srsShow(){
+    if(!study || study.mode !== 'srs' || !srsCur() || study.shown) return;
+    study.shown = true;
+    renderStudy();
+  }
+  function srsRate(r){
+    const st = study;
+    const it = srsCur();
+    if(!st || st.mode !== 'srs' || !it || !st.shown) return;
+    const prev = tstate(it.set, it.i);
+    const next = srsNext(prev.srs, r);
+    const patch = { srs: next };
+    if(r === 0) patch.s = Math.min(prev.s, 1);
+    setT(it.set, it.i, patch);
+    st.counts[r]++;
+    st.queue.shift();
+    if(r === 0){
+      // «Otra vez»: vuelve a salir en esta misma sesión, un poco más tarde.
+      st.queue.splice(Math.min(3, st.queue.length), 0, it);
+    } else {
+      st.done++;
+    }
+    st.shown = false;
+    renderStudy();
+  }
+  function renderSrs(){
+    const st = study;
+    const it = srsCur();
+    if(!it){
+      const { later } = srsItems();
+      return studyHeader('Repaso', false) +
+        '<div class="nq-sum"><div class="nq-sum-emoji">🧠</div>' +
+        '<div class="nq-sum-title">' + (st.total ? '¡Repaso de hoy completado!' : 'Nada que repasar') + '</div>' +
+        '<div class="nq-sum-sub">' + (st.total ? 'Has repasado ' + st.done + ' tarjeta' + (st.done === 1 ? '' : 's') + '. ' : '') +
+          (later.length ? 'El próximo repaso es ' + fmtWhen(later[0].when) + '.' : '') + '</div>' +
+        (st.total ? '<div class="nq-sum-stats nq-srs-stats">' +
+          '<div class="nq-stat"><b style="color:#E5484D">' + st.counts[0] + '</b><span>Otra vez</span></div>' +
+          '<div class="nq-stat"><b class="nq-c-orange">' + st.counts[1] + '</b><span>Difícil</span></div>' +
+          '<div class="nq-stat"><b class="nq-c-green">' + st.counts[2] + '</b><span>Bien</span></div>' +
+          '<div class="nq-stat"><b style="color:var(--blue)">' + st.counts[3] + '</b><span>Fácil</span></div></div>' : '') +
+        '<div class="nq-sum-actions"><button class="nq-btn block" data-act="close">Volver a Normativas</button></div></div>';
+    }
+    const [t, d] = it.set.terms[it.i];
+    const s = srsOf(it.set, it.i);
+    const labels = ['Otra vez', 'Difícil', 'Bien', 'Fácil'];
+    const cls = ['again', 'hard', 'good', 'easy'];
+    const left = st.queue.length;
+    const tools = '<div class="nq-fc-tools"><button class="nq-ib" data-act="srs-speak" title="Escuchar">' + I.speaker + '</button><span class="nq-srs-set">' + esc(it.set.title) + '</span></div>';
+    return studyHeader('Repaso · ' + left + ' restante' + (left === 1 ? '' : 's'), false) +
+      '<div class="nq-pbar"><i style="width:' + (st.total ? st.done / st.total * 100 : 0) + '%"></i></div>' +
+      '<div class="nq-fc-stage nq-srs-stage"><div class="nq-fc-card' + (st.shown ? ' flipped' : '') + '" data-act="srs-show"><div class="nq-fc-inner">' +
+        '<div class="nq-fc-face">' + tools + '<div>' + esc(t) + '</div><div class="nq-fc-side">¿Qué normativa es?</div></div>' +
+        '<div class="nq-fc-face nq-fc-back">' + tools + '<div><div class="nq-srs-q">' + esc(t) + '</div>' + esc(d) + '</div><div class="nq-fc-side">Normativa</div></div>' +
+      '</div></div></div>' +
+      (st.shown
+        ? '<div class="nq-srs-btns">' + labels.map((l, r) =>
+            '<button class="nq-srs-btn ' + cls[r] + '" data-act="srs-rate" data-r="' + r + '"><b>' + l + '</b><span>' + fmtIvl(srsNext(s, r)) + '</span></button>').join('') + '</div>' +
+          '<div class="nq-hint">Teclas 1 · 2 · 3 · 4</div>'
+        : '<div class="nq-srs-btns one"><button class="nq-btn block" data-act="srs-show">Mostrar respuesta</button></div>' +
+          '<div class="nq-hint">Piensa la respuesta y luego pulsa (o espacio)</div>');
   }
 
   /* ---------- FICHAS ---------- */
@@ -9983,6 +10157,14 @@ const NQ = (function(){
         break;
       }
       case 'mt-pick': mtPick(+el.dataset.k); break;
+      case 'srs-start':
+        study = srsInit();
+        $ov().classList.remove('hidden'); $ov().scrollTop = 0;
+        renderStudy();
+        break;
+      case 'srs-show': srsShow(); break;
+      case 'srs-rate': srsRate(+el.dataset.r); break;
+      case 'srs-speak': { e.stopPropagation(); const it = srsCur(); if(it) speak(it.set.terms[it.i][study.shown ? 1 : 0]); break; }
     }
   }
 
@@ -10028,6 +10210,9 @@ const NQ = (function(){
       if(e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown'){ e.preventDefault(); fcFlip(); }
       else if(e.key === 'ArrowRight'){ fcMark(true); }
       else if(e.key === 'ArrowLeft'){ fcMark(false); }
+    } else if(study.mode === 'srs'){
+      if(!study.shown && (e.key === ' ' || e.key === 'Enter')){ e.preventDefault(); srsShow(); }
+      else if(study.shown && /^[1-4]$/.test(e.key)){ srsRate(+e.key - 1); }
     } else if(study.mode === 'learn'){
       if(study.cur && !study.answered && study.cur.type === 'mc' && /^[1-4]$/.test(e.key)){
         const k = +e.key - 1;
