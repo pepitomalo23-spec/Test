@@ -9032,7 +9032,7 @@ const NQ = (function(){
     const isNew = sh.type === 'new-set';
     return '<div class="nq-sheet-bg" data-act="root-sheet-bg"><form class="nq-sheet" data-submit="' + (isNew ? 'create-set' : 'rename-set') + '" autocomplete="off">' +
       '<div class="nq-sheet-grip"></div><h3>' + (isNew ? 'Nuevo tema' : 'Renombrar tema') + '</h3>' +
-      '<p>' + (isNew ? 'Ponle un nombre (por ejemplo «Forestales» o «EPIs»). Después podrás añadirle tarjetas.' : 'Cambia el nombre del tema.') + '</p>' +
+      '<p>' + (isNew ? 'Ponle un nombre (por ejemplo «EPIs» o «Vehículos»). Después podrás añadirle tarjetas.' : 'Cambia el nombre del tema.') + '</p>' +
       '<input class="nq-input" name="title" maxlength="120" placeholder="Nombre del tema" required data-autofocus value="' + (set ? esc(set.title) : '') + '">' +
       '<div class="nq-sum-actions" style="margin-top:16px"><button class="nq-btn block" type="submit">' + (isNew ? 'Crear tema' : 'Guardar') + '</button>' +
       '<button class="nq-btn ghost block" type="button" data-act="root-sheet-close">Cancelar</button></div></form></div>';

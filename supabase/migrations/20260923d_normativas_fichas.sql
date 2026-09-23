@@ -47,23 +47,3 @@ create policy "admin write nq_cards" on public.nq_cards
   for all to authenticated
   using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin))
   with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin));
-
--- Tema de ejemplo: Forestales (solo si todavía no hay ningún tema).
-do $$
-declare v_set uuid;
-begin
-  if not exists (select 1 from public.nq_sets) then
-    insert into public.nq_sets (title, orden) values ('Forestales', 0) returning id into v_set;
-    insert into public.nq_cards (set_id, term, definition, orden) values
-      (v_set, 'Plan de emergencias por incendios forestales de Andalucía (Plan INFOCA)', 'RD 371/2010 del 14 de septiembre', 0),
-      (v_set, 'Directriz básica de planificaciones contra incendios forestales', 'RD 893/2013 del 15 de noviembre', 1),
-      (v_set, 'Normativa para traje para rescate técnico', 'UNE EN 16689', 2),
-      (v_set, 'Normativa para cascos de rescate técnico', 'UNE EN 16473', 3),
-      (v_set, 'Normativa para cascos para industrias', 'UNE EN 397', 4),
-      (v_set, 'Normativa para cascos de bomberos', 'UNE EN 443', 5),
-      (v_set, 'Normativa de botas de los bomberos', 'UNE EN 15090', 6),
-      (v_set, 'Normativa de los trajes forestales', 'UNE EN ISO 15384', 7),
-      (v_set, 'Normativa de los cascos forestales', 'UNE EN 16471', 8),
-      (v_set, 'Normativa de las motobombas portátiles', 'UNE EN 14466', 9);
-  end if;
-end $$;
