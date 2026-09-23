@@ -94,6 +94,7 @@
     --badge-capitulo-fg: #ffcf7d;
     --badge-seccion-fg: #9dffbd;
     --badge-articulo-fg: #ffabab;
+    --badge-estructura-fg: #e0b3ff;
 
     /* Tarjeta de "Estudio/Fallos": antes fondo #202020 fijo (pensado para
        resaltar sobre negro); en claro pasa a un gris algo más oscuro que
@@ -128,6 +129,7 @@
     --badge-capitulo-fg: #8a5a00;
     --badge-seccion-fg: #1f7a44;
     --badge-articulo-fg: #b23a3a;
+    --badge-estructura-fg: #8a2fc4;
 
     --study-card-bg: #EAEAEE;
     --study-card-border: var(--w14);
@@ -787,6 +789,8 @@
   .node-badge.capitulo{ background:rgba(255,200,100,0.18); color: var(--badge-capitulo-fg); }
   .node-badge.seccion{ background:rgba(150,255,180,0.18); color: var(--badge-seccion-fg); }
   .node-badge.articulo{ background:rgba(255,150,150,0.18); color: var(--badge-articulo-fg); }
+  .node-badge.libre{ background:rgba(224,179,255,0.18); color: var(--badge-estructura-fg); }
+  .node-badge.estructura{ background:rgba(224,179,255,0.18); color: var(--badge-estructura-fg); }
   .node-badge.general-node{ background: var(--w14); color:var(--text); font-weight:600; }
   .node-general-badge{ font-size:11px; padding:2px 8px; border-radius:999px; background: var(--w12); color:var(--text); cursor:pointer; flex-shrink:0; white-space:nowrap; font-weight:600; }
   .node-general-badge:hover{ background: var(--w22); }
@@ -6950,15 +6954,16 @@ async function adminDeleteTopic(id){
 }
 
 /* ---------- ESTRUCTURA (árbol libre: Título / Capítulo / Sección / Artículo) ---------- */
-const NODE_TYPE_LABEL = { titulo:'Título', capitulo:'Capítulo', seccion:'Sección', articulo:'Artículo', estructura:'Estructura (nombre libre)' };
-/* "estructura" es un nivel genérico sin nombre legal fijo: no antepone
-   ningún prefijo ("Título X", "Sección Y"...) al mostrarlo, así que el
-   nombre que se escriba aparece tal cual. Se usa para documentos que no
-   encajan en la jerarquía Título > Capítulo > Sección > Artículo (p.ej.
-   "Disposiciones adicionales", "Anexo I", "Parte segunda"...). Su nivel
-   0 hace que pueda colgar de cualquier sitio y que cualquier otro nivel
-   pueda colgar de él (ver allowedChildTypes). */
-const NODE_TYPE_LEVEL = { estructura:0, titulo:1, capitulo:2, seccion:3, articulo:4 };
+const NODE_TYPE_LABEL = { titulo:'Título', capitulo:'Capítulo', seccion:'Sección', articulo:'Artículo', libre:'Estructura (nombre libre)', estructura:'Estructura' };
+/* Dos niveles "genéricos" para documentos que no encajan en la jerarquía
+   Título > Capítulo > Sección > Artículo (p.ej. "Disposiciones adicionales",
+   "Anexo I", "Parte segunda"...). Ambos tienen nivel 0: pueden colgar de
+   cualquier sitio y admiten cualquier tipo debajo (ver allowedChildTypes).
+   - "libre": sin ningún prefijo automático; el nombre que se escriba
+     aparece tal cual ("Anexo I", no "Título Anexo I").
+   - "estructura": sí antepone prefijo, igual que título/capítulo/sección/
+     artículo, pero con la palabra "Estructura" ("Estructura N"). */
+const NODE_TYPE_LEVEL = { libre:0, titulo:1, capitulo:2, seccion:3, articulo:4, estructura:0 };
 /* El nodo "General" es un Título especial (raíz, sin número, nombre "General")
    que sirve de cajón de sastre para preguntas sin artículo concreto. Se detecta
    y se marca de forma visible en vez de mostrarse como un Título cualquiera. */
@@ -6966,7 +6971,7 @@ function isGeneralNode(n){
   return !!n && !n.padre_id && !n.numero && (n.nombre||'').trim().toLowerCase() === 'general';
 }
 function nodeDisplayName(n){
-  if(n.tipo === 'estructura'){
+  if(n.tipo === 'libre'){
     // Sin prefijo automático: se muestra tal cual lo haya escrito el admin.
     if(n.numero && n.nombre) return n.numero + ' – ' + n.nombre;
     return n.nombre || n.numero || 'Estructura';
@@ -6978,14 +6983,18 @@ function nodeDisplayName(n){
   return n.numero ? parts.join(' – ') : parts.join('');
 }
 function allowedChildTypes(parentId){
-  if(!parentId) return ['titulo','capitulo','seccion','articulo','estructura'];
+  // Tipos "de nivel fijo" (título/capítulo/sección/artículo) vs. tipos
+  // "flexibles" (nivel 0: libre y estructura), que pueden colgar de
+  // cualquier sitio y admiten cualquier tipo debajo.
+  const leveled = Object.keys(NODE_TYPE_LEVEL).filter(t => NODE_TYPE_LEVEL[t] > 0);
+  const flexible = Object.keys(NODE_TYPE_LEVEL).filter(t => NODE_TYPE_LEVEL[t] === 0);
+  if(!parentId) return leveled.concat(flexible);
   const parent = adminData.nodes.find(n => n.id === parentId);
-  if(!parent || parent.tipo === 'estructura'){
-    // "Estructura" no fija nivel: debajo puede ir cualquier tipo.
-    return ['titulo','capitulo','seccion','articulo','estructura'];
+  if(!parent || NODE_TYPE_LEVEL[parent.tipo] === 0){
+    return leveled.concat(flexible);
   }
   const parentLevel = NODE_TYPE_LEVEL[parent.tipo] || 0;
-  return Object.keys(NODE_TYPE_LEVEL).filter(t => t !== 'estructura' && NODE_TYPE_LEVEL[t] > parentLevel).concat('estructura');
+  return leveled.filter(t => NODE_TYPE_LEVEL[t] > parentLevel).concat(flexible);
 }
 /* Orden automático: se detecta a partir del "número" de cada nivel
    (soporta números, decimales tipo "34.2" y números romanos tipo "II"),
