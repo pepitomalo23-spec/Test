@@ -1788,6 +1788,27 @@
   .nq-edit-lbl{ display:block; font-size:11px; font-weight:700; color: var(--muted); text-transform:uppercase; letter-spacing:.4px; margin: 10px 0 5px; }
   .nq-ta{ resize:vertical; min-height:48px; font-size:14.5px; padding:11px 13px; line-height:1.4; }
   .nq-edit-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+
+  .nq-sec-right{ display:flex; align-items:center; gap:8px; }
+  .nq-edit-toggle{ display:inline-flex; align-items:center; gap:6px; background: var(--card); border:1px solid var(--line); color: var(--text); border-radius:999px; padding:6px 12px; font-family: var(--sans); font-size:12.5px; font-weight:700; cursor:pointer; }
+  .nq-edit-toggle svg{ width:14px; height:14px; }
+  .nq-edit-toggle:hover{ border-color: var(--muted-2); }
+  .nq-edit-toggle.on{ background: var(--blue); border-color: var(--blue); color:#fff; }
+  .nq-add-btn{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:16px; background:none; border:1.5px dashed var(--line); border-radius:14px; color: var(--muted); font-family: var(--sans); font-size:14px; font-weight:700; cursor:pointer; }
+  .nq-add-btn:hover{ border-color: var(--blue); color: var(--blue); }
+  .nq-add-btn svg{ width:16px; height:16px; }
+  .nq-trampas{ margin-top:10px; padding:10px 12px; border-radius:10px; background: color-mix(in srgb, var(--orange) 8%, transparent); border:1px solid color-mix(in srgb, var(--orange) 25%, transparent); font-size:12px; color: var(--muted); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .nq-trampas.muted{ background: var(--card-hi); border-color: var(--line); }
+  .nq-trampas-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; font-weight:700; }
+  .nq-trampas-list{ display:flex; flex-wrap:wrap; gap:6px; width:100%; }
+  .nq-trampas-list span{ background: var(--bg); border:1px solid var(--line); border-radius:999px; padding:3px 9px; color: var(--text); font-size:12px; }
+  .nq-mini{ background:none; border:1px solid var(--line); border-radius:999px; padding:3px 10px; color: var(--text); font-family: var(--sans); font-size:11.5px; font-weight:700; cursor:pointer; white-space:nowrap; }
+  .nq-mini:hover{ border-color: var(--blue); color: var(--blue); }
+  .nq-spin{ width:13px; height:13px; border-radius:50%; border:2px solid var(--line); border-top-color: var(--orange); animation: nq-spin .8s linear infinite; }
+  @keyframes nq-spin{ to{ transform: rotate(360deg); } }
+  .nq-q-tags{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .nq-q-tags .nq-q-tag{ margin-bottom:0; }
+  .nq-q-tag.hard{ color: #fff; background: linear-gradient(90deg, #F2665C, #FF7A3D); }
 </style>
 </head>
 <body>
@@ -8860,7 +8881,7 @@ const NQ = (function(){
     try{
       const [rs, rc] = await Promise.all([
         sb.from('nq_sets').select('id,title,orden,created_at').order('orden').order('created_at'),
-        sb.from('nq_cards').select('id,set_id,term,definition,orden,created_at').order('orden').order('created_at')
+        sb.from('nq_cards').select('id,set_id,term,definition,trampas,orden,created_at').order('orden').order('created_at')
       ]);
       if(rs.error || rc.error) throw (rs.error || rc.error);
       buildSets(rs.data || [], rc.data || []);
@@ -8937,7 +8958,7 @@ const NQ = (function(){
     if(!p.t) p.t = {};
     if(!p.stars) p.stars = [];
     if(!p.opt) p.opt = {};
-    p.opt = Object.assign({ shuffle: false, starred: false, answerWith: 'def', written: false, fcFront: 'term', testN: 0, testTF: true }, p.opt);
+    p.opt = Object.assign({ shuffle: false, starred: false, answerWith: 'def', written: false, fcFront: 'term', testN: 0, testTF: true, aiHard: true }, p.opt);
     return p;
   }
   // Todo el avance se indexa por el id de la tarjeta (no por su posición),
@@ -8978,6 +8999,179 @@ const NQ = (function(){
       .filter((a, k, arr) => a !== correct && arr.indexOf(a) === k)
       .slice(0, 3);
     return shuffle([correct].concat(others));
+  }
+
+  /* ---------- Opciones difíciles ("trampas") ----------
+     Cuando un término ya se sabe bastante bien (lo has acertado al
+     menos una vez), las preguntas dejan de mezclar normativas de otras
+     tarjetas y pasan a usar opciones casi idénticas a la correcta:
+     números con dígitos cambiados, fechas cercanas, UNE EN ↔ UNE EN ISO,
+     normas reales del mismo ámbito que se suelen confundir...
+     1) Gemini (vía gemini-proxy) las genera una vez por tarjeta y se
+        guardan en nq_cards.trampas para todos los usuarios.
+     2) Mientras no existan (o si la IA falla), un generador local crea
+        variaciones al momento, así nunca hay que esperar. */
+  const aiBusy = {};      // id de tarjeta -> true mientras se genera
+  const aiFailed = {};    // id de tarjeta -> true si la IA ya falló en esta sesión
+  const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+  function cleanTrampas(list, correct){
+    if(!Array.isArray(list)) return [];
+    const seen = new Set([norm(correct)]);
+    const out = [];
+    list.forEach(x => {
+      if(typeof x !== 'string') return;
+      const s = x.trim().replace(/\s+/g, ' ');
+      const k = norm(s);
+      if(!s || s.length > 150 || !k || seen.has(k)) return;
+      seen.add(k); out.push(s);
+    });
+    return out.slice(0, 8);
+  }
+  function cardTrampas(set, i){
+    const c = set.cards[i];
+    return c ? cleanTrampas(c.trampas, c.definition) : [];
+  }
+
+  function nearMisses(ans){
+    // Se agrupan por tipo de cambio (cada número, el mes, ISO, tipo de
+    // norma) y luego se intercalan, para que las opciones no se parezcan
+    // todas entre sí de la misma forma.
+    const groups = [];
+    let out = [];
+    const push = s => { if(s && s !== ans) out.push(s); };
+    const group = () => { if(out.length) groups.push(shuffle(out)); out = []; };
+    const nums = [...ans.matchAll(/\d+/g)];
+    nums.forEach(m => {
+      group();
+      const s = m[0], at = m.index;
+      const put = v => push(ans.slice(0, at) + v + ans.slice(at + s.length));
+      const n = +s;
+      if(s.length === 4 && n >= 1900 && n <= 2100){ [1, -1, 2, -2, 3].forEach(d => put(String(n + d))); return; }
+      if(s.length <= 2 && n >= 1 && n <= 31 && /de\s/i.test(ans.slice(at + s.length, at + s.length + 4))){
+        [1, -1, 10, -10].forEach(d => { const v = n + d; if(v >= 1 && v <= 31) put(String(v)); });
+        return;
+      }
+      for(let k = 0; k < s.length - 1; k++){
+        if(s[k] === s[k + 1]) continue;
+        const a = s.split(''); [a[k], a[k + 1]] = [a[k + 1], a[k]];
+        if(a[0] !== '0') put(a.join(''));
+      }
+      for(let k = 0; k < s.length; k++){
+        [1, -1].forEach(d => {
+          const dd = +s[k] + d;
+          if(dd < 0 || dd > 9 || (k === 0 && dd === 0)) return;
+          put(s.slice(0, k) + dd + s.slice(k + 1));
+        });
+      }
+    });
+    group();
+    MONTHS.forEach((mo, k) => {
+      const re = new RegExp('\\b' + mo + '\\b', 'i');
+      if(re.test(ans)){
+        push(ans.replace(re, MONTHS[(k + 1) % 12]));
+        push(ans.replace(re, MONTHS[(k + 11) % 12]));
+      }
+    });
+    group();
+    if(/UNE[\s-]+EN[\s-]+ISO/i.test(ans)) push(ans.replace(/UNE[\s-]+EN[\s-]+ISO/i, 'UNE EN'));
+    else if(/UNE[\s-]+EN/i.test(ans)) push(ans.replace(/UNE[\s-]+EN/i, 'UNE EN ISO'));
+    if(/^RD\b/i.test(ans)) push(ans.replace(/^RD\b/i, 'Decreto'));
+    else if(/^Decreto\b/i.test(ans)) push(ans.replace(/^Decreto\b/i, 'RD'));
+    group();
+    const mixed = [];
+    const gs = shuffle(groups);
+    for(let k = 0; gs.some(g => g.length > k); k++) gs.forEach(g => { if(g[k]) mixed.push(g[k]); });
+    return cleanTrampas(mixed, ans);
+  }
+
+  function isHard(set, level){
+    return opts(set).aiHard && opts(set).answerWith === 'def' && level >= 1;
+  }
+  function hardChoices(set, i){
+    const correct = qa(set, i).answer;
+    const seen = new Set([norm(correct)]);
+    const pick = [];
+    const add = a => { const k = norm(a); if(a && k && !seen.has(k) && pick.length < 3){ seen.add(k); pick.push(a); } };
+    shuffle(cardTrampas(set, i)).forEach(add);
+    nearMisses(correct).forEach(add);
+    // último recurso: normativas de otras tarjetas
+    shuffle(set.terms.map((_, j) => j).filter(j => j !== i)).forEach(j => add(qa(set, j).answer));
+    return shuffle([correct].concat(pick));
+  }
+
+  function trampasPrompt(items){
+    return 'Eres un experto en normativa técnica y legislación española de bomberos, emergencias y EPIs (normas UNE, EN, ISO, Reales Decretos, Decretos, Leyes...).\n' +
+      'Estoy haciendo un test de estudio. Para CADA elemento de la lista te doy un concepto y su normativa CORRECTA. ' +
+      'Genera 6 respuestas INCORRECTAS pero MUY parecidas a la correcta, para que sea difícil distinguirlas. Mezcla:\n' +
+      '- normas reales que existan y se confundan con la correcta (misma familia o ámbito parecido), y\n' +
+      '- variaciones sutiles de la correcta: dígitos cambiados o traspuestos, añadir/quitar "ISO", año, día o mes cercanos, tipo de norma cambiado (RD / Decreto / Ley / Orden)...\n' +
+      'Reglas: mismo formato y estilo exacto que la respuesta correcta; NUNCA repitas la correcta ni una forma equivalente de ella; sin explicaciones.\n' +
+      'Responde SOLO con un objeto JSON cuyas claves sean los números de la lista y cuyos valores sean arrays de 6 strings. Ejemplo: {"1":["...","..."],"2":[...]}\n\n' +
+      items.map((c, k) => (k + 1) + '. Concepto: ' + c.term + '\n   Correcta: ' + c.definition).join('\n');
+  }
+  function parseJsonLoose(text){
+    if(!text) return null;
+    const t = String(text).replace(/```(?:json)?/gi, '');
+    const a = t.indexOf('{'), b = t.lastIndexOf('}');
+    if(a < 0 || b <= a) return null;
+    try{ return JSON.parse(t.slice(a, b + 1)); }catch(e){ return null; }
+  }
+  async function generateTrampas(cards, force){
+    const cl = client();
+    let ai = null;
+    try{ ai = callGeminiProxy; }catch(e){ ai = null; }
+    if(!cl || typeof ai !== 'function') return;
+    const todo = cards.filter(c => !aiBusy[c.id] && (force || (!aiFailed[c.id] && cleanTrampas(c.trampas, c.definition).length < 3)));
+    if(!todo.length) return;
+    todo.forEach(c => { aiBusy[c.id] = true; });
+    if(!study) render();
+    try{
+      for(let k = 0; k < todo.length; k += 12){
+        const chunk = todo.slice(k, k + 12);
+        let map = null;
+        try{ map = parseJsonLoose(await ai(trampasPrompt(chunk))); }catch(e){ console.warn('IA (opciones parecidas):', e.message || e); }
+        for(let j = 0; j < chunk.length; j++){
+          const c = chunk[j];
+          const list = cleanTrampas(map && map[String(j + 1)], c.definition);
+          if(list.length < 3){ aiFailed[c.id] = true; continue; }
+          c.trampas = list;
+          try{ await cl.rpc('nq_set_trampas', { p_card: c.id, p_trampas: list }); }catch(e){}
+        }
+      }
+    }finally{
+      todo.forEach(c => { delete aiBusy[c.id]; });
+      try{
+        const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
+        if(cached && cached.cards){
+          cached.cards.forEach(cc => { const c = todo.find(x => x.id === cc.id); if(c && c.trampas) cc.trampas = c.trampas; });
+          localStorage.setItem(CACHE_KEY, JSON.stringify(cached));
+        }
+      }catch(e){}
+      if(!study) render();
+    }
+  }
+  function prefetchTrampas(set){
+    if(opts(set).aiHard) generateTrampas(set.cards, false);
+  }
+  function regenTrampas(set, i){
+    const c = set.cards[i];
+    if(!c) return;
+    delete aiFailed[c.id];
+    generateTrampas([c], true).then(() => {
+      if(aiFailed[c.id]) alert('La IA no ha podido generar opciones para esta tarjeta. Inténtalo de nuevo en un momento.');
+    });
+  }
+  function trampasLine(set, i){
+    const c = set.cards[i];
+    if(!c) return '';
+    if(aiBusy[c.id]) return '<div class="nq-trampas"><span class="nq-spin"></span>Generando opciones parecidas con IA…</div>';
+    const list = cardTrampas(set, i);
+    if(list.length >= 3){
+      return '<div class="nq-trampas"><div class="nq-trampas-head"><span>🔥 Opciones difíciles (IA)</span><button class="nq-mini" data-act="regen" data-i="' + i + '">Regenerar</button></div>' +
+        '<div class="nq-trampas-list">' + list.map(x => '<span>' + esc(x) + '</span>').join('') + '</div></div>';
+    }
+    return '<div class="nq-trampas muted"><div class="nq-trampas-head"><span>Sin opciones difíciles todavía (se generan solas al estudiar)</span><button class="nq-mini" data-act="regen" data-i="' + i + '">Generar ahora</button></div></div>';
   }
   function ring(count, total, color, zero){
     const r = 17, c = 2 * Math.PI * r, f = total ? count / total : 0;
@@ -9055,7 +9249,7 @@ const NQ = (function(){
         '<div class="nq-ccard-face nq-ccard-back">' + esc(d) + '<button class="nq-ccard-exp" data-act="fc-at" data-i="' + i + '" title="Pantalla completa">' + I.expand + '</button></div>' +
       '</div></div>').join('') + '</div>' +
       '<div class="nq-dots" id="nqDots">' + set.terms.map((_, i) => '<i' + (i === 0 ? ' class="on"' : '') + '></i>').join('') + '</div>'
-      : '<div class="nq-ccard nq-ccard-empty"><div class="nq-ccard-face">' + (admin ? 'Este tema aún no tiene tarjetas.<br>Añádelas abajo del todo.' : 'Este tema aún no tiene tarjetas.') + '</div></div><div class="nq-dots"></div>';
+      : '<div class="nq-ccard nq-ccard-empty"><div class="nq-ccard-face">' + (admin ? 'Este tema aún no tiene tarjetas.<br>Pulsa «Editar» (abajo, en Términos) para añadirlas.' : 'Este tema aún no tiene tarjetas.') + '</div></div><div class="nq-dots"></div>';
 
     const mode = (m, icon, label) => '<button class="nq-mode" data-act="study" data-mode="' + m + '"' + (canStudy ? '' : ' disabled') + '>' + icon + label + '</button>';
     const modes = '<div class="nq-modes">' + mode('fc', I.mFichas, 'Fichas') + mode('learn', I.mAprender, 'Aprender') +
@@ -9071,35 +9265,39 @@ const NQ = (function(){
       (c.new < n ? '<button class="nq-sec-link" data-act="reset">Reiniciar avance</button>' : '') + '</div>' +
       '<div class="nq-avance">' + av('new', 'No estudiados', 'var(--blue)') + av('learning', 'En progreso', 'var(--orange)') + av('mastered', 'Dominados', 'var(--green)') + '</div>' : '';
 
+    const edit = admin && !!view.editMode;
     const row = i => {
       const [t, d] = set.terms[i], id = set.ids[i];
-      if(admin && view.editing === id){
+      if(edit && view.editing === id){
         return '<form class="nq-term nq-term-edit" data-submit="save-card" data-i="' + i + '" autocomplete="off"><div class="nq-term-main">' +
           '<label class="nq-edit-lbl">Término</label><textarea class="nq-input nq-ta" name="term" rows="2" required data-autofocus>' + esc(t) + '</textarea>' +
           '<label class="nq-edit-lbl">Normativa</label><textarea class="nq-input nq-ta" name="definition" rows="2" required>' + esc(d) + '</textarea>' +
           '<div class="nq-edit-actions"><button class="nq-btn ghost nq-btn-sm" type="button" data-act="cancel-edit">Cancelar</button><button class="nq-btn nq-btn-sm" type="submit">Guardar</button></div>' +
           '</div></form>';
       }
-      return '<div class="nq-term"><div class="nq-term-main"><div class="nq-term-t">' + esc(t) + '</div><div class="nq-term-d">' + esc(d) + '</div></div>' +
+      return '<div class="nq-term"><div class="nq-term-main"><div class="nq-term-t">' + esc(t) + '</div><div class="nq-term-d">' + esc(d) + '</div>' + (edit ? trampasLine(set, i) : '') + '</div>' +
         '<div class="nq-term-tools"><button class="nq-ib" data-act="speak" data-i="' + i + '" title="Escuchar">' + I.speaker + '</button>' +
         '<button class="nq-ib' + (isStar(set, i) ? ' star-on' : '') + '" data-act="star" data-i="' + i + '" title="Destacar">' + I.star + '</button>' +
-        (admin ? '<button class="nq-ib" data-act="edit-card" data-i="' + i + '" title="Editar">' + I.pencil + '</button>' +
+        (edit ? '<button class="nq-ib" data-act="edit-card" data-i="' + i + '" title="Editar">' + I.pencil + '</button>' +
           '<button class="nq-ib nq-ib-del" data-act="del-card" data-i="' + i + '" title="Eliminar">' + I.trash + '</button>' : '') +
         '</div></div>';
     };
-    const addForm = admin ? '<form class="nq-term nq-term-edit nq-add" data-submit="add-card" autocomplete="off"><div class="nq-term-main">' +
-      '<div class="nq-add-title">' + I.plus + 'Añadir tarjeta</div>' +
-      '<label class="nq-edit-lbl">Término</label><textarea class="nq-input nq-ta" name="term" rows="2" required placeholder="Ej.: Normativa de los guantes de bombero" data-draft="new-term"></textarea>' +
+    const addForm = !edit ? '' : !view.adding
+      ? '<button class="nq-add-btn" data-act="open-add">' + I.plus + 'Añadir tarjeta</button>'
+      : '<form class="nq-term nq-term-edit nq-add" data-submit="add-card" autocomplete="off"><div class="nq-term-main">' +
+      '<div class="nq-add-title">' + I.plus + 'Nueva tarjeta</div>' +
+      '<label class="nq-edit-lbl">Término</label><textarea class="nq-input nq-ta" name="term" rows="2" required placeholder="Ej.: Normativa de los guantes de bombero" data-draft="new-term" data-autofocus></textarea>' +
       '<label class="nq-edit-lbl">Normativa</label><textarea class="nq-input nq-ta" name="definition" rows="2" required placeholder="Ej.: UNE EN 659" data-draft="new-def"></textarea>' +
-      '<div class="nq-edit-actions"><button class="nq-btn nq-btn-sm" type="submit">Añadir</button></div>' +
-      '</div></form>' : '';
+      '<div class="nq-edit-actions"><button class="nq-btn ghost nq-btn-sm" type="button" data-act="close-add">Cerrar</button><button class="nq-btn nq-btn-sm" type="submit">Añadir</button></div>' +
+      '</div></form>';
 
-    const terms = '<div class="nq-sec" id="nqTermsHead"><div class="nq-sec-title">Términos' + (admin ? ' <span class="nq-admin-tag">Editar</span>' : '') + '</div>' +
+    const terms = '<div class="nq-sec" id="nqTermsHead"><div class="nq-sec-title">Términos</div><div class="nq-sec-right">' +
+      (admin ? '<button class="nq-edit-toggle' + (edit ? ' on' : '') + '" data-act="toggle-edit">' + (edit ? I.check + 'Hecho' : I.pencil + 'Editar') + '</button>' : '') +
       (n ? '<select class="nq-select" data-change="sort" aria-label="Ordenar términos">' +
         '<option value="original"' + (sort === 'original' ? ' selected' : '') + '>Original</option>' +
         '<option value="alpha"' + (sort === 'alpha' ? ' selected' : '') + '>Alfabético</option>' +
         '<option value="starred"' + (sort === 'starred' ? ' selected' : '') + '>Destacados</option>' +
-      '</select>' : '') + '</div>' +
+      '</select>' : '') + '</div></div>' +
       (view.filter ? '<button class="nq-filter-chip" data-act="filter" data-f="' + view.filter + '">Mostrando: ' + filterNames[view.filter] + ' ✕</button>' : '') +
       '<div class="nq-terms">' + (idxs.length ? idxs.map(row).join('') :
         (n ? '<div class="nq-empty-terms">' + (sort === 'starred' ? 'Aún no has destacado ningún término. Pulsa la estrella de un término para destacarlo.' : 'No hay términos en esta categoría.') + '</div>' : '')) +
@@ -9109,7 +9307,7 @@ const NQ = (function(){
       carousel +
       '<div class="nq-set-title">' + esc(set.title) + '</div>' +
       '<div class="nq-set-meta"><span>Normativas</span><span class="sep"></span><span>' + n + ' tarjetas</span>' +
-        (admin ? '<span class="sep"></span><button class="nq-sec-link" data-act="rename-set">Renombrar</button><button class="nq-sec-link nq-danger" data-act="del-set">Eliminar tema</button>' : '') + '</div>' +
+        (edit ? '<span class="sep"></span><button class="nq-sec-link" data-act="rename-set">Renombrar</button><button class="nq-sec-link nq-danger" data-act="del-set">Eliminar tema</button>' : '') + '</div>' +
       modes + avance + terms +
       (canStudy ? '<div class="nq-cta-wrap"><button class="nq-btn block" data-act="study" data-mode="learn">Estudiar este tema</button></div>' : '');
   }
@@ -9139,7 +9337,7 @@ const NQ = (function(){
     return run(() => sb.from('nq_cards').insert({ set_id: set.id, term, definition, orden }));
   }
   async function saveCard(set, i, term, definition){
-    if(await run(() => sb.from('nq_cards').update({ term, definition }).eq('id', set.ids[i]))){ view.editing = null; await load(); }
+    if(await run(() => sb.from('nq_cards').update({ term, definition, trampas: null }).eq('id', set.ids[i]))){ view.editing = null; await load(); }
   }
   async function deleteCard(set, i){
     if(!confirm('¿Eliminar esta tarjeta?\n\n' + set.terms[i][0] + ' → ' + set.terms[i][1])) return;
@@ -9189,6 +9387,7 @@ const NQ = (function(){
     else if(mode === 'learn') study = lnInit(set);
     else if(mode === 'test') study = { mode: 'test', set, phase: 'config' };
     else if(mode === 'match') study = mtInit(set);
+    if(mode === 'learn' || mode === 'test') prefetchTrampas(set);
     $ov().classList.remove('hidden');
     $ov().scrollTop = 0;
     renderStudy();
@@ -9255,6 +9454,7 @@ const NQ = (function(){
     } else {
       rows += '<div class="nq-cfg-row"><span>Responder con</span><select class="nq-select" data-opt="answerWith"><option value="def"' + (o.answerWith === 'def' ? ' selected' : '') + '>Normativa</option><option value="term"' + (o.answerWith === 'term' ? ' selected' : '') + '>Término</option></select></div>';
       if(study.mode === 'learn') rows += tog('written', 'Preguntas escritas (2ª vuelta)', o.written);
+      rows += tog('aiHard', '🔥 Opciones difíciles con IA cuando ya te lo sabes', o.aiHard && o.answerWith === 'def', o.answerWith !== 'def');
     }
     return '<div class="nq-sheet-bg" data-act="sheet-bg"><div class="nq-sheet"><div class="nq-sheet-grip"></div><h3>Opciones</h3>' +
       '<p>Al cambiar una opción se reinicia la sesión actual.</p>' + rows +
@@ -9416,7 +9616,8 @@ const NQ = (function(){
     const it = st.queue.shift();
     const type = (st.level[it.i] >= 1 && opts(st.set).written) ? 'written' : 'mc';
     const q = qa(st.set, it.i);
-    st.cur = { i: it.i, retry: it.retry, type, prompt: q.prompt, answer: q.answer, choices: type === 'mc' ? makeChoices(st.set, it.i) : null };
+    const hard = type === 'mc' && isHard(st.set, st.level[it.i]);
+    st.cur = { i: it.i, retry: it.retry, type, hard, prompt: q.prompt, answer: q.answer, choices: type === 'mc' ? (hard ? hardChoices(st.set, it.i) : makeChoices(st.set, it.i)) : null };
   }
   function lnAnswer(value){
     const st = study;
@@ -9527,7 +9728,7 @@ const NQ = (function(){
 
     return studyHeader('Ronda ' + st.round, true) + prog +
       '<div class="nq-q">' +
-        (cur.retry ? '<span class="nq-q-tag">Vuelve a intentarlo</span>' : '') +
+        ((cur.retry || cur.hard) ? '<div class="nq-q-tags">' + (cur.retry ? '<span class="nq-q-tag">Vuelve a intentarlo</span>' : '') + (cur.hard ? '<span class="nq-q-tag hard">🔥 Nivel difícil · opciones parecidas</span>' : '') + '</div>' : '') +
         '<div class="nq-q-lbl">' + (opts(set).answerWith === 'term' ? 'Normativa' : 'Término') + '</div>' +
         '<div class="nq-q-prompt">' + esc(cur.prompt) + '</div>' +
         body +
@@ -9552,7 +9753,8 @@ const NQ = (function(){
         }
         return { i, type: 'tf', prompt: q.prompt, shown, answer: shown === q.answer, correctText: q.answer };
       }
-      return { i, type: 'mc', prompt: q.prompt, choices: makeChoices(set, i), answer: q.answer };
+      const hard = isHard(set, tstate(set, i).s);
+      return { i, type: 'mc', hard, prompt: q.prompt, choices: hard ? hardChoices(set, i) : makeChoices(set, i), answer: q.answer };
     });
     st.ans = {};
     st.phase = 'doing';
@@ -9639,7 +9841,7 @@ const NQ = (function(){
         (review && !q.answer ? '<div class="nq-answer-box good" style="margin-top:12px"><small>Respuesta correcta</small>' + esc(q.correctText) + '</div>' : '');
     }
     const status = review ? (tsCorrect(q, a) ? '<span class="nq-c-green">Correcta</span>' : '<span class="nq-c-orange">' + (a === undefined ? 'Sin responder' : 'Incorrecta') + '</span>') : (q.type === 'tf' ? 'Verdadero o falso' : 'Elige la respuesta');
-    return '<div class="nq-test-q"><div class="nq-test-head"><span>' + lbl + '</span><span>' + status + ' · ' + (k + 1) + ' de ' + total + '</span></div>' +
+    return '<div class="nq-test-q"><div class="nq-test-head"><span>' + lbl + (q.hard ? ' · <span class="nq-c-orange">🔥 Difícil</span>' : '') + '</span><span>' + status + ' · ' + (k + 1) + ' de ' + total + '</span></div>' +
       '<div class="nq-test-prompt">' + esc(q.prompt) + '</div>' + body + '</div>';
   }
 
@@ -9718,6 +9920,10 @@ const NQ = (function(){
       case 'root-sheet-bg': if(e.target === el){ view.sheet = null; render(); } break;
       case 'del-set': deleteSet(set); break;
       case 'edit-card': view.editing = set.ids[i]; render(); break;
+      case 'toggle-edit': view.editMode = !view.editMode; view.editing = null; view.adding = false; render(); break;
+      case 'open-add': view.adding = true; render(); break;
+      case 'close-add': view.adding = false; render(); break;
+      case 'regen': regenTrampas(set, i); break;
       case 'cancel-edit': view.editing = null; render(); break;
       case 'del-card': deleteCard(set, i); break;
       case 'open-set': view = { name: 'set', setId: el.dataset.set }; render(); document.getElementById('app').scrollTop = 0; break;
