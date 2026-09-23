@@ -203,10 +203,13 @@
      con una pantalla lisa en vez de dejar ver el contenido mal escalado.
      Primero solo negro, luego aparece el logo, y al final se desvanece
      dejando ver la app ya bien colocada. */
-  #appSplash{ position:fixed; inset:0; z-index:9999; background: var(--bg); display:flex; align-items:center; justify-content:center; transition: opacity .4s ease; }
+  #appSplash{ position:fixed; inset:0; z-index:9999; background: var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; transition: opacity .4s ease; }
   #appSplash.hidden{ opacity:0; pointer-events:none; }
   #appSplashLogo{ width:120px; height:120px; opacity:0; transition: opacity .6s ease; }
   #appSplashLogo.show{ opacity:1; }
+  #appSplashBar{ width:120px; height:3px; border-radius:999px; background: var(--w10); overflow:hidden; opacity:0; transition: opacity .4s ease; }
+  #appSplashBar.show{ opacity:1; }
+  #appSplashBarFill{ height:100%; width:0%; border-radius:999px; background: var(--text); transition: width .25s ease-out; }
   .hidden{ display:none !important; }
   .auth-overlay.hidden{ display:none; }
   .auth-panel{ width:100%; max-width:380px; background: var(--card); border:1px solid var(--line); border-radius:18px; padding:30px 26px 26px; }
@@ -1427,7 +1430,10 @@
 </style>
 </head>
 <body>
-<div id="appSplash"><img id="appSplashLogo" src="assets/icons/icon-512-splash.png" alt=""></div>
+<div id="appSplash">
+  <img id="appSplashLogo" src="assets/icons/icon-512-splash.png" alt="">
+  <div id="appSplashBar"><div id="appSplashBarFill"></div></div>
+</div>
 <div id="app">
 
   <div class="auth-overlay hidden" id="authOverlay">
@@ -1444,7 +1450,7 @@
       <div class="auth-divider">o</div>
       <button class="btn btn-ghost btn-block" id="authMagicBtn" onclick="handleMagicLink()">Enviarme un enlace mágico</button>
       <div class="auth-status" id="authStatus"></div>
-      <div style="text-align:center; margin-top:14px; font-size:10.5px; opacity:.35; font-family:var(--mono);">build 2026-09-23 04:57 UTC</div>
+      <div style="text-align:center; margin-top:14px; font-size:10.5px; opacity:.35; font-family:var(--mono);">build 2026-09-23 05:03 UTC</div>
     </div>
   </div>
 
@@ -4690,20 +4696,52 @@ window.addEventListener('pageshow', handleAppForegrounded);
   }, delay);
 });
 
-/* Splash de arranque (ver #appSplash arriba): se queda en negro liso
+/* Splash de arranque (ver #appSplash arriba): se queda en negro/blanco liso
    mientras caen los primeros reintentos de forceResetPinchZoom, luego
-   aparece el logo un instante y por último se desvanece dejando ver la
-   app ya con el zoom bien colocado. Si el dispositivo no tenía ningún
-   zoom pellizcado que corregir, esto simplemente se ve como un splash
-   de marca normal al abrir la app. */
+   aparece el logo con su mini barra de carga, y esta última avanza sola
+   (progreso simulado, sin frenar la app) hasta que se confirma que todo lo
+   necesario para entrar ya está listo: si no había sesión guardada, en
+   cuanto se sabe eso (rápido); si la había, solo cuando el perfil, la
+   comprobación de dispositivo y los datos de la app (preguntas, historial,
+   estadísticas) han terminado de cargar — así nunca se entra a una
+   pantalla que todavía está cargando por dentro. */
+let splashProgress = 0;
+let splashDone = false;
+let splashTimer = null;
+function startSplashProgress(){
+  const bar = document.getElementById('appSplashBar');
+  const fill = document.getElementById('appSplashBarFill');
+  if(bar) bar.classList.add('show');
+  if(splashTimer) clearInterval(splashTimer);
+  splashTimer = setInterval(() => {
+    if(splashDone || !fill) return;
+    // Avanza más rápido al principio y va frenando al acercarse al 90%,
+    // dejando el último tramo (90% → 100%) para cuando de verdad termine.
+    const remaining = 90 - splashProgress;
+    splashProgress += Math.max(0.6, remaining * 0.07);
+    if(splashProgress > 90) splashProgress = 90;
+    fill.style.width = splashProgress + '%';
+  }, 90);
+}
+function finishSplash(){
+  if(splashDone) return;
+  splashDone = true;
+  if(splashTimer){ clearInterval(splashTimer); splashTimer = null; }
+  const fill = document.getElementById('appSplashBarFill');
+  if(fill) fill.style.width = '100%';
+  setTimeout(() => {
+    const splash = document.getElementById('appSplash');
+    if(splash) splash.classList.add('hidden');
+  }, 250); // deja verse la barra completa un instante antes de desvanecer
+}
+startSplashProgress();
 setTimeout(() => {
   const logo = document.getElementById('appSplashLogo');
   if(logo) logo.classList.add('show');
 }, 550);
-setTimeout(() => {
-  const splash = document.getElementById('appSplash');
-  if(splash) splash.classList.add('hidden');
-}, 1700);
+// Red de seguridad: si algo se queda colgado (sin red, Supabase caído…),
+// no se deja a nadie mirando el logo para siempre.
+setTimeout(finishSplash, 12000);
 
 /* Tarjeta de "nuestra" nota (texto y/o hasta 5 imágenes escritas/subidas a
    mano por vosotros, no generadas por IA). Mismo hueco que ocupaba antes
@@ -6179,6 +6217,7 @@ async function onLoggedIn(user, isFreshSignIn){
   } else {
     showScreen(lastScreen);
   }
+  finishSplash();
 }
 function waitForLoginCodeVerification(verifyId){
   return new Promise(resolve => {
@@ -6263,6 +6302,7 @@ function onLoggedOut(){
   renderHistory();
   renderSmartHistory();
   document.getElementById('authOverlay').classList.remove('hidden');
+  finishSplash();
   showAuthError(''); showAuthStatus('');
   const emailEl = document.getElementById('headerUserEmail');
   if(emailEl) emailEl.textContent = '';
