@@ -2039,6 +2039,7 @@
             <div class="ia-preview-toolbar-btns">
               <button type="button" class="ia-toolbar-btn" onclick="iaExpandAll()">Desplegar todas</button>
               <button type="button" class="ia-toolbar-btn" onclick="iaCollapseAll()">Plegar todas</button>
+              <button type="button" class="ia-toolbar-btn" onclick="iaMarkAllGeneral()">Desactivar todos los nº de artículo</button>
             </div>
           </div>
           <div id="iaPreviewList"></div>
@@ -7870,6 +7871,17 @@ function iaToggleCollapse(i){
 }
 function iaExpandAll(){
   iaPreviewData.forEach(q => q.collapsed = false);
+  renderIAPreview();
+}
+/* Desactiva de golpe el número de artículo de TODAS las preguntas de la
+   tanda y las marca como "generales de todo el tema" a propósito, para no
+   tener que ir pregunta por pregunta cuando el temario importado no se
+   organiza por artículos. Así se pueden guardar todas sin artículo. */
+function iaMarkAllGeneral(){
+  iaPreviewData.forEach(q => {
+    q.location.articulo = null;
+    q.confirmedGeneral = true;
+  });
   renderIAPreview();
 }
 function iaCollapseAll(){
