@@ -724,6 +724,71 @@
 
   .modal-footer{ position:sticky; bottom:0; background: var(--card); padding:18px 0 4px; margin-top:4px; }
 
+  /* ---------- Modales de modo de test (Estudio / Examen / Simulacro / Fallos / Test Inteligente) ----------
+     Diseño: recuadro con esquinas rectas, cabecera fija con línea divisoria,
+     cuerpo con scroll propio y botón principal fijo abajo en forma de píldora.
+     Tarjetas redondeadas, filas sin divisores en Ajustes y casillas cuadradas. */
+  #screen-config.screen.overlay, #screen-fallos.screen.overlay, #screen-inteligente.screen.overlay{
+    padding:56px 14px 30px; align-items:center;
+  }
+  #screen-config .modal-panel, #screen-fallos .modal-panel, #screen-inteligente .modal-panel{
+    display:flex; flex-direction:column; padding:0; margin:0 auto; overflow:hidden;
+    max-width:640px; max-height:calc(100dvh - 86px);
+    background: var(--bg); border:1px solid var(--line); border-radius:0;
+  }
+  #screen-config .modal-panel{ height:min(calc(100dvh - 86px), 820px); }
+  #screen-config .modal-head, #screen-fallos .modal-head, #screen-inteligente .modal-head{
+    flex-shrink:0; margin:0; padding:0 20px; min-height:57px; border-bottom:1px solid var(--line);
+  }
+  #screen-config .modal-head h1, #screen-fallos .modal-head h1, #screen-inteligente .modal-head h1{ font-size:20px; }
+  #screen-config .modal-close, #screen-fallos .modal-close, #screen-inteligente .modal-close{
+    border:none; background:transparent; width:32px; height:32px; color: var(--text);
+  }
+  #screen-config .modal-body, #screen-fallos .modal-body, #screen-inteligente .modal-body{
+    flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:14px 14px 22px;
+  }
+  #screen-config .modal-footer, #screen-fallos .modal-footer, #screen-inteligente .modal-footer{
+    flex-shrink:0; position:static; margin:0; padding:12px 14px 14px; background: var(--bg);
+    display:flex; flex-direction:column; gap:8px;
+  }
+  #screen-config .modal-footer .btn, #screen-fallos .modal-footer .btn, #screen-inteligente .modal-footer .btn{
+    border-radius:999px; padding:13px 20px; font-size:15px; font-weight:500; margin:0 !important;
+  }
+  #screen-config .modal-footer .btn-ghost, #screen-fallos .modal-footer .btn-ghost, #screen-inteligente .modal-footer .btn-ghost{
+    background:transparent; border:1px solid var(--line);
+  }
+  #screen-config .modal-footer .btn-primary:disabled{ opacity:.45; }
+
+  /* Ajustes: tarjeta redondeada, sin divisores entre filas */
+  #screen-config .settings-list{ background:transparent; border:1px solid var(--line); border-radius:18px; padding:6px 0; }
+  #screen-config .settings-row{ padding:11px 16px; border-bottom:none; }
+  #screen-config .settings-row-label, #screen-config .settings-row-value{ color: var(--muted); font-weight:500; }
+
+  /* Temas: cabecera "Temas" + interruptor, y tarjeta con filas separadas por líneas interiores */
+  #screen-config .config-block{ margin-bottom:24px; }
+  #screen-config .config-block:last-child{ margin-bottom:0; }
+  #screen-config #configSettingsBlock{ margin-bottom:28px; }
+  #screen-config .config-block-head{ padding:0 4px; margin-bottom:12px; }
+  #screen-config .config-block-label{ font-size:14px; font-weight:500; }
+  #screen-config .switch-label{ font-size:14px; }
+  #screen-config .topics-card{ background:transparent; border:1px solid var(--line); border-radius:18px; padding:0 14px; }
+  #screen-config .topic-row{ padding:11px 0; border-bottom:1px solid var(--line); }
+  #screen-config .topic-row:hover{ background:transparent; }
+  #screen-config .topic-row.selected{ background:transparent; }
+  #screen-config .topic-check{ width:17px; height:17px; border:2px solid var(--text); border-radius:3px; }
+  #screen-config .topic-check svg{ width:11px; height:11px; }
+  #screen-config .topic-row.selected .topic-check, #screen-config .topic-check.indeterminate{ border-color: var(--purple); }
+  #screen-config[data-mode="examen"] .topic-row.selected .topic-check,
+  #screen-config[data-mode="examen"] .topic-check.indeterminate{ border-color: var(--blue); }
+  #screen-config .config-sub{ max-width:none; }
+
+  @media (max-width:640px){
+    #screen-config.screen.overlay, #screen-fallos.screen.overlay, #screen-inteligente.screen.overlay{ padding:56px 8px 16px; }
+    #screen-config .modal-panel{ height:calc(100dvh - 72px); }
+    #screen-config .modal-panel, #screen-fallos .modal-panel, #screen-inteligente .modal-panel{ max-height:calc(100dvh - 72px); }
+  }
+
   /* ---------- option sheet (Minutos / Preguntas / Dificultad / Ayuda / Repaso) ---------- */
   .sheet-overlay{
     position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:60;
@@ -2102,6 +2167,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
           </button>
         </div>
+        <div class="modal-body">
         <div class="config-sub" id="configSub">Selecciona uno o varios temas. El test se generará solo con preguntas de la legislación elegida.</div>
 
         <div class="config-block" id="configSettingsBlock">
@@ -2128,6 +2194,8 @@
           <div class="temas-list" id="temasList"></div>
         </div>
 
+        </div>
+
         <div class="modal-footer">
           <button class="btn btn-primary btn-block btn-light" id="startConfigBtn" onclick="startFromConfig()">Comenzar</button>
         </div>
@@ -2143,6 +2211,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
           </button>
         </div>
+        <div class="modal-body">
         <div class="fallos-hero">
           <div class="fallos-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m15 7-6 6"/><path d="M20 17H6.5a1 1 0 000 5H19a1 1 0 001-1V3a1 1 0 00-1-1H6.5A2.5 2.5 0 004 4.5v15"/><path d="m9 7 6 6"/></svg>
@@ -2151,6 +2220,8 @@
           <div class="fallos-label">preguntas falladas pendientes de repaso</div>
         </div>
         <div class="fallos-breakdown" id="fallosBreakdown"></div>
+        </div>
+
         <div class="modal-footer">
           <button class="btn btn-primary btn-block btn-light" id="fallosStartBtn" onclick="startFallosReview()">Comenzar repaso</button>
           <button class="btn btn-ghost btn-block" id="fallosDeleteBtn" style="color: var(--coral); border-color: var(--coral); margin-top:8px;" onclick="eliminarFallosPendientes()">Quitar de Fallos</button>
@@ -2167,6 +2238,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
           </button>
         </div>
+        <div class="modal-body">
         <div class="fallos-hero">
           <div class="fallos-icon" style="color: var(--amber);">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="11" height="11" rx="1"/><path d="m17.5 15.5-1.888-.755a1 1 0 00-1.078.221l-1.827 1.827a.5.5 0 01-.848-.283l-.21-1.473a2 2 0 00-1.086-1.506l-2.169-1.084a.5.5 0 010-.894l2.169-1.084a2 2 0 001.085-1.506L12 6.5"/><path d="m17.5 8.5-2.328.388a1 1 0 01-1.022-.472L13 6.5"/></svg>
@@ -2175,14 +2247,16 @@
           <div class="fallos-label">preguntas recomendadas para hoy</div>
         </div>
         <div class="fallos-breakdown" id="smartBreakdown"></div>
-        <div class="modal-footer">
-          <button class="btn btn-primary btn-block btn-light" id="smartStartBtn" onclick="startSmartTest()">Empezar test inteligente</button>
-        </div>
         <!-- Historial propio del Test Inteligente: aparte del Historial general,
              para que los repasos rápidos y espontáneos no lo ensucien. -->
         <div id="smartHistorySection" class="hidden">
           <div class="section-row" style="margin-top:18px;"><div class="section-title">Tus intentos de Test Inteligente</div><div class="section-rule"></div></div>
           <div class="history" id="smartHistoryList"></div>
+        </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-primary btn-block btn-light" id="smartStartBtn" onclick="startSmartTest()">Empezar test inteligente</button>
         </div>
       </div>
     </section>
