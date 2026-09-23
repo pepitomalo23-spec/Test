@@ -6006,7 +6006,7 @@ async function handleLogout(){
   await sb.auth.signOut();
 }
 
-async function onLoggedIn(user){
+async function onLoggedIn(user, isFreshSignIn){
   currentUser = user;
 
   // Si había un test a medias guardado localmente (p. ej. se cerró la
@@ -6076,10 +6076,14 @@ async function onLoggedIn(user){
     return;
   }
 
-  // Verificación por código en cada inicio de sesión (salvo administradores,
-  // que son quienes deben ver y transmitir el código: si solo hay uno,
-  // exigírselo a sí mismo le dejaría fuera sin nadie que pudiera dárselo).
-  if(!currentUserIsAdmin){
+  // Verificación por código: solo quien acaba de escribir su correo y
+  // contraseña (login real) pasa por aquí. Si la app simplemente restaura
+  // una sesión ya abierta (recargar, cerrar y volver a abrir la pestaña,
+  // reabrir la app…) no se vuelve a pedir nada, hasta que se cierre sesión
+  // o se inicie sesión de nuevo. Los administradores quedan exentos (son
+  // quienes deben ver y transmitir el código; si solo hay uno, exigírselo
+  // a sí mismo le dejaría fuera sin nadie que pudiera dárselo).
+  if(!currentUserIsAdmin && isFreshSignIn){
     let verifyId = null, verifyError = null;
     try{
       const vres = await sb.rpc('request_login_verification', {
@@ -8065,7 +8069,7 @@ sb.auth.onAuthStateChange((event, session) => {
     // Si ya estábamos logueados con este mismo usuario, no repetir todo
     // el flujo (comprobación de dispositivo incluida) sin necesidad.
     if(currentUser && currentUser.id === session.user.id && event !== 'SIGNED_IN'){ return; }
-    onLoggedIn(session.user);
+    onLoggedIn(session.user, event === 'SIGNED_IN');
   } else {
     onLoggedOut();
   }
