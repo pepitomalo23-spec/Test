@@ -376,6 +376,13 @@
   .admin-user-badges{ display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
   .admin-badge{ font-family: var(--mono); font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--line); color: var(--muted); }
   .admin-badge.admin{ color: var(--purple); border-color: var(--purple); background: rgba(140,125,245,0.1); }
+  .activity-dot{ display:inline-block; width:9px; height:9px; border-radius:50%; background: var(--muted); margin-right:8px; flex-shrink:0; }
+  .activity-dot.on{ background: var(--teal); box-shadow:0 0 0 3px rgba(60,200,170,0.22); }
+  .activity-name{ display:flex; align-items:center; font-size:14.5px; font-weight:700; word-break:break-all; }
+  .activity-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin-top:10px; }
+  .activity-stat{ border:1px solid var(--line); border-radius:10px; padding:8px 10px; background: var(--card-hi); }
+  .activity-stat-label{ font-size:11px; color: var(--muted); margin-bottom:2px; }
+  .activity-stat-value{ font-family: var(--mono); font-size:14px; font-weight:600; }
   .admin-badge.over{ color: var(--coral); border-color: var(--coral); background: rgba(242,102,92,0.1); }
   .admin-device-limit{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
   .admin-device-limit input{ width:64px; background: var(--card-hi); border:1px solid var(--line); color: var(--text); font-family: var(--mono); font-size:13px; padding:7px 8px; border-radius:8px; text-align:center; }
@@ -1989,6 +1996,7 @@
         <div class="admin-tab active" id="adminTabBtn-topics" onclick="switchAdminTab('topics')">Temas</div>
         <div class="admin-tab" id="adminTabBtn-articles" onclick="switchAdminTab('articles')">Estructura</div>
         <div class="admin-tab" id="adminTabBtn-users" onclick="switchAdminTab('users')">Usuarios</div>
+        <div class="admin-tab" id="adminTabBtn-activity" onclick="switchAdminTab('activity')">Actividad</div>
         <div class="admin-tab" id="adminTabBtn-boe" onclick="switchAdminTab('boe')">BOE / IA</div>
       </div>
 
@@ -2174,6 +2182,14 @@
         <div class="section-row" style="margin-top:30px;"><div class="section-title">Intentos de inicio de sesión</div><div class="section-rule"></div></div>
         <div class="admin-card-meta" style="margin-bottom:14px;">Incluye intentos correctos y fallidos, con el dispositivo desde el que se hicieron.</div>
         <div id="adminList-loginAttempts"></div>
+      </div>
+
+      <!-- ACTIVIDAD -->
+      <div class="admin-section" id="adminSection-activity">
+        <div class="admin-card-title" style="margin-bottom:10px;">Actividad de los usuarios</div>
+        <div class="admin-card-meta" style="margin-bottom:6px;">Quién está conectado ahora, desde qué hora y cuánto rato lleva. Se actualiza solo cada pocos segundos.</div>
+        <div class="admin-card-meta" id="activityLiveInfo" style="margin-bottom:14px;"></div>
+        <div id="adminList-activity"></div>
       </div>
 
       <!-- BOE / IA -->
@@ -6394,6 +6410,7 @@ async function onLoggedIn(user, isFreshSignIn){
   }
 
   document.getElementById('authOverlay').classList.add('hidden');
+  startActivityHeartbeat();
   const emailEl = document.getElementById('headerUserEmail');
   if(emailEl) emailEl.textContent = user.email || '';
 
@@ -6505,6 +6522,8 @@ function waitForLoginCodeVerification(verifyId){
   });
 }
 function onLoggedOut(){
+  stopActivityHeartbeat();
+  stopActivityLive();
   currentUser = null;
   currentUserIsAdmin = false;
   if(adminPollInterval){ clearInterval(adminPollInterval); adminPollInterval = null; }
@@ -6573,12 +6592,17 @@ async function adminLoadAllData(){
   refreshTreeTopicSelect();
 }
 function switchAdminTab(name){
-  ['topics','articles','users','boe'].forEach(t => {
+  ['topics','articles','users','activity','boe'].forEach(t => {
     document.getElementById('adminTabBtn-'+t).classList.toggle('active', t===name);
     document.getElementById('adminSection-'+t).classList.toggle('active', t===name);
   });
   if(name === 'boe'){
     initBoeAdminPanel();
+  }
+  if(name === 'activity'){
+    startActivityLive();
+  } else {
+    stopActivityLive();
   }
   if(name === 'users'){
     adminLoadUsers();
@@ -6616,6 +6640,153 @@ function formatDateTime(iso){
   if(!iso) return '—';
   const d = new Date(iso);
   return d.toLocaleString('es-ES', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+/* ==================== ACTIVIDAD / TIEMPO CONECTADO ==================== */
+/* Latido: mientras la app está abierta y visible, cada 30 s se avisa a
+   Supabase (heartbeat_activity). El administrador ve con ello quién está
+   conectado, desde qué hora y cuánto lleva. */
+const ACTIVITY_HEARTBEAT_MS = 30000;
+let activityHeartbeatTimer = null;
+function sendActivityHeartbeat(){
+  if(!currentUser || document.visibilityState === 'hidden') return;
+  try{
+    sb.rpc('heartbeat_activity', { p_device_id: getDeviceId() }).then(r => {
+      if(r && r.error) console.warn('heartbeat_activity', r.error.message);
+    }, () => {});
+  }catch(e){}
+}
+function onActivityVisibility(){
+  if(document.visibilityState === 'visible') sendActivityHeartbeat();
+}
+function startActivityHeartbeat(){
+  stopActivityHeartbeat();
+  sendActivityHeartbeat();
+  activityHeartbeatTimer = setInterval(sendActivityHeartbeat, ACTIVITY_HEARTBEAT_MS);
+  document.addEventListener('visibilitychange', onActivityVisibility);
+}
+function stopActivityHeartbeat(){
+  if(activityHeartbeatTimer){ clearInterval(activityHeartbeatTimer); activityHeartbeatTimer = null; }
+  document.removeEventListener('visibilitychange', onActivityVisibility);
+}
+
+/* Panel del administrador: se consulta cada 10 s y, entre consulta y
+   consulta, los contadores de quien está conectado avanzan cada segundo. */
+let activityPollTimer = null, activityTickTimer = null;
+let activityRows = [], activityFetchedAt = 0, activityServerOffset = 0;
+const activityHistoryOpen = {};
+
+function fmtDuration(sec){
+  sec = Math.max(0, Math.floor(sec || 0));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  if(h > 0) return h + ' h ' + String(m).padStart(2,'0') + ' min';
+  if(m > 0) return m + ' min ' + String(s).padStart(2,'0') + ' s';
+  return s + ' s';
+}
+function fmtClock(iso){
+  if(!iso) return '—';
+  return new Date(iso).toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
+}
+function fmtAgo(iso){
+  if(!iso) return 'nunca';
+  const sec = (Date.now() + activityServerOffset - new Date(iso).getTime()) / 1000;
+  if(sec < 60) return 'hace un momento';
+  if(sec < 3600) return 'hace ' + Math.floor(sec/60) + ' min';
+  if(sec < 86400) return 'hace ' + Math.floor(sec/3600) + ' h';
+  return formatDateTime(iso);
+}
+function activityScreenVisible(){
+  const sc = document.getElementById('screen-admin');
+  const sec = document.getElementById('adminSection-activity');
+  return !!(currentUserIsAdmin && sc && sc.classList.contains('active') && sec && sec.classList.contains('active'));
+}
+async function adminLoadActivity(){
+  if(!activityScreenVisible()) return;
+  const { data, error } = await sb.rpc('admin_list_activity');
+  const info = document.getElementById('activityLiveInfo');
+  const el = document.getElementById('adminList-activity');
+  if(error){
+    console.error(error);
+    if(!activityRows.length) el.innerHTML = '<div class="admin-empty">No se pudo cargar la actividad.</div>';
+    return;
+  }
+  activityRows = data || [];
+  activityFetchedAt = Date.now();
+  if(activityRows.length && activityRows[0].server_now){
+    activityServerOffset = new Date(activityRows[0].server_now).getTime() - activityFetchedAt;
+  }
+  const online = activityRows.filter(r => r.is_online).length;
+  if(info) info.textContent = online + ' conectado' + (online === 1 ? '' : 's') + ' ahora · actualizado a las ' + new Date().toLocaleTimeString('es-ES');
+  renderActivity();
+}
+function renderActivity(){
+  const el = document.getElementById('adminList-activity');
+  if(!el) return;
+  if(!activityRows.length){ el.innerHTML = '<div class="admin-empty">No hay usuarios todavía.</div>'; return; }
+  el.innerHTML = activityRows.map(r => {
+    const on = !!r.is_online;
+    const badges = (r.is_admin ? '<span class="admin-badge admin">Admin</span>' : '') +
+      (on ? '<span class="admin-badge" style="color:var(--teal); border-color:var(--teal);">Conectado</span>'
+          : '<span class="admin-badge">Desconectado</span>');
+    const statNow = on
+      ? '<div class="activity-stat"><div class="activity-stat-label">Conectado desde</div><div class="activity-stat-value">' + fmtClock(r.current_started_at) + '</div></div>' +
+        '<div class="activity-stat"><div class="activity-stat-label">Lleva conectado</div><div class="activity-stat-value" data-act-live="' + esc(r.user_id) + '">' + fmtDuration((Date.now() + activityServerOffset - new Date(r.current_started_at).getTime())/1000) + '</div></div>'
+      : '<div class="activity-stat"><div class="activity-stat-label">Última conexión</div><div class="activity-stat-value">' + (r.last_seen ? fmtAgo(r.last_seen) : 'nunca') + '</div></div>';
+    const statToday =
+      '<div class="activity-stat"><div class="activity-stat-label">Primera hora hoy</div><div class="activity-stat-value">' + fmtClock(r.first_start_today) + '</div></div>' +
+      '<div class="activity-stat"><div class="activity-stat-label">Tiempo total hoy</div><div class="activity-stat-value" data-act-today="' + esc(r.user_id) + '">' + fmtDuration(r.seconds_today) + '</div></div>' +
+      '<div class="activity-stat"><div class="activity-stat-label">Sesiones hoy</div><div class="activity-stat-value">' + (r.sessions_today || 0) + '</div></div>';
+    const open = !!activityHistoryOpen[r.user_id];
+    return '<div class="admin-card">' +
+      '<div class="admin-user-row"><div style="min-width:0;">' +
+        '<div class="activity-name"><span class="activity-dot' + (on ? ' on' : '') + '"></span>' + esc(r.email || r.user_id) + '</div>' +
+        '<div class="admin-user-badges">' + badges + '</div>' +
+      '</div></div>' +
+      '<div class="activity-stats">' + statNow + statToday + '</div>' +
+      '<span class="admin-devices-toggle" onclick="toggleActivityHistory(\'' + r.user_id + '\')">' + (open ? 'Ocultar' : 'Ver') + ' últimas sesiones</span>' +
+      '<div class="admin-devices-list" id="activityHistory-' + esc(r.user_id) + '" style="' + (open ? '' : 'display:none;') + '"></div>' +
+    '</div>';
+  }).join('');
+  activityRows.forEach(r => { if(activityHistoryOpen[r.user_id]) loadActivityHistory(r.user_id); });
+}
+function tickActivity(){
+  if(!activityScreenVisible()) return;
+  const nowSrv = Date.now() + activityServerOffset;
+  const sinceFetch = (Date.now() - activityFetchedAt) / 1000;
+  activityRows.forEach(r => {
+    if(!r.is_online) return;
+    const live = document.querySelector('[data-act-live="' + r.user_id + '"]');
+    if(live) live.textContent = fmtDuration((nowSrv - new Date(r.current_started_at).getTime()) / 1000);
+    const today = document.querySelector('[data-act-today="' + r.user_id + '"]');
+    if(today) today.textContent = fmtDuration((r.seconds_today || 0) + sinceFetch);
+  });
+}
+async function loadActivityHistory(userId){
+  const box = document.getElementById('activityHistory-' + userId);
+  if(!box) return;
+  const { data, error } = await sb.rpc('admin_list_user_activity', { p_user_id: userId, p_limit: 15 });
+  if(error){ box.innerHTML = '<div class="admin-empty" style="padding:10px 0;">No se pudo cargar el historial.</div>'; console.error(error); return; }
+  if(!data || !data.length){ box.innerHTML = '<div class="admin-empty" style="padding:10px 0;">Sin sesiones registradas.</div>'; return; }
+  box.innerHTML = data.map(d =>
+    '<div class="admin-device-row"><div>' +
+      '<div class="admin-device-name">' + formatDateTime(d.started_at) + ' → ' + fmtClock(d.last_seen) + '</div>' +
+      '<div class="admin-card-meta">' + esc(d.user_agent ? describeUserAgent(d.user_agent) : 'Dispositivo desconocido') + '</div>' +
+    '</div><span class="admin-badge">' + fmtDuration(d.seconds) + '</span></div>'
+  ).join('');
+}
+function toggleActivityHistory(userId){
+  activityHistoryOpen[userId] = !activityHistoryOpen[userId];
+  renderActivity();
+}
+function startActivityLive(){
+  stopActivityLive();
+  adminLoadActivity();
+  activityPollTimer = setInterval(adminLoadActivity, 10000);
+  activityTickTimer = setInterval(tickActivity, 1000);
+}
+function stopActivityLive(){
+  if(activityPollTimer){ clearInterval(activityPollTimer); activityPollTimer = null; }
+  if(activityTickTimer){ clearInterval(activityTickTimer); activityTickTimer = null; }
 }
 async function adminLoadUsers(){
   const el = document.getElementById('adminList-users');
