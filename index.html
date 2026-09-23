@@ -1444,7 +1444,7 @@
       <div class="auth-divider">o</div>
       <button class="btn btn-ghost btn-block" id="authMagicBtn" onclick="handleMagicLink()">Enviarme un enlace mágico</button>
       <div class="auth-status" id="authStatus"></div>
-      <div style="text-align:center; margin-top:14px; font-size:10.5px; opacity:.35; font-family:var(--mono);">build 2026-09-23 04:49 UTC</div>
+      <div style="text-align:center; margin-top:14px; font-size:10.5px; opacity:.35; font-family:var(--mono);">build 2026-09-23 04:57 UTC</div>
     </div>
   </div>
 
@@ -2272,6 +2272,24 @@
 const SUPABASE_URL = 'https://tsjaaqkvncgxqtpmlugv.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_F9-gdlx34vn7FQ_1hSHwcQ__L5EGMOS';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Marca fiable de "esto es un login que el usuario acaba de pedir de verdad"
+// (pulsar Iniciar sesión / Crear cuenta / enlace mágico), independiente de
+// qué eventos dispare internamente la librería de Supabase al restaurar una
+// sesión guardada (que en la práctica no siempre se distinguen de un login
+// real con el nombre del evento). Solo si esta marca está presente y es
+// reciente (menos de 5 min) se pedirá el código de verificación.
+function markFreshLoginIntent(){
+  try{ localStorage.setItem('pjfire_fresh_login_at', String(Date.now())); }catch(e){}
+}
+function consumeFreshLoginIntent(){
+  try{
+    const t = localStorage.getItem('pjfire_fresh_login_at');
+    if(!t) return false;
+    localStorage.removeItem('pjfire_fresh_login_at');
+    return (Date.now() - Number(t)) < 5*60*1000;
+  }catch(e){ return false; }
+}
 
 /* ---------- Altura real de <header>, usada por .quiz-head (sticky) para
    quedar pegada justo debajo, tanto en la barra superior de escritorio
@@ -5973,6 +5991,7 @@ async function handleLogin(){
   showAuthError(''); showAuthStatus('');
   if(!email || !password){ showAuthError('Introduce tu correo y contraseña.'); return; }
   setAuthBusy(true);
+  markFreshLoginIntent();
   const { error } = await sb.auth.signInWithPassword({ email, password });
   setAuthBusy(false);
   if(error){
@@ -5986,6 +6005,7 @@ async function handleSignup(){
   if(!email || !password){ showAuthError('Introduce tu correo y contraseña.'); return; }
   if(password.length < 6){ showAuthError('La contraseña debe tener al menos 6 caracteres.'); return; }
   setAuthBusy(true);
+  markFreshLoginIntent();
   const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: window.location.href } });
   setAuthBusy(false);
   if(error){ showAuthError(error.message); return; }
@@ -5998,6 +6018,7 @@ async function handleMagicLink(){
   showAuthError(''); showAuthStatus('');
   if(!email){ showAuthError('Introduce tu correo para enviarte el enlace.'); return; }
   setAuthBusy(true);
+  markFreshLoginIntent();
   const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
   setAuthBusy(false);
   if(error){ showAuthError(error.message); return; }
@@ -6077,11 +6098,15 @@ async function onLoggedIn(user, isFreshSignIn){
     return;
   }
 
-  // Verificación por código: solo quien acaba de escribir su correo y
-  // contraseña (login real) pasa por aquí. Si la app simplemente restaura
-  // una sesión ya abierta (recargar, cerrar y volver a abrir la pestaña,
-  // reabrir la app…) no se vuelve a pedir nada, hasta que se cierre sesión
-  // o se inicie sesión de nuevo. Los administradores quedan exentos (son
+  // Verificación por código: "isFreshSignIn" viene de una marca propia
+  // (markFreshLoginIntent/consumeFreshLoginIntent) puesta justo al pulsar
+  // Iniciar sesión / Crear cuenta / enlace mágico, en vez de fiarnos del
+  // nombre del evento que dispare la librería de Supabase (en la práctica
+  // no siempre distingue de forma fiable un login real de una simple
+  // restauración de sesión guardada). Si la app solo restaura una sesión ya
+  // abierta (recargar, cerrar y volver a abrir la pestaña…) no se pide
+  // nada, hasta que se cierre sesión o se inicie sesión de nuevo. Los
+  // administradores quedan exentos (son
   // quienes deben ver y transmitir el código; si solo hay uno, exigírselo
   // a sí mismo le dejaría fuera sin nadie que pudiera dárselo).
   if(!currentUserIsAdmin && isFreshSignIn){
@@ -8070,7 +8095,7 @@ sb.auth.onAuthStateChange((event, session) => {
     // Si ya estábamos logueados con este mismo usuario, no repetir todo
     // el flujo (comprobación de dispositivo incluida) sin necesidad.
     if(currentUser && currentUser.id === session.user.id && event !== 'SIGNED_IN'){ return; }
-    onLoggedIn(session.user, event === 'SIGNED_IN');
+    onLoggedIn(session.user, consumeFreshLoginIntent());
   } else {
     onLoggedOut();
   }
