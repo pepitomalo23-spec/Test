@@ -804,6 +804,22 @@
     #screen-config .modal-panel, #screen-fallos .modal-panel, #screen-inteligente .modal-panel{ max-height:calc(100dvh - 72px); }
   }
 
+  /* Simulacro: solo dos botones desplegables (Minutos / Preguntas), todo centrado */
+  #screen-config[data-mode="simulacro"] .modal-body{
+    display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;
+  }
+  #screen-config[data-mode="simulacro"] .config-sub{ text-align:center; margin:0 auto 22px; max-width:320px; }
+  #screen-config[data-mode="simulacro"] #configSettingsBlock{ width:100%; max-width:340px; margin:0 auto; }
+  #screen-config[data-mode="simulacro"] .settings-list{
+    background:transparent; border:none; padding:0; display:flex; flex-direction:column; gap:12px;
+  }
+  #screen-config[data-mode="simulacro"] .settings-row{
+    justify-content:center; gap:10px; padding:16px 18px;
+    border:1px solid var(--line); border-radius:16px;
+  }
+  #screen-config[data-mode="simulacro"] .settings-row-label{ flex:none; color: var(--text); font-weight:600; }
+  #screen-config[data-mode="simulacro"] .settings-row-value{ color: var(--teal); font-weight:600; }
+
   /* ---------- option sheet (Minutos / Preguntas / Dificultad / Ayuda / Repaso) ---------- */
   .sheet-overlay{
     position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:60;
@@ -3815,9 +3831,9 @@ function openConfig(mode){
   document.getElementById('configSub').textContent = subs[mode];
 
   document.getElementById('configTopicsBlock').style.display = (mode === 'estudio' || mode === 'examen') ? 'block' : 'none';
-  document.getElementById('configParamsBlock').style.display = (mode === 'examen' || mode === 'simulacro') ? 'block' : 'none';
-  document.getElementById('configTimeBlock').style.display = (mode === 'examen' || mode === 'simulacro') ? 'block' : 'none';
-  document.getElementById('configSettingsBlock').style.display = (mode === 'estudio') ? 'block' : 'none';
+  document.getElementById('configParamsBlock').style.display = (mode === 'examen') ? 'block' : 'none';
+  document.getElementById('configTimeBlock').style.display = (mode === 'examen') ? 'block' : 'none';
+  document.getElementById('configSettingsBlock').style.display = (mode === 'estudio' || mode === 'simulacro') ? 'block' : 'none';
   document.getElementById('configSub').style.display = (mode === 'estudio') ? 'none' : 'block';
 
   renderSettings();
@@ -3829,6 +3845,31 @@ function openConfig(mode){
 
 /* ---------- ajustes (minutos / preguntas / dificultad / ayuda / repaso) ---------- */
 function renderSettings(){
+  if(configState.mode === 'simulacro'){
+    const simRows = [
+      { key:'time', icon: ICONS.timer, label:'Minutos',
+        options: TIME_OPTIONS.map(v => ({ value:v, label: v + ' min' })) },
+      { key:'count', icon: ICONS.doc, label:'Preguntas',
+        options: COUNT_OPTIONS.map(v => ({ value:v, label: v + ' preguntas' })) }
+    ];
+    const simEl = document.getElementById('settingsList');
+    simEl.innerHTML = '';
+    simRows.forEach(r => {
+      const current = r.options.find(o => o.value === configState[r.key]);
+      const row = document.createElement('div');
+      row.className = 'settings-row';
+      row.setAttribute('role','button'); row.setAttribute('tabindex','0');
+      row.innerHTML =
+        '<span class="settings-row-icon">' + r.icon + '</span>' +
+        '<span class="settings-row-label">' + r.label + '</span>' +
+        '<span class="settings-row-value">' + (current ? current.label : '') + '</span>' +
+        '<span class="settings-row-chevron">' + ICONS.chevron + '</span>';
+      row.onclick = () => openSettingSheet(r.key, r.label, r.options);
+      simEl.appendChild(row);
+    });
+    updateConfigFooter();
+    return;
+  }
   if(configState.mode !== 'estudio') return;
   const rows = [
     { key:'minutos', icon: ICONS.timer, label:'Minutos',
