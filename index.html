@@ -3798,7 +3798,7 @@ function nodeIsInSelectedGroups(nodeId, selectedSet){
   }
   return false;
 }
-const NODE_TYPE_PLURAL = { titulo:'Títulos', capitulo:'Capítulos', seccion:'Secciones', articulo:'Artículos', estructura:'Niveles' };
+const NODE_TYPE_PLURAL = { titulo:'Títulos', capitulo:'Capítulos', seccion:'Secciones', articulo:'Artículos', libre:'Niveles', estructura:'Estructuras' };
 function topicGroupTypeLabel(topicId){
   const groups = TOPIC_GROUPS[topicId] || [];
   if(!groups.length) return 'Títulos';
