@@ -2977,7 +2977,13 @@ function handleDeepLink(href){
   if(!currentUser) return;
   if(url.searchParams.get('repaso')){
     showScreen('screen-normativas');
-    if(typeof NQ !== 'undefined' && NQ.startReview) setTimeout(() => NQ.startReview(), 400);
+    // Las tarjetas pueden estar aún cargando: se reintenta unos segundos.
+    let tries = 0;
+    const tryStart = () => {
+      if(typeof NQ !== 'undefined' && NQ.startReview && NQ.startReview()) return;
+      if(++tries < 12) setTimeout(tryStart, 500);
+    };
+    setTimeout(tryStart, 300);
   } else if(url.searchParams.get('admin') === 'errores' && currentUserIsAdmin){
     openAdminPanel().then(() => switchAdminTab('errors'));
   }
@@ -4057,6 +4063,27 @@ function nodeFullPath(nodeId){
    Esta función pagina con .range() hasta traer todas las filas. */
 async function fetchAllRows(tableName, selectCols, applyOrder){
   const PAGE_SIZE = 1000;
+  // Se pregunta primero cuántas filas hay y luego se piden todas las
+  // páginas a la vez (antes iban una detrás de otra, y con datos móviles
+  // eso alargaba mucho la entrada a la app).
+  try{
+    const { count, error: cErr } = await sb.from(tableName).select('*', { count: 'exact', head: true });
+    if(!cErr && typeof count === 'number'){
+      const pages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+      const results = await Promise.all(Array.from({ length: pages }, (_, i) => {
+        let q = sb.from(tableName).select(selectCols || '*');
+        if(applyOrder) q = applyOrder(q);
+        return q.range(i * PAGE_SIZE, (i + 1) * PAGE_SIZE - 1);
+      }));
+      const failed = results.find(r => r.error);
+      if(!failed){
+        let rows = [];
+        results.forEach(r => { rows = rows.concat(r.data || []); });
+        // Si justo se añadieron filas entre medias, se completa con la vía normal.
+        if(rows.length >= count) return { data: rows, error: null };
+      }
+    }
+  }catch(e){ /* si algo falla, se usa la carga página a página de siempre */ }
   let allRows = [];
   let from = 0;
   while(true){
@@ -4566,6 +4593,7 @@ function openOverlay(id){
 
 /* ---------- config screen (estudio / examen / simulacro) ---------- */
 function openConfig(mode){
+  if(whenAppDataReady(() => openConfig(mode))) return;
   if(quizState && quizState.mode && quizState.mode !== mode) return; // hay un test en curso en otro apartado
   configState.mode = mode;
   // Antes se marcaban todos los temas por defecto al abrir esta pantalla
@@ -4994,6 +5022,7 @@ function startFromConfig(){
 
 /* ---------- fallos intro screen ---------- */
 function openFallos(){
+  if(whenAppDataReady(openFallos)) return;
   if(quizState && quizState.mode && quizState.mode !== 'fallos') return; // hay un test en curso en otro apartado
   const total = TOPICS.filter(t => t.enabled).reduce((s,t) => s + t.fails, 0);
   if(total === 0) return; // no hay fallos: no se puede abrir el repaso
@@ -5182,6 +5211,7 @@ function renderSmartIntro(){
   if(startBtn) startBtn.disabled = smartTestPicked.length === 0;
 }
 function openInteligente(){
+  if(whenAppDataReady(openInteligente)) return;
   if(!featureEnabled('inteligente')) return; // el administrador ha desactivado esta función para este usuario
   if(quizState && quizState.mode && quizState.mode !== 'inteligente') return; // hay un test en curso en otro apartado
   if(!QUESTIONS_POOL.length) return;
@@ -7194,27 +7224,50 @@ async function onLoggedIn(user, isFreshSignIn){
   // loadAppData()) para pintar en pantalla, pero su propia consulta a
   // test_sessions no depende de nada de eso, así que se lanza ya mismo
   // (en paralelo con lo anterior) y se le pasa lista a refreshGlobalStats().
+  // Se entra ya en la app (con esqueletos de carga) sin esperar a las
+  // preguntas, el historial y las estadísticas: antes la pantalla de carga
+  // esperaba a todo eso y con datos móviles podía pasar de 12 s.
+  const lastScreen = getLastScreen();
+  if(lastScreen === 'screen-admin' && currentUserIsAdmin){
+    openAdminPanel(); // carga sus datos por detrás
+  } else {
+    showScreen(lastScreen);
+  }
+  // showScreen() pinta el historial con lo que haya (aún nada): se vuelve
+  // a dejar el esqueleto hasta que lleguen los datos.
+  if(historyListEl) historyListEl.innerHTML = '<div id="historyLoadingPlaceholder">' + skelList(3) + '</div>';
+  if(fallosLabelEl) fallosLabelEl.innerHTML = SKEL_INLINE;
+  if(smartLabelEl) smartLabelEl.innerHTML = SKEL_INLINE;
+  finishSplash();
+  handleDeepLink(location.href);
+
   const globalStatsSessionsPromise = sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
   let startupDone = false;
   const startupWatch = setTimeout(() => {
     if(!startupDone) reportClientError('atasco', 'Los datos de Inicio (preguntas/historial) seguían sin cargar 20 s después de entrar.');
   }, 20000);
-  await Promise.all([loadAppData(), loadHistory()]);
+  appDataReady = false;
+  appDataPromise = Promise.all([loadAppData(), loadHistory()]);
+  try{ await appDataPromise; }
+  finally{ appDataReady = true; }
   startupDone = true;
   clearTimeout(startupWatch);
   flushPendingResults();
   await refreshGlobalStats(globalStatsSessionsPromise);
-  // Al entrar (incluido tras recargar la app), volvemos a la pantalla en
-  // la que estaba el usuario la última vez (o a su pantalla padre si era
-  // una de detalle/proceso), en vez de ir siempre a Inicio.
-  const lastScreen = getLastScreen();
-  if(lastScreen === 'screen-admin' && currentUserIsAdmin){
-    await openAdminPanel(); // hace showScreen + carga los datos del panel
-  } else {
-    showScreen(lastScreen);
-  }
-  finishSplash();
-  handleDeepLink(location.href);
+  // Si ya se estaba en Estadísticas, se vuelve a pintar con los datos reales.
+  const active = document.querySelector('.screen.active');
+  if(active && active.id === 'screen-stats') showScreen('screen-stats');
+}
+
+/* Mientras llegan las preguntas (justo al entrar), los modos de test
+   esperan a que terminen en vez de abrirse vacíos. */
+let appDataReady = false;
+let appDataPromise = Promise.resolve();
+function whenAppDataReady(fn){
+  if(appDataReady) return false;
+  uiToast('Un momento, cargando las preguntas…', 'info', { duration: 2500 });
+  appDataPromise.then(fn, fn);
+  return true;
 }
 function waitForLoginCodeVerification(verifyId){
   return new Promise(resolve => {
@@ -10894,10 +10947,12 @@ const NQ = (function(){
   else init();
 
   function startReview(){
-    if(study || !srsItems().due.length) return;
+    if(study) return true;
+    if(!srsItems().due.length) return false;
     study = srsInit();
     $ov().classList.remove('hidden'); $ov().scrollTop = 0;
     renderStudy();
+    return true;
   }
   return { render, load, close: closeStudy, startReview };
 })();
