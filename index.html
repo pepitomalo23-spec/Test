@@ -14,6 +14,18 @@
 <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
 <script>
+  /* Captura temprana de errores: se guardan en una cola hasta que el
+     script principal (con Supabase) pueda enviarlos a client_errors. */
+  window.__errQ = [];
+  window.addEventListener('error', function(e){
+    window.__errQ.push({ kind: 'error', message: (e && e.message) || 'Error', stack: (e && e.error && e.error.stack) || ((e && e.filename) ? e.filename + ':' + e.lineno : '') });
+  });
+  window.addEventListener('unhandledrejection', function(e){
+    var r = e && e.reason;
+    window.__errQ.push({ kind: 'promise', message: (r && (r.message || String(r))) || 'Promesa rechazada', stack: (r && r.stack) || '' });
+  });
+</script>
+<script>
   /* Aplica el tema guardado (claro/oscuro) lo antes posible, antes de que
      se procese cualquier CSS, para no arrancar en un tema para cambiar al
      otro un instante después. Por defecto, oscuro (comportamiento de
@@ -213,6 +225,62 @@
   #appSplashBar.show{ opacity:1; }
   #appSplashBarFill{ height:100%; width:0%; border-radius:999px; background: var(--text); transition: width .25s ease-out; }
   .hidden{ display:none !important; }
+
+
+
+  .admin-tab-count{ display:inline-block; min-width:18px; padding:0 5px; margin-left:4px; border-radius:999px; background:#E5484D; color:#fff; font-size:11px; font-weight:800; line-height:18px; text-align:center; }
+  .err-card.unseen{ border-color: color-mix(in srgb, #E5484D 45%, var(--line)); }
+  .err-head{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+  .err-new{ font-size:10.5px; font-weight:800; color:#fff; background:#E5484D; border-radius:999px; padding:2px 8px; }
+  .err-meta{ font-size:12px; color: var(--muted); }
+  .err-msg{ font-size:14px; line-height:1.45; word-break:break-word; }
+  .err-stack{ margin-top:8px; font-size:12px; color: var(--muted); }
+  .err-stack summary{ cursor:pointer; }
+  .err-stack pre{ white-space:pre-wrap; word-break:break-word; font-family: var(--mono); font-size:11px; margin-top:6px; max-height:220px; overflow:auto; background: var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px; }
+
+  /* ---------- Esqueletos de carga (en lugar de «Cargando…») ---------- */
+  .skel{ display:block; border-radius:8px; background: linear-gradient(90deg, var(--card) 0%, var(--card-hi) 40%, var(--card) 80%); background-size: 300% 100%; animation: skel-shimmer 1.3s ease-in-out infinite; }
+  .skel-line{ height:11px; border-radius:6px; }
+  .skel-inline{ display:inline-block; height:10px; width:80px; border-radius:6px; vertical-align:middle; }
+  .skel-list{ display:flex; flex-direction:column; gap:10px; }
+  .skel-row{ display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--line); border-radius:14px; }
+  .skel-row .skel-dot{ width:36px; height:36px; border-radius:10px; flex-shrink:0; }
+  .skel-row .skel-lines{ flex:1; display:flex; flex-direction:column; gap:8px; }
+  @keyframes skel-shimmer{ 0%{ background-position: 100% 0; } 100%{ background-position: -100% 0; } }
+  @media (prefers-reduced-motion: reduce){ .skel{ animation:none; } }
+
+  /* ---------- Avisos (toasts) y confirmaciones propios ----------
+     Sustituyen a alert()/confirm() del navegador. */
+.reminder-state{ font-size:12px; font-weight:700; color: var(--muted); }
+  .ui-confirm .reminder-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:16px; font-size:14px; color: var(--text); }
+  .reminder-hour{ background: var(--card-hi); color: var(--text); border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-family: var(--sans); font-size:14px; }
+  .reminder-steps{ margin:10px 0 0 18px; font-size:13.5px; color: var(--muted); line-height:1.7; }
+  .reminder-test{ margin-top:14px; background:none; border:none; color: var(--blue); font-family: var(--sans); font-size:13px; font-weight:700; cursor:pointer; padding:0; }
+  .ui-toasts{ position:fixed; left:50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); z-index:10050; display:flex; flex-direction:column; align-items:center; gap:8px; width: min(440px, calc(100% - 32px)); pointer-events:none; }
+  @media (max-width:640px){ .ui-toasts{ bottom: calc(96px + env(safe-area-inset-bottom, 0px)); } }
+  .ui-toast{ pointer-events:auto; display:flex; align-items:flex-start; gap:10px; width:100%; background: var(--card-hi); color: var(--text); border:1px solid var(--line); border-radius:14px; padding:12px 14px; font-family: var(--sans); font-size:13.5px; line-height:1.45; box-shadow: 0 10px 30px rgba(0,0,0,.35); cursor:pointer; animation: ui-toast-in .22s ease-out; }
+  .ui-toast.out{ animation: ui-toast-out .2s ease-in forwards; }
+  .ui-toast-ico{ width:20px; height:20px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#fff; margin-top:1px; }
+  .ui-toast.success .ui-toast-ico{ background: var(--green); color:#062b1d; }
+  .ui-toast.error .ui-toast-ico{ background:#E5484D; }
+  .ui-toast.info .ui-toast-ico{ background: var(--blue); }
+  .ui-toast-msg{ flex:1; min-width:0; white-space:pre-line; }
+  .ui-toast-action{ background:none; border:none; color: var(--blue); font-family: var(--sans); font-weight:800; font-size:13px; cursor:pointer; padding:0 2px; white-space:nowrap; align-self:center; }
+  @keyframes ui-toast-in{ from{ opacity:0; transform: translateY(10px) scale(.98); } to{ opacity:1; transform:none; } }
+  @keyframes ui-toast-out{ to{ opacity:0; transform: translateY(8px); } }
+  .ui-confirm-bg{ position:fixed; inset:0; z-index:10040; background: rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:18px; animation: ui-fade .15s ease-out; }
+  .ui-confirm{ width:100%; max-width:400px; background: var(--card); border:1px solid var(--line); border-radius:20px; padding:22px 20px 18px; box-shadow: 0 20px 60px rgba(0,0,0,.45); animation: ui-pop .18s ease-out; font-family: var(--sans); }
+  .ui-confirm h3{ font-size:17px; font-weight:800; line-height:1.35; margin-bottom:8px; color: var(--text); }
+  .ui-confirm p{ font-size:13.5px; color: var(--muted); line-height:1.5; white-space:pre-line; }
+  .ui-confirm-actions{ display:flex; gap:10px; margin-top:20px; }
+  .ui-confirm-actions button{ flex:1; border:none; border-radius:999px; padding:13px 16px; font-family: var(--sans); font-size:14px; font-weight:700; cursor:pointer; }
+  .ui-confirm-cancel{ background: var(--card-hi); color: var(--text); border:1px solid var(--line) !important; }
+  .ui-confirm-ok{ background: var(--blue); color:#fff; }
+  .ui-confirm-ok.danger{ background:#D93240; }
+  @keyframes ui-fade{ from{ opacity:0; } }
+  @keyframes ui-pop{ from{ opacity:0; transform: scale(.96); } }
+  @media (prefers-reduced-motion: reduce){ .ui-toast, .ui-toast.out, .ui-confirm-bg, .ui-confirm{ animation:none; } }
+
   .auth-overlay.hidden{ display:none; }
   .auth-panel{ width:100%; max-width:380px; background: var(--card); border:1px solid var(--line); border-radius:18px; padding:30px 26px 26px; }
   .auth-title{ font-family: var(--title); font-size:26px; letter-spacing:.3px; margin-bottom:8px; }
@@ -1950,6 +2018,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
         Cambios BOE
       </button>
+      <button class="header-user-boe" id="headerReminderBtn" onclick="closeUserMenu(); openReminderSheet();">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/></svg>
+        <span style="flex:1;">Recordatorio diario</span>
+        <span class="reminder-state" id="reminderMenuState"></span>
+      </button>
       <button class="header-user-boe" id="headerMyAdditionsBtn" onclick="closeUserMenu(); openMyAdditions();">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
         Notas y explicaciones IA
@@ -1998,7 +2071,7 @@
               <path d="m9 7 6 6"/>
             </svg>
           </div>
-          <div><div class="m-name">Fallos</div><div class="m-sub" id="fallosPendingLabel">Cargando…</div></div>
+          <div><div class="m-name">Fallos</div><div class="m-sub" id="fallosPendingLabel"><span class="skel skel-inline"></span></div></div>
           <div class="mode-resume-btn hidden" role="button" tabindex="0" onclick="event.stopPropagation(); resumeQuiz();" onkeydown="event.stopPropagation(); if(event.key==='Enter')resumeQuiz();">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             Reanudar
@@ -2021,7 +2094,7 @@
               <rect x="6.5" y="6.5" width="11" height="11" rx="1"/>
             </svg>
           </div>
-          <div><div class="m-name">Test Inteligente</div><div class="m-sub" id="smartPendingLabel">Cargando…</div></div>
+          <div><div class="m-name">Test Inteligente</div><div class="m-sub" id="smartPendingLabel"><span class="skel skel-inline"></span></div></div>
           <div class="mode-resume-btn hidden" role="button" tabindex="0" onclick="event.stopPropagation(); resumeQuiz();" onkeydown="event.stopPropagation(); if(event.key==='Enter')resumeQuiz();">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             Reanudar
@@ -2064,7 +2137,7 @@
       <div id="historySection">
       <div class="section-row"><div class="section-title">Historial</div><div class="section-rule"></div></div>
       <div class="history" id="historyList">
-        <div class="empty" id="historyLoadingPlaceholder">Cargando historial…</div>
+        <div id="historyLoadingPlaceholder"><div class="skel-list"><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:60%"></span><span class="skel skel-line" style="width:35%;opacity:.7"></span></span></div><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:72%"></span><span class="skel skel-line" style="width:40%;opacity:.7"></span></span></div><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:50%"></span><span class="skel skel-line" style="width:30%;opacity:.7"></span></span></div></div></div>
       </div>
       </div>
     </section>
@@ -2104,7 +2177,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
           </button>
         </div>
-        <div id="boeDetalleBody"><div class="empty">Cargando…</div></div>
+        <div id="boeDetalleBody"><div class="skel-list"><div class="skel-row"><span class="skel-lines"><span class="skel skel-line" style="width:70%"></span><span class="skel skel-line" style="width:45%;opacity:.7"></span></span></div><div class="skel-row"><span class="skel-lines"><span class="skel skel-line" style="width:55%"></span><span class="skel skel-line" style="width:35%;opacity:.7"></span></span></div></div></div>
       </div>
     </section>
 
@@ -2121,7 +2194,7 @@
           </button>
         </div>
         <div class="config-sub">Todas las preguntas donde habéis escrito una nota propia o generado una explicación con IA, para encontrarlas y editarlas aunque no recordéis cuál era.</div>
-        <div id="myAdditionsList"><div class="empty">Cargando…</div></div>
+        <div id="myAdditionsList"><div class="skel-list"><div class="skel-row"><span class="skel-lines"><span class="skel skel-line" style="width:70%"></span><span class="skel skel-line" style="width:45%;opacity:.7"></span></span></div><div class="skel-row"><span class="skel-lines"><span class="skel skel-line" style="width:55%"></span><span class="skel skel-line" style="width:35%;opacity:.7"></span></span></div></div></div>
       </div>
     </section>
 
@@ -2134,7 +2207,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
           </button>
         </div>
-        <div id="myAdditionDetailBody"><div class="empty">Cargando…</div></div>
+        <div id="myAdditionDetailBody"><div class="skel-list"><div class="skel-row"><span class="skel-lines"><span class="skel skel-line" style="width:70%"></span><span class="skel skel-line" style="width:45%;opacity:.7"></span></span></div><div class="skel-row"><span class="skel-lines"><span class="skel skel-line" style="width:55%"></span><span class="skel skel-line" style="width:35%;opacity:.7"></span></span></div></div></div>
       </div>
     </section>
 
@@ -2286,6 +2359,7 @@
         <div class="admin-tab" id="adminTabBtn-users" onclick="switchAdminTab('users')">Usuarios</div>
         <div class="admin-tab" id="adminTabBtn-activity" onclick="switchAdminTab('activity')">Actividad</div>
         <div class="admin-tab" id="adminTabBtn-boe" onclick="switchAdminTab('boe')">BOE / IA</div>
+        <div class="admin-tab" id="adminTabBtn-errors" onclick="switchAdminTab('errors')">Errores <span class="admin-tab-count hidden" id="adminErrorsCount">0</span></div>
       </div>
 
       <!-- TOPICS -->
@@ -2478,6 +2552,17 @@
         <div class="admin-card-meta" style="margin-bottom:6px;">Quién está conectado ahora, desde qué hora y cuánto rato lleva. Se actualiza solo cada pocos segundos.</div>
         <div class="admin-card-meta" id="activityLiveInfo" style="margin-bottom:14px;"></div>
         <div id="adminList-activity"></div>
+      </div>
+
+      <!-- ERRORES -->
+      <div class="admin-section" id="adminSection-errors">
+        <div class="admin-card-title" style="margin-bottom:10px;">Errores de la app</div>
+        <div class="admin-card-meta" style="margin-bottom:12px;">Fallos que han sufrido los usuarios (errores de la app, cargas que se quedaron colgadas…). Los nuevos aparecen marcados y suman en el aviso rojo de Administración.</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+          <button class="btn btn-light" onclick="adminMarkErrorsSeen()">Marcar todos como vistos</button>
+          <button class="btn btn-light" onclick="adminDeleteSeenErrors()">Borrar los vistos</button>
+        </div>
+        <div id="adminList-errors"></div>
       </div>
 
       <!-- BOE / IA -->
@@ -2713,9 +2798,351 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 /* ==================== SUPABASE SETUP ==================== */
+/* ---------- Avisos y confirmaciones propios ----------
+   uiToast(): aviso pequeño que desaparece solo (sustituye a alert()).
+   uiConfirm(): ventana de confirmación con el estilo de la app; devuelve
+   una promesa con true/false (sustituye a confirm()). */
+/* Esqueletos de carga: filas grises animadas con la forma del contenido. */
+function skelList(n, withIcon){
+  let out = '<div class="skel-list" aria-busy="true" aria-label="Cargando">';
+  for(let i = 0; i < (n || 3); i++){
+    out += '<div class="skel-row">' + (withIcon === false ? '' : '<span class="skel skel-dot"></span>') +
+      '<span class="skel-lines"><span class="skel skel-line" style="width:' + (55 + (i * 17) % 35) + '%"></span>' +
+      '<span class="skel skel-line" style="width:' + (30 + (i * 23) % 30) + '%;opacity:.7"></span></span></div>';
+  }
+  return out + '</div>';
+}
+const SKEL_INLINE = '<span class="skel skel-inline" aria-label="Cargando"></span>';
+
+function uiToast(message, type, opts){
+  opts = opts || {};
+  const msg = String(message == null ? '' : message);
+  if(!type){
+    type = /^(no se|no has|no hay|error|ha ocurrido)|no se pudo|no se ha podido|falt|selecciona|elige|introduce/i.test(msg) ? 'error'
+         : /^(gracias|guardad|listo|hecho|añadid|eliminad|borrad)/i.test(msg) ? 'success' : 'info';
+  }
+  let box = document.getElementById('uiToasts');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'uiToasts';
+    box.className = 'ui-toasts';
+    box.setAttribute('role', 'status');
+    box.setAttribute('aria-live', 'polite');
+    document.body.appendChild(box);
+  }
+  const el = document.createElement('div');
+  el.className = 'ui-toast ' + type;
+  const ico = type === 'success' ? '✓' : type === 'error' ? '!' : 'i';
+  el.innerHTML = '<span class="ui-toast-ico">' + ico + '</span><span class="ui-toast-msg"></span>' +
+    (opts.action ? '<button class="ui-toast-action" type="button"></button>' : '');
+  el.querySelector('.ui-toast-msg').textContent = msg;
+  let closed = false;
+  const close = () => {
+    if(closed) return;
+    closed = true;
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 220);
+  };
+  if(opts.action){
+    const b = el.querySelector('.ui-toast-action');
+    b.textContent = opts.action;
+    b.addEventListener('click', ev => { ev.stopPropagation(); close(); if(opts.onAction) opts.onAction(); });
+  }
+  el.addEventListener('click', close);
+  box.appendChild(el);
+  while(box.children.length > 3) box.firstElementChild.remove();
+  const ms = opts.duration != null ? opts.duration : (type === 'error' ? 6000 : 3500);
+  if(ms > 0) setTimeout(close, ms);
+  return close;
+}
+function uiConfirm(message, opts){
+  opts = opts || {};
+  const parts = String(message).split(/\n\n/);
+  const title = opts.title || parts[0];
+  const body = opts.title ? String(message) : parts.slice(1).join('\n\n');
+  const danger = opts.danger != null ? opts.danger : /borrar|eliminar|quitar|bloquear|reiniciar|salir/i.test(title);
+  const okText = opts.ok || (danger ? (/(bloquear)/i.test(title) ? 'Bloquear' : /(reiniciar)/i.test(title) ? 'Reiniciar' : /(quitar)/i.test(title) ? 'Quitar' : 'Eliminar') : 'Aceptar');
+  return new Promise(resolve => {
+    const prevFocus = document.activeElement;
+    const bg = document.createElement('div');
+    bg.className = 'ui-confirm-bg';
+    bg.innerHTML = '<div class="ui-confirm" role="alertdialog" aria-modal="true" aria-labelledby="uiConfirmTitle">' +
+      '<h3 id="uiConfirmTitle"></h3>' + (body ? '<p></p>' : '') +
+      '<div class="ui-confirm-actions"><button type="button" class="ui-confirm-cancel">' + (opts.cancel || 'Cancelar') + '</button>' +
+      '<button type="button" class="ui-confirm-ok' + (danger ? ' danger' : '') + '"></button></div></div>';
+    bg.querySelector('h3').textContent = title;
+    if(body) bg.querySelector('p').textContent = body;
+    bg.querySelector('.ui-confirm-ok').textContent = okText;
+    const done = v => {
+      document.removeEventListener('keydown', onKey, true);
+      bg.remove();
+      try{ if(prevFocus && prevFocus.focus) prevFocus.focus(); }catch(e){}
+      resolve(v);
+    };
+    const onKey = e => {
+      if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); done(false); }
+      else if(e.key === 'Enter' && document.activeElement && document.activeElement.classList.contains('ui-confirm-ok')){ e.preventDefault(); e.stopPropagation(); done(true); }
+    };
+    bg.querySelector('.ui-confirm-cancel').addEventListener('click', () => done(false));
+    bg.querySelector('.ui-confirm-ok').addEventListener('click', () => done(true));
+    bg.addEventListener('click', e => { if(e.target === bg) done(false); });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(bg);
+    // En acciones destructivas el foco queda en «Cancelar» por seguridad.
+    setTimeout(() => bg.querySelector(danger ? '.ui-confirm-cancel' : '.ui-confirm-ok').focus(), 30);
+  });
+}
+
 const SUPABASE_URL = 'https://tsjaaqkvncgxqtpmlugv.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_F9-gdlx34vn7FQ_1hSHwcQ__L5EGMOS';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ---------- Resultados de tests hechos sin conexión ----------
+   Se guardan en el dispositivo y se suben en cuanto hay conexión (al
+   volver internet o al abrir la app). */
+const PENDING_RESULTS_KEY = 'pjfire_pending_results';
+function readPendingResults(){ try{ return JSON.parse(localStorage.getItem(PENDING_RESULTS_KEY)) || []; }catch(e){ return []; } }
+function writePendingResults(list){ try{ localStorage.setItem(PENDING_RESULTS_KEY, JSON.stringify(list)); }catch(e){} }
+function queuePendingResult(item){
+  const list = readPendingResults();
+  list.push(Object.assign({ at: Date.now(), user_id: currentUser && currentUser.id }, item));
+  writePendingResults(list);
+}
+let flushingResults = false;
+async function flushPendingResults(){
+  if(flushingResults || !currentUser || !navigator.onLine) return;
+  const mine = readPendingResults().filter(r => r.user_id === currentUser.id);
+  if(!mine.length) return;
+  flushingResults = true;
+  let saved = 0;
+  try{
+    for(const item of mine){
+      try{
+        let sid = item.sessionId;
+        if(!sid){
+          const { data, error } = await sb.from('test_sessions').insert(item.session).select('id').single();
+          if(error) throw error;
+          sid = data.id;
+          // Si fallan las respuestas, que no se vuelva a crear el test.
+          item.sessionId = sid;
+          writePendingResults(readPendingResults().map(r => r.at === item.at ? item : r));
+        }
+        const rows = (item.answers || []).map(r => Object.assign({}, r, { session_id: sid }));
+        if(rows.length){
+          const { error } = await sb.from('session_answers').insert(rows);
+          if(error) throw error;
+        }
+        writePendingResults(readPendingResults().filter(r => r.at !== item.at));
+        saved++;
+      }catch(e){
+        console.warn('No se pudo subir un resultado pendiente', e);
+        break; // se reintentará más tarde
+      }
+    }
+  }finally{
+    flushingResults = false;
+  }
+  if(saved){
+    uiToast(saved === 1 ? 'Se ha guardado el test que hiciste sin conexión.' : 'Se han guardado los ' + saved + ' tests que hiciste sin conexión.', 'success');
+    try{ await loadAppData(); await loadHistory(); await refreshGlobalStats(); }catch(e){}
+  }
+}
+window.addEventListener('online', () => { flushPendingResults(); });
+
+/* =====================================================================
+   Modo sin conexión (service worker), aviso de versión nueva,
+   recordatorio diario por notificación y enlaces desde notificaciones.
+   ===================================================================== */
+const VAPID_PUBLIC_KEY = 'BKdFYjINaQQTY1u_yBh2H6cvdy2oatVDKoQZwi3pMGiGrnn1Jaj9r9nKvV3zkAciPqEQDL-w4hiMJ-pS9y7s3Hw';
+let updateToastShown = false;
+if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker no registrado', e));
+  });
+  navigator.serviceWorker.addEventListener('message', e => {
+    const msg = e.data || {};
+    if(msg.type === 'update-available' && !updateToastShown){
+      updateToastShown = true;
+      uiToast('Hay una versión nueva de la app.', 'info', { action: 'Actualizar', duration: 0, onAction: () => location.reload() });
+    }
+    if(msg.type === 'open' && msg.url) handleDeepLink(msg.url);
+  });
+}
+
+// Enlaces que abren las notificaciones: ?repaso=1 → Repaso diario,
+// ?admin=errores → Administración › Errores.
+function handleDeepLink(href){
+  let url;
+  try{ url = new URL(href, location.href); }catch(e){ return; }
+  if(!currentUser) return;
+  if(url.searchParams.get('repaso')){
+    showScreen('screen-normativas');
+    if(typeof NQ !== 'undefined' && NQ.startReview) setTimeout(() => NQ.startReview(), 400);
+  } else if(url.searchParams.get('admin') === 'errores' && currentUserIsAdmin){
+    openAdminPanel().then(() => switchAdminTab('errors'));
+  }
+  if(url.search && url.href === location.href){
+    try{ history.replaceState(null, '', location.pathname + location.hash); }catch(e){}
+  }
+}
+
+function pushSupported(){ return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+function isIOSDevice(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+function isStandaloneApp(){ return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; }
+function urlB64ToUint8(b64){
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+}
+async function getPushRegistration(){
+  if(!pushSupported()) return null;
+  return Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 5000))]);
+}
+async function getPushSubscription(){
+  const reg = await getPushRegistration();
+  return reg ? reg.pushManager.getSubscription() : null;
+}
+async function currentReminderRow(){
+  const sub = await getPushSubscription();
+  if(!sub || !currentUser) return null;
+  const { data } = await sb.from('push_subscriptions').select('remind_hour').eq('endpoint', sub.endpoint).maybeSingle();
+  return data || null;
+}
+async function refreshReminderMenuState(){
+  const el = document.getElementById('reminderMenuState');
+  if(!el) return;
+  try{
+    const row = await currentReminderRow();
+    el.textContent = row ? String(row.remind_hour).padStart(2, '0') + ':00' : 'No';
+  }catch(e){ el.textContent = ''; }
+}
+async function enableReminder(hour){
+  const perm = await Notification.requestPermission();
+  if(perm !== 'granted') throw new Error('permiso');
+  const reg = await getPushRegistration();
+  if(!reg) throw new Error('sin-sw');
+  let sub = await reg.pushManager.getSubscription();
+  if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(VAPID_PUBLIC_KEY) });
+  const j = sub.toJSON();
+  let tz = 'Europe/Madrid';
+  try{ tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz; }catch(e){}
+  const { error } = await sb.from('push_subscriptions').upsert({
+    user_id: currentUser.id, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth,
+    remind_hour: hour, tz, user_agent: String(navigator.userAgent).slice(0, 300)
+  }, { onConflict: 'endpoint' });
+  if(error) throw error;
+}
+async function disableReminder(){
+  const sub = await getPushSubscription();
+  if(!sub) return;
+  await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+  try{ await sub.unsubscribe(); }catch(e){}
+}
+async function openReminderSheet(){
+  const bg = document.createElement('div');
+  bg.className = 'ui-confirm-bg';
+  const close = () => { bg.remove(); document.removeEventListener('keydown', onKey, true); refreshReminderMenuState(); };
+  const onKey = e => { if(e.key === 'Escape'){ e.preventDefault(); close(); } };
+  document.addEventListener('keydown', onKey, true);
+  bg.addEventListener('click', e => { if(e.target === bg) close(); });
+  document.body.appendChild(bg);
+
+  const render = async () => {
+    let body = '', actions = '';
+    const hourSelect = sel => '<select class="reminder-hour" id="reminderHour">' +
+      Array.from({ length: 24 }, (_, h) => '<option value="' + h + '"' + (h === sel ? ' selected' : '') + '>' + String(h).padStart(2, '0') + ':00</option>').join('') + '</select>';
+    if(!pushSupported() && isIOSDevice() && !isStandaloneApp()){
+      body = '<p>En iPhone y iPad las notificaciones solo funcionan con la app instalada:</p>' +
+        '<ol class="reminder-steps"><li>Pulsa el botón <b>Compartir</b> de Safari.</li><li>Elige <b>Añadir a pantalla de inicio</b>.</li><li>Abre la app desde el icono nuevo y vuelve aquí.</li></ol>';
+      actions = '<button type="button" class="ui-confirm-ok" data-r="close">Entendido</button>';
+    } else if(!pushSupported()){
+      body = '<p>Este navegador no admite notificaciones. Prueba con Chrome, Edge, Firefox o Safari actualizados.</p>';
+      actions = '<button type="button" class="ui-confirm-ok" data-r="close">Entendido</button>';
+    } else if(Notification.permission === 'denied'){
+      body = '<p>Tienes las notificaciones bloqueadas para esta app. Actívalas en los ajustes del navegador (o del móvil, en Notificaciones) y vuelve a intentarlo.</p>';
+      actions = '<button type="button" class="ui-confirm-ok" data-r="close">Entendido</button>';
+    } else {
+      let row = null;
+      try{ row = await currentReminderRow(); }catch(e){}
+      if(row){
+        body = '<p>Activado en este dispositivo. Te avisaremos cada día a la hora elegida' + (currentUserIsAdmin ? ', y como admin también cuando haya errores nuevos en la app' : '') + '.</p>' +
+          '<label class="reminder-row"><span>Hora del aviso</span>' + hourSelect(row.remind_hour) + '</label>';
+        actions = '<button type="button" class="ui-confirm-cancel" data-r="off">Desactivar</button><button type="button" class="ui-confirm-ok" data-r="save">Guardar</button>';
+        body += '<button type="button" class="reminder-test" data-r="test">Enviar una notificación de prueba</button>';
+      } else {
+        body = '<p>Recibe cada día un aviso con las tarjetas que te tocan repasar' + (currentUserIsAdmin ? ' (y, como admin, cuando haya errores nuevos en la app)' : '') + '.</p>' +
+          '<label class="reminder-row"><span>Hora del aviso</span>' + hourSelect(19) + '</label>';
+        actions = '<button type="button" class="ui-confirm-cancel" data-r="close">Ahora no</button><button type="button" class="ui-confirm-ok" data-r="on">Activar</button>';
+      }
+    }
+    bg.innerHTML = '<div class="ui-confirm" role="dialog" aria-modal="true" aria-label="Recordatorio diario"><h3>🔔 Recordatorio diario</h3>' + body +
+      '<div class="ui-confirm-actions">' + actions + '</div></div>';
+  };
+  bg.addEventListener('click', async e => {
+    const b = e.target.closest('[data-r]');
+    if(!b) return;
+    const r = b.dataset.r;
+    const hourEl = bg.querySelector('#reminderHour');
+    const hour = hourEl ? +hourEl.value : 19;
+    if(r === 'close'){ close(); return; }
+    b.disabled = true;
+    try{
+      if(r === 'on' || r === 'save'){
+        await enableReminder(hour);
+        uiToast(r === 'on' ? 'Recordatorio activado a las ' + String(hour).padStart(2, '0') + ':00' : 'Hora guardada', 'success');
+        close();
+      } else if(r === 'off'){
+        await disableReminder();
+        uiToast('Recordatorio desactivado', 'success');
+        close();
+      } else if(r === 'test'){
+        const { data, error } = await sb.functions.invoke('push-reminders', { body: { test: true } });
+        if(error || !data || !data.sent) throw new Error('prueba');
+        uiToast('Notificación de prueba enviada', 'success');
+        b.disabled = false;
+      }
+    }catch(err){
+      b.disabled = false;
+      if(err && err.message === 'permiso'){ uiToast('Sin permiso para enviar notificaciones. Acepta el aviso del navegador para activarlo.', 'error'); await render(); }
+      else { uiToast('No se ha podido completar. Inténtalo de nuevo en un momento.', 'error'); reportClientError('recordatorio', 'Fallo en el recordatorio (' + r + '): ' + (err && (err.message || err))); }
+    }
+  });
+  await render();
+}
+
+/* ---------- Registro de errores (client_errors) ----------
+   Apunta en Supabase los fallos que sufren los usuarios para que el admin
+   los vea en Administración → Errores sin esperar a que se los cuenten.
+   Se evitan duplicados y se limita a unos pocos por sesión. */
+const APP_VERSION = '2026.09.24';
+const reportedErrors = new Set();
+let reportedCount = 0;
+function reportClientError(kind, message, stack){
+  try{
+    const msg = String(message || '').slice(0, 1000);
+    if(!msg) return;
+    // Ruido que no indica ningún fallo real de la app.
+    if(/ResizeObserver loop|^Script error\.?$|AbortError|The user aborted/i.test(msg)) return;
+    if(!navigator.onLine && /fetch|network|load failed|conexi/i.test(msg)) return;
+    const key = kind + '|' + msg;
+    if(reportedErrors.has(key) || reportedCount >= 15) return;
+    reportedErrors.add(key);
+    reportedCount++;
+    let email = null;
+    try{ email = (currentUser && currentUser.email) || null; }catch(e){}
+    sb.from('client_errors').insert({
+      kind: String(kind || 'error').slice(0, 40),
+      message: msg,
+      stack: stack ? String(stack).slice(0, 4000) : null,
+      url: String(location.pathname + location.hash).slice(0, 500),
+      user_agent: String(navigator.userAgent || '').slice(0, 400),
+      app_version: APP_VERSION,
+      email: email ? String(email).slice(0, 200) : null
+    }).then(() => {}, () => {});
+  }catch(e){ /* registrar un error nunca debe provocar otro */ }
+}
+(window.__errQ || []).forEach(e => reportClientError(e.kind, e.message, e.stack));
+window.__errQ = { push: e => reportClientError(e.kind, e.message, e.stack) };
 
 // Marca fiable de "esto es un login que el usuario acaba de pedir de verdad"
 // (pulsar Iniciar sesión / Crear cuenta / enlace mágico), independiente de
@@ -3771,7 +4198,7 @@ function renderHistoryEntry(container, h){
       .eq('session_id', h.id)
       .order('answer_order');
     if(error || !rows || !rows.length){
-      alert('Este test no tiene datos de corrección guardados.');
+      uiToast('Este test no tiene datos de corrección guardados.');
       return;
     }
     const review = {
@@ -3888,7 +4315,7 @@ function isLocalOnlySessionId(id){
 
 async function deleteHistoryItem(h, btnEl){
   const label = (h.title || 'este test') + (h.nota ? (' · Nota ' + h.nota) : '');
-  if(!confirm('¿Seguro que quieres borrar "' + label + '" del historial?\n\nEsta acción no se puede deshacer.')) return;
+  if(!await uiConfirm('¿Seguro que quieres borrar "' + label + '" del historial?\n\nEsta acción no se puede deshacer.')) return;
 
   if(btnEl) btnEl.disabled = true;
 
@@ -3908,13 +4335,13 @@ async function deleteHistoryItem(h, btnEl){
       if(!deletedRows || !deletedRows.length){
         // No se ha borrado ninguna fila: o no existe, o no pertenece a este
         // usuario. En ambos casos no seguimos, para no ocultar el problema.
-        alert('No se ha podido borrar: el test no existe o no te pertenece.');
+        uiToast('No se ha podido borrar: el test no existe o no te pertenece.');
         if(btnEl) btnEl.disabled = false;
         return;
       }
     } catch(err){
       console.error('Error borrando el test del historial', err);
-      alert('No se ha podido borrar el test. Inténtalo de nuevo.');
+      uiToast('No se ha podido borrar el test. Inténtalo de nuevo.');
       if(btnEl) btnEl.disabled = false;
       return;
     }
@@ -4614,7 +5041,7 @@ async function eliminarFallosPendientes(){
   const aviso = 'Vas a quitar estas ' + n + ' pregunta' + (n === 1 ? '' : 's') + ' fallada' + (n === 1 ? '' : 's') + ' de Fallos.\n\n' +
     'Seguirán contando como falladas en Estadísticas. Si vuelves a fallar alguna más adelante, reaparecerá aquí automáticamente.\n\n' +
     '¿Continuar?';
-  if(!confirm(aviso)) return;
+  if(!await uiConfirm(aviso)) return;
 
   const btn = document.getElementById('fallosDeleteBtn');
   if(btn) btn.disabled = true;
@@ -4626,7 +5053,7 @@ async function eliminarFallosPendientes(){
     if(error) throw error;
   } catch(err){
     console.error('Error quitando las preguntas de Fallos', err);
-    alert('No se ha podido completar la operación. Inténtalo de nuevo.');
+    uiToast('No se ha podido completar la operación. Inténtalo de nuevo.');
     if(btn) btn.disabled = false;
     return;
   }
@@ -4922,7 +5349,7 @@ async function toggleFailHistory(questionId, toggleEl, nowCorrect){
     return;
   }
 
-  panel.innerHTML = nowRowHtml + '<div class="fail-history-loading">Cargando historial…</div>';
+  panel.innerHTML = nowRowHtml + '<div class="fail-history-loading">' + skelList(2, false) + '</div>';
   try{
     const { data, error } = await sb
       .from('session_answers')
@@ -5208,7 +5635,10 @@ setTimeout(() => {
 }, 550);
 // Red de seguridad: si algo se queda colgado (sin red, Supabase caído…),
 // no se deja a nadie mirando el logo para siempre.
-setTimeout(finishSplash, 12000);
+setTimeout(() => {
+  if(!splashDone) reportClientError('atasco', 'La app llevaba 12 s en la pantalla de carga al arrancar (se quitó por seguridad).');
+  finishSplash();
+}, 12000);
 
 /* Tarjeta de "nuestra" nota (texto y/o hasta 5 imágenes escritas/subidas a
    mano por vosotros, no generadas por IA). Mismo hueco que ocupaba antes
@@ -5309,7 +5739,7 @@ async function quickAddOwnNoteImages(questionId, inputEl){
 
   const availableSlots = 5 - keptImages.length;
   if(files.length > availableSlots){
-    alert('Máximo 5 imágenes por nota: caben ' + Math.max(availableSlots, 0) + ' más.');
+    uiToast('Máximo 5 imágenes por nota: caben ' + Math.max(availableSlots, 0) + ' más.');
     inputEl.value = '';
     return;
   }
@@ -5357,7 +5787,7 @@ async function quickAddOwnNoteImages(questionId, inputEl){
       if(addBtn) addBtn.remove();
     }
   } catch(err){
-    alert('No se ha podido añadir la imagen a la pregunta: ' + friendlyUploadErrorMessage(err));
+    uiToast('No se ha podido añadir la imagen a la pregunta: ' + friendlyUploadErrorMessage(err));
   } finally {
     delete pendingNoteImageUploads[questionId];
     refreshQuickImageBtnUI(questionId);
@@ -5579,7 +6009,7 @@ async function saveOwnNote(questionId, btnEl){
    se queda huérfano (no se borra) para no complicar el flujo; ocupa poco
    y no afecta a nada más. */
 async function removeOwnNote(questionId, btnEl){
-  if(!confirm('¿Quitar esta nota (texto e imagen)?\n\nSe borrará de forma permanente y habrá que escribirla de nuevo si se quiere volver a ver.')) return;
+  if(!await uiConfirm('¿Quitar esta nota (texto e imagen)?\n\nSe borrará de forma permanente y habrá que escribirla de nuevo si se quiere volver a ver.')) return;
 
   const resultEl = btnEl.closest('.own-note-result');
   const body = btnEl.closest('.explain-body');
@@ -5599,7 +6029,7 @@ async function removeOwnNote(questionId, btnEl){
       actions.insertAdjacentHTML('beforeend', noteBtnHtml(questionId));
     }
   } catch(err){
-    alert('No se ha podido quitar la nota: ' + (err.message || 'error desconocido'));
+    uiToast('No se ha podido quitar la nota: ' + (err.message || 'error desconocido'));
     btnEl.disabled = false;
   }
 }
@@ -5974,7 +6404,7 @@ async function generateIAExplain(questionId, btnEl){
    Se borra también en Supabase (permanente para todo el mundo) y se vuelve
    a mostrar el botón "IA" por si se quiere generar otra distinta. */
 async function removeAIExplain(questionId, btnEl){
-  if(!confirm('¿Quitar esta explicación generada por IA?\n\nSe borrará de forma permanente y habrá que generarla de nuevo si se quiere volver a ver.')) return;
+  if(!await uiConfirm('¿Quitar esta explicación generada por IA?\n\nSe borrará de forma permanente y habrá que generarla de nuevo si se quiere volver a ver.')) return;
 
   const resultEl = btnEl.closest('.ia-explain-result');
   const body = btnEl.closest('.explain-body');
@@ -5999,7 +6429,7 @@ async function removeAIExplain(questionId, btnEl){
         '</button>');
     }
   } catch(err){
-    alert('No se ha podido quitar la explicación: ' + (err.message || 'error desconocido'));
+    uiToast('No se ha podido quitar la explicación: ' + (err.message || 'error desconocido'));
     btnEl.disabled = false;
   }
 }
@@ -6306,44 +6736,55 @@ async function finishQuizInner(){
 
   let sessionId = 'r' + Date.now();
 
-  if(currentUser){
+  const sessionPayload = {
+    user_id: currentUser ? currentUser.id : null,
+    mode: quizState.mode,
+    score: Number(notaNum.toFixed(2)),
+    total, ok: quizState.correctCount, bad, pending: blank,
+    time_seconds: elapsedSec
+  };
+  const answerRowsFor = sid => SESSION_QUESTIONS.map((q, j) => {
+    const a = SESSION_ANSWERS[j];
+    // Si esta pregunta se barajó para este intento (q._optionOrder),
+    // lo que se guarda es el índice de la opción en su orden
+    // ORIGINAL de la base de datos, no la posición en la que se
+    // mostró aquí. Así, si más adelante se revisa este test desde el
+    // historial (p. ej. tras recargar la página, cuando la pregunta
+    // se vuelve a pedir a la BD en su orden canónico), la corrección
+    // sigue siendo exacta.
+    const canonicalIndex = (a === null || a === undefined)
+      ? null
+      : (q._optionOrder ? q._optionOrder[a] : a);
+    // En blanco (a === null/undefined) cuenta como fallada: se guarda
+    // is_correct = false, igual que una respuesta incorrecta. Así entra
+    // en Fallos y en Test Inteligente como cualquier otro fallo.
+    return {
+      session_id: sid, user_id: currentUser.id, question_id: q.id,
+      selected_index: canonicalIndex,
+      is_correct: a === q.correct, answer_order: j
+    };
+  });
+
+  if(currentUser && !navigator.onLine){
+    // Sin conexión: el resultado se guarda en el dispositivo y se sube solo
+    // en cuanto vuelva la conexión (ver flushPendingResults).
+    queuePendingResult({ session: sessionPayload, answers: answerRowsFor(null) });
+    uiToast('Estás sin conexión: el resultado se guardará en cuanto vuelva internet.', 'info');
+  } else if(currentUser){
+    let savedSessionId = null, answersSaved = false;
     await Promise.race([ (async () => {
     try{
-      const { data: sessionRow, error: sErr } = await sb.from('test_sessions').insert({
-        user_id: currentUser.id,
-        mode: quizState.mode,
-        score: Number(notaNum.toFixed(2)),
-        total, ok: quizState.correctCount, bad, pending: blank,
-        time_seconds: elapsedSec
-      }).select().single();
+      const { data: sessionRow, error: sErr } = await sb.from('test_sessions').insert(sessionPayload).select().single();
       if(sErr) throw sErr;
       sessionId = sessionRow.id;
+      savedSessionId = sessionRow.id;
 
-      const answerRows = SESSION_QUESTIONS.map((q, j) => {
-        const a = SESSION_ANSWERS[j];
-        // Si esta pregunta se barajó para este intento (q._optionOrder),
-        // lo que se guarda es el índice de la opción en su orden
-        // ORIGINAL de la base de datos, no la posición en la que se
-        // mostró aquí. Así, si más adelante se revisa este test desde el
-        // historial (p. ej. tras recargar la página, cuando la pregunta
-        // se vuelve a pedir a la BD en su orden canónico), la corrección
-        // sigue siendo exacta.
-        const canonicalIndex = (a === null || a === undefined)
-          ? null
-          : (q._optionOrder ? q._optionOrder[a] : a);
-        // En blanco (a === null/undefined) cuenta como fallada: se guarda
-        // is_correct = false, igual que una respuesta incorrecta. Así entra
-        // en Fallos y en Test Inteligente como cualquier otro fallo.
-        return {
-          session_id: sessionId, user_id: currentUser.id, question_id: q.id,
-          selected_index: canonicalIndex,
-          is_correct: a === q.correct, answer_order: j
-        };
-      });
+      const answerRows = answerRowsFor(sessionId);
       if(answerRows.length){
         const { error: aErr } = await sb.from('session_answers').insert(answerRows);
         if(aErr) throw aErr;
       }
+      answersSaved = true;
 
       // El estado de cada pregunta (fallada / en progreso / dominada) ya no
       // se guarda aparte: loadAppData() lo recalcula del tirón a partir de
@@ -6352,6 +6793,17 @@ async function finishQuizInner(){
       await refreshGlobalStats();
     } catch(err){
       console.error('Error guardando la sesión en Supabase', err);
+      // Si falló por la red, no se pierde: se guarda para subirlo después.
+      if(answersSaved){
+        // El test ya está guardado; solo falló refrescar los datos después.
+      } else if(!navigator.onLine || /fetch|network|load failed|conexi|timeout/i.test(String(err && (err.message || err)))){
+        queuePendingResult(savedSessionId
+          ? { sessionId: savedSessionId, answers: answerRowsFor(savedSessionId) }
+          : { session: sessionPayload, answers: answerRowsFor(null) });
+        uiToast('No hay conexión: el resultado se guardará en cuanto vuelva internet.', 'info');
+      } else {
+        reportClientError('guardar-test', 'No se pudo guardar un test: ' + (err && (err.message || err)));
+      }
     }
     })(), new Promise(res => setTimeout(res, 15000)) ]);
   }
@@ -6484,7 +6936,7 @@ function toggleReviewExplain(){
   renderReviewList();
 }
 function reportReviewQuestion(qi){
-  alert('Gracias, hemos recibido tu impugnación de esta pregunta.');
+  uiToast('Gracias, hemos recibido tu impugnación de esta pregunta.');
 }
 
 document.addEventListener('keydown', function(e){
@@ -6589,6 +7041,14 @@ async function handleMagicLink(){
   showAuthStatus('Te hemos enviado un enlace mágico a ' + email + '. Ábrelo para iniciar sesión.');
 }
 async function handleLogout(){
+  // Este dispositivo deja de recibir los recordatorios de esta cuenta.
+  try{
+    const sub = await getPushSubscription();
+    if(sub){
+      await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+      await sub.unsubscribe();
+    }
+  }catch(e){}
   await sb.auth.signOut();
 }
 
@@ -6710,11 +7170,11 @@ async function onLoggedIn(user, isFreshSignIn){
   // muestra un estado de "Cargando…" en vez de dejar el texto de la
   // sesión anterior (o el placeholder final) congelado en pantalla.
   const fallosLabelEl = document.getElementById('fallosPendingLabel');
-  if(fallosLabelEl) fallosLabelEl.textContent = 'Cargando…';
+  if(fallosLabelEl) fallosLabelEl.innerHTML = SKEL_INLINE;
   const smartLabelEl = document.getElementById('smartPendingLabel');
-  if(smartLabelEl) smartLabelEl.textContent = 'Cargando…';
+  if(smartLabelEl) smartLabelEl.innerHTML = SKEL_INLINE;
   const historyListEl = document.getElementById('historyList');
-  if(historyListEl) historyListEl.innerHTML = '<div class="empty" id="historyLoadingPlaceholder">Cargando historial…</div>';
+  if(historyListEl) historyListEl.innerHTML = '<div id="historyLoadingPlaceholder">' + skelList(3) + '</div>';
 
   const adminBtn = document.getElementById('headerAdminBtn');
   if(adminBtn) adminBtn.classList.toggle('hidden', !currentUserIsAdmin);
@@ -6735,7 +7195,14 @@ async function onLoggedIn(user, isFreshSignIn){
   // test_sessions no depende de nada de eso, así que se lanza ya mismo
   // (en paralelo con lo anterior) y se le pasa lista a refreshGlobalStats().
   const globalStatsSessionsPromise = sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
+  let startupDone = false;
+  const startupWatch = setTimeout(() => {
+    if(!startupDone) reportClientError('atasco', 'Los datos de Inicio (preguntas/historial) seguían sin cargar 20 s después de entrar.');
+  }, 20000);
   await Promise.all([loadAppData(), loadHistory()]);
+  startupDone = true;
+  clearTimeout(startupWatch);
+  flushPendingResults();
   await refreshGlobalStats(globalStatsSessionsPromise);
   // Al entrar (incluido tras recargar la app), volvemos a la pantalla en
   // la que estaba el usuario la última vez (o a su pantalla padre si era
@@ -6747,6 +7214,7 @@ async function onLoggedIn(user, isFreshSignIn){
     showScreen(lastScreen);
   }
   finishSplash();
+  handleDeepLink(location.href);
 }
 function waitForLoginCodeVerification(verifyId){
   return new Promise(resolve => {
@@ -6833,6 +7301,8 @@ function onLoggedOut(){
   renderHistory();
   renderSmartHistory();
   document.getElementById('authOverlay').classList.remove('hidden');
+  // Los datos guardados para usar sin conexión eran de esta cuenta: fuera.
+  try{ if(navigator.serviceWorker && navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage({ type: 'clear-data' }); }catch(e){}
   finishSplash();
   showAuthError(''); showAuthStatus('');
   const emailEl = document.getElementById('headerUserEmail');
@@ -6843,6 +7313,7 @@ function toggleUserMenu(){
   const overlay = document.getElementById('profileSheetOverlay');
   if(overlay) overlay.classList.toggle('show');
   syncThemeSwitch();
+  refreshReminderMenuState();
 }
 function closeUserMenu(){
   const overlay = document.getElementById('profileSheetOverlay');
@@ -6883,12 +7354,15 @@ async function adminLoadAllData(){
   refreshTreeTopicSelect();
 }
 function switchAdminTab(name){
-  ['topics','articles','users','activity','boe'].forEach(t => {
+  ['topics','articles','users','activity','boe','errors'].forEach(t => {
     document.getElementById('adminTabBtn-'+t).classList.toggle('active', t===name);
     document.getElementById('adminSection-'+t).classList.toggle('active', t===name);
   });
   if(name === 'boe'){
     initBoeAdminPanel();
+  }
+  if(name === 'errors'){
+    adminLoadErrors();
   }
   if(name === 'activity'){
     startActivityLive();
@@ -7081,7 +7555,7 @@ function stopActivityLive(){
 }
 async function adminLoadUsers(){
   const el = document.getElementById('adminList-users');
-  el.innerHTML = '<div class="admin-empty">Cargando…</div>';
+  el.innerHTML = skelList(4);
   const { data, error } = await sb.rpc('admin_list_users');
   if(error){ el.innerHTML = '<div class="admin-empty">No se pudo cargar la lista de usuarios.</div>'; console.error(error); return; }
   adminData.users = data || [];
@@ -7165,7 +7639,7 @@ function adminRenderUsers(){
 async function adminToggleBlocked(userId, currentlyBlocked){
   const nextBlocked = !currentlyBlocked;
   const statusEl = document.getElementById('adminStatus-manage-'+userId);
-  if(nextBlocked && !confirm('¿Bloquear esta cuenta? No podrá iniciar sesión hasta que la desbloquees.')) return;
+  if(nextBlocked && !await uiConfirm('¿Bloquear esta cuenta? No podrá iniciar sesión hasta que la desbloquees.')) return;
   if(statusEl) statusEl.textContent = 'Guardando…';
   const { error } = await sb.rpc('admin_set_blocked', { p_user_id: userId, p_blocked: nextBlocked });
   if(error){
@@ -7190,7 +7664,7 @@ async function adminSetFeatureFlag(userId, featureKey, nextEnabled, switchEl){
   if(u){ u.feature_flags = Object.assign({}, u.feature_flags || {}, { [featureKey]: nextEnabled }); }
 }
 async function adminResetDevices(userId){
-  if(!confirm('¿Borrar todos los dispositivos registrados de esta cuenta? La próxima vez que inicie sesión en cada uno, se volverán a registrar desde cero.')) return;
+  if(!await uiConfirm('¿Borrar todos los dispositivos registrados de esta cuenta? La próxima vez que inicie sesión en cada uno, se volverán a registrar desde cero.')) return;
   const statusEl = document.getElementById('adminStatus-manage-'+userId);
   if(statusEl){ statusEl.textContent = 'Restableciendo…'; statusEl.className = 'admin-status'; }
   const { error } = await sb.rpc('admin_reset_user_devices', { p_user_id: userId });
@@ -7203,7 +7677,7 @@ async function adminResetDevices(userId){
 }
 async function adminDeleteUser(userId, email){
   const confirmText = email || 'esta cuenta';
-  if(!confirm('¿Eliminar definitivamente ' + confirmText + '? Esta acción no se puede deshacer: se borrará la cuenta, su historial y sus dispositivos.')) return;
+  if(!await uiConfirm('¿Eliminar definitivamente ' + confirmText + '? Esta acción no se puede deshacer: se borrará la cuenta, su historial y sus dispositivos.')) return;
   const statusEl = document.getElementById('adminStatus-manage-'+userId);
   if(statusEl){ statusEl.textContent = 'Eliminando…'; statusEl.className = 'admin-status'; }
   const { data, error } = await sb.functions.invoke('admin-delete-user', { body: { user_id: userId } });
@@ -7236,7 +7710,7 @@ async function adminToggleDevices(userId){
   if(!box) return;
   if(box.style.display !== 'none'){ box.style.display = 'none'; return; }
   box.style.display = 'block';
-  box.innerHTML = '<div class="admin-empty" style="padding:10px 0;">Cargando…</div>';
+  box.innerHTML = '<div style="padding:10px 0;">' + skelList(2, false) + '</div>';
   const { data, error } = await sb.rpc('admin_list_user_devices', { target_user_id: userId });
   if(error){ box.innerHTML = '<div class="admin-empty" style="padding:10px 0;">No se pudo cargar los dispositivos.</div>'; console.error(error); return; }
   if(!data || !data.length){ box.innerHTML = '<div class="admin-empty" style="padding:10px 0;">Sin dispositivos registrados.</div>'; return; }
@@ -7259,7 +7733,7 @@ async function adminToggleDevices(userId){
 }
 async function adminApproveUser(userId){
   const { error } = await sb.rpc('admin_approve_user', { p_user_id: userId });
-  if(error){ console.error(error); alert('No se pudo confirmar la cuenta: ' + error.message); return; }
+  if(error){ console.error(error); uiToast('No se pudo confirmar la cuenta: ' + error.message); return; }
   await adminLoadUsers();
   await refreshAdminPendingBadge();
 }
@@ -7294,6 +7768,52 @@ function adminRenderVerifications(){
     );
   }).join('');
 }
+/* ---------- Administración → Errores ---------- */
+function timeAgoShort(iso){
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if(s < 60) return 'hace un momento';
+  if(s < 3600) return 'hace ' + Math.round(s / 60) + ' min';
+  if(s < 86400) return 'hace ' + Math.round(s / 3600) + ' h';
+  return 'hace ' + Math.round(s / 86400) + ' d';
+}
+function shortUA(ua){
+  ua = ua || '';
+  const dev = /iPad/.test(ua) ? 'iPad' : /iPhone/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'Otro';
+  const br = /CriOS|Chrome/.test(ua) && !/Edg/.test(ua) ? 'Chrome' : /Edg/.test(ua) ? 'Edge' : /Firefox|FxiOS/.test(ua) ? 'Firefox' : /Safari/.test(ua) ? 'Safari' : '';
+  return dev + (br ? ' · ' + br : '');
+}
+async function adminLoadErrors(){
+  const el = document.getElementById('adminList-errors');
+  if(!el) return;
+  el.innerHTML = skelList(4);
+  const { data, error } = await sb.from('client_errors').select('*').order('created_at', { ascending: false }).limit(150);
+  if(error){ el.innerHTML = '<div class="admin-empty">No se pudieron cargar los errores: ' + escapeHtml(error.message) + '</div>'; return; }
+  if(!data || !data.length){ el.innerHTML = '<div class="admin-empty">Ningún error registrado. ¡Todo en orden! ✨</div>'; return; }
+  el.innerHTML = data.map(r =>
+    '<div class="admin-card err-card' + (r.seen ? '' : ' unseen') + '">' +
+      '<div class="err-head"><span class="admin-badge' + (r.kind === 'atasco' ? ' over' : '') + '">' + escapeHtml(r.kind) + '</span>' +
+        (r.seen ? '' : '<span class="err-new">Nuevo</span>') +
+        '<span class="err-meta">' + timeAgoShort(r.created_at) + ' · ' + escapeHtml(r.email || 'sin sesión') + ' · ' + escapeHtml(shortUA(r.user_agent)) + (r.url ? ' · ' + escapeHtml(r.url) : '') + '</span></div>' +
+      '<div class="err-msg">' + escapeHtml(r.message) + '</div>' +
+      (r.stack ? '<details class="err-stack"><summary>Detalles técnicos</summary><pre>' + escapeHtml(r.stack) + '</pre></details>' : '') +
+    '</div>'
+  ).join('');
+}
+async function adminMarkErrorsSeen(){
+  const { error } = await sb.from('client_errors').update({ seen: true }).eq('seen', false);
+  if(error){ uiToast('No se pudieron marcar: ' + error.message, 'error'); return; }
+  uiToast('Errores marcados como vistos', 'success');
+  adminLoadErrors();
+  refreshAdminPendingBadge();
+}
+async function adminDeleteSeenErrors(){
+  if(!await uiConfirm('¿Borrar los errores ya vistos?\n\nLos nuevos (sin ver) se conservan.')) return;
+  const { error } = await sb.from('client_errors').delete().eq('seen', true);
+  if(error){ uiToast('No se pudieron borrar: ' + error.message, 'error'); return; }
+  uiToast('Errores vistos borrados', 'success');
+  adminLoadErrors();
+}
+
 async function refreshAdminPendingBadge(){
   if(!currentUserIsAdmin) return;
   const { data, error } = await sb.rpc('admin_list_users');
@@ -7310,7 +7830,18 @@ async function refreshAdminPendingBadge(){
     }
   }catch(e){ /* un fallo aquí no debe romper el resto del indicador */ }
 
-  const pendingCount = pendingApprovals + pendingCodes;
+  let unseenErrors = 0;
+  try{
+    const eres = await sb.from('client_errors').select('id', { count: 'exact', head: true }).eq('seen', false);
+    if(!eres.error) unseenErrors = eres.count || 0;
+  }catch(e){}
+  const errCountEl = document.getElementById('adminErrorsCount');
+  if(errCountEl){
+    errCountEl.textContent = unseenErrors > 99 ? '99+' : String(unseenErrors);
+    errCountEl.classList.toggle('hidden', unseenErrors === 0);
+  }
+
+  const pendingCount = pendingApprovals + pendingCodes + unseenErrors;
 
   const dot = document.getElementById('headerPendingDot');
   if(dot){
@@ -7350,7 +7881,7 @@ async function adminSaveDeviceLimit(userId){
 }
 async function adminLoadLoginAttempts(){
   const el = document.getElementById('adminList-loginAttempts');
-  el.innerHTML = '<div class="admin-empty">Cargando…</div>';
+  el.innerHTML = skelList(4);
   const { data, error } = await sb.from('login_attempts').select('*').order('created_at', { ascending:false }).limit(200);
   if(error){ el.innerHTML = '<div class="admin-empty">No se pudieron cargar los intentos de acceso.</div>'; console.error(error); return; }
   adminData.loginAttempts = data || [];
@@ -7458,7 +7989,7 @@ async function openBoeDetalle(id){
   if(!c){ return; }
   showScreen('screen-boe-detalle');
   const body = document.getElementById('boeDetalleBody');
-  body.innerHTML = '<div class="empty">Cargando…</div>';
+  body.innerHTML = skelList(3, false);
 
   const { data: preguntas } = c.nodo_id
     ? await sb.from('questions').select('id, question').eq('nodo_id', c.nodo_id)
@@ -7516,7 +8047,7 @@ async function openBoeDetalle(id){
 
 async function adminMarcarRevisado(id){
   const { error } = await sb.rpc('admin_marcar_cambio_revisado', { p_cambio_id: id });
-  if(error){ alert('No se pudo marcar como revisado: ' + error.message); return; }
+  if(error){ uiToast('No se pudo marcar como revisado: ' + error.message); return; }
   showScreen('screen-boe-cambios');
   await loadNormativas();
 }
@@ -7534,11 +8065,11 @@ async function adminSaveBoeNorma(){
   const topicId = document.getElementById('boeFormTopic').value;
   const boeId = document.getElementById('boeFormId').value.trim();
   const url = document.getElementById('boeFormUrl').value.trim() || null;
-  if(!topicId || !boeId){ alert('Elige un tema e introduce el identificador del BOE.'); return; }
+  if(!topicId || !boeId){ uiToast('Elige un tema e introduce el identificador del BOE.'); return; }
   const { error } = await sb.rpc('admin_upsert_boe_norma', {
     p_topic_id: topicId, p_boe_id: boeId, p_titulo: topicTitle(topicId), p_url_html: url, p_activo: true
   });
-  if(error){ alert('No se pudo guardar: ' + error.message); return; }
+  if(error){ uiToast('No se pudo guardar: ' + error.message); return; }
   document.getElementById('boeFormId').value = '';
   document.getElementById('boeFormUrl').value = '';
   await loadNormativas();
@@ -7556,9 +8087,9 @@ async function refreshBoeGeminiStatus(){
 async function adminSaveGeminiKey(){
   const input = document.getElementById('boeFormGeminiKey');
   const value = input.value.trim();
-  if(!value){ alert('Introduce una clave.'); return; }
+  if(!value){ uiToast('Introduce una clave.'); return; }
   const { error } = await sb.rpc('admin_set_app_secret', { p_name: 'gemini_api_key', p_value: value });
-  if(error){ alert('No se pudo guardar: ' + error.message); return; }
+  if(error){ uiToast('No se pudo guardar: ' + error.message); return; }
   input.value = '';
   refreshBoeGeminiStatus();
 }
@@ -7569,7 +8100,7 @@ async function adminTriggerBoeSyncNow(){
   btn.disabled = true; btn.textContent = 'Comprobando…';
   const { error } = await sb.rpc('admin_trigger_boe_sync');
   btn.disabled = false; btn.textContent = original;
-  if(error){ alert('No se pudo lanzar la comprobación: ' + error.message); return; }
+  if(error){ uiToast('No se pudo lanzar la comprobación: ' + error.message); return; }
   // La Edge Function tarda unos segundos en recorrer todas las normas;
   // esperamos un poco antes de refrescar la lista.
   setTimeout(loadNormativas, 6000);
@@ -7624,9 +8155,9 @@ async function adminSaveTopic(){
   setTimeout(() => toggleAdminForm('topic'), 600);
 }
 async function adminDeleteTopic(id){
-  if(!confirm('¿Borrar este tema? También se borrará su estructura (títulos/capítulos/secciones/artículos) y las preguntas asociadas.')) return;
+  if(!await uiConfirm('¿Borrar este tema? También se borrará su estructura (títulos/capítulos/secciones/artículos) y las preguntas asociadas.')) return;
   const { error } = await sb.from('topics').delete().eq('id', id);
-  if(error){ alert(error.message); return; }
+  if(error){ uiToast(error.message); return; }
   await adminLoadTopics();
   if(adminTreeTopicId === id) adminTreeTopicId = null;
   refreshTreeTopicSelect();
@@ -7909,7 +8440,7 @@ function findDuplicateQuestionGroups(){
     .sort((a, b) => b.length - a.length);
 }
 function toggleDuplicatesView(){
-  if(!adminTreeTopicId){ alert('Selecciona antes un tema.'); return; }
+  if(!adminTreeTopicId){ uiToast('Selecciona antes un tema.'); return; }
   showingDuplicates = !showingDuplicates;
   selectedQuestionIds.clear();
   selectedNodeIds.clear();
@@ -8007,9 +8538,9 @@ function buildBulkNodeTargetOptions(){
   return options;
 }
 function adminOpenBulkMove(){
-  if(!selectedQuestionIds.size && !selectedNodeIds.size){ alert('No has seleccionado nada todavía.'); return; }
+  if(!selectedQuestionIds.size && !selectedNodeIds.size){ uiToast('No has seleccionado nada todavía.'); return; }
   if(selectedQuestionIds.size && selectedNodeIds.size){
-    alert('Selecciona solo preguntas, o solo niveles (títulos/capítulos/secciones/artículos), para moverlos juntos — no se pueden mezclar en el mismo movimiento.');
+    uiToast('Selecciona solo preguntas, o solo niveles (títulos/capítulos/secciones/artículos), para moverlos juntos — no se pueden mezclar en el mismo movimiento.');
     return;
   }
   const sel = document.getElementById('bulkMoveTarget');
@@ -8022,7 +8553,7 @@ function adminOpenBulkMove(){
     document.getElementById('bulkMovePath').textContent = 'Mover ' + selectedQuestionIds.size + ' pregunta' + (selectedQuestionIds.size===1?'':'s') + ' seleccionada' + (selectedQuestionIds.size===1?'':'s') + ' a:';
   } else {
     const tipos = new Set([...selectedNodeIds].map(id => (adminData.nodes.find(n => n.id === id) || {}).tipo));
-    if(tipos.size > 1){ alert('Selecciona niveles del mismo tipo (por ejemplo, solo artículos, o solo capítulos) para moverlos juntos.'); return; }
+    if(tipos.size > 1){ uiToast('Selecciona niveles del mismo tipo (por ejemplo, solo artículos, o solo capítulos) para moverlos juntos.'); return; }
     rootLabel = 'Nivel raíz del tema (directamente bajo el tema)';
     options = buildBulkNodeTargetOptions();
     document.getElementById('bulkMovePath').textContent = 'Mover ' + selectedNodeIds.size + ' nivel' + (selectedNodeIds.size===1?'':'es') + ' seleccionado' + (selectedNodeIds.size===1?'':'s') + ' a:';
@@ -8043,13 +8574,13 @@ function adminCancelBulkMove(){
    de él (o de sus subniveles) NO se borran, quedan como generales del tema. */
 async function adminConfirmBulkDelete(){
   const nQ = selectedQuestionIds.size, nN = selectedNodeIds.size;
-  if(!nQ && !nN){ alert('No has seleccionado nada todavía.'); return; }
+  if(!nQ && !nN){ uiToast('No has seleccionado nada todavía.'); return; }
   const parts = [];
   if(nQ) parts.push(nQ + ' pregunta' + (nQ===1?'':'s'));
   if(nN) parts.push(nN + ' nivel' + (nN===1?'':'es'));
   let msg = '¿Eliminar ' + parts.join(' y ') + '? Esta acción no se puede deshacer.';
   if(nN) msg += ' Los niveles seleccionados se borran junto con sus subniveles; las preguntas que colgaban de ellos pasarán a quedar como generales de todo el tema.';
-  if(!confirm(msg)) return;
+  if(!await uiConfirm(msg)) return;
   try{
     if(nQ){
       const { error } = await sb.from('questions').delete().in('id', [...selectedQuestionIds]);
@@ -8067,7 +8598,7 @@ async function adminConfirmBulkDelete(){
     renderTree();
     await adminRefreshStudentStats();
   } catch(err){
-    alert(err.message || 'Ha ocurrido un error al eliminar la selección.');
+    uiToast(err.message || 'Ha ocurrido un error al eliminar la selección.');
   }
 }
 async function adminConfirmBulkMove(){
@@ -8245,9 +8776,9 @@ async function adminSaveNode(){
   setTimeout(adminCancelNodeForm, 500);
 }
 async function adminDeleteNode(id){
-  if(!confirm('¿Borrar este nivel? Se borrarán sus subniveles, pero las preguntas que colgaban directamente de él (y de esos subniveles) NO se borran: pasarán a quedar como preguntas generales de todo el tema.')) return;
+  if(!await uiConfirm('¿Borrar este nivel? Se borrarán sus subniveles, pero las preguntas que colgaban directamente de él (y de esos subniveles) NO se borran: pasarán a quedar como preguntas generales de todo el tema.')) return;
   const { error } = await sb.from('nodos_temario').delete().eq('id', id);
-  if(error){ alert(error.message); return; }
+  if(error){ uiToast(error.message); return; }
   await adminLoadQuestions();
   await adminLoadTree();
   await adminRefreshStudentStats();
@@ -8323,7 +8854,7 @@ async function adminConfirmMove(){
 
 /* ---------- Pregunta "general": el admin elige a qué nivel pertenece (Tema/Título/Capítulo/Sección; Artículo no, porque dejaría de ser general) ---------- */
 function adminOpenGeneralQuestionPicker(){
-  if(!adminTreeTopicId){ alert('Selecciona antes un tema.'); return; }
+  if(!adminTreeTopicId){ uiToast('Selecciona antes un tema.'); return; }
   adminCancelNodeForm();
   adminCancelTreeQuestionForm();
   adminCancelIAImportForm();
@@ -8355,7 +8886,7 @@ function adminConfirmGeneralPicker(){
 const IA_LOC_LEVELS = ['articulo'];
 let iaPreviewData = []; // preguntas propuestas por la IA, pendientes de revisar/guardar
 function adminOpenIAImportForm(){
-  if(!adminTreeTopicId){ alert('Selecciona antes un tema.'); return; }
+  if(!adminTreeTopicId){ uiToast('Selecciona antes un tema.'); return; }
   adminCancelNodeForm();
   adminCancelTreeQuestionForm();
   adminCancelGeneralPicker();
@@ -8825,9 +9356,9 @@ async function adminLoadQuestions(){
   adminData.questions = data || [];
 }
 async function adminDeleteQuestion(id){
-  if(!confirm('¿Borrar esta pregunta?')) return;
+  if(!await uiConfirm('¿Borrar esta pregunta?')) return;
   const { error } = await sb.from('questions').delete().eq('id', id);
-  if(error){ alert(error.message); return; }
+  if(error){ uiToast(error.message); return; }
   await adminLoadQuestions();
   renderTree();
   await adminRefreshStudentStats();
@@ -8941,6 +9472,7 @@ const NQ = (function(){
     }catch(e){
       loadError = true;
       console.warn('No se pudieron cargar los temas de Normativas', e);
+      try{ reportClientError('normativas', 'No se pudieron cargar los temas: ' + (e.message || e)); }catch(err){}
     }finally{
       loading = false;
     }
@@ -9031,7 +9563,7 @@ const NQ = (function(){
       if(error) throw error;
       return true;
     }catch(e){
-      alert('No se pudo guardar el cambio: ' + (e.message || e));
+      uiToast('No se pudo guardar el cambio: ' + (e.message || e));
       return false;
     }finally{
       busy = false;
@@ -9071,6 +9603,7 @@ const NQ = (function(){
     pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
     // Mismo emblema que la tarjeta «Test Inteligente» de Inicio.
+    bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>',
     brain: '<svg viewBox="5 5 14 14" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"> <path d="M-10.5 20.5a2 2 0 01-4 0"/> <path d="M-6.5-1.5a2 2 0 00-2 2"/> <path d="M-6.5-5a2 2 0 012-2"/> <path d="M-9 16.5a1 1 0 01-1-1"/> <path d="M-9.5-.5a1 1 0 011-1"/> <path d="m17.5 15.5-1.888-.755a1 1 0 00-1.078.221l-1.827 1.827a.5.5 0 01-.848-.283l-.21-1.473a2 2 0 00-1.086-1.506l-2.169-1.084a.5.5 0 010-.894l2.169-1.084a2 2 0 001.085-1.506L12 6.5"/> <path d="m17.5 8.5-2.328.388a1 1 0 01-1.022-.472L13 6.5"/> <path d="M18-8.5a1 1 0 011 1"/> <path d="M21.5-5a2 2 0 00-2-2"/> <path d="M26 10a1 1 0 01-1 1"/> <path d="M9 32.5a2 2 0 002-2"/> <rect x="6.5" y="6.5" width="11" height="11" rx="1"/> </svg>',
     cards: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="14" height="14" rx="2"/><path d="M7 6V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2"/></svg>',
     mFichas: '<svg viewBox="0 0 24 24"><rect x="6" y="3" width="15" height="13" rx="2.5" fill="#7FB3FF"/><rect x="3" y="7" width="15" height="13" rx="2.5" fill="#4255FF"/></svg>',
@@ -9280,7 +9813,7 @@ const NQ = (function(){
     if(!c) return;
     delete aiFailed[c.id];
     generateTrampas([c], true).then(() => {
-      if(aiFailed[c.id]) alert('La IA no ha podido generar opciones para esta tarjeta. Inténtalo de nuevo en un momento.');
+      if(aiFailed[c.id]) uiToast('La IA no ha podido generar opciones para esta tarjeta. Inténtalo de nuevo en un momento.');
     });
   }
   function trampasLine(set, i){
@@ -9324,7 +9857,7 @@ const NQ = (function(){
   function renderLibrary(){
     const admin = isAdmin();
     let list;
-    if(!loaded && !loadError) list = '<div class="empty">Cargando temas…</div>';
+    if(!loaded && !loadError) list = skelList(3);
     else if(!NQ_SETS.length) list = '<div class="empty">' + (loadError ? 'No se pudieron cargar los temas. Revisa la conexión.<br><br><button class="nq-btn nq-btn-sm" data-act="retry-load">Reintentar</button>' : admin ? 'Aún no hay temas. Crea el primero con «Nuevo tema».' : 'Todavía no hay temas disponibles.') + '</div>';
     else list = '<div class="nq-lib-list">' + NQ_SETS.map(set => {
       const c = counts(set), n = set.terms.length || 1;
@@ -9444,26 +9977,27 @@ const NQ = (function(){
       return r;
     });
     if(!ok) return;
+    uiToast('Tema creado', 'success');
     view = { name: 'set', setId: newId };
     await load();
   }
   async function renameSet(set, title){
-    if(await run(() => sb.from('nq_sets').update({ title }).eq('id', set.id))){ view.sheet = null; await load(); }
+    if(await run(() => sb.from('nq_sets').update({ title }).eq('id', set.id))){ view.sheet = null; uiToast('Tema renombrado', 'success'); await load(); }
   }
   async function deleteSet(set){
-    if(!confirm('¿Eliminar el tema «' + set.title + '» y sus ' + set.terms.length + ' tarjetas? No se puede deshacer.')) return;
-    if(await run(() => sb.from('nq_sets').delete().eq('id', set.id))){ view = { name: 'library' }; await load(); }
+    if(!await uiConfirm('¿Eliminar el tema «' + set.title + '»?\n\nSe borrarán también sus ' + set.terms.length + ' tarjetas. No se puede deshacer.')) return;
+    if(await run(() => sb.from('nq_sets').delete().eq('id', set.id))){ view = { name: 'library' }; uiToast('Tema eliminado', 'success'); await load(); }
   }
   async function addCard(set, term, definition){
     const orden = set.cards.reduce((m, c) => Math.max(m, c.orden || 0), -1) + 1;
     return run(() => sb.from('nq_cards').insert({ set_id: set.id, term, definition, orden }));
   }
   async function saveCard(set, i, term, definition){
-    if(await run(() => sb.from('nq_cards').update({ term, definition, trampas: null }).eq('id', set.ids[i]))){ view.editing = null; await load(); }
+    if(await run(() => sb.from('nq_cards').update({ term, definition, trampas: null }).eq('id', set.ids[i]))){ view.editing = null; uiToast('Cambios guardados', 'success'); await load(); }
   }
   async function deleteCard(set, i){
-    if(!confirm('¿Eliminar esta tarjeta?\n\n' + set.terms[i][0] + ' → ' + set.terms[i][1])) return;
-    if(await run(() => sb.from('nq_cards').delete().eq('id', set.ids[i]))) await load();
+    if(!await uiConfirm('¿Eliminar esta tarjeta?\n\n' + set.terms[i][0] + ' → ' + set.terms[i][1])) return;
+    if(await run(() => sb.from('nq_cards').delete().eq('id', set.ids[i]))){ uiToast('Tarjeta eliminada', 'success'); await load(); }
   }
   async function onRootSubmit(e){
     const form = e.target;
@@ -9481,6 +10015,7 @@ const NQ = (function(){
       const t = val('term'), d = val('definition');
       if(!t || !d) return;
       if(await addCard(set, t, d)){
+        uiToast('Tarjeta añadida', 'success');
         form.reset();
         await load();
         const f = $root().querySelector('[data-draft="new-term"]');
@@ -9655,6 +10190,7 @@ const NQ = (function(){
     } else {
       body = '<div class="nq-srs-sub">¡Al día! Próximo repaso ' + fmtWhen(later[0].when) + ' · ' + total + ' en tu mazo</div>';
     }
+    btn = '<button class="nq-ib nq-srs-bell" data-act="reminder" title="Recordatorio diario" aria-label="Recordatorio diario">' + I.bell + '</button>' + btn;
     return '<div class="nq-srs-panel' + (due.length ? ' due' : '') + '">' +
       '<div class="nq-srs-ico">' + I.brain + '</div>' +
       '<div class="nq-srs-main"><div class="nq-srs-title">Repaso diario' +
@@ -10209,9 +10745,10 @@ const NQ = (function(){
         break;
       }
       case 'reset':
-        if(confirm('¿Reiniciar tu avance en esta unidad? Se perderá el progreso de todos los términos.')){
+        uiConfirm('¿Reiniciar tu avance en este tema?\n\nSe perderá el progreso de todas sus tarjetas.').then(ok => {
+          if(!ok) return;
           sp(set).t = {}; sp(set).resetU = Date.now(); save(); view.filter = null; render();
-        }
+        });
         break;
       case 'speak': speak(sset.terms[i][0] + '. ' + sset.terms[i][1]); break;
       case 'star':
@@ -10267,6 +10804,7 @@ const NQ = (function(){
         renderStudy();
         break;
       case 'srs-show': srsShow(); break;
+      case 'reminder': openReminderSheet(); break;
       case 'srs-rate': srsRate(+el.dataset.r); break;
       case 'srs-speak': { e.stopPropagation(); const it = srsCur(); if(it) speak(it.set.terms[it.i][study.shown ? 1 : 0]); break; }
     }
@@ -10355,7 +10893,13 @@ const NQ = (function(){
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  return { render, load, close: closeStudy };
+  function startReview(){
+    if(study || !srsItems().due.length) return;
+    study = srsInit();
+    $ov().classList.remove('hidden'); $ov().scrollTop = 0;
+    renderStudy();
+  }
+  return { render, load, close: closeStudy, startReview };
 })();
 </script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">

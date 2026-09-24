@@ -16,5 +16,10 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "id": "/",
+  "scope": "/",
+  "description": "Tests, normativas y repaso diario para preparar oposiciones de bomberos.",
+  "lang": "es",
+  "orientation": "any"
 }
