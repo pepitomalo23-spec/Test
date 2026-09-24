@@ -2549,6 +2549,11 @@
 
       <!-- USERS -->
       <div class="admin-section" id="adminSection-users">
+        <div class="admin-card" id="defaultFlagsCard">
+          <div class="admin-card-title" style="margin-bottom:4px;">Funciones para cuentas nuevas</div>
+          <div class="admin-card-meta" style="margin-bottom:10px;">Lo que verá cualquier cuenta nueva la primera vez que entre. Lo desactivado no le aparecerá en ningún sitio; después puedes dárselo a cada alumno por separado aquí abajo.</div>
+          <div id="defaultFlagsList"></div>
+        </div>
         <div class="admin-card-title" style="margin-bottom:10px;">Usuarios registrados</div>
         <div class="admin-card-meta" style="margin-bottom:14px;">Consulta quién está registrado, en cuántos dispositivos ha entrado y ajusta el límite de dispositivos permitido por cuenta.</div>
         <div id="adminList-users"></div>
@@ -2999,7 +3004,7 @@ function handleDeepLink(href){
   let url;
   try{ url = new URL(href, location.href); }catch(e){ return; }
   if(!currentUser) return;
-  if(url.searchParams.get('repaso')){
+  if(url.searchParams.get('repaso') && featureEnabled('normativas')){
     showScreen('screen-normativas');
     // Las tarjetas pueden estar aún cargando: se reintenta unos segundos.
     let tries = 0;
@@ -3256,11 +3261,31 @@ let adminPollInterval = null;
    El administrador siempre ve todo, tenga lo que tenga en su propio
    feature_flags. */
 const FEATURES = {
-  normativas: 'Normativas',
-  inteligente: 'Test Inteligente',
-  notas_ia: 'Notas y explicaciones con IA',
+  normativas: 'Normativas (y Repaso diario)',
+  estadisticas: 'Estadísticas',
   stats_avanzadas: 'Estadísticas avanzadas',
-  historial: 'Historial'
+  historial: 'Historial',
+  fallos: 'Fallos',
+  inteligente: 'Test Inteligente',
+  simulacro: 'Simulacro',
+  examen: 'Examen',
+  notas_ia: 'Notas y explicaciones con IA',
+  boe: 'Cambios BOE'
+};
+// Pantallas que dependen de una función: si está desactivada, se va a Inicio.
+const SCREEN_FEATURE = {
+  'screen-normativas': 'normativas',
+  'screen-stats': 'estadisticas',
+  'screen-articulo-preguntas': 'estadisticas',
+  'screen-streak-full': 'estadisticas',
+  'screen-my-additions': 'notas_ia',
+  'screen-my-addition-detail': 'notas_ia',
+  'screen-notas-todas': 'notas_ia',
+  'screen-boe-cambios': 'boe',
+  'screen-boe-detalle': 'boe',
+  'screen-historial-todo': 'historial',
+  'screen-fallos': 'fallos',
+  'screen-inteligente': 'inteligente'
 };
 let myFeatureFlags = {};
 function featureEnabled(key){
@@ -3282,7 +3307,57 @@ function applyFeatureVisibility(){
 
   const historySection = document.getElementById('historySection');
   if(historySection) historySection.classList.toggle('hidden', !featureEnabled('historial'));
+
+  const toggleId = (id, key) => { const el = document.getElementById(id); if(el) el.classList.toggle('hidden', !featureEnabled(key)); };
+  toggleId('navStats', 'estadisticas');
+  toggleId('modeCardFallos', 'fallos');
+  toggleId('modeCardSimulacro', 'simulacro');
+  toggleId('modeCardExamen', 'examen');
+  toggleId('headerBoeBtn', 'boe');
+  // Separadores de la barra de navegación: solo entre elementos visibles.
+  const nav = document.querySelector('.header-nav');
+  if(nav){
+    const kids = [...nav.children];
+    kids.forEach((el, i) => {
+      if(!el.classList.contains('nav-dot')) return;
+      const prevVisible = kids.slice(0, i).some(k => !k.classList.contains('nav-dot') && !k.classList.contains('hidden'));
+      const nextVisible = kids.slice(i + 1).some(k => !k.classList.contains('nav-dot') && !k.classList.contains('hidden'));
+      const nextItem = kids.slice(i + 1).find(k => !k.classList.contains('nav-dot'));
+      el.classList.toggle('hidden', !(prevVisible && nextVisible && nextItem && !nextItem.classList.contains('hidden')));
+    });
+  }
+  // Si está en una pantalla que ya no tiene permitida, a Inicio.
+  const active = document.querySelector('.screen.active');
+  if(active && SCREEN_FEATURE[active.id] && !featureEnabled(SCREEN_FEATURE[active.id])) showScreen('screen-home');
 }
+
+/* Los permisos se vuelven a leer al volver a la app y cada minuto: así, si
+   el admin quita (o da) una función, el cambio llega aunque el alumno
+   tenga la app abierta desde hace días, sin tener que cerrarla. */
+let permsCheckTimer = null;
+async function refreshMyPermissions(){
+  if(!currentUser || currentUserIsAdmin) return;
+  try{
+    const { data, error } = await sb.from('profiles').select('feature_flags, blocked, approved').eq('id', currentUser.id).maybeSingle();
+    if(error || !data) return;
+    if(data.blocked || !data.approved){
+      await sb.auth.signOut();
+      showAuthError(data.blocked ? 'Tu cuenta ha sido bloqueada por un administrador. Contacta con el administrador si crees que es un error.' : 'Tu cuenta está pendiente de confirmación por un administrador.');
+      return;
+    }
+    const next = data.feature_flags || {};
+    if(JSON.stringify(next) !== JSON.stringify(myFeatureFlags)){
+      myFeatureFlags = next;
+      applyFeatureVisibility();
+      if(typeof NQ !== 'undefined') NQ.load();
+    }
+  }catch(e){}
+}
+function startPermissionsWatch(){
+  if(permsCheckTimer) clearInterval(permsCheckTimer);
+  permsCheckTimer = setInterval(refreshMyPermissions, 60000);
+}
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') refreshMyPermissions(); });
 
 /* ---------- device identification & login attempt logging ----------
    El id de dispositivo se guarda en localStorage, pero iOS puede borrar
@@ -4634,8 +4709,7 @@ function getLastScreen(){
   return 'screen-home';
 }
 function showScreen(id){
-  if(id === 'screen-normativas' && !featureEnabled('normativas')) id = 'screen-home';
-  if(id === 'screen-my-additions' && !featureEnabled('notas_ia')) id = 'screen-home';
+  if(SCREEN_FEATURE[id] && !featureEnabled(SCREEN_FEATURE[id])) id = 'screen-home';
   if(id !== 'screen-quiz'){ clearInterval(timerInterval); }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -4701,6 +4775,7 @@ function openOverlay(id){
 
 /* ---------- config screen (estudio / examen / simulacro) ---------- */
 function openConfig(mode){
+  if((mode === 'simulacro' || mode === 'examen') && !featureEnabled(mode)) return;
   if(whenAppDataReady(() => openConfig(mode))) return;
   if(quizState && quizState.mode && quizState.mode !== mode) return; // hay un test en curso en otro apartado
   configState.mode = mode;
@@ -5130,6 +5205,7 @@ function startFromConfig(){
 
 /* ---------- fallos intro screen ---------- */
 function openFallos(){
+  if(!featureEnabled('fallos')) return;
   if(whenAppDataReady(openFallos)) return;
   if(quizState && quizState.mode && quizState.mode !== 'fallos') return; // hay un test en curso en otro apartado
   const total = TOPICS.filter(t => t.enabled).reduce((s,t) => s + t.fails, 0);
@@ -7218,6 +7294,7 @@ async function onLoggedIn(user, isFreshSignIn){
   currentUserIsAdmin = !!(profile && profile.is_admin);
   myFeatureFlags = (profile && profile.feature_flags) || {};
   applyFeatureVisibility();
+  startPermissionsWatch();
   // Los temas de Normativas dependen de la sesión (RLS) y de si es admin.
   if(typeof NQ !== 'undefined') NQ.load();
 
@@ -7450,6 +7527,8 @@ function waitForLoginCodeVerification(verifyId){
 }
 function onLoggedOut(){
   stopActivityHeartbeat();
+  if(permsCheckTimer){ clearInterval(permsCheckTimer); permsCheckTimer = null; }
+  myFeatureFlags = {};
   stopActivityLive();
   currentUser = null;
   currentUserIsAdmin = false;
@@ -7541,6 +7620,7 @@ function switchAdminTab(name){
     stopActivityLive();
   }
   if(name === 'users'){
+    adminLoadDefaultFlags();
     adminLoadUsers();
     adminLoadVerifications();
     adminLoadLoginAttempts();
@@ -7724,6 +7804,30 @@ function stopActivityLive(){
   if(activityPollTimer){ clearInterval(activityPollTimer); activityPollTimer = null; }
   if(activityTickTimer){ clearInterval(activityTickTimer); activityTickTimer = null; }
 }
+/* ---------- Administración → plantilla de funciones para cuentas nuevas ---------- */
+let adminDefaultFlags = null;
+async function adminLoadDefaultFlags(){
+  const el = document.getElementById('defaultFlagsList');
+  if(!el) return;
+  if(!adminDefaultFlags){
+    el.innerHTML = skelList(2, false);
+    const { data } = await sb.from('app_settings').select('value').eq('key', 'default_feature_flags').maybeSingle();
+    adminDefaultFlags = (data && data.value) || {};
+  }
+  el.innerHTML = Object.keys(FEATURES).map(key => {
+    const on = adminDefaultFlags[key] !== false;
+    return '<div class="admin-user-row" style="justify-content:space-between; margin:6px 0;"><span style="font-size:13px;">' + escapeHtml(FEATURES[key]) + '</span>' +
+      '<span class="switch' + (on ? ' on' : '') + '" role="button" tabindex="0" onclick="adminToggleDefaultFlag(\'' + key + '\')" onkeydown="if(event.key===\'Enter\')adminToggleDefaultFlag(\'' + key + '\')"><span class="knob"></span></span></div>';
+  }).join('');
+}
+async function adminToggleDefaultFlag(key){
+  const prev = Object.assign({}, adminDefaultFlags);
+  adminDefaultFlags[key] = adminDefaultFlags[key] === false;
+  adminLoadDefaultFlags();
+  const { error } = await sb.rpc('admin_set_default_feature_flags', { p_flags: adminDefaultFlags });
+  if(error){ adminDefaultFlags = prev; adminLoadDefaultFlags(); uiToast('No se pudo guardar: ' + error.message, 'error'); }
+}
+
 async function adminLoadUsers(){
   const el = document.getElementById('adminList-users');
   el.innerHTML = skelList(4);

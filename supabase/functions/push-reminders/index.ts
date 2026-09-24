@@ -191,8 +191,16 @@ Deno.serve(async (req) => {
     if (hour === s.remind_hour && s.last_sent_on !== date) {
       try {
         if (!progressCache.has(s.user_id)) {
-          const { data: p } = await sb.from("nq_user_progress").select("data").eq("user_id", s.user_id).maybeSingle();
-          progressCache.set(s.user_id, dueCards((p as any)?.data || null, validIds));
+          // Quien no tiene Normativas (ni, por tanto, el Repaso diario) recibe
+          // solo el recordatorio genérico: no debe enterarse de que existe.
+          const { data: pf } = await sb.from("profiles").select("is_admin, feature_flags").eq("id", s.user_id).maybeSingle();
+          const canReview = !!(pf as any)?.is_admin || (pf as any)?.feature_flags?.normativas !== false;
+          let due = 0;
+          if (canReview) {
+            const { data: p } = await sb.from("nq_user_progress").select("data").eq("user_id", s.user_id).maybeSingle();
+            due = dueCards((p as any)?.data || null, validIds);
+          }
+          progressCache.set(s.user_id, due);
         }
         const due = progressCache.get(s.user_id) || 0;
         const msg = due > 0
