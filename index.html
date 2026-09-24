@@ -229,6 +229,8 @@
 
 
   .admin-tab-count{ display:inline-block; min-width:18px; padding:0 5px; margin-left:4px; border-radius:999px; background:#E5484D; color:#fff; font-size:11px; font-weight:800; line-height:18px; text-align:center; }
+.backup-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .backup-date{ font-size:14px; font-weight:700; text-transform:capitalize; margin-bottom:3px; }
   .err-card.unseen{ border-color: color-mix(in srgb, #E5484D 45%, var(--line)); }
   .err-head{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
   .err-new{ font-size:10.5px; font-weight:800; color:#fff; background:#E5484D; border-radius:999px; padding:2px 8px; }
@@ -1879,6 +1881,19 @@
   .nq-q-tag.hard{ color: #fff; background: linear-gradient(90deg, #F2665C, #FF7A3D); }
 
   /* Repaso estilo Anki */
+  .nq-srsq{ background: var(--card); border:1px solid var(--line); border-radius:20px; padding:18px 18px 20px; }
+  .nq-srsq-head{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .nq-srsq-art{ font-size:11.5px; color: var(--muted); }
+  .nq-srsq-text{ font-size: clamp(16px, 2.4vw, 19px); line-height:1.45; margin-bottom:14px; }
+  .nq-srsq-opts{ display:flex; flex-direction:column; gap:8px; }
+  .nq-srsq-opt{ display:flex; align-items:center; gap:10px; padding:11px 13px; border:1.5px solid var(--line); border-radius:12px; font-size:14.5px; line-height:1.4; background: var(--bg); }
+  .nq-srsq-opt .k{ width:22px; height:22px; border-radius:6px; background: var(--card-hi); color: var(--muted); font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .nq-srsq-opt span:nth-child(2){ flex:1; }
+  .nq-srsq-opt svg{ width:18px; height:18px; color: var(--green); flex-shrink:0; }
+  .nq-srsq-opt.ok{ border-color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
+  .nq-srsq-opt.dim{ opacity:.5; }
+  .nq-srsq-exp{ margin-top:14px; padding:12px 14px; border-radius:12px; background: var(--card-hi); color: var(--muted); font-size:13.5px; line-height:1.5; white-space:pre-line; }
+
   .nq-srs-panel{ display:flex; align-items:center; gap:14px; background: var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:22px; }
   .nq-srs-panel.due{ border-color: color-mix(in srgb, var(--blue) 55%, var(--line)); background: color-mix(in srgb, var(--blue) 7%, var(--card)); }
   .nq-srs-ico{ width:48px; height:48px; color: var(--amber); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -2359,6 +2374,7 @@
         <div class="admin-tab" id="adminTabBtn-users" onclick="switchAdminTab('users')">Usuarios</div>
         <div class="admin-tab" id="adminTabBtn-activity" onclick="switchAdminTab('activity')">Actividad</div>
         <div class="admin-tab" id="adminTabBtn-boe" onclick="switchAdminTab('boe')">BOE / IA</div>
+        <div class="admin-tab" id="adminTabBtn-backups" onclick="switchAdminTab('backups')">Copias</div>
         <div class="admin-tab" id="adminTabBtn-errors" onclick="switchAdminTab('errors')">Errores <span class="admin-tab-count hidden" id="adminErrorsCount">0</span></div>
       </div>
 
@@ -2552,6 +2568,14 @@
         <div class="admin-card-meta" style="margin-bottom:6px;">Quién está conectado ahora, desde qué hora y cuánto rato lleva. Se actualiza solo cada pocos segundos.</div>
         <div class="admin-card-meta" id="activityLiveInfo" style="margin-bottom:14px;"></div>
         <div id="adminList-activity"></div>
+      </div>
+
+      <!-- COPIAS DE SEGURIDAD -->
+      <div class="admin-section" id="adminSection-backups">
+        <div class="admin-card-title" style="margin-bottom:10px;">Copias de seguridad</div>
+        <div class="admin-card-meta" style="margin-bottom:12px;">Cada noche se guarda automáticamente una copia de toda la base de datos (temas, estructura, preguntas, usuarios, historial, normativas y avance). Se conservan los últimos 14 días. Si alguna vez se borra algo por error, descarga la copia del día anterior y se puede recuperar a partir de ella.</div>
+        <button class="btn btn-light" style="margin-bottom:14px;" id="backupNowBtn" onclick="adminBackupNow()">Hacer copia ahora</button>
+        <div id="adminList-backups"></div>
       </div>
 
       <!-- ERRORES -->
@@ -4061,6 +4085,90 @@ function nodeFullPath(nodeId){
    paginar puede devolver solo una parte de las preguntas (y, al no llevar
    tampoco ORDER BY, un subconjunto distinto y arbitrario en cada carga).
    Esta función pagina con .range() hasta traer todas las filas. */
+/* ---------- Banco de preguntas guardado en el dispositivo ----------
+   Las ~2.000 preguntas (2,5 MB) se guardan en IndexedDB. En cada entrada
+   solo se piden a Supabase las que han cambiado (updated_at) o se han
+   borrado (questions_deleted) desde la última vez, y se comprueba el total;
+   si algo no cuadra, o cada 7 días, se descarga todo de nuevo. Ahorra
+   transferencia de Supabase y acelera el arranque. */
+const QCACHE_KEY = 'questions_v1';
+function idbOpen(){
+  return new Promise((resolve, reject) => {
+    const r = indexedDB.open('pjfire', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+async function idbGet(key){
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const t = db.transaction('kv').objectStore('kv').get(key);
+    t.onsuccess = () => resolve(t.result);
+    t.onerror = () => reject(t.error);
+  });
+}
+async function idbSet(key, value){
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readwrite');
+    tx.objectStore('kv').put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+let questionsCacheMem = null;
+async function loadQuestionsCached(){
+  const OVERLAP_MS = 15 * 60 * 1000;         // margen (escrituras lentas, reloj del móvil algo desfasado)
+  const FULL_EVERY_MS = 7 * 24 * 3600 * 1000;
+  let cache = questionsCacheMem;
+  if(!cache){ try{ cache = await idbGet(QCACHE_KEY); }catch(e){ cache = null; } }
+  let rows = null;
+  const syncStart = Date.now();
+  if(cache && Array.isArray(cache.rows) && cache.syncedAt && (Date.now() - (cache.fullAt || 0)) < FULL_EVERY_MS){
+    try{
+      // Todo lo que cambió antes de la última sincronización ya lo tenemos.
+      const since = new Date(cache.syncedAt - OVERLAP_MS).toISOString();
+      // 1) Ligero: solo id + fecha de las que han cambiado hace poco.
+      const [lite, del, cnt] = await Promise.all([
+        sb.from('questions').select('id, updated_at').gte('updated_at', since).order('id').range(0, 4999),
+        sb.from('questions_deleted').select('id').gte('deleted_at', since),
+        sb.from('questions').select('id', { count: 'exact', head: true })
+      ]);
+      if(!lite.error && !del.error && !cnt.error){
+        const byId = new Map(cache.rows.map(r => [r.id, r]));
+        // 2) Completas solo las que de verdad difieren de lo guardado.
+        const need = (lite.data || []).filter(x => { const c = byId.get(x.id); return !c || c.updated_at !== x.updated_at; }).map(x => x.id);
+        let fresh = [], ok = need.length <= 800;
+        for(let i = 0; ok && i < need.length; i += 200){
+          const r = await sb.from('questions').select('*').in('id', need.slice(i, i + 200));
+          if(r.error){ ok = false; break; }
+          fresh = fresh.concat(r.data || []);
+        }
+        if(ok){
+          (del.data || []).forEach(d => byId.delete(d.id));
+          fresh.forEach(r => byId.set(r.id, r));
+          if(byId.size === cnt.count){
+            rows = [...byId.values()].sort((a, b) => a.id - b.id);
+            cache = { rows, syncedAt: syncStart, fullAt: cache.fullAt };
+            idbSet(QCACHE_KEY, cache).catch(() => {});
+          }
+        }
+      }
+    }catch(e){ rows = null; }
+  }
+  if(!rows){
+    const { data, error } = await fetchAllRows('questions', '*', q => q.order('id'));
+    if(error && !data) return { data: null, error };
+    rows = data || [];
+    cache = { rows, syncedAt: syncStart, fullAt: syncStart };
+    idbSet(QCACHE_KEY, cache).catch(() => {});
+  }
+  questionsCacheMem = cache;
+  // Copia: quien las usa les añade datos del usuario y no debe tocar la caché.
+  return { data: (typeof structuredClone === 'function') ? structuredClone(rows) : JSON.parse(JSON.stringify(rows)), error: null };
+}
+
 async function fetchAllRows(tableName, selectCols, applyOrder){
   const PAGE_SIZE = 1000;
   // Se pregunta primero cuántas filas hay y luego se piden todas las
@@ -4101,7 +4209,7 @@ async function loadAppData(){
   const [{ data: topicsData, error: topicsErr }, { data: nodesData }, { data: questionsData }] = await Promise.all([
     sb.from('topics').select('*').order('sort_order'),
     sb.from('nodos_temario').select('*').order('orden'),
-    fetchAllRows('questions', '*', q => q.order('id'))
+    loadQuestionsCached()
   ]);
   if(topicsErr) console.error('Error cargando temas', topicsErr);
 
@@ -6773,6 +6881,12 @@ async function finishQuizInner(){
     total, ok: quizState.correctCount, bad, pending: blank,
     time_seconds: elapsedSec
   };
+  // Las falladas (o en blanco) pasan al Repaso diario.
+  try{
+    if(typeof NQ !== 'undefined' && NQ.addFailedQuestion){
+      SESSION_QUESTIONS.forEach((q, j) => { if(SESSION_ANSWERS[j] !== q.correct) NQ.addFailedQuestion(q.id); });
+    }
+  }catch(e){}
   const answerRowsFor = sid => SESSION_QUESTIONS.map((q, j) => {
     const a = SESSION_ANSWERS[j];
     // Si esta pregunta se barajó para este intento (q._optionOrder),
@@ -7253,6 +7367,7 @@ async function onLoggedIn(user, isFreshSignIn){
   startupDone = true;
   clearTimeout(startupWatch);
   flushPendingResults();
+  if(typeof NQ !== 'undefined'){ try{ NQ.seedFailed(); NQ.render(); }catch(e){} }
   await refreshGlobalStats(globalStatsSessionsPromise);
   // Si ya se estaba en Estadísticas, se vuelve a pintar con los datos reales.
   const active = document.querySelector('.screen.active');
@@ -7407,7 +7522,7 @@ async function adminLoadAllData(){
   refreshTreeTopicSelect();
 }
 function switchAdminTab(name){
-  ['topics','articles','users','activity','boe','errors'].forEach(t => {
+  ['topics','articles','users','activity','boe','backups','errors'].forEach(t => {
     document.getElementById('adminTabBtn-'+t).classList.toggle('active', t===name);
     document.getElementById('adminSection-'+t).classList.toggle('active', t===name);
   });
@@ -7416,6 +7531,9 @@ function switchAdminTab(name){
   }
   if(name === 'errors'){
     adminLoadErrors();
+  }
+  if(name === 'backups'){
+    adminLoadBackups();
   }
   if(name === 'activity'){
     startActivityLive();
@@ -7821,6 +7939,47 @@ function adminRenderVerifications(){
     );
   }).join('');
 }
+/* ---------- Administración → Copias de seguridad ---------- */
+function fmtBytes(n){ return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+async function adminLoadBackups(){
+  const el = document.getElementById('adminList-backups');
+  if(!el) return;
+  el.innerHTML = skelList(3);
+  const { data, error } = await sb.storage.from('backups').list('', { limit: 100, sortBy: { column: 'name', order: 'desc' } });
+  if(error){ el.innerHTML = '<div class="admin-empty">No se pudieron cargar las copias: ' + escapeHtml(error.message) + '</div>'; return; }
+  const files = (data || []).filter(f => /\.json\.gz$/.test(f.name));
+  if(!files.length){ el.innerHTML = '<div class="admin-empty">Todavía no hay copias. La primera se hará esta noche (o pulsa «Hacer copia ahora»).</div>'; return; }
+  el.innerHTML = files.map((f, i) => {
+    const d = f.name.slice(0, 10);
+    const label = new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const size = f.metadata && f.metadata.size ? fmtBytes(f.metadata.size) : '';
+    return '<div class="admin-card backup-row"><div><div class="backup-date">' + escapeHtml(label) + (i === 0 ? ' <span class="admin-badge">Más reciente</span>' : '') + '</div>' +
+      '<div class="admin-card-meta">' + escapeHtml(f.name) + (size ? ' · ' + size : '') + '</div></div>' +
+      '<button class="btn btn-light" onclick="adminDownloadBackup(\'' + f.name.replace(/[^\w.\-]/g, '') + '\')">Descargar</button></div>';
+  }).join('');
+}
+async function adminDownloadBackup(name){
+  const { data, error } = await sb.storage.from('backups').createSignedUrl(name, 120, { download: 'pjfire-copia-' + name });
+  if(error || !data){ uiToast('No se pudo descargar la copia: ' + (error ? error.message : ''), 'error'); return; }
+  const a = document.createElement('a');
+  a.href = data.signedUrl; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+async function adminBackupNow(){
+  const btn = document.getElementById('backupNowBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Haciendo copia…'; }
+  try{
+    const { data, error } = await sb.functions.invoke('backup-db', { body: {} });
+    if(error || !data || !data.ok) throw new Error((data && data.error) || (error && error.message) || 'error');
+    uiToast('Copia guardada (' + fmtBytes(data.bytes) + ')', 'success');
+    adminLoadBackups();
+  }catch(e){
+    uiToast('No se pudo hacer la copia: ' + e.message, 'error');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = 'Hacer copia ahora'; }
+  }
+}
+
 /* ---------- Administración → Errores ---------- */
 function timeAgoShort(iso){
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -9404,7 +9563,7 @@ async function adminSaveTreeQuestion(){
 
 /* ---------- QUESTIONS (datos usados por el árbol de Estructura) ---------- */
 async function adminLoadQuestions(){
-  const { data, error } = await fetchAllRows('questions', '*', q => q.order('id'));
+  const { data, error } = await loadQuestionsCached();
   if(error){ console.error(error); return; }
   adminData.questions = data || [];
 }
@@ -9923,7 +10082,7 @@ const NQ = (function(){
     }).join('') + '</div>';
     return '<div class="nq-lib-head"><h1>Normativas</h1>' +
       (admin ? '<button class="nq-btn nq-btn-sm" data-act="new-set">' + I.plus + 'Nuevo tema</button>' : '') + '</div>' +
-      (loaded && NQ_SETS.length ? srsPanel() : '') +
+      (loaded && (NQ_SETS.length || testSet()) ? srsPanel() : '') +
       '<div class="nq-lib-sub">Temas</div>' + list;
   }
 
@@ -10183,10 +10342,55 @@ const NQ = (function(){
   const SRS_SESSION_MAX = 100;
   function startOfDay(t){ const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); }
   function srsOf(set, i){ return tstate(set, i).srs || null; }
+  /* Preguntas falladas en los tests: entran en el Repaso diario como un
+     mazo más («Tests»). Su calendario se guarda junto al resto del avance
+     (clave 'tests', sincronizada entre dispositivos). */
+  const TESTS_KEY = 'tests';
+  function poolQuestions(){ try{ return QUESTIONS_POOL || []; }catch(e){ return []; } }
+  function testSet(){
+    const p = db[TESTS_KEY];
+    if(!p || !p.t) return null;
+    const byId = new Map(poolQuestions().map(q => [String(q.id), q]));
+    const ids = Object.keys(p.t).filter(id => byId.has(id) && p.t[id] && p.t[id].seen);
+    if(!ids.length) return null;
+    const qs = ids.map(id => byId.get(id));
+    return { id: TESTS_KEY, title: 'Pregunta fallada', ids, qs, cards: [], terms: qs.map(q => [q.q, (q.options || [])[q.correct] || '']) };
+  }
+  function testsStore(){
+    const p = db[TESTS_KEY] || (db[TESTS_KEY] = {});
+    if(!p.t) p.t = {};
+    return p;
+  }
+  // Se llama al terminar un test por cada pregunta fallada (o en blanco):
+  // vuelve a salir en el repaso desde ya y su intervalo se reinicia.
+  function addFailedQuestion(qid){
+    const p = testsStore(), id = String(qid), prev = p.t[id];
+    const srs = prev && prev.srs
+      ? Object.assign({}, prev.srs, { ivl: 0, reps: 0, lapses: (prev.srs.lapses || 0) + 1, ease: Math.max(1.3, (prev.srs.ease || 2.5) - 0.2), due: Date.now() })
+      : null;
+    p.t[id] = { s: 0, seen: true, srs, u: Date.now() };
+    save();
+  }
+  // Primera vez: se añaden las preguntas que ya estaban en Fallos. Con u=1
+  // para que, si otro dispositivo ya las repasó, gane su avance al fusionar.
+  function seedFailed(){
+    const p = testsStore();
+    if(p.seeded) return;
+    const qs = poolQuestions();
+    if(!qs.length) return;
+    qs.filter(q => q.masteryStatus === 'red' && !q.fallosHidden).forEach(q => {
+      const id = String(q.id);
+      if(!p.t[id]) p.t[id] = { s: 0, seen: true, srs: null, u: 1 };
+    });
+    p.seeded = true;
+    save();
+    if(!study) render();
+  }
   function srsItems(){
     const now = Date.now();
     const due = [], later = [];
-    NQ_SETS.forEach(set => set.terms.forEach((_, i) => {
+    const ts = testSet();
+    (ts ? NQ_SETS.concat([ts]) : NQ_SETS).forEach(set => set.terms.forEach((_, i) => {
       const t = tstate(set, i);
       if(!t.seen) return;
       const s = t.srs;
@@ -10236,9 +10440,11 @@ const NQ = (function(){
     const total = due.length + later.length;
     let body, btn = '';
     if(!total){
-      body = '<div class="nq-srs-sub">Aquí aparecerán las tarjetas que ya hayas estudiado en algún tema, para repasarlas justo antes de olvidarlas. Las nuevas no entran.</div>';
+      body = '<div class="nq-srs-sub">Aquí aparecerán las tarjetas que ya hayas estudiado en algún tema y las preguntas que falles en los tests, para repasarlas justo antes de olvidarlas. Las nuevas no entran.</div>';
     } else if(due.length){
-      body = '<div class="nq-srs-sub">' + total + ' tarjeta' + (total === 1 ? '' : 's') + ' en tu mazo de repaso</div>';
+      const nq = due.filter(x => x.set.id === TESTS_KEY).length;
+      body = '<div class="nq-srs-sub">' + total + ' tarjeta' + (total === 1 ? '' : 's') + ' en tu mazo de repaso' +
+        (nq ? ' · hoy: ' + [due.length - nq ? (due.length - nq) + ' de normativas' : '', nq + ' pregunta' + (nq === 1 ? '' : 's') + ' fallada' + (nq === 1 ? '' : 's') + ' en tests'].filter(Boolean).join(' y ') : '') + '</div>';
       btn = '<button class="nq-btn" data-act="srs-start">Repasar</button>';
     } else {
       body = '<div class="nq-srs-sub">¡Al día! Próximo repaso ' + fmtWhen(later[0].when) + ' · ' + total + ' en tu mazo</div>';
@@ -10304,6 +10510,23 @@ const NQ = (function(){
     const labels = ['Otra vez', 'Difícil', 'Bien', 'Fácil'];
     const cls = ['again', 'hard', 'good', 'easy'];
     const left = st.queue.length;
+    const rateBtns = '<div class="nq-srs-btns">' + labels.map((l, r) =>
+        '<button class="nq-srs-btn ' + cls[r] + '" data-act="srs-rate" data-r="' + r + '"><b>' + l + '</b><span>' + fmtIvl(srsNext(s, r)) + '</span></button>').join('') + '</div>' +
+      '<div class="nq-hint">Teclas 1 · 2 · 3 · 4</div>';
+    if(it.set.id === TESTS_KEY){
+      // Pregunta de test: enunciado + opciones; al mostrar, la correcta en verde.
+      const q = it.set.qs[it.i];
+      const opts2 = (q.options || []).map((o, k) =>
+        '<div class="nq-srsq-opt' + (st.shown ? (k === q.correct ? ' ok' : ' dim') : '') + '"><span class="k">' + String.fromCharCode(65 + k) + '</span><span>' + esc(o) + '</span>' + (st.shown && k === q.correct ? I.check : '') + '</div>').join('');
+      const exp = st.shown && q.explain ? '<div class="nq-srsq-exp">' + esc(String(q.explain).slice(0, 900)) + (String(q.explain).length > 900 ? '…' : '') + '</div>' : '';
+      return studyHeader('Repaso · ' + left + ' restante' + (left === 1 ? '' : 's'), false) +
+        '<div class="nq-pbar"><i style="width:' + (st.total ? st.done / st.total * 100 : 0) + '%"></i></div>' +
+        '<div class="nq-srsq"><div class="nq-srsq-head"><span class="nq-srs-set">❌ Fallada en un test</span>' + (q.art ? '<span class="nq-srsq-art">' + esc(q.art) + '</span>' : '') + '</div>' +
+          '<div class="nq-srsq-text">' + esc(q.q) + '</div><div class="nq-srsq-opts">' + opts2 + '</div>' + exp + '</div>' +
+        (st.shown ? rateBtns
+          : '<div class="nq-srs-btns one"><button class="nq-btn block" data-act="srs-show">Mostrar respuesta</button></div>' +
+            '<div class="nq-hint">Piensa cuál es la correcta y luego pulsa (o espacio)</div>');
+    }
     const tools = '<div class="nq-fc-tools"><button class="nq-ib" data-act="srs-speak" title="Escuchar">' + I.speaker + '</button><span class="nq-srs-set">' + esc(it.set.title) + '</span></div>';
     return studyHeader('Repaso · ' + left + ' restante' + (left === 1 ? '' : 's'), false) +
       '<div class="nq-pbar"><i style="width:' + (st.total ? st.done / st.total * 100 : 0) + '%"></i></div>' +
@@ -10312,9 +10535,7 @@ const NQ = (function(){
         '<div class="nq-fc-face nq-fc-back">' + tools + '<div><div class="nq-srs-q">' + esc(t) + '</div>' + esc(d) + '</div><div class="nq-fc-side">Normativa</div></div>' +
       '</div></div></div>' +
       (st.shown
-        ? '<div class="nq-srs-btns">' + labels.map((l, r) =>
-            '<button class="nq-srs-btn ' + cls[r] + '" data-act="srs-rate" data-r="' + r + '"><b>' + l + '</b><span>' + fmtIvl(srsNext(s, r)) + '</span></button>').join('') + '</div>' +
-          '<div class="nq-hint">Teclas 1 · 2 · 3 · 4</div>'
+        ? rateBtns
         : '<div class="nq-srs-btns one"><button class="nq-btn block" data-act="srs-show">Mostrar respuesta</button></div>' +
           '<div class="nq-hint">Piensa la respuesta y luego pulsa (o espacio)</div>');
   }
@@ -10954,7 +11175,7 @@ const NQ = (function(){
     renderStudy();
     return true;
   }
-  return { render, load, close: closeStudy, startReview };
+  return { render, load, close: closeStudy, startReview, addFailedQuestion, seedFailed };
 })();
 </script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">

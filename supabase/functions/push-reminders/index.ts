@@ -132,7 +132,8 @@ function dueCards(progress: Record<string, any> | null, validIds: Set<string>): 
     if (setId.startsWith("__") || !set || typeof set !== "object") continue;
     for (const [cardId, t] of Object.entries((set as any).t || {})) {
       const st = t as any;
-      if (!st || !st.seen || !validIds.has(cardId)) continue;
+      // «tests» = preguntas falladas en los tests (no son tarjetas de nq_cards).
+      if (!st || !st.seen || (setId !== "tests" && !validIds.has(cardId))) continue;
       if (!st.srs || !st.srs.due || st.srs.due <= now) n++;
     }
   }
@@ -195,7 +196,7 @@ Deno.serve(async (req) => {
         }
         const due = progressCache.get(s.user_id) || 0;
         const msg = due > 0
-          ? { title: `🔥 Tienes ${due} tarjeta${due === 1 ? "" : "s"} para repasar hoy`, body: "Tu Repaso diario de Normativas te espera. ¡Unos minutos y listo!", tag: "pjfire-daily", url: "./?repaso=1" }
+          ? { title: `🔥 Tienes ${due} tarjeta${due === 1 ? "" : "s"} para repasar hoy`, body: "Tu Repaso diario (normativas y preguntas falladas) te espera. ¡Unos minutos y listo!", tag: "pjfire-daily", url: "./?repaso=1" }
           : { title: "📚 ¿Un ratito de estudio hoy?", body: "Un test rápido al día marca la diferencia. ¡Tú puedes!", tag: "pjfire-daily", url: "./" };
         const st = await sendPush(s, vapid, msg);
         await dropIfGone(s, st);
