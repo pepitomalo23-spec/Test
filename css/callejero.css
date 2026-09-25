@@ -47,6 +47,18 @@
   .cj-resultado.ko b{ color: var(--coral); }
   .cj-resultado .btn{ flex-shrink:0; }
 
+  /* ---------- estilo del mapa ---------- */
+  .cj-estilo{ position:relative; }
+  .cj-estilo-boton{ display:flex; align-items:center; gap:6px; padding:7px 10px; border-radius:10px; border:1px solid var(--line);
+    background: var(--bg); color: var(--text); font: inherit; font-size:12.5px; font-weight:600; cursor:pointer; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+  .cj-estilo-boton svg{ width:16px; height:16px; }
+  .cj-estilo-menu{ position:absolute; right:0; top:calc(100% + 6px); min-width:130px; background: var(--bg); border:1px solid var(--line);
+    border-radius:12px; overflow:hidden; box-shadow: 0 10px 28px rgba(0,0,0,.35); }
+  .cj-estilo-opcion{ display:block; width:100%; text-align:left; padding:10px 14px; border:none; border-bottom:1px solid var(--line-soft);
+    background:none; color: var(--text); font: inherit; font-size:14px; cursor:pointer; }
+  .cj-estilo-opcion:last-child{ border-bottom:none; }
+  .cj-estilo-opcion.activa{ color: var(--coral); font-weight:700; }
+
   /* ---------- modo estudio ---------- */
   .cj-mode-icon-estudio{ color: var(--blue); }
   .cj-barra-titulo{ font-weight:700; font-size:15px; }
@@ -61,7 +73,7 @@
   .cj-sugerencia:last-child{ border-bottom:none; }
   .cj-sugerencia:hover{ background: var(--w05); }
   .cj-sugerencia-vacia{ padding:12px 14px; font-size:14px; color: var(--muted); }
-  .cj-pista{ position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:1000; max-width:calc(100% - 90px);
+  .cj-pista{ position:absolute; top:56px; left:50%; transform:translateX(-50%); z-index:1000; max-width:calc(100% - 90px);
     padding:7px 12px; border-radius:99px; background: var(--bg); border:1px solid var(--line); font-size:12.5px; color: var(--muted);
     text-align:center; pointer-events:none; }
   .cj-info{ position:absolute; left:10px; right:10px; bottom:26px; z-index:1000; padding:12px 14px; border-radius:14px;

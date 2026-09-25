@@ -66,7 +66,9 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   `callejero_intentos` (respuestas de cada alumno). Ver `supabase/migrations/20260925_callejero.sql`.
 - La app descarga un único archivo compacto (almacén público `callejero`, unos 750 KB) solo al
   abrir la pantalla; el service worker lo guarda para jugar sin conexión. El mapa (Leaflet) también
-  se carga solo entonces. No hay mapa de fondo: el trazado de las vías es el mapa.
+  se carga solo entonces. Tres estilos de mapa, sin nombres que den pistas: Sencillo y Plano
+  (el trazado de las vías es el mapa, funcionan sin conexión) y Satélite (ortofoto PNOA del
+  Instituto Geográfico Nacional, CC BY 4.0, necesita conexión).
 
 ## Al cambiar un css/ o js/
 

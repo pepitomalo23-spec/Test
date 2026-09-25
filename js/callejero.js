@@ -6,10 +6,15 @@
    su ruta está en la tabla callejero_publicado. El archivo se descarga
    solo al abrir esta pantalla, y el service worker lo guarda para
    poder jugar sin conexión.
-   Leaflet (el mapa) también se carga solo al abrir la pantalla. No hay
-   mapa de fondo: el propio trazado de las vías (y el Guadalquivir) es el
-   mapa, así que no hay ningún nombre que dé pistas, no depende de
-   ningún servicio externo y funciona sin conexión.
+   Leaflet (el mapa) también se carga solo al abrir la pantalla.
+   Tres estilos de mapa, a elegir con el botón de arriba a la derecha (se
+   recuerda en el dispositivo). Ninguno tiene nombres que den pistas:
+     - Sencillo: solo el trazado de las vías y el Guadalquivir, con los
+       colores del tema. Funciona sin conexión.
+     - Plano: el mismo trazado con colores de plano (calles blancas con
+       borde, avenidas y carreteras en amarillo, río azul).
+     - Satélite: la ortofoto del PNOA (Instituto Geográfico Nacional,
+       CC BY 4.0) con las vías encima, finas. Necesita conexión.
 
    Modo «Localiza la calle»: se da el nombre de una vía y hay que
    tocarla en el mapa. Cuenta como acierto si el toque cae a menos de
@@ -27,6 +32,12 @@ const CJ = (function(){
   const LEAFLET_CSS = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
   const LEAFLET_CSS_SRI = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
   const ATRIBUCION = 'Callejero: <a href="https://www.callejerodeandalucia.es/" target="_blank" rel="noopener">CDAU</a> · Río: DERA · IECA, Junta de Andalucía (CC BY 4.0)';
+  const PNOA = 'https://www.ign.es/wmts/pnoa-ma?service=WMTS&request=GetTile&version=1.0.0&Format=image/jpeg&layer=OI.OrthoimageCoverage&style=default&tilematrixset=GoogleMapsCompatible&TileMatrix={z}&TileRow={y}&TileCol={x}';
+  const ATRIBUCION_PNOA = 'Ortofoto: <a href="https://pnoa.ign.es/" target="_blank" rel="noopener">PNOA</a> © Instituto Geográfico Nacional (CC BY 4.0)';
+  const ESTILOS = { sencillo: 'Sencillo', plano: 'Plano', satelite: 'Satélite' };
+  const ESTILO_KEY = 'cj_estilo_mapa';
+  // En el estilo Plano estas vías se pintan como las principales (amarillas).
+  const TIPOS_PRINCIPALES = new Set(['AVENIDA', 'CARRETERA', 'AUTOVIA', 'RONDA', 'PASEO', 'BULEVAR', 'VIA', 'ENLACE']);
   const CENTRO = [37.8845, -4.7796];
   const PREGUNTAS_POR_RONDA = 20;
   const TOLERANCIA_M = 35;
@@ -36,7 +47,11 @@ const CJ = (function(){
   let datos = null;          // { version, vias: [...], porNombre: Map, jugables: [...] }
   let cargando = null;       // promesa de carga en curso
   let progreso = new Map();  // id_vial -> { intentos, aciertos, ultimo_acierto }
-  let mapa = null, capaCalles = null, capaMarcas = null, capaRio = null;
+  let mapa = null, capaMarcas = null, capaRio = null, capaFoto = null;
+  // Vías en dos grupos (resto / principales), cada uno con su borde y su relleno.
+  let capas = null;          // { restoBorde, resto, princBorde, princ }
+  let estilo = 'sencillo';
+  try{ if(ESTILOS[localStorage.getItem(ESTILO_KEY)]) estilo = localStorage.getItem(ESTILO_KEY); }catch(e){}
   let ronda = null;          // { preguntas, i, aciertos, fallos: [], respondida }
   let modo = null;           // 'localiza' | 'estudio' (con el mapa abierto)
   let sugerencias = [];      // resultados de la búsqueda del modo estudio
@@ -177,19 +192,98 @@ const CJ = (function(){
     mapa = L.map(el, { zoomControl: true, attributionControl: true, preferCanvas: true, minZoom: 11, maxZoom: 19, zoomSnap: 0.5 });
     mapa.attributionControl.setPrefix(false);
     mapa.attributionControl.addAttribution(ATRIBUCION);
+    capaFoto = L.tileLayer(PNOA, { maxZoom: 19, attribution: ATRIBUCION_PNOA, crossOrigin: true });
     const renderer = L.canvas({ padding: 0.3, tolerance: 4 });
-    if(datos.rio.length) capaRio = L.polyline(datos.rio, { renderer, color: colorRio(), weight: 9, opacity: 1, lineCap: 'round', interactive: false }).addTo(mapa);
-    capaCalles = L.polyline(datos.vias.flatMap(v => v.lineas), { renderer, color: colorCalles(), weight: 2, opacity: 0.9, interactive: false }).addTo(mapa);
-    capaMarcas = L.layerGroup().addTo(mapa);
+    const linea = lineas => L.polyline(lineas, { renderer, interactive: false, lineCap: 'round', lineJoin: 'round' });
+    if(datos.rio.length) capaRio = linea(datos.rio);
+    const princ = datos.vias.filter(v => TIPOS_PRINCIPALES.has(v.tipo)).flatMap(v => v.lineas);
+    const resto = datos.vias.filter(v => !TIPOS_PRINCIPALES.has(v.tipo)).flatMap(v => v.lineas);
+    capas = { restoBorde: linea(resto), resto: linea(resto), princBorde: linea(princ), princ: linea(princ) };
+    capaMarcas = L.layerGroup();
+    aplicarEstilo();
+    mapa.addControl(crearControlEstilo());
     mapa.setMaxBounds(limitesDe(datos.vias).pad(0.15));
     mapa.setView(CENTRO, 14);
     mapa.on('click', e => { if(modo === 'estudio') tocarEstudio(e.latlng); else responder(e.latlng); });
   }
-  function refrescarTema(){
+
+  // Qué capas se ven y con qué colores en cada estilo.
+  function aplicarEstilo(){
     if(!mapa) return;
-    capaCalles.setStyle({ color: colorCalles() });
-    if(capaRio) capaRio.setStyle({ color: colorRio() });
+    const S = {
+      sencillo: {
+        fondo: null, foto: false,
+        rio: { color: colorRio(), weight: 9, opacity: 1 },
+        restoBorde: null, resto: { color: colorCalles(), weight: 2, opacity: 0.9 },
+        princBorde: null, princ: { color: colorCalles(), weight: 2, opacity: 0.9 }
+      },
+      plano: {
+        fondo: '#efe9dc', foto: false,
+        rio: { color: '#9ccbeb', weight: 11, opacity: 1 },
+        restoBorde: { color: '#cbc2b0', weight: 5, opacity: 1 }, resto: { color: '#ffffff', weight: 3, opacity: 1 },
+        princBorde: { color: '#d9a93a', weight: 7, opacity: 1 }, princ: { color: '#fbd96b', weight: 4.5, opacity: 1 }
+      },
+      satelite: {
+        fondo: '#1b1d1a', foto: true, rio: null,
+        restoBorde: null, resto: { color: '#ffffff', weight: 1.5, opacity: 0.5 },
+        princBorde: null, princ: { color: '#ffe38a', weight: 2, opacity: 0.6 }
+      }
+    }[estilo];
+    const poner = (capa, st) => {
+      if(!capa) return;
+      if(st){ capa.setStyle(st); if(!mapa.hasLayer(capa)) capa.addTo(mapa); }
+      else if(mapa.hasLayer(capa)) mapa.removeLayer(capa);
+    };
+    if(S.foto){ if(!mapa.hasLayer(capaFoto)) capaFoto.addTo(mapa); }
+    else if(mapa.hasLayer(capaFoto)) mapa.removeLayer(capaFoto);
+    // Orden de abajo arriba: río, bordes, rellenos y, encima de todo, las marcas.
+    [capaRio, capas.restoBorde, capas.princBorde, capas.resto, capas.princ, capaMarcas].forEach(c => { if(c && mapa.hasLayer(c)) mapa.removeLayer(c); });
+    poner(capaRio, S.rio);
+    poner(capas.restoBorde, S.restoBorde);
+    poner(capas.princBorde, S.princBorde);
+    poner(capas.resto, S.resto);
+    poner(capas.princ, S.princ);
+    capaMarcas.addTo(mapa);
+    const cont = mapa.getContainer();
+    cont.style.background = S.fondo || '';
+    document.querySelectorAll('.cj-estilo-opcion').forEach(b => b.classList.toggle('activa', b.dataset.estilo === estilo));
+    const actual = document.querySelector('.cj-estilo-actual');
+    if(actual) actual.textContent = ESTILOS[estilo];
   }
+
+  function cambiarEstilo(nuevo){
+    if(!ESTILOS[nuevo]) return;
+    estilo = nuevo;
+    try{ localStorage.setItem(ESTILO_KEY, nuevo); }catch(e){}
+    aplicarEstilo();
+    const menu = document.querySelector('.cj-estilo-menu');
+    if(menu) menu.classList.add('hidden');
+  }
+
+  // Botón «Mapa: …» arriba a la derecha, con el menú de estilos.
+  function crearControlEstilo(){
+    const Control = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd: function(){
+        const div = L.DomUtil.create('div', 'cj-estilo');
+        div.innerHTML =
+          '<button type="button" class="cj-estilo-boton" aria-label="Estilo del mapa">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>' +
+            '<span class="cj-estilo-actual">' + ESTILOS[estilo] + '</span>' +
+          '</button>' +
+          '<div class="cj-estilo-menu hidden">' +
+            Object.keys(ESTILOS).map(k => '<button type="button" class="cj-estilo-opcion' + (k === estilo ? ' activa' : '') + '" data-estilo="' + k + '">' + ESTILOS[k] + '</button>').join('') +
+          '</div>';
+        L.DomEvent.disableClickPropagation(div);
+        div.querySelector('.cj-estilo-boton').addEventListener('click', () => div.querySelector('.cj-estilo-menu').classList.toggle('hidden'));
+        div.querySelectorAll('.cj-estilo-opcion').forEach(b => b.addEventListener('click', () => cambiarEstilo(b.dataset.estilo)));
+        return div;
+      }
+    });
+    return new Control();
+  }
+
+  function refrescarTema(){ aplicarEstilo(); }
 
   /* ---------- pantalla principal ---------- */
   function el(id){ return document.getElementById(id); }
