@@ -81,9 +81,8 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   Miraflores, Av. de Granada y N-432): al este el Parque del Granadal y al oeste el Parque Central. La
   línea sigue el trazado de cada vía (y el camino más corto por las calles entre una y la siguiente).
   Las vías a menos de 150 m de la línea no se preguntan, porque no está claro a cuál le toca.
-- Modos de juego: Localiza la calle, ¿Cómo se llama? (4 opciones), Dilo en voz alta (la app escucha
-  el nombre con el reconocimiento de voz del navegador; sin él, o con «Ver respuesta», uno mismo marca
-  ✓ o ✗), Cruces y paralelas (se calculan en la app con el trazado de las vías), Lugares importantes y
+- Modos de juego: Localiza la calle, ¿Cómo se llama? (4 opciones), Di el nombre (se marca una calle, uno
+  dice su nombre para sí, pulsa «Resolver» y se pone él mismo bien o mal), Cruces y paralelas (se calculan en la app con el trazado de las vías), Lugares importantes y
   ¿Qué parque acude?. Además, el Modo estudio.
 - La app descarga un único archivo compacto (almacén público `callejero`, unos 900 KB) solo al
   abrir la pantalla; el service worker lo guarda para jugar sin conexión. El mapa (Leaflet) también

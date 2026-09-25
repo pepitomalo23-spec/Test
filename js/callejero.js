@@ -36,11 +36,8 @@
    elegida; primero las que se fallaron):
      - localiza: se da el nombre de una vía y hay que tocarla en el mapa.
      - opciones: se marca una vía y se elige su nombre entre 4 cercanas.
-     - voz:      se marca una vía y hay que decir su nombre en voz alta.
-                 Con reconocimiento de voz (Chrome, Safari) la app lo
-                 comprueba sola (se perdonan tildes, el tipo de vía y
-                 pequeños errores; si entiende mal, «Lo dije bien»). Sin él,
-                 o con «Ver respuesta», uno mismo marca ✓ o ✗.
+     - voz:      se marca una vía, uno dice su nombre para sí, pulsa
+                 «Resolver» y marca él mismo si lo ha dicho bien (✓) o mal (✗).
      - cruces:   «¿Cuál cruza con X?» o «¿Cuál es paralela a X?», con 4
                  opciones. Los cruces y las paralelas se calculan con el
                  trazado oficial (ver crucesDe y paralelasDe).
@@ -77,7 +74,7 @@ const CJ = (function(){
   const MODOS = {
     localiza: { titulo: 'Localiza la calle', respuesta: 'toque' },
     opciones: { titulo: '¿Cómo se llama?', respuesta: 'opciones' },
-    voz: { titulo: 'Dilo en voz alta', respuesta: 'voz' },
+    voz: { titulo: 'Di el nombre', respuesta: 'voz' },
     cruces: { titulo: 'Cruces y paralelas', respuesta: 'opciones' },
     lugares: { titulo: 'Lugares importantes', respuesta: 'toque' },
     parque: { titulo: '¿Qué parque acude?', respuesta: 'opciones' }
@@ -447,7 +444,7 @@ const CJ = (function(){
       tarjetaModo('opciones', 'M9 11l3 3L22 4|M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
         'Te marcamos una calle en el mapa y eliges su nombre entre 4 calles cercanas.') +
       tarjetaModo('voz', 'M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z|M19 10v2a7 7 0 0 1-14 0v-2|M12 19v3',
-        'Te marcamos una calle y dices en voz alta cómo se llama. Si aciertas, ✓; si no, ✗.') +
+        'Te marcamos una calle, dices cómo se llama, pulsas Resolver y te pones tú mismo bien o mal.') +
       tarjetaModo('cruces', 'M12 3v18|M3 12h18|M8 3v4|M16 17v4',
         '¿Qué calle cruza con esta? ¿Cuál es su paralela? Elige entre 4.') +
       (datos.lugares.length ? tarjetaModo('lugares', 'M3 21h18|M5 21V7l8-4v18|M19 21V11l-6-4|M9 9v.01|M9 12v.01|M9 15v.01|M9 18v.01',
@@ -1032,151 +1029,30 @@ const CJ = (function(){
     marcarRespondida(acierto, texto, null);
   }
 
-  /* ---------- modo «Dilo en voz alta» ---------- */
-  // «calle san agustín», «San Agustin» o «avenida del gran capitan» valen
-  // para «Calle San Agustín» / «Avenida del Gran Capitán».
-  function distanciaEdicion(a, b){
-    const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
-    for(let j = 1; j <= b.length; j++) d[0][j] = j;
-    for(let i = 1; i <= a.length; i++) for(let j = 1; j <= b.length; j++)
-      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    return d[a.length][b.length];
-  }
-  function limpiarNombre(t){ return normalizar(t).replace(/[^a-z0-9ñ ]/g, ' ').replace(/\s+/g, ' ').trim(); }
-  // Tipos de vía (y sus abreviaturas) y artículos que se pueden omitir.
-  const TIPOS_OMITIBLES = /^(calle|c|cl|avenida|avda|av|plaza|pza|pl|paseo|p|po|glorieta|gta|ronda|rda|carretera|ctra|camino|cm|pasaje|pje|calleja|travesia|trv|urbanizacion|urb|barriada|bda|callejon|cjon|plazuela|puente|bulevar|via|vereda|sendero|parque|jardines|jardin|grupo|poligono|pol|enlace|autovia|acceso|carril|huerta|prolongacion|ramal|zona|lugar|aldea)\s+/;
-  const ARTICULOS = /^(de los|de las|de la|del|de|los|las|la|el)\s+/;
-  function nucleo(t){ return limpiarNombre(t).replace(TIPOS_OMITIBLES, '').replace(ARTICULOS, ''); }
-  function nombreCorrecto(dicho, v){
-    const e = limpiarNombre(dicho);
-    if(!e) return false;
-    const parecido = (a, b) => distanciaEdicion(a, b) <= (b.length <= 6 ? 0 : b.length <= 12 ? 1 : 2);
-    // Lo que va entre paréntesis («Calle Mirtos (Córdoba la Vieja)») solo
-    // distingue nombres repetidos: se puede decir o no.
-    const formas = [v.nombre, v.nombre.replace(/\s*\([^)]*\)/g, '')];
-    return formas.some(n => parecido(e, limpiarNombre(n)) || (nucleo(n).length > 0 && parecido(nucleo(dicho), nucleo(n))));
-  }
-
-  const Reconocedor = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let reconocedor = null;
-  let sinMicro = false;      // se denegó el micrófono: solo «Ver respuesta»
-  function hayMicro(){ return !!Reconocedor && !sinMicro; }
-  // Botones de la pregunta: micrófono y «Ver respuesta»; tras ver la
-  // respuesta (o si la voz entendió otra cosa), ✓ y ✗.
+  /* ---------- modo «Di el nombre» ---------- */
+  // Uno dice el nombre para sí, pulsa «Resolver» y se corrige él mismo.
   function prepararVoz(){
-    pararEscucha();
-    ronda.vozPendiente = false;
-    const mic = el('cjVozMic');
-    mic.classList.toggle('hidden', !hayMicro());
-    mic.classList.remove('escuchando');
-    mic.disabled = false;
-    el('cjVozMicTexto').textContent = 'Pulsa y di el nombre';
     el('cjVozVer').classList.remove('hidden');
-    el('cjVozVer').textContent = hayMicro() ? 'Ver respuesta' : 'Dilo en voz alta y pulsa aquí para ver la respuesta';
     el('cjVozSi').classList.add('hidden');
     el('cjVozNo').classList.add('hidden');
   }
-  function pararEscucha(){
-    if(!reconocedor) return;
-    const r = reconocedor;
-    reconocedor = null;
-    r.onresult = r.onerror = r.onend = null;
-    try{ r.abort(); }catch(e){}
-  }
-  function revelarNombre(){
+  function verRespuesta(){
+    if(!ronda || ronda.respondida || MODOS[modo].respuesta !== 'voz') return;
     const q = ronda.preguntas[ronda.i];
     el('cjPregunta').textContent = q.via.nombre;
     el('cjPregunta').classList.remove('hidden');
-  }
-  function escuchar(){
-    if(!ronda || ronda.respondida || ronda.vozPendiente || !hayMicro()) return;
-    if(reconocedor){ pararEscucha(); prepararVoz(); return; }
-    const q = ronda.preguntas[ronda.i];
-    const r = new Reconocedor();
-    r.lang = 'es-ES';
-    r.interimResults = true;
-    r.maxAlternatives = 5;
-    r.continuous = false;
-    const oidos = [];
-    const mic = el('cjVozMic');
-    mic.classList.add('escuchando');
-    el('cjVozMicTexto').textContent = 'Te escucho…';
-    r.onresult = ev => {
-      let provisional = '';
-      for(let k = ev.resultIndex; k < ev.results.length; k++){
-        const res = ev.results[k];
-        if(res.isFinal) for(let a = 0; a < res.length; a++) oidos.push(res[a].transcript);
-        else provisional += res[0].transcript;
-      }
-      if(provisional) el('cjVozMicTexto').textContent = '«' + provisional.trim() + '…»';
-    };
-    r.onerror = ev => {
-      if(ev.error === 'not-allowed' || ev.error === 'service-not-allowed'){
-        sinMicro = true;
-        uiToast('Sin permiso para el micrófono: di el nombre en voz alta y pulsa «Ver respuesta».', 'info');
-      }else if(ev.error === 'network'){
-        uiToast('El reconocimiento de voz necesita conexión. Puedes usar «Ver respuesta».', 'info');
-      }
-    };
-    r.onend = () => {
-      if(reconocedor !== r) return;
-      reconocedor = null;
-      if(!ronda || ronda.respondida || ronda.preguntas[ronda.i] !== q) return;
-      if(!oidos.length){
-        prepararVoz();
-        if(hayMicro()) uiToast('No te he oído. Pulsa el micrófono y dilo otra vez.', 'info');
-        return;
-      }
-      const acierto = oidos.some(t => nombreCorrecto(t, q.via));
-      const dicho = (acierto ? oidos.find(t => nombreCorrecto(t, q.via)) : oidos[0]).trim();
-      revelarNombre();
-      mic.classList.remove('escuchando');
-      mic.classList.add('hidden');
-      el('cjVozVer').classList.add('hidden');
-      if(acierto){
-        marcarRespondida(true, '<span class="cj-marca ok">✓</span> <b>¡Correcto!</b> ' + escapeHtml(q.via.nombre) + '. <span class="cj-dir">He oído «' + escapeHtml(dicho) + '».</span>', null);
-        return;
-      }
-      // Puede que la voz entendiera mal: se enseña lo oído y se deja
-      // corregir. Si se pasa a la siguiente, cuenta como fallo.
-      ronda.vozPendiente = true;
-      el('cjVozSi').textContent = '✓ Lo dije bien';
-      el('cjVozSi').classList.remove('hidden');
-      el('cjResultado').className = 'cj-resultado ko';
-      el('cjResultadoTexto').innerHTML = '<span class="cj-marca ko">✗</span> He oído «' + escapeHtml(dicho) + '». Es <b>' + escapeHtml(q.via.nombre) + '</b>.';
-      el('cjSiguiente').textContent = ronda.i + 1 >= ronda.preguntas.length ? 'Ver resultado' : 'Siguiente';
-    };
-    reconocedor = r;
-    try{ r.start(); }catch(e){ reconocedor = null; prepararVoz(); }
-  }
-  // Sin voz (o para comprobarlo uno mismo): se ve el nombre y se marca ✓ o ✗.
-  function verRespuesta(){
-    if(!ronda || ronda.respondida || ronda.vozPendiente) return;
-    pararEscucha();
-    ronda.vozPendiente = true;
-    revelarNombre();
-    el('cjVozMic').classList.add('hidden');
     el('cjVozVer').classList.add('hidden');
-    el('cjVozSi').textContent = '✓ Acertada';
     el('cjVozSi').classList.remove('hidden');
     el('cjVozNo').classList.remove('hidden');
   }
   function autoevaluar(acierto){
-    if(!ronda || ronda.respondida || !ronda.vozPendiente) return;
+    if(!ronda || ronda.respondida || el('cjVozSi').classList.contains('hidden')) return;
     const q = ronda.preguntas[ronda.i];
-    ronda.vozPendiente = false;
     el('cjVozSi').classList.add('hidden');
     el('cjVozNo').classList.add('hidden');
     marcarRespondida(acierto, acierto
-      ? '<span class="cj-marca ok">✓</span> <b>¡Correcto!</b> ' + escapeHtml(q.via.nombre) + '.'
-      : '<span class="cj-marca ko">✗</span> <b>Fallo.</b> Es ' + escapeHtml(q.via.nombre) + '.', null);
-  }
-  function siguiente(){
-    if(ronda && !ronda.respondida){
-      if(!ronda.vozPendiente) return;
-      autoevaluar(false);
-    }
-    siguientePregunta(false);
+      ? '<span class="cj-marca ok">✓</span> <b>¡Bien!</b> ' + escapeHtml(q.via.nombre) + '.'
+      : '<span class="cj-marca ko">✗</span> <b>Mal.</b> Es ' + escapeHtml(q.via.nombre) + '.', null);
   }
 
   function formatearDistancia(m){
@@ -1184,7 +1060,6 @@ const CJ = (function(){
   }
 
   function terminar(){
-    pararEscucha();
     const total = ronda.preguntas.length;
     const fallos = ronda.fallos;
     const m = modo;
@@ -1207,7 +1082,6 @@ const CJ = (function(){
   }
 
   function salir(){
-    pararEscucha();
     ronda = null;
     modo = null;
     mostrarVista('inicio');
@@ -1219,5 +1093,5 @@ const CJ = (function(){
   }
 
   return { abrir, empezar, estudio, buscar, elegir, salir, cambiarZona, alternarLista, elegirDeLista, confirmarSalir,
-    responderOpcion, escuchar, verRespuesta, autoevaluar, siguiente, refrescarTema };
+    responderOpcion, verRespuesta, autoevaluar, siguiente: () => siguientePregunta(false), refrescarTema };
 })();

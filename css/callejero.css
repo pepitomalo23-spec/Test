@@ -78,11 +78,7 @@
   .cj-voz.hidden, .cj-voz .hidden{ display:none; }
   .cj-voz button{ flex:1; min-height:52px; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background: var(--card);
     color: var(--text); font: inherit; font-size:14.5px; font-weight:600; line-height:1.25; cursor:pointer; }
-  .cj-voz-mic{ display:flex; align-items:center; justify-content:center; gap:8px; flex:1.6 !important; border-color: rgba(242,102,92,.45) !important; }
-  .cj-voz-mic svg{ width:20px; height:20px; flex-shrink:0; color: var(--coral); }
-  .cj-voz-mic.escuchando{ background: rgba(242,102,92,.15); animation: cjLatido 1.2s ease-in-out infinite; }
-  @keyframes cjLatido{ 50%{ border-color: var(--coral); } }
-  .cj-voz-ver{ color: var(--muted) !important; }
+  .cj-voz-ver{ border-color: rgba(242,102,92,.45) !important; }
   .cj-voz-si{ border-color: rgba(52,211,153,.55) !important; color: var(--green) !important; }
   .cj-voz-no{ border-color: rgba(242,102,92,.55) !important; color: var(--coral) !important; }
   .cj-marca{ display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; margin-right:4px;
