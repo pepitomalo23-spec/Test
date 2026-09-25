@@ -1,0 +1,71 @@
+/* Callejero: pantalla, juego «Localiza la calle» y su pestaña de administración. */
+
+  .cj-card{ background: var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px; }
+  .cj-card-title{ font-size:13px; font-weight:600; color: var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px; }
+  .cj-error{ color: var(--text); line-height:1.5; }
+  .cj-error .btn{ margin-top:12px; }
+  .cj-pct{ font-size:15px; color: var(--muted); margin-bottom:10px; }
+  .cj-pct span{ font-family: var(--title); font-size:34px; color: var(--text); margin-right:4px; }
+  .cj-bar{ height:8px; border-radius:99px; background: var(--w08); overflow:hidden; }
+  .cj-bar-fill{ height:100%; background: var(--green); border-radius:99px; transition: width .4s; }
+  .cj-stats{ display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:14px; }
+  .cj-stats div{ display:flex; flex-direction:column; gap:2px; }
+  .cj-stats b{ font-size:18px; }
+  .cj-stats span{ font-size:12px; color: var(--muted); }
+
+  .cj-mode{ display:flex; align-items:center; gap:14px; width:100%; text-align:left; padding:18px; border-radius:16px;
+    background: var(--card); border:1px solid var(--line); color: var(--text); cursor:pointer; font: inherit; margin-bottom:14px; transition: border-color .15s, background .15s; }
+  .cj-mode:hover{ border-color: var(--w22); background: var(--card-hi); }
+  .cj-mode-icon{ flex-shrink:0; width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; background: var(--w06); color: var(--coral); }
+  .cj-mode-icon svg{ width:22px; height:22px; }
+  .cj-mode-title{ font-weight:700; font-size:16px; margin-bottom:3px; }
+  .cj-mode-desc{ font-size:13.5px; color: var(--muted); line-height:1.45; }
+  .cj-fuente{ font-size:12px; color: var(--muted-2); line-height:1.5; }
+
+  /* ---------- juego ---------- */
+  .cj-barra{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+  .cj-salir{ width:36px; height:36px; border-radius:10px; border:1px solid var(--line); background: var(--card); color: var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .cj-salir svg{ width:18px; height:18px; }
+  .cj-contador{ font-weight:700; font-size:14px; }
+  .cj-aciertos{ margin-left:auto; font-size:13px; color: var(--green); font-weight:600; }
+  .cj-pregunta-wrap{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 16px; margin-bottom:10px; }
+  .cj-pregunta-label{ font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color: var(--coral); }
+  .cj-pregunta{ font-size:19px; font-weight:700; line-height:1.25; margin-top:2px; }
+  .cj-mapa{ height: calc(100vh - 290px); height: calc(100dvh - 290px); min-height:320px; border-radius:16px; overflow:hidden; border:1px solid var(--line); background: var(--bg); }
+  /* Leaflet pone su propio fondo gris; aquí manda el del tema. */
+  .cj-mapa.leaflet-container{ background: var(--bg); font: inherit; }
+  .cj-mapa .leaflet-control-attribution{ font-size:10px; }
+  .cj-mapa-wrap{ position:relative; }
+  /* El resultado flota sobre la parte baja del mapa: siempre a la vista. */
+  .cj-resultado{ position:absolute; left:10px; right:10px; bottom:26px; z-index:1000; display:flex; align-items:center; gap:12px; padding:12px 14px;
+    border-radius:14px; border:1px solid var(--line); background: var(--bg); box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+  .cj-resultado.ok{ border-color: rgba(52,211,153,.5); }
+  .cj-resultado.ko{ border-color: rgba(242,102,92,.5); }
+  .cj-resultado.hidden{ display:none; }
+  .cj-resultado-texto{ flex:1; font-size:14px; line-height:1.4; }
+  .cj-resultado.ok b{ color: var(--green); }
+  .cj-resultado.ko b{ color: var(--coral); }
+  .cj-resultado .btn{ flex-shrink:0; }
+
+  /* Mientras se juega, el mapa gana el sitio de la barra de pestañas. */
+  body:has(#screen-callejero.cj-jugando.active) .header-nav{ display:none; }
+  @media (max-width:640px){
+    body:has(#screen-callejero.cj-jugando.active) main{ padding-bottom: 24px; }
+    #screen-callejero.cj-jugando .cj-head{ display:none; }
+    .cj-mapa{ height: calc(100vh - 250px); height: calc(100dvh - 250px); }
+  }
+
+  /* ---------- fin de ronda ---------- */
+  .cj-fin-sub{ font-size:14px; color: var(--muted); margin:14px 0 8px; }
+  .cj-fallos{ list-style:none; padding:0; margin:0; }
+  .cj-fallos li{ padding:8px 0; border-bottom:1px solid var(--line-soft); font-size:14.5px; }
+  .cj-fallos li:last-child{ border-bottom:none; }
+  .cj-fin-actions{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+
+  /* ---------- administración ---------- */
+  .cj-admin-cambio{ font-size:15px; margin:6px 0 4px; }
+  .cj-admin-antes{ text-decoration: line-through; color: var(--muted); }
+  .cj-admin-despues{ font-weight:700; }
+  .cj-admin-error{ color: var(--coral); }
+  .cj-admin-hist{ display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--line-soft); font-size:13.5px; flex-wrap:wrap; }
+  .cj-admin-hist:last-child{ border-bottom:none; }

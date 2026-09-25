@@ -18,5 +18,6 @@ function toggleTheme(){
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
   if(themeColorMeta) themeColorMeta.setAttribute('content', isLight ? '#000000' : '#FFFFFF');
   syncThemeSwitch();
+  if(typeof CJ !== 'undefined') CJ.refrescarTema();
 }
 syncThemeSwitch();

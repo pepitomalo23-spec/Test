@@ -12,6 +12,7 @@ css/                 estilos, en orden de carga
   pantallas.css      inicio, estadísticas, historial, configuración de tests, árbol, Fallos
   test.css           test en curso, notas, IA, corrección, vista lista
   normativas.css     Normativas (fichas estilo Quizlet)
+  callejero.css      Callejero (mapa y juego)
 js/                  código, en orden de carga (ver el final de index.html)
   nucleo.js          avisos, esqueletos de carga, cliente de Supabase, resultados pendientes
   pwa.js             service worker, aviso de versión nueva, notificaciones, enlaces
@@ -37,8 +38,9 @@ js/                  código, en orden de carga (ver el final de index.html)
   cuenta.js          inicio de sesión, registro y entrada en la app
   tema.js            tema claro / oscuro
   admin/             panel de administración (panel, actividad, usuarios,
-                     copias, errores, boe, temario, importar-ia)
+                     copias, errores, boe, temario, importar-ia, callejero)
   normativas.js      Normativas (fichas estilo Quizlet)
+  callejero.js       Callejero: mapa y juego «Localiza la calle»
   arranque.js        escucha la sesión y arranca la app (siempre el último)
 sw.js                service worker: app sin conexión y actualizaciones
 scripts/versionar.mjs  pone el ?v= de cada css/js en index.html
@@ -50,6 +52,21 @@ Todos los `js/` son scripts normales (no módulos) y comparten el ámbito global
 una función de un archivo se puede usar desde otro. El orden de carga importa: un
 archivo solo puede usar **al cargarse** lo que ya han declarado los anteriores (dentro
 de funciones que se llaman más tarde se puede usar cualquier cosa).
+
+## Callejero
+
+Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el río del **DERA**
+(IECA, Junta de Andalucía, licencia CC BY 4.0: hay que citar la fuente, y la app lo hace en el mapa).
+
+- `supabase/functions/callejero-sync` descarga las vías de Córdoba cada lunes (pg_cron) o cuando
+  el administrador pulsa «Comprobar ahora». Las vías nuevas y los cambios de trazado se aplican
+  solos; los cambios de nombre y las vías que desaparecen esperan en Administración → Callejero
+  a que se aprueben. Si la descarga parece incompleta no se toca nada.
+- Tablas: `callejero_vias`, `callejero_cambios`, `callejero_sync_log`, `callejero_publicado` y
+  `callejero_intentos` (respuestas de cada alumno). Ver `supabase/migrations/20260925_callejero.sql`.
+- La app descarga un único archivo compacto (almacén público `callejero`, unos 750 KB) solo al
+  abrir la pantalla; el service worker lo guarda para jugar sin conexión. El mapa (Leaflet) también
+  se carga solo entonces. No hay mapa de fondo: el trazado de las vías es el mapa.
 
 ## Al cambiar un css/ o js/
 

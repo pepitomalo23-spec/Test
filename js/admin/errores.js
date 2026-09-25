@@ -73,7 +73,18 @@ async function refreshAdminPendingBadge(){
     errCountEl.classList.toggle('hidden', unseenErrors === 0);
   }
 
-  const pendingCount = pendingApprovals + pendingCodes + unseenErrors;
+  let callejeroPendientes = 0;
+  try{
+    const cres = await sb.from('callejero_cambios').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente');
+    if(!cres.error) callejeroPendientes = cres.count || 0;
+  }catch(e){}
+  const cjCountEl = document.getElementById('adminCallejeroCount');
+  if(cjCountEl){
+    cjCountEl.textContent = callejeroPendientes > 99 ? '99+' : String(callejeroPendientes);
+    cjCountEl.classList.toggle('hidden', callejeroPendientes === 0);
+  }
+
+  const pendingCount = pendingApprovals + pendingCodes + unseenErrors + callejeroPendientes;
 
   const dot = document.getElementById('headerPendingDot');
   if(dot){
