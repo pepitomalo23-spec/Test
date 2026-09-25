@@ -59,6 +59,18 @@
   .cj-estilo-opcion:last-child{ border-bottom:none; }
   .cj-estilo-opcion.activa{ color: var(--coral); font-weight:700; }
 
+  /* ---------- zona de estudio ---------- */
+  .cj-zona-select{ width:100%; padding:11px 12px; border-radius:12px; border:1px solid var(--line); background: var(--card-hi);
+    color: var(--text); font: inherit; font-size:15px; font-weight:600; }
+  .cj-zona-info{ font-size:13px; color: var(--muted); margin-top:8px; }
+  .cj-lista-boton{ width:100%; margin-bottom:10px; padding:10px 14px; border-radius:12px; border:1px solid var(--line);
+    background: var(--card); color: var(--text); font: inherit; font-size:14px; font-weight:600; text-align:left; cursor:pointer; }
+  .cj-lista{ position:absolute; inset:8px 8px 26px 8px; z-index:1050; overflow-y:auto; background: var(--bg); border:1px solid var(--line);
+    border-radius:14px; box-shadow: 0 10px 28px rgba(0,0,0,.35); }
+  .cj-lista-item{ display:block; width:100%; text-align:left; padding:11px 14px; border:none; border-bottom:1px solid var(--line-soft);
+    background:none; color: var(--text); font: inherit; font-size:14.5px; cursor:pointer; }
+  .cj-lista-item:hover{ background: var(--w05); }
+
   /* ---------- modo estudio ---------- */
   .cj-mode-icon-estudio{ color: var(--blue); }
   .cj-barra-titulo{ font-weight:700; font-size:15px; }
