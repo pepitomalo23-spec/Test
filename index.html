@@ -59,6 +59,7 @@
 <link rel="stylesheet" href="css/pantallas.css?v=3f6c67404a">
 <link rel="stylesheet" href="css/test.css?v=06abd3d71a">
 <link rel="stylesheet" href="css/normativas.css?v=647d1c0791">
+<link rel="stylesheet" href="css/callejero.css?v=0de9a5e19c">
 </head>
 <body>
 <div id="appSplash">
@@ -141,6 +142,11 @@
       <span class="active" id="navHome" role="button" tabindex="0" onclick="showScreen('screen-home')" onkeydown="if(event.key==='Enter')showScreen('screen-home')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="m19 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"/><path d="m5 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M7 21h10"/></svg>
         <span class="header-nav-label">Legislación</span>
+      </span>
+      <div class="nav-dot"></div>
+      <span id="navCallejero" role="button" tabindex="0" onclick="showScreen('screen-callejero')" onkeydown="if(event.key==='Enter')showScreen('screen-callejero')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg>
+        <span class="header-nav-label">Callejero</span>
       </span>
       <div class="nav-dot"></div>
       <span id="navStats" role="button" tabindex="0" onclick="showScreen('screen-stats')" onkeydown="if(event.key==='Enter')showScreen('screen-stats')">
@@ -400,6 +406,34 @@
     </section>
 
     <!-- ===== STATS SCREEN ===== -->
+    <section class="screen" id="screen-callejero">
+      <div class="cj-head">
+        <h1>Callejero</h1>
+      </div>
+      <div id="cjInicio"></div>
+      <div class="cj-juego hidden" id="cjJuego">
+        <div class="cj-barra">
+          <button type="button" class="cj-salir" onclick="CJ.confirmarSalir()" title="Salir" aria-label="Salir">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <span class="cj-contador" id="cjContador">1 / 20</span>
+          <span class="cj-aciertos" id="cjAciertos">0 aciertos</span>
+        </div>
+        <div class="cj-pregunta-wrap">
+          <div class="cj-pregunta-label">Localiza</div>
+          <div class="cj-pregunta" id="cjPregunta">—</div>
+        </div>
+        <div class="cj-mapa-wrap">
+          <div class="cj-mapa" id="cjMapa"></div>
+          <div class="cj-resultado hidden" id="cjResultado">
+            <div class="cj-resultado-texto" id="cjResultadoTexto"></div>
+            <button type="button" class="btn btn-primary btn-light" id="cjSiguiente" onclick="CJ.siguiente()">Siguiente</button>
+          </div>
+        </div>
+      </div>
+      <div class="hidden" id="cjFin"></div>
+    </section>
+
     <section class="screen" id="screen-stats">
       <h1>Estadísticas</h1>
       <div class="mastery-card">
@@ -515,6 +549,7 @@
         <div class="admin-tab" id="adminTabBtn-users" onclick="switchAdminTab('users')">Usuarios</div>
         <div class="admin-tab" id="adminTabBtn-activity" onclick="switchAdminTab('activity')">Actividad</div>
         <div class="admin-tab" id="adminTabBtn-boe" onclick="switchAdminTab('boe')">BOE / IA</div>
+        <div class="admin-tab" id="adminTabBtn-callejero" onclick="switchAdminTab('callejero')">Callejero <span class="admin-tab-count hidden" id="adminCallejeroCount">0</span></div>
         <div class="admin-tab" id="adminTabBtn-backups" onclick="switchAdminTab('backups')">Copias</div>
         <div class="admin-tab" id="adminTabBtn-errors" onclick="switchAdminTab('errors')">Errores <span class="admin-tab-count hidden" id="adminErrorsCount">0</span></div>
       </div>
@@ -722,6 +757,18 @@
         <div class="admin-card-meta" style="margin-bottom:12px;">Cada noche se guarda automáticamente una copia de toda la base de datos (temas, estructura, preguntas, usuarios, historial, normativas y avance). Se conservan los últimos 14 días. Si alguna vez se borra algo por error, descarga la copia del día anterior y se puede recuperar a partir de ella.</div>
         <button class="btn btn-light" style="margin-bottom:14px;" id="backupNowBtn" onclick="adminBackupNow()">Hacer copia ahora</button>
         <div id="adminList-backups"></div>
+      </div>
+
+      <!-- CALLEJERO -->
+      <div class="admin-section" id="adminSection-callejero">
+        <div class="admin-card-title" style="margin-bottom:10px;">Callejero de Córdoba</div>
+        <div class="admin-card-meta" style="margin-bottom:12px;">Las vías vienen del callejero oficial de la Junta de Andalucía (CDAU) y se comprueban solas cada lunes. Las vías nuevas y los cambios de trazado se aplican solos. Los cambios de nombre y las vías que desaparecen esperan aquí a que los apruebes, para que nadie estudie un nombre equivocado.</div>
+        <button class="btn btn-light" style="margin-bottom:14px;" id="callejeroSyncBtn" onclick="adminCallejeroSincronizar()">Comprobar ahora</button>
+        <div id="adminCallejeroEstado"></div>
+        <div class="admin-card-title" style="margin:18px 0 10px;">Pendientes de revisar</div>
+        <div id="adminCallejeroPendientes"></div>
+        <div class="admin-card-title" style="margin:18px 0 10px;">Últimos cambios</div>
+        <div id="adminCallejeroHistorial"></div>
       </div>
 
       <!-- ERRORES -->
@@ -971,14 +1018,14 @@
 <script src="js/pwa.js?v=07b2c38c77"></script>
 <script src="js/errores.js?v=b40dceda53"></script>
 <script src="js/alturas.js?v=cb41af982f"></script>
-<script src="js/permisos.js?v=cc4d2e8dc3"></script>
+<script src="js/permisos.js?v=9db359b183"></script>
 <script src="js/dispositivo.js?v=c9392ff647"></script>
 <script src="js/datos.js?v=55805c03aa"></script>
 <script src="js/temario.js?v=313da6bd23"></script>
 <script src="js/estadisticas.js?v=3dfae87638"></script>
 <script src="js/contenido.js?v=959bbc0a4c"></script>
 <script src="js/historial.js?v=d1494e67e6"></script>
-<script src="js/navegacion.js?v=68a5c96bd1"></script>
+<script src="js/navegacion.js?v=593baf815b"></script>
 <script src="js/configuracion-test.js?v=a7484ef8cc"></script>
 <script src="js/test-inteligente.js?v=a7a43bfe6a"></script>
 <script src="js/test.js?v=a7af84c693"></script>
@@ -989,16 +1036,18 @@
 <script src="js/aportaciones.js?v=824eb0002d"></script>
 <script src="js/examen-revision.js?v=ab52662d16"></script>
 <script src="js/cuenta.js?v=bcfa0c9d17"></script>
-<script src="js/tema.js?v=8a38c17a28"></script>
-<script src="js/admin/panel.js?v=88828d4622"></script>
+<script src="js/tema.js?v=e96fc2a4ed"></script>
+<script src="js/admin/panel.js?v=b4cb620616"></script>
 <script src="js/admin/actividad.js?v=7e043c23e6"></script>
 <script src="js/admin/usuarios.js?v=1ebd2af686"></script>
 <script src="js/admin/copias.js?v=b2d3baa792"></script>
-<script src="js/admin/errores.js?v=98a3903a95"></script>
+<script src="js/admin/errores.js?v=ddb6e1c0fa"></script>
 <script src="js/admin/boe.js?v=4449c02dde"></script>
 <script src="js/admin/temario.js?v=45b68f00ea"></script>
 <script src="js/admin/importar-ia.js?v=fc5e42e6f8"></script>
+<script src="js/admin/callejero.js?v=5d85c58ac1"></script>
 <script src="js/normativas.js?v=7426a7cc1d"></script>
+<script src="js/callejero.js?v=106dc3249b"></script>
 <script src="js/arranque.js?v=736412f343"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
   <button type="button" class="image-lightbox-close" onclick="closeImageLightbox(event)" title="Cerrar">

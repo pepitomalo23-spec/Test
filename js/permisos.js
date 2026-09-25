@@ -17,7 +17,8 @@ const FEATURES = {
   simulacro: 'Simulacro',
   examen: 'Examen',
   notas_ia: 'Notas y explicaciones con IA',
-  boe: 'Cambios BOE'
+  boe: 'Cambios BOE',
+  callejero: 'Callejero'
 };
 // Pantallas que dependen de una función: si está desactivada, se va a Inicio.
 const SCREEN_FEATURE = {
@@ -32,7 +33,8 @@ const SCREEN_FEATURE = {
   'screen-boe-detalle': 'boe',
   'screen-historial-todo': 'historial',
   'screen-fallos': 'fallos',
-  'screen-inteligente': 'inteligente'
+  'screen-inteligente': 'inteligente',
+  'screen-callejero': 'callejero'
 };
 let myFeatureFlags = {};
 function featureEnabled(key){
@@ -57,6 +59,7 @@ function applyFeatureVisibility(){
 
   const toggleId = (id, key) => { const el = document.getElementById(id); if(el) el.classList.toggle('hidden', !featureEnabled(key)); };
   toggleId('navStats', 'estadisticas');
+  toggleId('navCallejero', 'callejero');
   toggleId('modeCardFallos', 'fallos');
   toggleId('modeCardSimulacro', 'simulacro');
   toggleId('modeCardExamen', 'examen');

@@ -1,7 +1,7 @@
 /* Navegación entre pantallas y bloqueo de tarjetas con un test a medias. */
 
 /* ---------- navigation ---------- */
-const TOP_LEVEL_SCREENS = ['screen-normativas', 'screen-home', 'screen-stats'];
+const TOP_LEVEL_SCREENS = ['screen-normativas', 'screen-home', 'screen-callejero', 'screen-stats'];
 const LAST_SCREEN_KEY = 'legis_last_screen';
 // Pantallas de "detalle" o de proceso (un artículo concreto, el
 // configurador de un test, la revisión de un test ya hecho...) no se
@@ -13,6 +13,7 @@ const SCREEN_RESTORE_TARGET = {
   'screen-normativas': 'screen-normativas',
   'screen-home': 'screen-home',
   'screen-stats': 'screen-stats',
+  'screen-callejero': 'screen-callejero',
   'screen-boe-cambios': 'screen-boe-cambios',
   'screen-my-additions': 'screen-my-additions',
   'screen-notas-todas': 'screen-my-additions',
@@ -43,6 +44,7 @@ function showScreen(id){
   document.getElementById('navNormativas').classList.toggle('active', id === 'screen-normativas');
   document.getElementById('navHome').classList.toggle('active', id === 'screen-home');
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
+  document.getElementById('navCallejero').classList.toggle('active', id === 'screen-callejero');
   const isTopLevel = TOP_LEVEL_SCREENS.includes(id);
   // Recordamos la última pantalla visitada, para poder volver a ella (o a
   // su pantalla padre, ver SCREEN_RESTORE_TARGET) si la app se recarga
@@ -65,6 +67,7 @@ function showScreen(id){
   if(id === 'screen-boe-cambios') loadNormativas();
   if(id === 'screen-normativas' && typeof NQ !== 'undefined') NQ.load();
   if(id === 'screen-my-additions'){ renderMyAdditionsList(); }
+  if(id === 'screen-callejero' && typeof CJ !== 'undefined') CJ.abrir();
 }
 function showHome(){ showScreen('screen-home'); }
 
