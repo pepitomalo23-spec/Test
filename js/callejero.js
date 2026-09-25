@@ -13,8 +13,12 @@
        colores del tema. Funciona sin conexión.
      - Plano: el mismo trazado con colores de plano (calles blancas con
        borde, avenidas y carreteras en amarillo, río azul).
-     - Satélite: la ortofoto del PNOA (Instituto Geográfico Nacional,
-       CC BY 4.0) con las vías encima, finas. Necesita conexión.
+     - Satélite: ortofotos del PNOA (Instituto Geográfico Nacional,
+       CC BY 4.0) con las vías encima, finas. Necesita conexión. Encima va
+       la del último vuelo (servicio de ortofotos provisionales: 2025 en
+       Córdoba), que tarda más en llegar; debajo, la de «máxima
+       actualidad» (2022 en Córdoba), que sale al instante y cubre
+       cualquier hueco o caída del servicio provisional.
 
    Modo «Localiza la calle»: se da el nombre de una vía y hay que
    tocarla en el mapa. Cuenta como acierto si el toque cae a menos de
@@ -33,7 +37,8 @@ const CJ = (function(){
   const LEAFLET_CSS_SRI = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
   const ATRIBUCION = 'Callejero: <a href="https://www.callejerodeandalucia.es/" target="_blank" rel="noopener">CDAU</a> · Río: DERA · IECA, Junta de Andalucía (CC BY 4.0)';
   const PNOA = 'https://www.ign.es/wmts/pnoa-ma?service=WMTS&request=GetTile&version=1.0.0&Format=image/jpeg&layer=OI.OrthoimageCoverage&style=default&tilematrixset=GoogleMapsCompatible&TileMatrix={z}&TileRow={y}&TileCol={x}';
-  const ATRIBUCION_PNOA = 'Ortofoto: <a href="https://pnoa.ign.es/" target="_blank" rel="noopener">PNOA</a> © Instituto Geográfico Nacional (CC BY 4.0)';
+  const PNOA_RECIENTE = 'https://wms-pnoa.idee.es/pnoa-provisionales';
+  const ATRIBUCION_PNOA = 'Ortofoto: <a href="https://pnoa.ign.es/" target="_blank" rel="noopener">PNOA</a> (vuelo más reciente) © Instituto Geográfico Nacional (CC BY 4.0)';
   const ESTILOS = { sencillo: 'Sencillo', plano: 'Plano', satelite: 'Satélite' };
   const ESTILO_KEY = 'cj_estilo_mapa';
   // En el estilo Plano estas vías se pintan como las principales (amarillas).
@@ -192,7 +197,11 @@ const CJ = (function(){
     mapa = L.map(el, { zoomControl: true, attributionControl: true, preferCanvas: true, minZoom: 11, maxZoom: 19, zoomSnap: 0.5 });
     mapa.attributionControl.setPrefix(false);
     mapa.attributionControl.addAttribution(ATRIBUCION);
-    capaFoto = L.tileLayer(PNOA, { maxZoom: 19, attribution: ATRIBUCION_PNOA, crossOrigin: true });
+    capaFoto = L.layerGroup([
+      L.tileLayer(PNOA, { maxZoom: 19, attribution: ATRIBUCION_PNOA, zIndex: 1 }),
+      // Trozos de 512 px: la mitad de peticiones a un servicio lento.
+      L.tileLayer.wms(PNOA_RECIENTE, { layers: 'OrtoimagenRapida', format: 'image/jpeg', version: '1.3.0', tileSize: 512, maxZoom: 19, zIndex: 2 })
+    ]);
     const renderer = L.canvas({ padding: 0.3, tolerance: 4 });
     const linea = lineas => L.polyline(lineas, { renderer, interactive: false, lineCap: 'round', lineJoin: 'round' });
     if(datos.rio.length) capaRio = linea(datos.rio);
