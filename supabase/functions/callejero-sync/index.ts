@@ -19,7 +19,10 @@
 // «callejero» un archivo compacto con las vías activas, y su ruta se
 // guarda en callejero_publicado. El archivo lleva también:
 //   - los barrios urbanos (DERA) y, para cada vía, en qué barrios está;
-//   - los lugares importantes (DERA: hospitales, colegios, museos...);
+//   - los lugares importantes (DERA y, para lo que DERA no tiene,
+//     OpenStreetMap: hospitales, colegios, museos, monumentos...);
+//   - unas pocas vías que el INE da por oficiales y el CDAU aún no ha
+//     dibujado (ver COMPLEMENTOS);
 //   - la línea que reparte el término entre los dos parques de bomberos
 //     y qué parque acude a cada vía y a cada lugar.
 //
@@ -53,7 +56,7 @@ const TIPOS_NO_JUGABLES = new Set(["CORTIJO", "EXTRARRADIO"]);
 // Tolerancia para simplificar el trazado del archivo publicado (metros).
 const SIMPLIFICAR_M = 1.5;
 const ATRIBUCION =
-  "Callejero: Callejero Digital de Andalucía Unificado (CDAU) · Río, barrios y lugares: DERA — Instituto de Estadística y Cartografía de Andalucía, Junta de Andalucía (CC BY 4.0) · Parques de bomberos: S.E.I.S., Ayuntamiento de Córdoba.";
+  "Callejero: Callejero Digital de Andalucía Unificado (CDAU) · Río, barrios y lugares: DERA — Instituto de Estadística y Cartografía de Andalucía, Junta de Andalucía (CC BY 4.0) · Otros lugares y el trazado de las vías que faltan en el CDAU: © colaboradores de OpenStreetMap (ODbL) · Nombres oficiales: Callejero del Censo Electoral (INE) · Parques de bomberos: S.E.I.S., Ayuntamiento de Córdoba.";
 // El Guadalquivir, solo para orientarse en el mapa (DERA, IECA, CC BY 4.0).
 const RIO_WFS = "https://www.ideandalucia.es/services/DERA_g3_hidrografia/wfs";
 const RIO_NOMBRE = "Río Guadalquivir";
@@ -73,33 +76,187 @@ const MUESTREO_M = 25;
 const DISTRITO_AYUNTAMIENTO: Record<string, string> = { "Norte Centro": "Noroeste" };
 const BARRIO_DISTRITO_AYUNTAMIENTO: Record<string, string> = { "San Rafael de la Albaida": "Poniente Norte" };
 
-// Lugares importantes (DERA g12 Servicios, IECA, CC BY 4.0): capa → categoría.
-// Los juzgados no se usan: en DERA casi todos comparten un punto y algunos
-// llevan direcciones de otros pueblos.
+// Lugares importantes (DERA g12 Servicios, IECA, CC BY 4.0): capa →
+// categoría y, si hace falta, qué registros valen y cómo se llaman.
+// Los juzgados de DERA no se usan: casi todos comparten un punto y algunos
+// llevan direcciones de otros pueblos (los de OpenStreetMap sí).
 const LUGARES_WFS = "https://www.ideandalucia.es/services/DERA_g12_servicios/wfs";
-const LUGARES_CAPAS: Record<string, string> = {
-  g12_02_Hospital_CAE: "Hospitales",
-  g12_01_CentroSalud: "Centros de salud",
-  g12_05_CentroEducativo: "Colegios e institutos",
-  g12_06_Universidad: "Universidad",
-  g12_07_Facultad: "Universidad",
-  g12_09_ArchivoBiblioteca: "Bibliotecas y archivos",
-  g12_20_Museo: "Museos",
-  g12_11_Ayuntamiento: "Administraciones",
-  g12_32_CentrosJuntaAndalucia: "Administraciones",
-  g12_28_Correos: "Correos",
-  g12_26_Policia: "Seguridad y emergencias",
-  g12_34_GuardiaCivil: "Seguridad y emergencias",
-  g12_29_ParqueBomberos: "Seguridad y emergencias",
-  g12_35_GestionEmergencias: "Seguridad y emergencias",
-  g12_27_Prision: "Seguridad y emergencias",
-  g12_12_Cementerio: "Cementerios",
-  g12_13_EdificioReligioso: "Edificios religiosos",
-  g12_16_Abasto: "Mercados y comercios",
-  g12_14_GranComercio: "Mercados y comercios",
-  g12_30_PalacioCongresos: "Otros",
-  g12_23_OficinaTurismo: "Otros",
+type CapaDera = { categoria: string; nombre?: (p: any) => string | null };
+const EDU_NO_LUGAR = /^(Equipo de Orientación|Aulas hospitalarias|Sección de Educación Permanente)/i;
+const DEPORTE_DERA: [RegExp, string][] = [
+  [/^C\.D\.M\.\s*/i, "Centro Deportivo Municipal "], [/^I\.?D\.?M\.?\s*/i, "Instalación Deportiva Municipal "],
+  [/^PALACIO M\.D\.\s*/i, "Palacio Municipal de Deportes "], [/^(INSTALACION DEPORTIVA MUNICIPAL|ESTADIO|PISCINA|CIUDAD DEPORTIVA|CAMPO DE TIRO|CLUB HIPICO|REAL AEROCLUB|CAMPING MUNICIPAL|PABELL[OÓ]N|INSTALACIONES ACUATICAS|CENTRO ECUESTRE|CAMPOS? DE F[UÚ]TBOL)/i, ""],
+];
+const LUGARES_CAPAS: Record<string, CapaDera> = {
+  g12_02_Hospital_CAE: { categoria: "Hospitales" },
+  // DERA solo da el barrio («Lucano», «Fuensanta»).
+  g12_01_CentroSalud: { categoria: "Centros de salud", nombre: (p) => conPrefijo(p.nombre, /^(Centro de Salud|Consultorio)/i, "Centro de Salud") },
+  g12_05_CentroEducativo: {
+    categoria: "Colegios e institutos",
+    // Fuera las oficinas dentro de otros centros y los «nombres» que son una
+    // dirección; a los nombres sueltos («Trinidad», «Puente de Alcolea») se
+    // les antepone el tipo de centro.
+    nombre: (p) => {
+      const n = String(p.nombre || "").trim(), tipo = String(p.tipo || "");
+      if (EDU_NO_LUGAR.test(tipo) || /^(C\/|Calle |Avda)/i.test(n)) return null;
+      const prefijo = /^Centro Docente Privado/i.test(tipo) ? "Colegio"
+        : /^Centro del profesorado/i.test(tipo) ? "Centro del Profesorado"
+        : /^Residencias escolares/i.test(tipo) ? "Residencia Escolar"
+        : /^Escuela de Arte/i.test(tipo) ? "Escuela de Arte" : tipo;
+      return conPrefijo(n, /^(Colegio|Centro|Escuela|Academia|Instituto|Conservatorio|Secci[oó]n)/i, prefijo);
+    },
+  },
+  g12_18_FPE: { categoria: "Colegios e institutos" },
+  g12_06_Universidad: { categoria: "Universidad" },
+  g12_07_Facultad: { categoria: "Universidad" },
+  g12_08_Campus: { categoria: "Universidad" },
+  g12_09_ArchivoBiblioteca: { categoria: "Bibliotecas y archivos" },
+  g12_20_Museo: { categoria: "Museos" },
+  g12_22_EstablecimientoOcio: { categoria: "Cultura y ocio" },
+  g12_11_Ayuntamiento: { categoria: "Administraciones" },
+  // Sin los archivos internos de cada delegación (están en el mismo edificio).
+  g12_32_CentrosJuntaAndalucia: { categoria: "Administraciones", nombre: (p) => /^Archivo Central|Registro e informaci[oó]n$/i.test(String(p.nombre || "")) ? null : p.nombre },
+  g12_03_SedeDistritoSanidad: { categoria: "Administraciones" },
+  // «CORDOBA SUC 2. AV DE LIBIA» → «Correos Av de Libia».
+  g12_28_Correos: {
+    categoria: "Correos",
+    nombre: (p) => {
+      const n = nombreBonito(String(p.nombre || ""));
+      return /^C[oó]rdoba Op$/i.test(n) ? "Correos, oficina principal" : n.replace(/^C[oó]rdoba Suc \d+\.\s*/i, "Correos ");
+    },
+  },
+  g12_26_Policia: { categoria: "Seguridad y emergencias" },
+  g12_34_GuardiaCivil: { categoria: "Seguridad y emergencias" },
+  g12_29_ParqueBomberos: { categoria: "Seguridad y emergencias" },
+  g12_35_GestionEmergencias: { categoria: "Seguridad y emergencias" },
+  g12_27_Prision: { categoria: "Seguridad y emergencias" },
+  g12_36_OrganizacionesHumanitarias: { categoria: "Seguridad y emergencias" },
+  g12_12_Cementerio: { categoria: "Cementerios" },
+  g12_13_EdificioReligioso: { categoria: "Edificios religiosos" },
+  g12_16_Abasto: { categoria: "Mercados y comercios" },
+  g12_14_GranComercio: { categoria: "Mercados y comercios" },
+  // Solo hoteles (no pensiones ni apartamentos).
+  g12_21_Alojamiento: {
+    categoria: "Hoteles",
+    nombre: (p) => {
+      if (p.tipo !== "Hotel") return null;
+      return conPrefijo(nombreBonito(String(p.nombre || "")), /\b(Hotel|Parador|Hostal)\b/i, "Hotel");
+    },
+  },
+  // Solo las instalaciones con nombre propio de verdad (no gimnasios de colegio ni pistas de petanca).
+  g12_24_InstalacionesDeportivas: {
+    categoria: "Instalaciones deportivas",
+    nombre: (p) => {
+      const n = String(p.nombre || "").trim();
+      const r = DEPORTE_DERA.find(([re]) => re.test(n));
+      return r ? r[1] + nombreBonito(r[1] ? n.replace(r[0], "") : n) : null;
+    },
+  },
+  g12_30_PalacioCongresos: { categoria: "Cultura y ocio" },
 };
+// «Lucano» → «Centro de Salud Lucano», salvo que ya empiece por un tipo.
+function conPrefijo(nombre: unknown, yaTiene: RegExp, prefijo: string) {
+  const n = String(nombre || "").trim();
+  return !n || yaTiene.test(n) ? n : `${prefijo} ${n}`;
+}
+// Nombres que no dicen de qué sitio se trata.
+const NOMBRE_GENERICO = /^(capilla|ermita|cementerio|iglesia|parroquia|mercado municipal)$/i;
+// En OpenStreetMap, además, hace falta algo con mayúscula después de la
+// primera palabra («Cisterna romana» o «Zimal alimentación» no valen).
+function tieneNombrePropio(n: string) {
+  return n.split(/\s+/).slice(1).some((w) => !PALABRAS_VACIAS.has(w.toLowerCase()) && /^[A-ZÁÉÍÓÚÑ0-9"«(]/.test(w));
+}
+
+// Lo que DERA no tiene (monumentos, parques, estaciones, polígonos...) o le
+// falta (algunos colegios públicos y hospitales), de OpenStreetMap
+// (© colaboradores de OpenStreetMap, ODbL). Solo lugares con nombre; lo que
+// ya está en DERA a menos de 300 m con un nombre parecido no se repite.
+// El servidor principal va a veces saturado (504): entonces, una réplica pública.
+const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+const OSM_CAJA = "37.66,-5.00,38.04,-4.35";
+const OSM_CONSULTA = `[out:json][timeout:120][bbox:${OSM_CAJA}];
+(
+  nwr["amenity"~"^(hospital|school|college|university|fire_station|police|courthouse|theatre|cinema|arts_centre|bus_station|nursing_home|library|townhall|marketplace|prison|conference_centre|exhibition_centre)$"]["name"];
+  nwr["social_facility"="nursing_home"]["name"];
+  nwr["tourism"~"^(museum|zoo)$"]["name"];
+  nwr["shop"="mall"]["name"];
+  nwr["leisure"~"^(stadium|park|water_park)$"]["name"];
+  nwr["railway"="station"]["name"];
+  nwr["aeroway"="aerodrome"]["name"];
+  nwr["historic"~"^(castle|city_gate|citywalls|tower|monument|archaeological_site|monastery|palace)$"]["name"];
+  nwr["landuse"="industrial"]["name"];
+);
+out tags center bb;`;
+// Colegios de OpenStreetMap: solo los públicos con su nombre oficial completo.
+const EDU_OFICIAL = /^(Colegio de Educación|CEIP |Instituto de Educación Secundaria|IES |Conservatorio|Escuela Oficial de Idiomas|Escuela de Arte|Escuela Superior|Centro de Educación Permanente)/i;
+function categoriaOsm(t: Record<string, string>): string | null {
+  const a = t.amenity, n = t.name || "";
+  if (a === "hospital") return "Hospitales";
+  if (a === "school" || a === "college") return EDU_OFICIAL.test(n) ? "Colegios e institutos" : null;
+  if (a === "university") return "Universidad";
+  if (a === "fire_station" || a === "police" || a === "prison") return "Seguridad y emergencias";
+  if (a === "courthouse") return "Juzgados";
+  if (a === "townhall") return "Administraciones";
+  if (a === "library") return "Bibliotecas y archivos";
+  if (["theatre", "cinema", "arts_centre", "conference_centre", "exhibition_centre"].includes(a) || t.tourism === "zoo") return "Cultura y ocio";
+  if (t.tourism === "museum") return "Museos";
+  if (a === "bus_station" || t.railway === "station" || t.aeroway === "aerodrome") return "Transporte";
+  if (a === "nursing_home" || t.social_facility === "nursing_home") return "Residencias de mayores";
+  if (a === "marketplace" || t.shop === "mall") return "Mercados y comercios";
+  if (t.leisure === "stadium") return "Instalaciones deportivas";
+  // Parques: los que se llaman parque o jardín (las plazas ya son vías).
+  if (t.leisure === "park" || t.leisure === "water_park") return /^(Parque|Jard[ií]n|Arboleda|Balc[oó]n)/i.test(n) ? "Parques y jardines" : null;
+  if (t.historic) return "Monumentos";
+  if (t.landuse === "industrial") return "Industria y polígonos";
+  return null;
+}
+// Nombre con el que se pregunta: las estaciones de tren se llaman como el
+// pueblo («El Higuerón») y las residencias a veces como un santo.
+function nombreOsm(t: Record<string, string>, categoria: string) {
+  const n = t.name.split(";")[0].trim();
+  if (t.railway === "station" && !/^Estaci[oó]n/i.test(n)) return `Estación de tren ${n}`;
+  if (categoria === "Residencias de mayores" && !/^(Residencia|Hogar|Hermanitas|Centro)/i.test(n)) return `Residencia ${n}`;
+  return n;
+}
+
+// Vías que el INE (Callejero del Censo Electoral, julio de 2026) da por
+// oficiales en Córdoba y el CDAU todavía no ha dibujado, con el trazado de
+// OpenStreetMap (© colaboradores de OpenStreetMap, ODbL). Se cruzaron las
+// 3.711 vías del INE con el CDAU y con OpenStreetMap: estas son las únicas
+// que el INE tiene, el CDAU no y OpenStreetMap sí, con el mismo nombre.
+// En cuanto el CDAU dibuje una vía con el mismo nombre, se usa la suya y
+// esta deja de publicarse. id_vial = ID_COMPLEMENTO + código INE de la vía.
+const ID_COMPLEMENTO = 990000000;
+const COMPLEMENTOS: { ine: string; tipo: string; nombre: string; geom: number[][][] }[] = [
+  { ine: "04116", tipo: "CALLE", nombre: "Calle Acera de la Iglesia", geom: [[[-4.65312,37.92475],[-4.65345,37.92535],[-4.65446,37.9268]]] },
+  { ine: "02980", tipo: "CALLE", nombre: "Calle Escritora Concha Lagos", geom: [[[-4.77282,37.87412],[-4.77277,37.87452]]] },
+  { ine: "04730", tipo: "CALLE", nombre: "Calle de las Maestras y Maestros", geom: [[[-4.77681,37.86238],[-4.77664,37.86225],[-4.7754,37.86163],[-4.77346,37.86224]],[[-4.77723,37.86256],[-4.77835,37.86311],[-4.7785,37.86335]],[[-4.77311,37.8621],[-4.77346,37.86224]],[[-4.7771,37.8625],[-4.77723,37.86256]],[[-4.77693,37.86243],[-4.7771,37.8625]]] },
+  { ine: "01369", tipo: "CALLE", nombre: "Calle Camino del Jaco", geom: [[[-4.63439,37.73351],[-4.63428,37.73363],[-4.6343,37.73432],[-4.63427,37.73448]],[[-4.63427,37.73448],[-4.63416,37.73478],[-4.63199,37.73768]]] },
+  { ine: "04061", tipo: "GLORIETA", nombre: "Glorieta Huerta del Sordillo", geom: [[[-4.80997,37.88649],[-4.81,37.88645],[-4.81001,37.88636],[-4.80996,37.88628],[-4.80991,37.88625]],[[-4.8098,37.88657],[-4.80987,37.88656],[-4.80997,37.88649]],[[-4.80957,37.88643],[-4.80963,37.88652],[-4.80968,37.88655],[-4.8098,37.88657]],[[-4.80962,37.88628],[-4.80958,37.88633],[-4.80957,37.88643]],[[-4.8097,37.88623],[-4.80962,37.88628]],[[-4.8099,37.88624],[-4.80985,37.88622],[-4.8097,37.88623]],[[-4.80991,37.88625],[-4.8099,37.88624]]] },
+  { ine: "04069", tipo: "GLORIETA", nombre: "Glorieta de Juan García Díaz «Juanín»", geom: [[[-4.7653,37.87467],[-4.76522,37.87464],[-4.76507,37.87463]],[[-4.76539,37.87502],[-4.76544,37.87492],[-4.76543,37.87482],[-4.76537,37.87471],[-4.7653,37.87467]],[[-4.76517,37.87514],[-4.76532,37.87508]],[[-4.76507,37.87463],[-4.76489,37.8747]],[[-4.76489,37.8747],[-4.76482,37.87477]],[[-4.76482,37.87477],[-4.7648,37.87492],[-4.76485,37.87503]],[[-4.76485,37.87503],[-4.76496,37.8751],[-4.76517,37.87514]],[[-4.76532,37.87508],[-4.76539,37.87502]]] },
+  { ine: "08788", tipo: "PASEO", nombre: "Paseo Valerio Molina", geom: [[[-4.76306,37.88395],[-4.76305,37.88492]]] },
+  { ine: "01323", tipo: "PASAJE", nombre: "Pasaje Calerín de Eloy", geom: [[[-4.76376,37.89315],[-4.76286,37.8918]]] },
+  { ine: "04864", tipo: "PLAZA", nombre: "Plaza Manuel Rivas Díaz", geom: [[[-4.80982,37.89804],[-4.809,37.89824],[-4.80895,37.89781],[-4.80981,37.89797],[-4.80982,37.89804]]] },
+];
+
+// Nombres provisionales del planeamiento o de parcelaciones («Calle B»,
+// «Calle 5 Sg-Ctim», «Calle J PP-V.1 (Villarrubia)», «Calle Trébol A»):
+// se ven en el mapa pero no se preguntan.
+function esNombreProvisional(nombre: string) {
+  const s = nombre.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  return (/^\S+(\s+(de|del|la|el))?\s+([A-Za-zÑñ]|\d+)$/.test(s) && !/\s[IVX]$/.test(s)) ||
+    /\s(\d+|[A-HJ-UW-Z])$/.test(s) ||
+    /\((?:[A-Z]|\d+)\)$/.test(nombre.trim()) ||
+    /\b(pp|ppo\d*|peri|sg-ctim|pp-v\.?\d*|pp-al-\d+|ed al-\d+|ue-?\d+|sus|pa-\w+)\b/i.test(s);
+}
+// Para comparar nombres de distintas fuentes: sin tildes, sin el tipo de vía
+// y sin artículos («Calle de las Maestras y Maestros» = «Maestras y Maestros»).
+const PALABRAS_VACIAS = new Set(["de", "del", "la", "las", "los", "el", "y", "e", "a", "en"]);
+const TIPOS_VIA = /^(calle|avenida|avda|plaza|glorieta|rotonda|paseo|ronda|camino|carretera|pasaje|puente|parque|jardin|jardines|travesia|urbanizacion|calleja|callejon|plazuela|bulevar)\s+/;
+function claveNombre(t: string) {
+  const s = t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9ñ ]/g, " ").replace(/\s+/g, " ").trim();
+  return s.replace(TIPOS_VIA, "").split(" ").filter((w) => !PALABRAS_VACIAS.has(w)).join(" ");
+}
 
 // Parques de bomberos (tema 48). Según el documento oficial del S.E.I.S.
 // (cordoba.es, «INFORMACION_S.E.I.S.pdf»), «la línea divisoria discurre de
@@ -173,12 +330,18 @@ async function leerCuerpo(resp: Response) {
 
 // Pide una URL y devuelve el JSON. Los servidores de la Junta a veces
 // cortan la conexión: se reintenta hasta 3 veces antes de dar error.
-async function pedirJson(url: string) {
+// Con `cuerpo`, la petición es un POST (Overpass).
+async function pedirJson(url: string, opciones: { cabeceras?: Record<string, string>; cuerpo?: string; esperaMs?: number } = {}) {
   let ultimo: unknown = null;
   for (let intento = 0; intento < 3; intento++) {
     if (intento) await new Promise((r) => setTimeout(r, 1500 * intento));
     try {
-      const resp = await fetch(url, { signal: AbortSignal.timeout(60000) });
+      const resp = await fetch(url, {
+        method: opciones.cuerpo ? "POST" : "GET",
+        headers: opciones.cabeceras,
+        body: opciones.cuerpo,
+        signal: AbortSignal.timeout(opciones.esperaMs || 60000),
+      });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       return JSON.parse(await leerCuerpo(resp));
     } catch (e) {
@@ -528,7 +691,9 @@ function barriosDeVia(lineas: number[][][], barrios: Barrio[]) {
 // ---------------------------------------------------------------------
 // Lugares importantes
 // ---------------------------------------------------------------------
-type Lugar = { id: number; nombre: string; categoria: string; direccion: string; x: number; y: number };
+// radio: metros alrededor del punto que cuentan como acierto (lugares
+// grandes, como un parque o un polígono; 0 = lo normal). fuente: D (DERA) u O (OSM).
+type Lugar = { id: number; nombre: string; categoria: string; direccion: string; x: number; y: number; radio: number; fuente: "D" | "O" };
 
 // «HOSPITAL LOS MORALES» → «Hospital Los Morales»; lo demás se deja igual.
 function nombreBonito(t: string) {
@@ -538,61 +703,300 @@ function nombreBonito(t: string) {
   return s.toLowerCase().split(" ").map((w, i) => (i > 0 && menores.has(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
-async function descargarLugares(): Promise<Lugar[]> {
+async function descargarLugaresDera(): Promise<Lugar[]> {
   const lugares: Lugar[] = [];
   const vistos = new Set<string>();
-  for (const [capa, categoria] of Object.entries(LUGARES_CAPAS)) {
+  for (const [capa, def] of Object.entries(LUGARES_CAPAS)) {
     const url = `${LUGARES_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeNames=DERA_g12_servicios:${capa}` +
       `&outputFormat=application/json&srsName=${encodeURIComponent("urn:ogc:def:crs:EPSG::4326")}` +
       `&CQL_FILTER=${encodeURIComponent(`cod_mun='${INE_MUNICIPIO}'`)}`;
     const data = await pedirJson(url);
     for (const f of data.features || []) {
       const p = f.properties || {};
-      const nombre = String(p.nombre || "").trim();
-      if (!nombre || /^sin dato$/i.test(nombre)) continue;
+      const crudo = def.nombre ? def.nombre(p) : String(p.nombre || "").trim();
+      if (!crudo || /^sin dato$/i.test(crudo) || NOMBRE_GENERICO.test(crudo.trim())) continue;
+      const nombre = nombreBonito(crudo);
       const g = f.geometry;
       const pt = g?.type === "MultiPoint" ? g.coordinates[0] : g?.type === "Point" ? g.coordinates : null;
       if (!pt || !(pt[0] >= BBOX.minLon && pt[0] <= BBOX.maxLon && pt[1] >= BBOX.minLat && pt[1] <= BBOX.maxLat)) continue;
-      // Mismo nombre en el mismo sitio (p. ej. varios juzgados en un edificio): una sola vez.
+      // Mismo nombre en el mismo sitio (p. ej. dos registros de un edificio): una sola vez.
       const clave = `${nombre.toLowerCase()}|${pt[0].toFixed(4)}|${pt[1].toFixed(4)}`;
       if (vistos.has(clave)) continue;
       vistos.add(clave);
       const dir = String(p.direccion || "").trim();
       lugares.push({
         id: Number(p.id_dera) || lugares.length + 1,
-        nombre: nombreBonito(nombre),
-        categoria,
+        nombre,
+        categoria: def.categoria,
         direccion: /^(sin dato|no disponible)$/i.test(dir) ? "" : nombreBonito(dir),
-        x: pt[0], y: pt[1],
+        x: pt[0], y: pt[1], radio: 0, fuente: "D",
       });
     }
   }
   if (lugares.length < 100) throw new Error(`DERA solo ha devuelto ${lugares.length} lugares`);
-  // Un nombre que se repite en sitios distintos («Capilla», «Cementerio»)
-  // no sirve para preguntar dónde está: fuera.
+  return lugares;
+}
+
+// Palabras que no sirven para saber si dos lugares son el mismo.
+const PALABRAS_GENERICAS = new Set(["colegio", "educacion", "infantil", "primaria", "instituto", "secundaria", "escuela", "centro",
+  "hospital", "universitario", "museo", "biblioteca", "publica", "municipal", "parque", "jardin", "jardines", "iglesia", "parroquia",
+  "cordoba", "estacion", "polideportivo", "deportivo", "instalacion", "residencia", "mercado", "comercial", "provincial", "nuestra", "senora"]);
+function palabrasDe(n: string) {
+  return new Set(claveNombre(n).split(" ").filter((w) => w.length > 3 && !PALABRAS_GENERICAS.has(w)));
+}
+const comparten = (a: Set<string>, b: Set<string>) => [...a].some((w) => b.has(w));
+
+// Overpass pide que cada aplicación se identifique.
+const OSM_CABECERAS = { "User-Agent": "pjfire-callejero/1.0 (callejero de estudio; sincronizacion semanal)" };
+async function descargarLugaresOsm(): Promise<Lugar[]> {
+  let data: any = null, fallo: unknown = null;
+  for (const servidor of OVERPASS) {
+    try {
+      data = await pedirJson(servidor, {
+        cabeceras: { ...OSM_CABECERAS, "Content-Type": "application/x-www-form-urlencoded" },
+        cuerpo: `data=${encodeURIComponent(OSM_CONSULTA)}`,
+        esperaMs: 90000,
+      });
+      break;
+    } catch (e) {
+      fallo = e;
+    }
+  }
+  if (!data) throw fallo;
+  const termino = await terminoMunicipal();
+  const candidatos: Lugar[] = [];
+  for (const e of data.elements || []) {
+    const t = e.tags || {};
+    if (!t.name) continue;
+    const categoria = categoriaOsm(t);
+    if (!categoria) continue;
+    const nombre = nombreOsm(t, categoria);
+    // Nombres de una sola palabra con sentido («Anfiteatro», «Alberca») o
+    // sin nombre propio («Cisterna romana») no dicen dónde.
+    const palabras = claveNombre(`x ${nombre}`).split(" ").filter((w) => w.length > 2);
+    if (palabras.length < 2 || !tieneNombrePropio(nombre) || NOMBRE_GENERICO.test(nombre)) continue;
+    let x: number, y: number, radio = 0;
+    if (typeof e.lat === "number") { x = e.lon; y = e.lat; }
+    else if (e.bounds) {
+      const b = e.bounds;
+      x = (b.minlon + b.maxlon) / 2; y = (b.minlat + b.maxlat) / 2;
+      radio = Math.round(Math.min(800, Math.min((b.maxlon - b.minlon) * KX, (b.maxlat - b.minlat) * KY) / 2));
+    } else continue;
+    if (termino && !termino.some((pol) => dentroDePoligono([x, y], pol))) continue;
+    // ids de OSM en su propio rango para no chocar con los de DERA
+    const tipo = e.type === "node" ? 0 : e.type === "way" ? 1 : 2;
+    candidatos.push({ id: 8e15 + tipo * 1e14 + e.id, nombre, categoria, direccion: [t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(", "), x, y, radio, fuente: "O" });
+  }
+  if (candidatos.length < 100) throw new Error(`OpenStreetMap solo ha devuelto ${candidatos.length} lugares`);
+  return candidatos;
+}
+// Lo de OpenStreetMap que no repite algo de DERA de la misma categoría. El
+// mismo lugar varias veces (nodo y contorno, trozos de un parque): el mayor.
+function sinRepetirDera(osm: Lugar[], dera: Lugar[]) {
+  const out: Lugar[] = [];
+  for (const c of [...osm].sort((a, b) => b.radio - a.radio)) {
+    const pc = palabrasDe(c.nombre);
+    if (out.some((o) => o.nombre === c.nombre && metros([o.x, o.y], [c.x, c.y]) < 600)) continue;
+    if (dera.some((d) => d.categoria === c.categoria && metros([d.x, d.y], [c.x, c.y]) < 300 && (d.nombre === c.nombre || comparten(palabrasDe(d.nombre), pc)))) continue;
+    out.push(c);
+  }
+  return out;
+}
+
+function conPlazo<T>(promesa: Promise<T>, ms: number, mensaje: string): Promise<T> {
+  let reloj: ReturnType<typeof setTimeout> | undefined;
+  const plazo = new Promise<never>((_, no) => { reloj = setTimeout(() => no(new Error(mensaje)), ms); });
+  return Promise.race([promesa, plazo]).finally(() => clearTimeout(reloj));
+}
+
+// Un nombre que se repite en sitios distintos («Capilla», «Cementerio»)
+// no sirve para preguntar dónde está: fuera.
+function sinNombresRepetidos(lugares: Lugar[]) {
   const veces = new Map<string, number>();
   lugares.forEach((l) => veces.set(l.nombre.toLowerCase(), (veces.get(l.nombre.toLowerCase()) || 0) + 1));
-  return lugares.filter((l) => veces.get(l.nombre.toLowerCase()) === 1)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  return lugares.filter((l) => veces.get(l.nombre.toLowerCase()) === 1).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
+// Término municipal de Córdoba (DERA g13), para dejar fuera lo de otros pueblos.
+let terminoCache: number[][][][] | null = null;
+async function terminoMunicipal() {
+  if (terminoCache) return terminoCache;
+  const url = `${BARRIOS_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeNames=DERA_g13_limites_administrativos:g13_01_TerminoMunicipal` +
+    `&outputFormat=application/json&srsName=${encodeURIComponent("urn:ogc:def:crs:EPSG::4326")}` +
+    `&CQL_FILTER=${encodeURIComponent(`cod_mun='${INE_MUNICIPIO}'`)}`;
+  try {
+    const g = (await pedirJson(url)).features?.[0]?.geometry;
+    terminoCache = g?.type === "MultiPolygon" ? g.coordinates : g?.type === "Polygon" ? [g.coordinates] : null;
+  } catch (_) {
+    terminoCache = null;
+  }
+  return terminoCache;
+}
+function dentroDePoligono([x, y]: number[], anillos: number[][][]) {
+  let dentro = false;
+  for (const r of anillos) {
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      if ((r[i][1] > y) !== (r[j][1] > y) && x < ((r[j][0] - r[i][0]) * (y - r[i][1])) / (r[j][1] - r[i][1]) + r[i][0]) dentro = !dentro;
+    }
+  }
+  return dentro;
 }
 
 // ---------------------------------------------------------------------
 // Parques de bomberos
 // ---------------------------------------------------------------------
-// Línea divisoria de norte a sur, prolongada hasta fuera del término.
-async function lineaParques(sb: SupabaseClient): Promise<number[][] | null> {
-  const ids = LINEA_PARQUES.map((t) => t.id);
-  const { data, error } = await sb.from("callejero_vias").select("id_vial, geom, activa").in("id_vial", ids);
-  if (error || !data || data.length !== ids.length || data.some((v: any) => !v.activa)) return null;
-  const porId = new Map<number, number[][][]>(data.map((v: any) => [Number(v.id_vial), v.geom]));
-  const linea: number[][] = [];
-  for (const t of LINEA_PARQUES) {
-    // Los puntos de cada vía, de norte a sur (todas bajan hacia el sur).
-    const pts = porId.get(t.id)!.flat().filter((p) => t.latMax === undefined || p[1] <= t.latMax);
-    pts.sort((a, b) => b[1] - a[1]);
-    linea.push(...pts);
+// Grafo de calles: un nodo por coordenada (redondeada a ~1 m) y aristas
+// con su longitud en metros.
+const KX = 111320 * Math.cos((37.88 * Math.PI) / 180), KY = 110540;
+const metros = (a: number[], b: number[]) => Math.hypot((a[0] - b[0]) * KX, (a[1] - b[1]) * KY);
+type Grafo = { pts: number[][]; ady: [number, number][][]; idx: Map<string, number> };
+function crearGrafo(tramos: number[][][]): Grafo {
+  const g: Grafo = { pts: [], ady: [], idx: new Map() };
+  for (const l of tramos) {
+    for (let k = 0; k < l.length - 1; k++) unir(g, nodoDe(g, l[k]), nodoDe(g, l[k + 1]), metros(l[k], l[k + 1]));
   }
-  if (linea.length < 20) return null;
+  return g;
+}
+function nodoDe(g: Grafo, p: number[]) {
+  const clave = `${Math.round(p[0] * 1e5)}|${Math.round(p[1] * 1e5)}`;
+  let i = g.idx.get(clave);
+  if (i === undefined) {
+    i = g.pts.length;
+    g.pts.push(p);
+    g.ady.push([]);
+    g.idx.set(clave, i);
+  }
+  return i;
+}
+function unir(g: Grafo, a: number, b: number, coste: number) {
+  if (a === b) return;
+  g.ady[a].push([b, coste]);
+  g.ady[b].push([a, coste]);
+}
+// Distancias (y de dónde se llega) desde un nodo a todos los demás.
+function dijkstra(g: Grafo, origen: number) {
+  const dist = new Float64Array(g.pts.length).fill(Infinity), prev = new Int32Array(g.pts.length).fill(-1);
+  dist[origen] = 0;
+  const monton: [number, number][] = [[0, origen]];
+  const subir = () => {
+    let i = monton.length - 1;
+    while (i > 0) {
+      const padre = (i - 1) >> 1;
+      if (monton[padre][0] <= monton[i][0]) break;
+      [monton[padre], monton[i]] = [monton[i], monton[padre]];
+      i = padre;
+    }
+  };
+  const sacar = () => {
+    const top = monton[0], ultimo = monton.pop()!;
+    if (monton.length) {
+      monton[0] = ultimo;
+      let i = 0;
+      for (;;) {
+        const a = 2 * i + 1, b = a + 1;
+        let m = i;
+        if (a < monton.length && monton[a][0] < monton[m][0]) m = a;
+        if (b < monton.length && monton[b][0] < monton[m][0]) m = b;
+        if (m === i) break;
+        [monton[m], monton[i]] = [monton[i], monton[m]];
+        i = m;
+      }
+    }
+    return top;
+  };
+  while (monton.length) {
+    const [d, u] = sacar();
+    if (d > dist[u]) continue;
+    for (const [v, c] of g.ady[u]) {
+      if (d + c < dist[v]) {
+        dist[v] = d + c;
+        prev[v] = u;
+        monton.push([dist[v], v]);
+        subir();
+      }
+    }
+  }
+  return { dist, prev };
+}
+function caminoHasta(g: Grafo, prev: Int32Array, destino: number) {
+  const out: number[][] = [];
+  for (let u = destino; u >= 0; u = prev[u]) out.push(g.pts[u]);
+  return out.reverse();
+}
+// Si una vía viene en trozos que no se tocan, se unen por sus puntos más
+// cercanos (con un coste mayor, para preferir siempre el trazado real).
+function unirTrozos(g: Grafo) {
+  for (;;) {
+    const { dist } = dijkstra(g, 0);
+    const fuera: number[] = [], dentro: number[] = [];
+    dist.forEach((d, i) => (d === Infinity ? fuera : dentro).push(i));
+    if (!fuera.length) return;
+    let mejor = [0, 0, Infinity];
+    for (const a of dentro) for (const b of fuera) {
+      const d = metros(g.pts[a], g.pts[b]);
+      if (d < mejor[2]) mejor = [a, b, d];
+    }
+    unir(g, mejor[0], mejor[1], mejor[2] * 3);
+  }
+}
+const masCercano = (g: Grafo, p: number[]) => {
+  let mejor = 0, dm = Infinity;
+  g.pts.forEach((q, i) => {
+    const d = metros(p, q);
+    if (d < dm) { dm = d; mejor = i; }
+  });
+  return mejor;
+};
+
+// Línea divisoria de norte a sur, siguiendo el trazado de cada vía de la
+// lista (de su punto de entrada al de salida, sin ir y volver), unida a la
+// siguiente por el camino más corto por las calles y prolongada en línea
+// recta hasta fuera del término.
+function lineaParques(vias: { id_vial: number; geom: number[][][] }[]): number[][] | null {
+  const porId = new Map(vias.map((v) => [Number(v.id_vial), v.geom]));
+  if (LINEA_PARQUES.some((t) => !porId.get(t.id)?.length)) return null;
+  const grafos = LINEA_PARQUES.map((t) => {
+    const tramos = porId.get(t.id)!.map((l) => l.filter((p) => t.latMax === undefined || p[1] <= t.latMax)).filter((l) => l.length > 1);
+    const g = crearGrafo(tramos);
+    if (g.pts.length) unirTrozos(g);
+    return g;
+  });
+  if (grafos.some((g) => !g.pts.length)) return null;
+  const red = crearGrafo(vias.flatMap((v) => v.geom));
+  const linea: number[][] = [];
+  let anterior: number[] | null = null;
+  for (let i = 0; i < grafos.length; i++) {
+    const g = grafos[i], sig = grafos[i + 1];
+    // Salida: el punto de esta vía más cercano a la siguiente.
+    let salida = -1;
+    if (sig) {
+      let dm = Infinity;
+      g.pts.forEach((p, k) => {
+        const d = metros(p, sig.pts[masCercano(sig, p)]);
+        if (d < dm) { dm = d; salida = k; }
+      });
+    }
+    // Entrada: el punto más cercano a la anterior; en la primera vía, el
+    // extremo más alejado de la salida.
+    let entrada: number;
+    if (anterior) entrada = masCercano(g, anterior);
+    else {
+      const { dist } = dijkstra(g, salida);
+      entrada = dist.reduce((m, d, k) => (d > dist[m] ? k : m), 0);
+    }
+    // Y en la última, la salida es el extremo más alejado de la entrada.
+    const desde = dijkstra(g, entrada);
+    if (salida < 0) salida = desde.dist.reduce((m, d, k) => (d > desde.dist[m] ? k : m), 0);
+    const tramo = caminoHasta(g, desde.prev, salida);
+    // Enlace con la vía anterior por las calles (si es razonable; si no, recto).
+    if (anterior && metros(anterior, tramo[0]) > 25) {
+      const a = masCercano(red, anterior), b = masCercano(red, tramo[0]);
+      const r = dijkstra(red, a);
+      if (r.dist[b] < 2.5 * metros(anterior, tramo[0])) linea.push(...caminoHasta(red, r.prev, b));
+    }
+    linea.push(...tramo);
+    anterior = tramo[tramo.length - 1];
+  }
   // Con 10 m de precisión basta (la banda es de 150 m) y el cálculo es
   // unas 20 veces más rápido.
   const simple = simplificar(linea, 10);
@@ -682,9 +1086,14 @@ async function publicar(sb: SupabaseClient, forzar = false) {
     }
     if (!previo?.zonas) console.warn("Sin barrios:", (e as Error).message);
   }
+  // Vías oficiales que el CDAU aún no tiene (si ya tiene una con ese nombre, manda la suya).
+  const nombresCdau = new Set(vias.map((v) => claveNombre(v.nombre)));
+  vias.push(...COMPLEMENTOS.filter((c) => !nombresCdau.has(claveNombre(c.nombre)))
+    .map((c) => ({ id_vial: ID_COMPLEMENTO + Number(c.ine), tipo: c.tipo, nombre: c.nombre, jugable: true, geom: c.geom })));
   // [id_vial, nombre, tipo, jugable (1/0), líneas codificadas, barrios]
   const filas = vias.map((v) => {
-    const fila: unknown[] = [Number(v.id_vial), v.nombre, v.tipo, v.jugable ? 1 : 0, codificar(v.geom)];
+    const jugable = v.jugable && !esNombreProvisional(v.nombre);
+    const fila: unknown[] = [Number(v.id_vial), v.nombre, v.tipo, jugable ? 1 : 0, codificar(v.geom)];
     if (barrios) fila.push(barriosDeVia(v.geom, barrios));
     return fila;
   }).filter((f) => (f[4] as number[][]).length);
@@ -700,7 +1109,7 @@ async function publicar(sb: SupabaseClient, forzar = false) {
     filas.forEach((f) => f.push(asignado.get(f[0] as number) || []));
   }
   // Parque de bomberos de cada vía (7.º campo).
-  const linea = await lineaParques(sb);
+  const linea = lineaParques(vias as any);
   const divisoria = linea ? prepararDivisoria(linea) : null;
   if (divisoria) {
     const porId = new Map<number, number[][][]>(vias.map((v) => [Number(v.id_vial), v.geom]));
@@ -710,13 +1119,31 @@ async function publicar(sb: SupabaseClient, forzar = false) {
     const asignado = new Map<number, number>((previo?.vias || []).map((f: any[]) => [f[0], f[6] || 0]));
     filas.forEach((f) => f.push(asignado.get(f[0] as number) || 0));
   }
-  // Lugares: [id, nombre, categoría, dirección, x, y (×100 000), barrios, parque]
+  // Lugares: [id, nombre, categoría, dirección, x, y (×100 000), barrios, parque, radio, fuente]
+  // Si DERA no responde, todos los del archivo anterior; si solo falla
+  // OpenStreetMap, los de OpenStreetMap del archivo anterior.
   let lugares: unknown[][] | null = null;
+  // Como mucho 100 s para OpenStreetMap: si tarda más, se sigue con los de antes.
+  const pidiendoOsm = conPlazo(descargarLugaresOsm(), 100000, "OpenStreetMap tarda demasiado").then((l) => l, (e) => e as Error);
   try {
-    lugares = (await descargarLugares()).map((l) => [
+    const dera = await descargarLugaresDera();
+    let osm: Lugar[] = [];
+    try {
+      const r = await pidiendoOsm;
+      if (r instanceof Error) throw r;
+      osm = sinRepetirDera(r, dera);
+    } catch (e) {
+      await cargarPrevio();
+      osm = (previo?.lugares || []).filter((f: any[]) => f[9] === "O").map((f: any[]) => ({
+        id: f[0], nombre: f[1], categoria: f[2], direccion: f[3], x: f[4] / 1e5, y: f[5] / 1e5, radio: f[8] || 0, fuente: "O" as const,
+      }));
+      console.warn("Lugares de OpenStreetMap del archivo anterior:", (e as Error).message);
+    }
+    lugares = sinNombresRepetidos([...dera, ...osm]).map((l) => [
       l.id, l.nombre, l.categoria, l.direccion, Math.round(l.x * 1e5), Math.round(l.y * 1e5),
       barrios ? barrios.map((b, i) => (dentroDeBarrio([l.x, l.y], b) ? i : -1)).filter((i) => i >= 0) : [],
       divisoria ? parqueDe([[[l.x, l.y]]], divisoria) : 0,
+      l.radio, l.fuente,
     ]);
   } catch (e) {
     await cargarPrevio();
@@ -747,7 +1174,8 @@ async function publicar(sb: SupabaseClient, forzar = false) {
     rio,
     // barrios: [nombre, distrito, anillos del contorno codificados]
     zonas,
-    // [id, nombre, categoría, dirección, x, y (×100 000), índices de barrios, parque]
+    // [id, nombre, categoría, dirección, x, y (×100 000), índices de barrios, parque,
+    //  radio en metros que cuenta como acierto (0 = el normal), fuente (D DERA · O OpenStreetMap)]
     lugares,
     // linea: la divisoria entre parques, codificada como una vía
     parques,
