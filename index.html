@@ -59,7 +59,7 @@
 <link rel="stylesheet" href="css/pantallas.css?v=3f6c67404a">
 <link rel="stylesheet" href="css/test.css?v=06abd3d71a">
 <link rel="stylesheet" href="css/normativas.css?v=647d1c0791">
-<link rel="stylesheet" href="css/callejero.css?v=0de9a5e19c">
+<link rel="stylesheet" href="css/callejero.css?v=91ddb56311">
 </head>
 <body>
 <div id="appSplash">
@@ -418,13 +418,20 @@
           </button>
           <span class="cj-contador" id="cjContador">1 / 20</span>
           <span class="cj-aciertos" id="cjAciertos">0 aciertos</span>
+          <span class="cj-barra-titulo hidden" id="cjBarraTitulo">Modo estudio</span>
         </div>
-        <div class="cj-pregunta-wrap">
+        <div class="cj-buscar hidden" id="cjBuscarWrap">
+          <input type="search" id="cjBuscar" placeholder="Buscar una calle…" autocomplete="off" autocapitalize="off" spellcheck="false" oninput="CJ.buscar(this.value)" onkeydown="if(event.key==='Enter')CJ.elegir(0)">
+          <div class="cj-sugerencias hidden" id="cjSugerencias"></div>
+        </div>
+        <div class="cj-pregunta-wrap" id="cjPreguntaWrap">
           <div class="cj-pregunta-label">Localiza</div>
           <div class="cj-pregunta" id="cjPregunta">—</div>
         </div>
         <div class="cj-mapa-wrap">
           <div class="cj-mapa" id="cjMapa"></div>
+          <div class="cj-pista hidden" id="cjPista">Toca una calle para ver cómo se llama</div>
+          <div class="cj-info hidden" id="cjInfo"></div>
           <div class="cj-resultado hidden" id="cjResultado">
             <div class="cj-resultado-texto" id="cjResultadoTexto"></div>
             <button type="button" class="btn btn-primary btn-light" id="cjSiguiente" onclick="CJ.siguiente()">Siguiente</button>
@@ -1047,7 +1054,7 @@
 <script src="js/admin/importar-ia.js?v=fc5e42e6f8"></script>
 <script src="js/admin/callejero.js?v=5d85c58ac1"></script>
 <script src="js/normativas.js?v=7426a7cc1d"></script>
-<script src="js/callejero.js?v=106dc3249b"></script>
+<script src="js/callejero.js?v=3b28ba863e"></script>
 <script src="js/arranque.js?v=736412f343"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
   <button type="button" class="image-lightbox-close" onclick="closeImageLightbox(event)" title="Cerrar">

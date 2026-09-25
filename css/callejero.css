@@ -47,6 +47,30 @@
   .cj-resultado.ko b{ color: var(--coral); }
   .cj-resultado .btn{ flex-shrink:0; }
 
+  /* ---------- modo estudio ---------- */
+  .cj-mode-icon-estudio{ color: var(--blue); }
+  .cj-barra-titulo{ font-weight:700; font-size:15px; }
+  .cj-buscar{ position:relative; margin-bottom:10px; }
+  .cj-buscar input{ width:100%; box-sizing:border-box; padding:12px 14px; border-radius:14px; border:1px solid var(--line);
+    background: var(--card); color: var(--text); font: inherit; font-size:16px; outline:none; }
+  .cj-buscar input:focus{ border-color: var(--w22); }
+  .cj-sugerencias{ position:absolute; left:0; right:0; top:calc(100% + 6px); z-index:1100; background: var(--bg); border:1px solid var(--line);
+    border-radius:14px; box-shadow: 0 10px 28px rgba(0,0,0,.35); overflow:hidden; max-height:320px; overflow-y:auto; }
+  .cj-sugerencia{ display:block; width:100%; text-align:left; padding:11px 14px; border:none; border-bottom:1px solid var(--line-soft);
+    background:none; color: var(--text); font: inherit; font-size:14.5px; cursor:pointer; }
+  .cj-sugerencia:last-child{ border-bottom:none; }
+  .cj-sugerencia:hover{ background: var(--w05); }
+  .cj-sugerencia-vacia{ padding:12px 14px; font-size:14px; color: var(--muted); }
+  .cj-pista{ position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:1000; max-width:calc(100% - 90px);
+    padding:7px 12px; border-radius:99px; background: var(--bg); border:1px solid var(--line); font-size:12.5px; color: var(--muted);
+    text-align:center; pointer-events:none; }
+  .cj-info{ position:absolute; left:10px; right:10px; bottom:26px; z-index:1000; padding:12px 14px; border-radius:14px;
+    border:1px solid rgba(242,102,92,.5); background: var(--bg); box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+  .cj-info-tipo{ font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color: var(--coral); }
+  .cj-info-nombre{ font-size:18px; font-weight:700; margin-top:2px; }
+  .cj-info-cruce{ font-size:14px; font-weight:600; margin-top:4px; }
+  .cj-info-extra{ font-size:13px; color: var(--muted); margin-top:4px; line-height:1.4; }
+
   /* Mientras se juega, el mapa gana el sitio de la barra de pestañas. */
   body:has(#screen-callejero.cj-jugando.active) .header-nav{ display:none; }
   @media (max-width:640px){
