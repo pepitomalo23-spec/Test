@@ -40,7 +40,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   admin/             panel de administración (panel, actividad, usuarios,
                      copias, errores, boe, temario, importar-ia, callejero)
   normativas.js      Normativas (fichas estilo Quizlet)
-  callejero.js       Callejero: mapa y juego «Localiza la calle»
+  callejero.js       Callejero: mapa, modos de juego y modo estudio
   arranque.js        escucha la sesión y arranca la app (siempre el último)
 sw.js                service worker: app sin conexión y actualizaciones
 scripts/versionar.mjs  pone el ?v= de cada css/js en index.html
@@ -67,7 +67,16 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
 - El archivo publicado lleva también los 70 barrios urbanos de Córdoba con su distrito (DERA g13_24)
   y en qué barrios está cada vía; con eso la app deja elegir qué estudiar: toda Córdoba, un
   distrito, un barrio o las afueras y pedanías.
-- La app descarga un único archivo compacto (almacén público `callejero`, unos 750 KB) solo al
+- También lleva unos 370 **lugares importantes** (DERA g12: hospitales, colegios, edificios
+  religiosos, instalaciones deportivas…) y, para cada vía y lugar, **qué parque de bomberos acude**
+  según la línea divisoria del SEIS (CO-3405, Av. del Brillante, Llanos del Pretorio, Pl. de Colón,
+  Alfaros, Capitulares, San Fernando, Puente de Miraflores, Av. de Granada y N-432): al este el
+  Parque del Granadal y al oeste el Parque Central. Las vías a menos de 150 m de la línea no se
+  preguntan, porque no está claro a cuál le toca.
+- Modos de juego: Localiza la calle, ¿Cómo se llama? (4 opciones), Escribe el nombre (admite
+  tildes, abreviaturas como «Avda.» y pequeñas faltas), Cruces y paralelas (se calculan en la app
+  con el trazado de las vías), Lugares importantes y ¿Qué parque acude?. Además, el Modo estudio.
+- La app descarga un único archivo compacto (almacén público `callejero`, unos 860 KB) solo al
   abrir la pantalla; el service worker lo guarda para jugar sin conexión. El mapa (Leaflet) también
   se carga solo entonces. Tres estilos de mapa, sin nombres que den pistas: Sencillo y Plano
   (el trazado de las vías es el mapa, funcionan sin conexión) y Satélite (ortofotos PNOA del
