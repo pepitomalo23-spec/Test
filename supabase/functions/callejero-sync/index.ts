@@ -60,6 +60,15 @@ const BARRIOS_WFS = "https://www.ideandalucia.es/services/DERA_g13_limites_admin
 // Una vía está en un barrio si al menos esta parte de su trazado cae dentro.
 const BARRIO_MIN_FRACCION = 0.2;
 const MUESTREO_M = 25;
+// Los distritos de DERA no siempre coinciden con los del Ayuntamiento, que
+// son los que valen en el examen. Correcciones comprobadas con las fichas
+// de cada distrito en participa.cordoba.es (septiembre de 2026):
+//   - DERA llama «Norte Centro» al distrito que el Ayuntamiento llama
+//     «Noroeste» (mismos barrios).
+//   - San Rafael de la Albaida es del distrito Poniente Norte, no del
+//     Noroeste.
+const DISTRITO_AYUNTAMIENTO: Record<string, string> = { "Norte Centro": "Noroeste" };
+const BARRIO_DISTRITO_AYUNTAMIENTO: Record<string, string> = { "San Rafael de la Albaida": "Poniente Norte" };
 
 type Via = {
   id_vial: number;
@@ -395,9 +404,11 @@ async function descargarBarrios(): Promise<Barrio[]> {
     const anillos = poligonos.flat().filter((r) => r.length >= 4);
     if (!p.nombre || !anillos.length) continue;
     const pts = anillos.flat();
+    const nombre = String(p.nombre).trim();
+    const distritoDera = String(p.distrito || "").trim();
     barrios.push({
-      nombre: String(p.nombre).trim(),
-      distrito: String(p.distrito || "").trim(),
+      nombre,
+      distrito: BARRIO_DISTRITO_AYUNTAMIENTO[nombre] || DISTRITO_AYUNTAMIENTO[distritoDera] || distritoDera,
       anillos,
       caja: [Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1])), Math.max(...pts.map((q) => q[0])), Math.max(...pts.map((q) => q[1]))],
     });
