@@ -1,10 +1,15 @@
 /* =====================================================================
    Service worker de pj.fire
    =====================================================================
-   - La app (index.html, iconos, librería de Supabase, fuentes) se sirve
-     desde la caché del dispositivo, así abre al instante y funciona sin
-     conexión. En segundo plano se descarga la versión nueva y, si ha
-     cambiado, se avisa a la app para que ofrezca «Actualizar».
+   - La app (index.html, sus css/ y js/, iconos, librería de Supabase,
+     fuentes) se sirve desde la caché del dispositivo, así abre al
+     instante y funciona sin conexión. En segundo plano se descarga la
+     versión nueva y, si ha cambiado, se avisa a la app para que ofrezca
+     «Actualizar».
+   - Cada css/ y js/ va enlazado con un ?v= que cambia con su contenido
+     (scripts/versionar.mjs). Antes de guardar un index.html nuevo se
+     descargan todos sus archivos, para que nunca se mezclen archivos de
+     dos versiones y la nueva funcione también sin conexión.
    - Las consultas de datos a Supabase (preguntas, temas, historial...)
      van primero a la red; si no hay conexión (o tarda demasiado) se usa
      la última respuesta guardada, para poder seguir estudiando.
@@ -13,7 +18,8 @@
    ===================================================================== */
 
 const VERSION = 'v1';
-const SHELL = 'pjfire-shell-' + VERSION;
+// La caché de la app va en v2: la v1 guardaba la app antigua en un solo archivo.
+const SHELL = 'pjfire-shell-v2';
 const STATIC = 'pjfire-static-' + VERSION;
 const DATA = 'pjfire-data-' + VERSION;
 const SUPABASE_HOST = 'tsjaaqkvncgxqtpmlugv.supabase.co';
@@ -26,6 +32,8 @@ self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const shell = await caches.open(SHELL);
     await shell.addAll(SHELL_URLS);
+    const html = await (await shell.match('./')).text();
+    await cacheAppFiles(shell, appFiles(html));
     const stat = await caches.open(STATIC);
     await Promise.all(CDN_URLS.map(u => stat.add(new Request(u, { mode: 'cors' })).catch(() => {})));
     self.skipWaiting();
@@ -54,6 +62,50 @@ async function notifyUpdate(){
   clients.forEach(c => c.postMessage({ type: 'update-available' }));
 }
 
+// css/ y js/ que enlaza un index.html (con su ?v=), como URLs completas.
+function appFiles(html){
+  const urls = new Set();
+  const re = /(?:src|href)="((?:css|js)\/[^"]+)"/g;
+  let m;
+  while((m = re.exec(html))) urls.add(new URL(m[1], self.registration.scope).href);
+  return [...urls];
+}
+function isAppFile(url){
+  const p = new URL(url).pathname;
+  return p.startsWith('/css/') || p.startsWith('/js/');
+}
+// Descarga los que aún no estén guardados. Si alguno falla, lanza error y
+// no se guarda nada más (el index.html nuevo tampoco).
+async function cacheAppFiles(cache, urls){
+  const missing = [];
+  for(const u of urls) if(!(await cache.match(u))) missing.push(u);
+  const responses = await Promise.all(missing.map(async u => {
+    const res = await fetch(u, { cache: 'no-cache' });
+    if(!res.ok) throw new Error('No se pudo descargar ' + u);
+    return res;
+  }));
+  await Promise.all(responses.map((res, i) => cache.put(missing[i], res)));
+}
+// Borra los css/ y js/ de versiones anteriores que ya no usa el index.html.
+async function pruneAppFiles(cache, keep){
+  const keepSet = new Set(keep);
+  for(const req of await cache.keys()){
+    if(isAppFile(req.url) && !keepSet.has(req.url)) await cache.delete(req);
+  }
+}
+
+// Guarda el index.html nuevo si ha cambiado, junto con sus css/ y js/.
+async function updateShell(cache, cachedCopy, fresh){
+  const b = await fresh.clone().text();
+  const a = cachedCopy ? await cachedCopy.text() : null;
+  if(a === b) return;
+  const files = appFiles(b);
+  await cacheAppFiles(cache, files);
+  await cache.put('./', fresh);
+  await pruneAppFiles(cache, files);
+  if(cachedCopy) await notifyUpdate();
+}
+
 // Página principal: se sirve la guardada al instante y se comprueba en
 // segundo plano si hay una versión nueva.
 async function handleNavigate(event){
@@ -64,18 +116,10 @@ async function handleNavigate(event){
   const cachedCopy = cached ? cached.clone() : null;
   // Ojo: una petición de navegación no se puede reenviar con opciones
   // (el navegador lo prohíbe), así que se pide por su URL.
-  const network = fetch(event.request.url, { cache: 'no-store', credentials: 'same-origin' }).then(async res => {
+  const network = fetch(event.request.url, { cache: 'no-store', credentials: 'same-origin' }).then(res => {
     if(res && res.ok && res.type === 'basic'){
-      const fresh = res.clone();
-      if(cachedCopy){
-        const [a, b] = await Promise.all([cachedCopy.text(), fresh.clone().text()]);
-        if(a !== b){
-          await cache.put('./', fresh);
-          await notifyUpdate();
-        }
-      } else {
-        await cache.put('./', fresh);
-      }
+      // Se guarda en segundo plano: la página no espera a que termine.
+      event.waitUntil(updateShell(cache, cachedCopy, res.clone()).catch(() => {}));
     }
     return res;
   });
@@ -87,9 +131,12 @@ async function handleNavigate(event){
 }
 
 // Recursos que casi nunca cambian: caché primero, y se refrescan detrás.
+// Los css/ y js/ con ?v= no cambian nunca (si cambian, cambia su ?v=), así
+// que si ya están guardados no hace falta volver a pedirlos.
 async function handleStatic(event, cacheName){
   const cache = await caches.open(cacheName);
   const cached = await cache.match(event.request);
+  if(cached && isAppFile(event.request.url) && new URL(event.request.url).searchParams.has('v')) return cached;
   const network = fetch(event.request).then(res => {
     if(res && (res.ok || res.type === 'opaque')) cache.put(event.request, res.clone());
     return res;
