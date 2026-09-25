@@ -93,8 +93,12 @@ Deno.serve(async (req: Request) => {
     });
     const callModel = async (model: string) => {
       const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: reqBody },
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+          body: reqBody,
+        },
       );
       const d = await r.json().catch(() => ({}));
       return { ok: r.ok, data: d };
@@ -110,7 +114,8 @@ Deno.serve(async (req: Request) => {
       errors.push(`${PREFERRED}: ${result.data?.error?.message || "error"}`);
       try {
         const lm = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(apiKey)}`,
+          `https://generativelanguage.googleapis.com/v1beta/models?pageSize=200`,
+          { headers: { "x-goog-api-key": apiKey } },
         );
         const lmData = await lm.json();
         const names: string[] = (lmData?.models || [])
