@@ -1,0 +1,280 @@
+/* Variables, tema claro, barra superior, acceso, splash, esqueletos y avisos. */
+
+  :root{
+    --bg: #000000;
+    --card: #141414;
+    --card-hi: #1C1C1C;
+    --line: #262626;
+    --line-soft: #1E1E1E;
+    --text: #F5F5F5;
+    --muted: #9BA0A6;
+    --muted-2: #6B7078;
+
+    --purple: #8C7DF5;
+    --coral: #F2665C;
+    --teal: #2FBFAE;
+    --blue: #4E9BF7;
+    --green: #34D399;
+    --orange: #FF7A3D;
+    --amber: #F5C043;
+
+    --sans: 'Inter', sans-serif;
+    --serif: 'Source Serif 4', serif;
+    --mono: 'JetBrains Mono', monospace;
+    --title: 'Anton', 'Inter', sans-serif;
+
+    /* ---- "tintes" de superficie: recuadros/hovers sutiles que antes eran
+       rgba(255,255,255,X) fijo (pensados solo para fondo oscuro). Al no
+       depender del tema, en claro quedaban blanco-sobre-blanco (invisibles).
+       Con estas variables, en oscuro siguen aclarando un poco la superficie
+       y en claro la oscurecen un poco: el mismo efecto de "recuadro
+       ligeramente marcado", en ambos temas. ---- */
+    --w02: rgba(255,255,255,0.02);
+    --w03: rgba(255,255,255,0.03);
+    --w04: rgba(255,255,255,0.04);
+    --w05: rgba(255,255,255,0.05);
+    --w06: rgba(255,255,255,0.06);
+    --w08: rgba(255,255,255,0.08);
+    --w10: rgba(255,255,255,0.10);
+    --w12: rgba(255,255,255,0.12);
+    --w14: rgba(255,255,255,0.14);
+    --w22: rgba(255,255,255,0.22);
+
+    /* ---- texto de las etiquetas de tipo de nodo (título/capítulo/sección/
+       artículo) en el árbol de temario del admin: en oscuro son pasteles
+       claros (van sobre negro); en claro necesitan versión oscura y
+       saturada de cada color para poder leerse sobre fondo blanco. ---- */
+    --badge-titulo-fg: #a9bcff;
+    --badge-capitulo-fg: #ffcf7d;
+    --badge-seccion-fg: #9dffbd;
+    --badge-articulo-fg: #ffabab;
+    --badge-estructura-fg: #e0b3ff;
+
+    /* Tarjeta de "Estudio/Fallos": antes fondo #202020 fijo (pensado para
+       resaltar sobre negro); en claro pasa a un gris algo más oscuro que
+       las demás tarjetas, para mantener ese mismo efecto de "más marcada". */
+    --study-card-bg: #202020;
+    --study-card-border: var(--w14);
+  }
+  /* ---------- tema claro: mismas variables, solo cambian fondo/texto/líneas;
+     los colores de acento (--purple, --coral, etc.) se mantienen igual ---------- */
+  :root[data-theme="light"]{
+    --bg: #FFFFFF;
+    --card: #F3F3F5;
+    --card-hi: #E9E9EC;
+    --line: #E1E1E5;
+    --line-soft: #ECECEF;
+    --text: #16171A;
+    --muted: #5B6068;
+    --muted-2: #82868D;
+
+    --w02: rgba(0,0,0,0.028);
+    --w03: rgba(0,0,0,0.035);
+    --w04: rgba(0,0,0,0.045);
+    --w05: rgba(0,0,0,0.055);
+    --w06: rgba(0,0,0,0.06);
+    --w08: rgba(0,0,0,0.07);
+    --w10: rgba(0,0,0,0.08);
+    --w12: rgba(0,0,0,0.09);
+    --w14: rgba(0,0,0,0.10);
+    --w22: rgba(0,0,0,0.16);
+
+    --badge-titulo-fg: #2d4fc7;
+    --badge-capitulo-fg: #8a5a00;
+    --badge-seccion-fg: #1f7a44;
+    --badge-articulo-fg: #b23a3a;
+    --badge-estructura-fg: #8a2fc4;
+
+    --study-card-bg: #EAEAEE;
+    --study-card-border: var(--w14);
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ background: var(--bg); height:100%; overflow:hidden; }
+  body{ background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing:antialiased; height:100%; overflow:hidden; }
+  #app{ position:fixed; inset:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; background: var(--bg); }
+  svg{ display:block; }
+  :focus-visible{ outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
+
+  /* ---------- topbar ---------- */
+  header{
+    display:flex; align-items:center; justify-content:center; position:sticky; top:0;
+    padding: 18px 24px; border-bottom:1px solid var(--line);
+    background: var(--bg); z-index:40;
+  }
+  .header-back{ position:absolute; left:20px; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; color: var(--muted); cursor:pointer; }
+  .header-back:hover{ color: var(--text); background: var(--card); }
+  .header-back svg{ width:19px; height:19px; }
+  .header-nav{ display:flex; align-items:center; gap:22px; }
+  .header-nav span{ display:flex; align-items:center; gap:7px; font-family: var(--title); font-weight:400; font-size:16.5px; letter-spacing:.2px; color: var(--muted-2); cursor:pointer; transition: color .15s; }
+  .header-nav span:hover{ color: var(--muted); }
+  .header-nav span.active{ color: var(--coral); }
+  .header-nav span.active .header-nav-label{ color: var(--coral); }
+  .header-nav span svg{ width:17px; height:17px; flex-shrink:0; }
+  #navNormativas svg.icon-diagonal{ transform: rotate(-40deg); }
+  .header-nav .nav-dot{ width:3px; height:3px; border-radius:50%; background: var(--line); }
+
+  /* --- Barra superior/inferior en móvil: los tres accesos ("Normativas",
+     "Legislación", "Estadísticas") no cabían junto al botón de cuenta en el
+     ancho de un teléfono. Ahora en pantallas pequeñas esos accesos se
+     muestran como una barra de pestañas fija en la PARTE INFERIOR de la
+     pantalla (icono + nombre corto debajo, sin recuadro, con más aire
+     respecto al borde inferior; la pestaña activa se resalta solo con
+     color), y el botón de cuenta/perfil se queda arriba pero en la esquina
+     IZQUIERDA de la cabecera. --- */
+  @media (max-width:640px){
+    header{ padding:14px 16px; justify-content:flex-start; min-height:60px; }
+    .header-back{ left:12px; width:32px; height:32px; }
+    .header-user{ left:16px; right:auto; }
+    .header-user-btn{ width:32px; height:32px; }
+
+    .header-nav{
+      position:fixed; left:0; right:0; bottom:0; z-index:30;
+      gap:2px; width:100%; justify-content:space-between;
+      padding: 10px 10px calc(18px + env(safe-area-inset-bottom, 0px));
+      background: var(--bg); border-top:1px solid var(--line);
+    }
+    .header-nav .nav-dot{ display:none; }
+    .header-nav span{
+      flex:1; flex-direction:column; justify-content:center; align-items:center;
+      gap:4px; padding:6px 2px; border-radius:10px; background:none; border:none;
+      color: var(--muted-2); transition: color .15s;
+    }
+    .header-nav span svg{ width:21px; height:21px; }
+    .header-nav span .header-nav-label{
+      display:block; font-family: var(--sans); font-size:9.5px; font-weight:600;
+      letter-spacing:.01em; color: inherit; max-width:100%; white-space:nowrap;
+      overflow:hidden; text-overflow:ellipsis;
+    }
+    .header-nav span.active{ background:none; border:none; box-shadow:none; color: var(--coral); }
+    .header-nav span.active .header-nav-label{ color: var(--coral); }
+    /* Deja hueco para que el contenido no quede tapado por la barra inferior fija */
+    main{ padding-bottom: 118px; }
+  }
+
+
+  /* ---------- auth screen ---------- */
+  .auth-overlay{ position:fixed; inset:0; z-index:300; background: var(--bg); display:flex; align-items:center; justify-content:center; padding:24px; }
+  /* Splash de arranque: tapa el instante inicial (mientras iOS termina de
+     recolocar el zoom heredado de una sesión anterior, ver forceResetPinchZoom)
+     con una pantalla lisa en vez de dejar ver el contenido mal escalado.
+     Primero solo negro, luego aparece el logo, y al final se desvanece
+     dejando ver la app ya bien colocada. */
+  #appSplash{ position:fixed; inset:0; z-index:9999; background: var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; transition: opacity .4s ease; }
+  #appSplash.hidden{ opacity:0; pointer-events:none; }
+  #appSplashLogo{ width:120px; height:120px; opacity:0; transition: opacity .6s ease; }
+  #appSplashLogo.show{ opacity:1; }
+  #appSplashBar{ width:120px; height:3px; border-radius:999px; background: var(--w10); overflow:hidden; opacity:0; transition: opacity .4s ease; }
+  #appSplashBar.show{ opacity:1; }
+  #appSplashBarFill{ height:100%; width:0%; border-radius:999px; background: var(--text); transition: width .25s ease-out; }
+  .hidden{ display:none !important; }
+
+
+
+  .admin-tab-count{ display:inline-block; min-width:18px; padding:0 5px; margin-left:4px; border-radius:999px; background:#E5484D; color:#fff; font-size:11px; font-weight:800; line-height:18px; text-align:center; }
+.backup-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .backup-date{ font-size:14px; font-weight:700; text-transform:capitalize; margin-bottom:3px; }
+  .err-card.unseen{ border-color: color-mix(in srgb, #E5484D 45%, var(--line)); }
+  .err-head{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+  .err-new{ font-size:10.5px; font-weight:800; color:#fff; background:#E5484D; border-radius:999px; padding:2px 8px; }
+  .err-meta{ font-size:12px; color: var(--muted); }
+  .err-msg{ font-size:14px; line-height:1.45; word-break:break-word; }
+  .err-stack{ margin-top:8px; font-size:12px; color: var(--muted); }
+  .err-stack summary{ cursor:pointer; }
+  .err-stack pre{ white-space:pre-wrap; word-break:break-word; font-family: var(--mono); font-size:11px; margin-top:6px; max-height:220px; overflow:auto; background: var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px; }
+
+  /* ---------- Esqueletos de carga (en lugar de «Cargando…») ---------- */
+  .skel{ display:block; border-radius:8px; background: linear-gradient(90deg, var(--card) 0%, var(--card-hi) 40%, var(--card) 80%); background-size: 300% 100%; animation: skel-shimmer 1.3s ease-in-out infinite; }
+  .skel-line{ height:11px; border-radius:6px; }
+  .skel-inline{ display:inline-block; height:10px; width:80px; border-radius:6px; vertical-align:middle; }
+  .skel-list{ display:flex; flex-direction:column; gap:10px; }
+  .skel-row{ display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--line); border-radius:14px; }
+  .skel-row .skel-dot{ width:36px; height:36px; border-radius:10px; flex-shrink:0; }
+  .skel-row .skel-lines{ flex:1; display:flex; flex-direction:column; gap:8px; }
+  @keyframes skel-shimmer{ 0%{ background-position: 100% 0; } 100%{ background-position: -100% 0; } }
+  @media (prefers-reduced-motion: reduce){ .skel{ animation:none; } }
+
+  /* ---------- Avisos (toasts) y confirmaciones propios ----------
+     Sustituyen a alert()/confirm() del navegador. */
+.reminder-state{ font-size:12px; font-weight:700; color: var(--muted); }
+  .ui-confirm .reminder-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:16px; font-size:14px; color: var(--text); }
+  .reminder-hour{ background: var(--card-hi); color: var(--text); border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-family: var(--sans); font-size:14px; }
+  .reminder-steps{ margin:10px 0 0 18px; font-size:13.5px; color: var(--muted); line-height:1.7; }
+  .reminder-test{ margin-top:14px; background:none; border:none; color: var(--blue); font-family: var(--sans); font-size:13px; font-weight:700; cursor:pointer; padding:0; }
+  .ui-toasts{ position:fixed; left:50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); z-index:10050; display:flex; flex-direction:column; align-items:center; gap:8px; width: min(440px, calc(100% - 32px)); pointer-events:none; }
+  @media (max-width:640px){ .ui-toasts{ bottom: calc(96px + env(safe-area-inset-bottom, 0px)); } }
+  .ui-toast{ pointer-events:auto; display:flex; align-items:flex-start; gap:10px; width:100%; background: var(--card-hi); color: var(--text); border:1px solid var(--line); border-radius:14px; padding:12px 14px; font-family: var(--sans); font-size:13.5px; line-height:1.45; box-shadow: 0 10px 30px rgba(0,0,0,.35); cursor:pointer; animation: ui-toast-in .22s ease-out; }
+  .ui-toast.out{ animation: ui-toast-out .2s ease-in forwards; }
+  .ui-toast-ico{ width:20px; height:20px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#fff; margin-top:1px; }
+  .ui-toast.success .ui-toast-ico{ background: var(--green); color:#062b1d; }
+  .ui-toast.error .ui-toast-ico{ background:#E5484D; }
+  .ui-toast.info .ui-toast-ico{ background: var(--blue); }
+  .ui-toast-msg{ flex:1; min-width:0; white-space:pre-line; }
+  .ui-toast-action{ background:none; border:none; color: var(--blue); font-family: var(--sans); font-weight:800; font-size:13px; cursor:pointer; padding:0 2px; white-space:nowrap; align-self:center; }
+  @keyframes ui-toast-in{ from{ opacity:0; transform: translateY(10px) scale(.98); } to{ opacity:1; transform:none; } }
+  @keyframes ui-toast-out{ to{ opacity:0; transform: translateY(8px); } }
+  .ui-confirm-bg{ position:fixed; inset:0; z-index:10040; background: rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:18px; animation: ui-fade .15s ease-out; }
+  .ui-confirm{ width:100%; max-width:400px; background: var(--card); border:1px solid var(--line); border-radius:20px; padding:22px 20px 18px; box-shadow: 0 20px 60px rgba(0,0,0,.45); animation: ui-pop .18s ease-out; font-family: var(--sans); }
+  .ui-confirm h3{ font-size:17px; font-weight:800; line-height:1.35; margin-bottom:8px; color: var(--text); }
+  .ui-confirm p{ font-size:13.5px; color: var(--muted); line-height:1.5; white-space:pre-line; }
+  .ui-confirm-actions{ display:flex; gap:10px; margin-top:20px; }
+  .ui-confirm-actions button{ flex:1; border:none; border-radius:999px; padding:13px 16px; font-family: var(--sans); font-size:14px; font-weight:700; cursor:pointer; }
+  .ui-confirm-cancel{ background: var(--card-hi); color: var(--text); border:1px solid var(--line) !important; }
+  .ui-confirm-ok{ background: var(--blue); color:#fff; }
+  .ui-confirm-ok.danger{ background:#D93240; }
+  @keyframes ui-fade{ from{ opacity:0; } }
+  @keyframes ui-pop{ from{ opacity:0; transform: scale(.96); } }
+  @media (prefers-reduced-motion: reduce){ .ui-toast, .ui-toast.out, .ui-confirm-bg, .ui-confirm{ animation:none; } }
+
+  .auth-overlay.hidden{ display:none; }
+  .auth-panel{ width:100%; max-width:380px; background: var(--card); border:1px solid var(--line); border-radius:18px; padding:30px 26px 26px; }
+  .auth-title{ font-family: var(--title); font-size:26px; letter-spacing:.3px; margin-bottom:8px; }
+  .auth-sub{ font-size:13.5px; color: var(--muted); line-height:1.5; margin-bottom:24px; }
+  .auth-input{
+    width:100%; background: var(--card-hi); border:1px solid var(--line); color: var(--text);
+    font-family: var(--sans); font-size:14.5px; padding:14px 15px; border-radius:12px; margin-bottom:10px;
+  }
+  .auth-input:focus{ outline:none; border-color: var(--purple); }
+  .auth-error{ font-size:12.5px; color: var(--coral); min-height:16px; margin: 4px 0 6px; line-height:1.5; }
+  .auth-status{ font-size:12.5px; color: var(--teal); min-height:16px; margin-top:12px; line-height:1.5; }
+  .auth-divider{ display:flex; align-items:center; gap:10px; margin:16px 0; color: var(--muted-2); font-size:11.5px; }
+  .auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background: var(--line); }
+  .btn[disabled]{ opacity:.55; cursor:not-allowed; }
+  .header-user{ position:absolute; right:64px; top:50%; transform:translateY(-50%); }
+  .header-user-btn{ width:36px; height:36px; border-radius:50%; background: var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; color: var(--muted); transition: border-color .15s, color .15s; }
+  .header-user-btn:hover{ border-color: var(--purple); color: var(--text); }
+  .header-user-btn svg{ width:17px; height:17px; }
+  .profile-sheet-panel{ max-width:260px; padding:28px 22px 24px; }
+  .header-user-email{ font-size:12.5px; color: var(--muted); padding:0 0 14px; word-break:break-all; border-bottom:1px solid var(--line); margin-bottom:10px; line-height:1.4; }
+  .header-user-logout{
+    display:flex; align-items:center; gap:12px; width:100%; padding:12px; border-radius:11px; border:none; background:transparent;
+    color: var(--text); font-family: var(--sans); font-size:13.5px; font-weight:600; cursor:pointer; text-align:left;
+  }
+  .header-user-logout:hover{ background: var(--card-hi); color: var(--coral); }
+  .header-user-logout svg{ width:34px; height:34px; flex-shrink:0; }
+  .header-user-admin{
+    display:flex; align-items:center; gap:9px; width:100%; padding:12px; border-radius:11px; border:none; background:transparent;
+    color: var(--text); font-family: var(--sans); font-size:13.5px; font-weight:600; cursor:pointer; text-align:left; margin-bottom:6px;
+  }
+  .header-user-admin:hover{ background: var(--card-hi); color: var(--purple); }
+  .header-user-admin.hidden{ display:none; }
+  .header-user-boe{
+    display:flex; align-items:center; gap:9px; width:100%; padding:12px; border-radius:11px; border:none; background:transparent;
+    color: var(--text); font-family: var(--sans); font-size:13.5px; font-weight:600; cursor:pointer; text-align:left; margin-bottom:6px;
+  }
+  .header-user-boe:hover{ background: var(--card-hi); color: var(--purple); }
+  .header-user-boe svg{ width:34px; height:34px; flex-shrink:0; }
+  .header-user-btn{ position:relative; }
+  .header-pending-dot{
+    position:absolute; top:-2px; right:-2px; min-width:15px; height:15px; padding:0 3px; border-radius:20px;
+    background: var(--coral); color:#fff; font-family: var(--mono); font-size:9.5px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; line-height:1; border:2px solid var(--bg, #0b0b0f);
+  }
+  .header-pending-dot.hidden{ display:none; }
+  .header-user-admin-label{ display:flex; align-items:center; gap:8px; flex:1; }
+  .header-admin-logo{ width:34px; height:34px; border-radius:8px; object-fit:cover; flex-shrink:0; }
+  .header-user-admin-count{
+    font-family: var(--mono); font-size:10.5px; font-weight:700; color:#fff; background: var(--coral);
+    border-radius:20px; padding:1px 7px; line-height:1.5;
+  }
+  .header-user-admin-count.hidden{ display:none; }
+  .admin-badge.pending{ color: var(--coral); border-color: var(--coral); background: rgba(242,102,92,0.1); }

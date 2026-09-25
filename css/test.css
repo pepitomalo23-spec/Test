@@ -1,0 +1,536 @@
+/* Test en curso, notas, explicaciones IA, corrección y vista lista. */
+
+  /* ---------- quiz screen ---------- */
+  .screen{ display:none; } .screen.active{ display:block; }
+  .screen.overlay{
+    position:fixed; inset:0; z-index:45; background:rgba(0,0,0,0.55);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    display:none; align-items:flex-start; justify-content:center; overflow-y:auto; padding:56px 20px 30px;
+  }
+  .screen.overlay.active{ display:flex; }
+  /* Igual que la barra de abajo (quiz-bottombar), esta cabecera se queda
+     FIJA en pantalla (position:fixed, no sticky) al hacer scroll dentro de
+     una pregunta del test o en la corrección, justo debajo de la cabecera
+     general (Volver, Finalizar y el acceso a Usuario siempre visibles).
+     Con "sticky" se notaba un pequeño desplazamiento al hacer scroll en
+     algunos móviles; con "fixed" queda anclada sin moverse ni un pixel.
+     --header-h y --quiz-head-h se calculan por JS con la altura real de
+     <header> y de esta barra (puede pasar a dos líneas en pantallas
+     estrechas), y el hueco correspondiente se reserva con padding-top en
+     la pantalla activa. */
+  .quiz-head{
+    display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+    position:fixed; left:0; right:0; top: var(--header-h, 68px); z-index:35;
+    width:100%; max-width:1080px; margin:0 auto;
+    background: var(--bg); padding:12px 24px; border-bottom:1px solid var(--line);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
+  }
+  #screen-quiz, #screen-review{ padding-top: calc(var(--quiz-head-h, 60px) + 10px); }
+  .back-link{ display:flex; align-items:center; gap:7px; font-size:13px; color: var(--muted); cursor:pointer; }
+  .back-link svg{ width:14px; height:14px; }
+  .quiz-head-right{ display:flex; align-items:center; gap:12px; }
+  .quiz-progress{ font-family: var(--mono); font-size:12px; color: var(--muted-2); }
+  .quiz-timer{
+    display:none; align-items:center; gap:6px; font-family: var(--mono); font-size:12px;
+    color: var(--muted); background: var(--card); border:1px solid var(--line);
+    padding:5px 10px; border-radius:20px;
+  }
+  .quiz-timer svg{ width:12px; height:12px; }
+  .quiz-timer.urgent{ color: var(--text); background: rgba(242,102,92,0.22); border-color: var(--coral); animation: timerPulse 1s ease-in-out infinite; }
+  @keyframes timerPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.5; } }
+  @media (prefers-reduced-motion: reduce){ .quiz-timer.urgent{ animation:none; } }
+
+  .quiz-card{
+    background: var(--card); border:1px solid var(--line); border-radius:18px;
+    padding:28px 26px 30px;
+  }
+
+  /* Vista tarjeta de Estudio/Fallos: recuadro más visible (fondo más gris y
+     borde más marcado sobre el negro de fondo), más estrecha y con letra
+     algo más pequeña que en el resto de la app. */
+  #quizCardView{ max-width:600px; margin:0 auto; padding-bottom:76px; }
+  #quizCardView .quiz-card{
+    background: var(--study-card-bg); border:1px solid var(--study-card-border);
+  }
+  #quizCardView .question{ font-size:17px; }
+  #quizCardView .option{ font-size:13px; }
+
+  .article-tag{
+    display:inline-flex; gap:7px; align-items:center;
+    font-family: var(--mono); font-size:11.5px; color: var(--blue);
+    background: rgba(78,155,247,0.09); border:1px solid rgba(78,155,247,0.32);
+    padding:5px 11px 5px 9px; border-radius:20px; margin-bottom:18px;
+  }
+  .article-tag svg{ width:13px; height:13px; }
+  .article-tag.general{ color: var(--muted); background: var(--card); border-color: var(--line); }
+
+  .qmeta-row{ display:flex; gap:18px; margin-bottom:18px; flex-wrap:wrap; }
+  .qmeta{ display:flex; align-items:center; gap:6px; font-family: var(--mono); font-size:11.5px; color: var(--muted-2); }
+  .qmeta svg{ width:13px; height:13px; }
+  .qmeta b{ color: var(--coral); font-weight:600; }
+  .qmeta.time b{ color: var(--muted); font-weight:600; }
+
+  .fail-history-toggle{
+    display:inline-flex; align-items:center; gap:6px; font-family: var(--mono); font-size:11.5px;
+    color: var(--muted-2); cursor:pointer; user-select:none;
+    padding:6px 12px 6px 10px; border:1px solid var(--line); border-radius:20px; background: var(--card);
+    transition: border-color .12s, background .12s;
+  }
+  .fail-history-toggle:hover{ border-color: rgba(242,102,92,0.45); box-shadow: 0 0 12px rgba(242,102,92,0.18); }
+  .fail-history-toggle svg:first-child{ width:13px; height:13px; }
+  .fail-history-toggle b{ color: var(--coral); font-weight:600; }
+  .fail-history-toggle .chev{ width:12px; height:12px; display:flex; transition: transform .15s; color: var(--muted-2); }
+  .fail-history-toggle .chev svg{ width:12px; height:12px; }
+  .fail-history-toggle.open{ border-color: rgba(140,125,245,0.45); background: rgba(140,125,245,0.08); box-shadow: 0 0 14px rgba(140,125,245,0.22); }
+  .fail-history-toggle.open .chev{ transform: rotate(90deg); color: var(--purple); }
+  .fail-history-panel{
+    display:none; flex-direction:column; width:100%; margin:10px 0 0; overflow:hidden;
+    background: color-mix(in srgb, var(--card) 70%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border:1px solid rgba(140,125,245,0.22); border-radius:14px;
+    box-shadow: 0 6px 20px var(--w14);
+    animation: failPanelIn .16s ease;
+  }
+  @keyframes failPanelIn{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:translateY(0); } }
+  .fail-history-panel.open{ display:flex; }
+  .fail-history-row{
+    display:flex; align-items:center; gap:11px; font-family: var(--mono); font-size:12.5px; color: var(--muted);
+    padding:11px 15px; border-bottom:1px solid var(--line-soft);
+  }
+  .fail-history-row:last-child{ border-bottom:none; }
+  .fail-history-row .fh-badge{
+    width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .fail-history-row .fh-badge svg{ width:13px; height:13px; }
+  .fh-ok .fh-badge{ background: rgba(52,211,153,0.14); color: var(--green); }
+  .fh-bad .fh-badge{ background: rgba(242,102,92,0.14); color: var(--coral); }
+  /* Fila del intento que se acaba de hacer en este mismo test, todavía sin
+     guardar en el historial de Supabase (se guarda al terminar el test). */
+  .fail-history-row.fh-now{ color: var(--text); }
+  .fail-history-row.fh-now .fh-now-label{ font-weight:700; }
+  .fail-history-loading, .fail-history-empty{
+    font-family: var(--mono); font-size:11.5px; color: var(--muted-2); padding:14px 15px;
+  }
+
+  .explain-body{ position:relative; }
+  .explain-section-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+  .explain-section-label{
+    display:flex; align-items:center; gap:9px; font-family: var(--sans); font-weight:800; font-size:11px;
+    letter-spacing:.08em; text-transform:uppercase;
+    background: linear-gradient(90deg, var(--purple), var(--teal));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .explain-icon-badge{
+    width:26px; height:26px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(135deg, var(--purple), var(--teal));
+    animation: bulbGlow 2.6s ease-in-out infinite;
+  }
+  .explain-icon-badge svg{ width:14px; height:14px; color:#0A0A0A; }
+  @keyframes bulbGlow{
+    0%,100%{ box-shadow: 0 0 0 4px rgba(140,125,245,0.12), 0 0 14px rgba(140,125,245,0.4); }
+    50%{ box-shadow: 0 0 0 6px rgba(47,191,174,0.14), 0 0 22px rgba(47,191,174,0.5); }
+  }
+  .ia-explain-btn{
+    position:relative; display:flex; align-items:center; gap:6px; flex-shrink:0;
+    font-family: var(--sans); font-weight:700; font-size:11px; color:#0A0A0A;
+    background: linear-gradient(90deg, var(--purple), var(--teal));
+    border:1px solid transparent;
+    padding:6px 13px 6px 10px; border-radius:20px; cursor:pointer;
+    box-shadow: 0 0 14px rgba(140,125,245,0.35);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .ia-explain-btn:hover{ transform: translateY(-1px); box-shadow: 0 0 20px rgba(47,191,174,0.55); }
+  .ia-explain-btn:active{ transform: translateY(0); }
+  .ia-explain-btn:disabled{ opacity:.6; cursor:default; transform:none; box-shadow:none; }
+  .ia-explain-btn svg{ width:13px; height:13px; }
+  .explain-text{ font-size:13.5px; line-height:1.8; color: var(--muted); }
+  .explain-text b{ color: var(--text); font-weight:600; }
+  .ia-explain-result{ display:none; margin-top:20px; }
+  .ia-explain-result.show{ display:block; animation: failPanelIn .16s ease; }
+  .ia-explain-card{
+    position:relative; overflow:hidden;
+    background: linear-gradient(160deg, rgba(140,125,245,0.14), rgba(47,191,174,0.05) 55%, color-mix(in srgb, var(--card) 40%, transparent));
+    border:1px solid rgba(140,125,245,0.32); border-radius:16px; padding:18px 20px 20px;
+  }
+  .ia-explain-card::before{
+    content:''; position:absolute; inset:0 0 auto 0; height:2px;
+    background: linear-gradient(90deg, var(--purple), var(--teal), var(--purple));
+    background-size:200% 100%; animation: iaScan 3s linear infinite;
+  }
+  @keyframes iaScan{ 0%{ background-position:0% 0; } 100%{ background-position:200% 0; } }
+  .ia-explain-label{
+    display:flex; align-items:center; gap:8px; font-family: var(--sans); font-weight:800; font-size:11px;
+    letter-spacing:.08em; text-transform:uppercase; color: var(--text); margin-bottom:14px;
+  }
+  .ia-explain-icon-badge{
+    width:22px; height:22px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(135deg, var(--purple), var(--teal));
+  }
+  .ia-explain-icon-badge svg{ width:12px; height:12px; color:#0A0A0A; }
+  .ia-explain-remove{
+    margin-left:auto; width:24px; height:24px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    background: var(--w05); border:1px solid var(--line-soft); color: var(--muted-2);
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  .ia-explain-remove svg{ width:11px; height:11px; }
+  .ia-explain-remove:hover{ background: rgba(242,102,92,0.16); border-color: rgba(242,102,92,0.45); color: var(--coral); }
+  .ia-explain-remove:disabled{ opacity:.5; cursor:default; }
+  /* Cada bloque de la tarjeta IA (fácil / detalle / por qué las demás no
+     son correctas / palabras clave) es un acordeón: empieza cerrado y se
+     abre al pulsar su cabecera, en cualquier tamaño de pantalla (antes
+     esto solo pasaba en móvil; ver toggleIABlock). */
+  .ia-explain-block{
+    background: var(--w03); border:1px solid var(--line-soft);
+    border-radius:12px; padding:2px 12px;
+  }
+  .ia-explain-block + .ia-explain-block{ margin-top:8px; padding-top:2px; border-top:1px solid var(--line-soft); }
+  .ia-explain-block-head{
+    display:flex; align-items:center; gap:8px; font-family: var(--sans); font-weight:700; font-size:12px;
+    color: var(--text); margin-bottom:0; padding:11px 0; cursor:pointer; user-select:none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ia-explain-block-head:active{ opacity:.72; }
+  .ia-block-icon{
+    width:21px; height:21px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  }
+  .ia-block-icon svg{ width:12px; height:12px; }
+  .ia-block-icon.simple{ background: rgba(47,191,174,0.16); color: var(--teal); }
+  .ia-block-icon.technical{ background: rgba(140,125,245,0.16); color: var(--purple); }
+  .ia-block-icon.incorrect{ background: rgba(242,102,92,0.16); color: var(--coral); }
+  .ia-block-icon.glossary{ background: rgba(78,155,247,0.16); color: var(--blue); }
+  .ia-block-chev{ display:flex; margin-left:auto; width:14px; height:14px; flex-shrink:0; color: var(--muted-2); transition: transform .18s ease; }
+  .ia-block-chev svg{ width:14px; height:14px; }
+  .ia-explain-block-body{ display:none; padding:0 0 13px; }
+  .ia-explain-block.ia-block-open .ia-block-chev{ transform: rotate(90deg); color: var(--teal); }
+  .ia-explain-block.ia-block-open .ia-explain-block-body{ display:block; animation: failPanelIn .16s ease; }
+  .ia-explain-glossary{
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .ia-explain-incorrect{ display:flex; flex-direction:column; gap:8px; }
+  .ia-incorrect-item{
+    background: var(--w03); border:1px solid var(--line-soft); border-radius:10px; padding:10px 12px;
+  }
+  .ia-incorrect-opt{ font-family: var(--sans); font-weight:700; font-size:12.5px; color: var(--coral); margin-bottom:3px; }
+  .ia-incorrect-reason{ font-size:12.5px; line-height:1.55; color: var(--muted); }
+  .ia-glossary-item{
+    background: var(--w03); border:1px solid var(--line-soft); border-radius:10px; padding:10px 12px;
+  }
+  .ia-glossary-term{ font-family: var(--sans); font-weight:700; font-size:12.5px; color: var(--text); margin-bottom:3px; }
+  .ia-glossary-def{ font-size:12.5px; line-height:1.55; color: var(--muted); }
+  .ia-glossary-syn{ font-size:11px; color: var(--muted-2); margin-top:5px; }
+  .ia-glossary-syn b{ color: var(--teal); font-weight:600; }
+  .ia-explain-text{ font-size:13.5px; line-height:1.8; color: var(--muted); }
+  .ia-explain-text p{ margin:0 0 10px; }
+  .ia-explain-text p:last-child{ margin-bottom:0; }
+  .ia-explain-loading, .ia-explain-empty{ font-family: var(--mono); font-size:11.5px; color: var(--muted-2); }
+
+  /* Ajustes finos solo de tamaño para pantallas pequeñas (la lógica de
+     acordeón ya es la misma para todos los tamaños, ver reglas base de
+     arriba). */
+  @media (max-width:640px){
+    .ia-explain-card{ padding:14px 14px 16px; border-radius:14px; }
+    .ia-explain-label{ font-size:10px; margin-bottom:10px; }
+    .ia-explain-text{ font-size:13px; }
+    .ia-explain-glossary, .ia-explain-incorrect{ gap:7px; }
+    .ia-glossary-item, .ia-incorrect-item{ padding:9px 10px; }
+  }
+  .ia-explain-loading{ display:flex; align-items:center; gap:8px; }
+  .ia-explain-loading::before{
+    content:''; width:7px; height:7px; border-radius:50%; flex-shrink:0;
+    background: linear-gradient(135deg, var(--purple), var(--teal));
+    animation: dotPulse 1s ease-in-out infinite;
+  }
+  @keyframes dotPulse{ 0%,100%{ opacity:.3; transform:scale(.8); } 50%{ opacity:1; transform:scale(1.15); } }
+
+  /* ---------- Nota propia (texto/imagen añadidos por vosotros) ----------
+     Mismo patrón que la explicación IA (botón para generar/añadir, tarjeta
+     con botón de quitar) pero en tonos ámbar/naranja para distinguirla de
+     la IA (morado/teal) de un vistazo, y sin acordeón: siempre es un único
+     bloque simple con texto y/o imagen. */
+  .explain-section-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+  .own-note-btn{
+    position:relative; display:flex; align-items:center; gap:6px; flex-shrink:0;
+    font-family: var(--sans); font-weight:700; font-size:11px; color:#0A0A0A;
+    background: linear-gradient(90deg, var(--amber), var(--orange));
+    border:1px solid transparent;
+    padding:6px 13px 6px 10px; border-radius:20px; cursor:pointer;
+    box-shadow: 0 0 14px rgba(245,192,67,0.35);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .own-note-btn:hover{ transform: translateY(-1px); box-shadow: 0 0 20px rgba(255,122,61,0.55); }
+  .own-note-btn:active{ transform: translateY(0); }
+  .own-note-btn svg{ width:10px; height:10px; }
+  .own-note-image-btn{
+    position:relative; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    width:26px; height:26px; color:#0A0A0A;
+    background: linear-gradient(90deg, var(--amber), var(--orange));
+    border:1px solid transparent; border-radius:50%; cursor:pointer;
+    box-shadow: 0 0 14px rgba(245,192,67,0.35);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .own-note-image-btn:hover{ transform: translateY(-1px); box-shadow: 0 0 20px rgba(255,122,61,0.55); }
+  .own-note-image-btn:active{ transform: translateY(0); }
+  .own-note-image-btn svg{ width:12px; height:12px; }
+  .own-note-image-btn.loading{ cursor:default; opacity:.9; }
+  .own-note-image-btn.loading svg{ animation: ownNoteSpin .8s linear infinite; }
+  @keyframes ownNoteSpin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+  /* Bandeja arriba en la cabecera del test: una miniatura por cada imagen
+     que se está subiendo en ese momento (de cualquier pregunta), con un
+     aro girando encima. Desaparece en cuanto esa imagen concreta termina
+     de subirse, sin esperar a las demás. Sigue funcionando aunque se
+     cambie de pregunta o se salga del test, porque la subida en sí no
+     depende de qué pantalla se esté viendo. */
+  .quiz-upload-tray{ display:flex; align-items:center; gap:5px; }
+  .quiz-upload-thumb{ position:relative; width:22px; height:22px; border-radius:6px; overflow:hidden; flex-shrink:0; }
+  .quiz-upload-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .quiz-upload-thumb::after{
+    content:''; position:absolute; inset:-2px; border-radius:8px;
+    border:2px solid rgba(245,192,67,0.25); border-top-color: var(--amber);
+    animation: ownNoteSpin .8s linear infinite;
+  }
+  .own-note-result{ display:none; margin-top:20px; }
+  .own-note-result.show{ display:block; animation: failPanelIn .16s ease; }
+  .own-note-card{
+    position:relative; overflow:hidden;
+    background: linear-gradient(160deg, rgba(245,192,67,0.14), rgba(255,122,61,0.05) 55%, color-mix(in srgb, var(--card) 40%, transparent));
+    border:1px solid rgba(245,192,67,0.32); border-radius:16px; padding:18px 20px 20px;
+  }
+  .own-note-label{
+    display:flex; align-items:center; gap:8px; font-family: var(--sans); font-weight:800; font-size:11px;
+    letter-spacing:.08em; text-transform:uppercase; color: var(--text); margin-bottom:14px;
+  }
+  .own-note-icon-badge{
+    width:22px; height:22px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(135deg, var(--amber), var(--orange));
+  }
+  .own-note-icon-badge svg{ width:12px; height:12px; color:#0A0A0A; }
+  .own-note-edit, .own-note-remove{
+    width:24px; height:24px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    background: var(--w05); border:1px solid var(--line-soft); color: var(--muted-2);
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  .own-note-edit{ margin-left:auto; }
+  .own-note-edit svg, .own-note-remove svg{ width:11px; height:11px; }
+  .own-note-edit:hover{ background: rgba(245,192,67,0.16); border-color: rgba(245,192,67,0.45); color: var(--amber); }
+  .own-note-remove:hover{ background: rgba(242,102,92,0.16); border-color: rgba(242,102,92,0.45); color: var(--coral); }
+  .own-note-text{ font-size:13.5px; line-height:1.8; color: var(--muted); white-space:pre-wrap; }
+  /* Hasta 5 imágenes, todas visibles, una debajo de otra con separación
+     clara entre ellas. */
+  .own-note-image-wrap{ margin-top:14px; display:flex; flex-direction:column; gap:12px; }
+  .own-note-image{
+    display:block; max-width:100%; border-radius:12px; border:1px solid var(--line-soft); cursor:zoom-in;
+  }
+  /* Visor de imagen a pantalla completa: la web en sí no se puede ampliar
+     (viewport con user-scalable=no), pero aquí dentro sí, tocando la
+     imagen alterna entre verla entera y verla ampliada (zoom in/out). */
+  .image-lightbox{
+    position:fixed; inset:0; z-index:9999; background:rgba(6,6,8,0.94);
+    display:none; align-items:center; justify-content:center;
+    overflow:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y pinch-zoom;
+  }
+  .image-lightbox.show{ display:flex; }
+  .image-lightbox img{
+    display:block; max-width:92vw; max-height:88vh; border-radius:8px;
+    cursor:default; transition: transform .18s ease; touch-action:pan-x pan-y pinch-zoom;
+  }
+  .image-lightbox-close{
+    position:absolute; top:16px; right:16px; width:38px; height:38px; border-radius:50%;
+    background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); color:#fff;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .image-lightbox-close svg{ width:18px; height:18px; }
+  .own-note-editor{
+    margin-top:16px; padding:16px 16px 18px; border-radius:14px;
+    background: var(--w03); border:1px dashed rgba(245,192,67,0.4);
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .own-note-editor-label{ font-family: var(--sans); font-weight:700; font-size:11px; color: var(--muted-2); text-transform:uppercase; letter-spacing:.05em; margin-top:6px; }
+  .own-note-editor-label:first-child{ margin-top:0; }
+  .own-note-textarea{
+    width:100%; min-height:90px; resize:vertical; font-family: var(--sans); font-size:13.5px; line-height:1.6;
+    color: var(--text); background: var(--card-hi); border:1px solid var(--line-soft); border-radius:10px; padding:10px 12px;
+  }
+  .own-note-file-input{ font-family: var(--sans); font-size:12.5px; color: var(--muted); }
+  /* Rejilla de miniaturas de las imágenes ya guardadas, cada una con su
+     propia casilla "Quitar" (para poder quitar solo una sin tocar las
+     demás). */
+  .own-note-editor-preview-grid{
+    display:grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap:10px;
+  }
+  .own-note-editor-preview-item{ display:flex; flex-direction:column; gap:6px; }
+  .own-note-editor-preview-item img{
+    width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; border:1px solid var(--line-soft);
+  }
+  .own-note-remove-image-row{ display:flex; align-items:center; gap:7px; font-size:12px; color: var(--muted); cursor:pointer; }
+  .own-note-editor-status{ font-family: var(--mono); font-size:11.5px; color: var(--coral); min-height:14px; }
+  .own-note-editor-actions{ display:flex; gap:10px; margin-top:6px; }
+  .own-note-editor-actions .btn{ flex:1; }
+
+  /* ---------- Lista "Notas y explicaciones IA" (Tu cuenta) ---------- */
+  .admin-card[role="button"]{ cursor:pointer; transition: border-color .12s, background .12s; }
+  .admin-card[role="button"]:hover{ border-color: var(--muted-2); background: var(--card-hi); }
+  .addition-badge{
+    display:flex; align-items:center; gap:5px; flex-shrink:0;
+    font-family: var(--sans); font-weight:700; font-size:10.5px; color:#0A0A0A;
+    padding:5px 10px 5px 8px; border-radius:20px;
+  }
+  .addition-badge svg{ width:11px; height:11px; }
+  .addition-badge-note{ background: linear-gradient(90deg, var(--amber), var(--orange)); }
+  .addition-badge-ia{ background: linear-gradient(90deg, var(--purple), var(--teal)); }
+
+  .question{ font-family: 'Source Serif 4', serif; font-size:20px; font-weight:600; line-height:1.5; margin-bottom:24px; }
+
+  .options{ display:flex; flex-direction:column; gap:9px; }
+  .option{
+    display:flex; align-items:center; gap:13px; padding:13px 15px;
+    border:1px solid var(--line); border-radius:11px; background: var(--card-hi);
+    cursor:pointer; font-size:14px; transition: border-color .12s, background .12s, color .12s;
+  }
+  .option:hover{ border-color: var(--muted-2); }
+  .opt-badge{
+    width:26px; height:26px; border-radius:50%; border:1px solid var(--line-soft);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    font-family: var(--mono); font-size:11.5px; color: var(--muted);
+    transition: all .12s;
+  }
+  .opt-text{ flex:1; }
+  .opt-result{ width:16px; height:16px; flex-shrink:0; display:none; }
+  .opt-result svg{ width:16px; height:16px; }
+  .option.correct{ border-color: var(--green); border-width:1.5px; background: rgba(52,211,153,0.16); color: var(--green); font-weight:600; }
+  .option.correct .opt-badge{ border-color: var(--green); color:#06120E; background: var(--green); font-weight:700; }
+  .option.correct .opt-result{ display:block; color: var(--green); }
+  /* Cuando la pregunta se deja "en blanco" (sin responder), la respuesta
+     correcta se marca igual que siempre en verde pero con borde a rayas,
+     para distinguir a simple vista "esto era lo correcto" de un acierto
+     real (borde sólido, que solo aparece si de verdad se ha respondido). */
+  .option.correct.blank-correct{ border-style: dashed; }
+  .option.incorrect{ border-color: var(--coral); border-width:1.5px; background: rgba(242,102,92,0.16); color: var(--coral); font-weight:600; }
+  .option.incorrect .opt-badge{ border-color: var(--coral); color:#1A0908; background: var(--coral); font-weight:700; }
+  .option.incorrect .opt-result{ display:block; color: var(--coral); }
+
+  .explain{
+    position:relative; margin-top:20px; padding:24px 26px 26px;
+    background:
+      radial-gradient(120% 140% at 0% 0%, rgba(140,125,245,0.10), transparent 55%),
+      radial-gradient(120% 140% at 100% 100%, rgba(47,191,174,0.08), transparent 55%),
+      var(--card);
+    border:1px solid rgba(140,125,245,0.22);
+    border-radius:20px; font-size:13px; line-height:1.65; color: var(--muted); display:none;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+    overflow:hidden;
+  }
+  .explain::before{
+    content:''; position:absolute; inset:0; padding:1px; border-radius:20px;
+    background: linear-gradient(135deg, rgba(140,125,245,0.55), rgba(47,191,174,0.35), transparent 60%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    pointer-events:none;
+  }
+  .explain.show{ display:block; animation: failPanelIn .2s ease; }
+  .explain b{ color: var(--text); }
+  .explain-meta{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+  .explain-meta .article-tag{ margin-bottom:0; }
+  .explain-divider{ height:1px; background: linear-gradient(90deg, rgba(140,125,245,0.35), rgba(47,191,174,0.05)); border:none; margin:0 0 18px; }
+  .explain .cite{ font-family: var(--mono); font-size:11px; color: var(--blue); display:flex; align-items:center; gap:6px; margin-top:10px; }
+  .explain .cite svg{ width:12px; height:12px; }
+
+  .quiz-actions{ margin-top:24px; display:flex; justify-content:flex-end; }
+  .btn{ font-family: var(--sans); font-weight:600; font-size:13.5px; padding:11px 23px; border-radius:9px; border:1px solid transparent; cursor:pointer; }
+  .btn-primary{ background: var(--purple); color: var(--text); }
+  .btn-primary:disabled{ background: var(--card-hi); color: var(--muted-2); cursor:not-allowed; }
+  .btn-ghost{ background:transparent; border-color: var(--line); color: var(--text); }
+  .btn-ghost:hover{ border-color: var(--muted-2); }
+
+  .result-hero{ text-align:center; padding: 34px 10px 12px; }
+  .result-label{ font-size:12px; color: var(--muted); margin-bottom:10px; }
+  .result-score{ font-family: var(--mono); font-size:50px; font-weight:700; }
+  .result-score span{ font-size:20px; color: var(--muted); }
+
+  /* ---------- review / corrección screen ---------- */
+  .review-topbar{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+  .review-toggle-row{ display:flex; align-items:center; margin-bottom:26px; }
+  .review-report{
+    font-size:12px; color: var(--muted-2); display:inline-flex; align-items:center; gap:6px;
+    cursor:pointer; margin-bottom:16px; transition: color .12s;
+  }
+  .review-report:hover{ color: var(--coral); }
+  .review-report svg{ width:13px; height:13px; }
+
+  /* ---------- quiz bottom bar (estudio / fallos: tarjeta con navegación) ---------- */
+  /* Fija en la parte inferior de la PANTALLA (no dentro de la tarjeta): así
+     al deslizar/hacer scroll por la pregunta o la explicación, los botones
+     de anterior/siguiente y el pill de "en blanco"/"mostrar explicación"
+     se siguen viendo siempre abajo. */
+  .quiz-bottombar{
+    display:flex; align-items:center; justify-content:center;
+    position:fixed; left:0; right:0; bottom:0; z-index:25;
+    width:100%; max-width:600px; margin:0 auto;
+    padding:14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg); border-top:1px solid var(--line);
+    min-height:68px;
+    /* Fuerza su propia capa de composición: evita que algunos navegadores
+       móviles la "recoloquen"/parpadeen al expandir la explicación o al
+       ocultarse/mostrarse la barra de direcciones durante el scroll. */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
+  }
+  .quiz-nav-btn{
+    /* Ancladas con posición absoluta a un borde fijo de la barra (no al
+       pill central): así, aunque el pill cambie de texto/ancho ("En
+       blanco" / "Mostrar explicación" / "Ocultar explicación"), las
+       flechas se quedan siempre en el mismo sitio, bien separadas de él. */
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:40px; height:40px; border-radius:50%; border:1.5px solid var(--purple); background: var(--card-hi);
+    color: var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer;
+    transition: border-color .12s, background .12s; flex-shrink:0;
+    box-shadow: 0 0 0 4px rgba(140,125,245,0.10);
+  }
+  #quizPrevBtn{ left:22px; }
+  #quizNextBtn{ right:22px; }
+  .quiz-nav-btn:hover{ border-color: var(--purple); background: rgba(140,125,245,0.16); }
+  .quiz-nav-btn:hover:not(:disabled){ transform: translateY(-52%); }
+  .quiz-nav-btn:disabled{ opacity:.35; cursor:not-allowed; border-color: var(--line); box-shadow:none; }
+  .quiz-nav-btn svg{ width:17px; height:17px; }
+  .quiz-pill{
+    font-family: var(--sans); font-size:13px; font-weight:600; color: var(--muted);
+    background: var(--card); border:1px solid var(--line); border-radius:20px;
+    padding:9px 18px; display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+  }
+  .quiz-pill.clickable{ cursor:pointer; color: var(--purple); border-color: rgba(140,125,245,0.4); }
+  .quiz-pill.clickable:hover{ border-color: var(--purple); }
+  .quiz-pill .chev{ width:12px; height:12px; transition: transform .15s; }
+  .quiz-pill.open .chev{ transform: rotate(90deg); }
+  .quiz-finish-btn{
+    font-family: var(--sans); font-weight:600; font-size:12px; color: var(--muted);
+    background: var(--card); border:1px solid var(--line); border-radius:20px;
+    padding:7px 15px; cursor:pointer; flex-shrink:0;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .quiz-finish-btn:hover{ border-color: var(--muted-2); color: var(--text); }
+  /* Cuando se llega a la última pregunta ya respondida, "Finalizar" se
+     pone en blanco para invitar a terminar el test (ver renderQuestion). */
+  .quiz-finish-btn.ready{
+    background: var(--text); color: var(--bg); border-color: var(--text);
+    box-shadow: 0 0 0 1px var(--text), 0 0 12px 2px color-mix(in srgb, var(--text) 55%, transparent);
+    animation: quizFinishGlow 1.7s ease-in-out infinite;
+  }
+  .quiz-finish-btn.ready:hover{ filter: brightness(0.9); }
+  @keyframes quizFinishGlow{
+    0%,100%{ box-shadow: 0 0 0 1px var(--text), 0 0 8px 1px color-mix(in srgb, var(--text) 40%, transparent); }
+    50%{ box-shadow: 0 0 0 1px var(--text), 0 0 16px 4px color-mix(in srgb, var(--text) 85%, transparent); }
+  }
+  @media (prefers-reduced-motion: reduce){ .quiz-finish-btn.ready{ animation:none; } }
+
+  /* ---------- quiz list view (examen / simulacro: todas las preguntas seguidas) ---------- */
+  .quiz-list-item{
+    border:1px solid var(--line); border-radius:14px; background: var(--card);
+    padding:20px 20px 22px; margin-bottom:16px;
+  }
+  .quiz-list-item .question{ font-size:17px; margin-bottom:18px; }
+  .quiz-list-item .option.selected{ border-color: var(--purple); border-width:1.5px; background: rgba(140,125,245,0.16); }
+  .quiz-list-item .option.selected .opt-badge{ border-color: var(--purple); color:#fff; background: var(--purple); font-weight:700; }
+  .quiz-list-footer{ display:flex; justify-content:center; margin: 10px 0 4px; }
