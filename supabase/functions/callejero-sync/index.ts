@@ -17,8 +17,11 @@
 //   - "publicar": vuelve a generar el archivo que descarga la app.
 // Después de cualquier cambio se publica en el almacén público
 // «callejero» un archivo compacto con las vías activas, y su ruta se
-// guarda en callejero_publicado. El archivo lleva también los barrios
-// urbanos (DERA) y, para cada vía, en qué barrios está.
+// guarda en callejero_publicado. El archivo lleva también:
+//   - los barrios urbanos (DERA) y, para cada vía, en qué barrios está;
+//   - los lugares importantes (DERA: hospitales, colegios, museos...);
+//   - la línea que reparte el término entre los dos parques de bomberos
+//     y qué parque acude a cada vía y a cada lugar.
 //
 // Invocación:
 //   - Cada lunes con pg_cron (cabecera "x-callejero-secret", valor en
@@ -50,7 +53,7 @@ const TIPOS_NO_JUGABLES = new Set(["CORTIJO", "EXTRARRADIO"]);
 // Tolerancia para simplificar el trazado del archivo publicado (metros).
 const SIMPLIFICAR_M = 1.5;
 const ATRIBUCION =
-  "Callejero: Callejero Digital de Andalucía Unificado (CDAU) · Río y barrios: DERA — Instituto de Estadística y Cartografía de Andalucía, Junta de Andalucía (CC BY 4.0).";
+  "Callejero: Callejero Digital de Andalucía Unificado (CDAU) · Río, barrios y lugares: DERA — Instituto de Estadística y Cartografía de Andalucía, Junta de Andalucía (CC BY 4.0) · Parques de bomberos: S.E.I.S., Ayuntamiento de Córdoba.";
 // El Guadalquivir, solo para orientarse en el mapa (DERA, IECA, CC BY 4.0).
 const RIO_WFS = "https://www.ideandalucia.es/services/DERA_g3_hidrografia/wfs";
 const RIO_NOMBRE = "Río Guadalquivir";
@@ -69,6 +72,57 @@ const MUESTREO_M = 25;
 //     Noroeste.
 const DISTRITO_AYUNTAMIENTO: Record<string, string> = { "Norte Centro": "Noroeste" };
 const BARRIO_DISTRITO_AYUNTAMIENTO: Record<string, string> = { "San Rafael de la Albaida": "Poniente Norte" };
+
+// Lugares importantes (DERA g12 Servicios, IECA, CC BY 4.0): capa → categoría.
+// Los juzgados no se usan: en DERA casi todos comparten un punto y algunos
+// llevan direcciones de otros pueblos.
+const LUGARES_WFS = "https://www.ideandalucia.es/services/DERA_g12_servicios/wfs";
+const LUGARES_CAPAS: Record<string, string> = {
+  g12_02_Hospital_CAE: "Hospitales",
+  g12_01_CentroSalud: "Centros de salud",
+  g12_05_CentroEducativo: "Colegios e institutos",
+  g12_06_Universidad: "Universidad",
+  g12_07_Facultad: "Universidad",
+  g12_09_ArchivoBiblioteca: "Bibliotecas y archivos",
+  g12_20_Museo: "Museos",
+  g12_11_Ayuntamiento: "Administraciones",
+  g12_32_CentrosJuntaAndalucia: "Administraciones",
+  g12_28_Correos: "Correos",
+  g12_26_Policia: "Seguridad y emergencias",
+  g12_34_GuardiaCivil: "Seguridad y emergencias",
+  g12_29_ParqueBomberos: "Seguridad y emergencias",
+  g12_35_GestionEmergencias: "Seguridad y emergencias",
+  g12_27_Prision: "Seguridad y emergencias",
+  g12_12_Cementerio: "Cementerios",
+  g12_13_EdificioReligioso: "Edificios religiosos",
+  g12_16_Abasto: "Mercados y comercios",
+  g12_14_GranComercio: "Mercados y comercios",
+  g12_30_PalacioCongresos: "Otros",
+  g12_23_OficinaTurismo: "Otros",
+};
+
+// Parques de bomberos (tema 48). Según el documento oficial del S.E.I.S.
+// (cordoba.es, «INFORMACION_S.E.I.S.pdf»), «la línea divisoria discurre de
+// norte a sur por la CO-3405, Avenida del Brillante, Llanos del Pretorio,
+// Plaza de Colón, Alfaros, Capitulares, San Fernando, Puente de Miraflores,
+// Avenida de Granada y N-432»: al este, el Parque del Granadal; al oeste,
+// el Parque Central. La línea se dibuja con el trazado de esas vías en el
+// CDAU (por su id_vial). No se pregunta nada a menos de PARQUE_BANDA_M de
+// la línea: ahí la respuesta puede depender de la acera.
+const LINEA_PARQUES: { id: number; latMax?: number }[] = [
+  { id: 167002253 }, // Carretera CO-3405
+  { id: 167000847 }, // Avenida del Brillante
+  { id: 167001266 }, // Avenida Llanos del Pretorio
+  { id: 167000158 }, // Plaza de Colón
+  { id: 167000034 }, // Calle Alfaros
+  { id: 167000892 }, // Calle Capitulares
+  { id: 167001442 }, // Calle San Fernando
+  { id: 167002487 }, // Puente de Miraflores
+  { id: 167001159 }, // Avenida de Granada
+  { id: 167002400, latMax: 37.8676 }, // Carretera N-432, solo hacia Granada
+];
+const PARQUE_BANDA_M = 150;
+const PARQUE_CENTRAL = 1, PARQUE_GRANADAL = 2;
 
 type Via = {
   id_vial: number;
@@ -117,6 +171,23 @@ async function leerCuerpo(resp: Response) {
   return new TextDecoder().decode(buf);
 }
 
+// Pide una URL y devuelve el JSON. Los servidores de la Junta a veces
+// cortan la conexión: se reintenta hasta 3 veces antes de dar error.
+async function pedirJson(url: string) {
+  let ultimo: unknown = null;
+  for (let intento = 0; intento < 3; intento++) {
+    if (intento) await new Promise((r) => setTimeout(r, 1500 * intento));
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(60000) });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      return JSON.parse(await leerCuerpo(resp));
+    } catch (e) {
+      ultimo = e;
+    }
+  }
+  throw new Error(`No se pudo descargar ${new URL(url).host}: ${(ultimo as Error)?.message || ultimo}`);
+}
+
 async function descargarCdau() {
   const features: any[] = [];
   let total = Infinity;
@@ -124,11 +195,9 @@ async function descargarCdau() {
     const url = `${WFS}?service=WFS&version=2.0.0&request=GetFeature&typeNames=cdau:v_vial` +
       `&outputFormat=application/json&sortBy=id_vial&count=${PAGE}&startIndex=${start}` +
       `&CQL_FILTER=${encodeURIComponent(`ine_mun='${INE_MUNICIPIO}'`)}`;
-    const resp = await fetch(url, { signal: AbortSignal.timeout(60000) });
-    if (!resp.ok) throw new Error(`CDAU respondió HTTP ${resp.status}`);
     let data: any;
-    try { data = JSON.parse(await leerCuerpo(resp)); }
-    catch { throw new Error(`Respuesta del CDAU incompleta (desde la vía ${start})`); }
+    try { data = await pedirJson(url); }
+    catch (e) { throw new Error(`CDAU (desde la vía ${start}): ${(e as Error).message}`); }
     if (!data || data.type !== "FeatureCollection" || !Array.isArray(data.features)) {
       throw new Error("El CDAU no devolvió una lista de vías válida");
     }
@@ -361,9 +430,7 @@ async function descargarRio(): Promise<number[][][]> {
     const url = `${RIO_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeNames=DERA_g3_hidrografia:g03_01_Rio` +
       `&outputFormat=application/json&srsName=${encodeURIComponent("urn:ogc:def:crs:EPSG::4326")}` +
       `&CQL_FILTER=${encodeURIComponent(`nombre='${RIO_NOMBRE}'`)}`;
-    const resp = await fetch(url, { signal: AbortSignal.timeout(60000) });
-    if (!resp.ok) return [];
-    const data = JSON.parse(await leerCuerpo(resp));
+    const data = await pedirJson(url);
     const dentro = ([x, y]: number[]) => x >= RIO_CAJA.minLon && x <= RIO_CAJA.maxLon && y >= RIO_CAJA.minLat && y <= RIO_CAJA.maxLat;
     const tramos: number[][][] = [];
     for (const f of data.features || []) {
@@ -393,9 +460,7 @@ async function descargarBarrios(): Promise<Barrio[]> {
   const url = `${BARRIOS_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeNames=DERA_g13_limites_administrativos:g13_24_BarrioUrbano` +
     `&outputFormat=application/json&srsName=${encodeURIComponent("urn:ogc:def:crs:EPSG::4326")}` +
     `&CQL_FILTER=${encodeURIComponent(`cod_mun='${INE_MUNICIPIO}'`)}`;
-  const resp = await fetch(url, { signal: AbortSignal.timeout(60000) });
-  if (!resp.ok) throw new Error(`DERA respondió HTTP ${resp.status}`);
-  const data = JSON.parse(await leerCuerpo(resp));
+  const data = await pedirJson(url);
   const barrios: Barrio[] = [];
   for (const f of data.features || []) {
     const p = f.properties || {};
@@ -460,6 +525,147 @@ function barriosDeVia(lineas: number[][][], barrios: Barrio[]) {
   return out.sort((a, b) => a - b);
 }
 
+// ---------------------------------------------------------------------
+// Lugares importantes
+// ---------------------------------------------------------------------
+type Lugar = { id: number; nombre: string; categoria: string; direccion: string; x: number; y: number };
+
+// «HOSPITAL LOS MORALES» → «Hospital Los Morales»; lo demás se deja igual.
+function nombreBonito(t: string) {
+  const s = t.trim().replace(/\s+/g, " ");
+  if (s !== s.toUpperCase()) return s;
+  const menores = new Set(["de", "del", "la", "las", "los", "el", "y", "e", "en", "a"]);
+  return s.toLowerCase().split(" ").map((w, i) => (i > 0 && menores.has(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+async function descargarLugares(): Promise<Lugar[]> {
+  const lugares: Lugar[] = [];
+  const vistos = new Set<string>();
+  for (const [capa, categoria] of Object.entries(LUGARES_CAPAS)) {
+    const url = `${LUGARES_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeNames=DERA_g12_servicios:${capa}` +
+      `&outputFormat=application/json&srsName=${encodeURIComponent("urn:ogc:def:crs:EPSG::4326")}` +
+      `&CQL_FILTER=${encodeURIComponent(`cod_mun='${INE_MUNICIPIO}'`)}`;
+    const data = await pedirJson(url);
+    for (const f of data.features || []) {
+      const p = f.properties || {};
+      const nombre = String(p.nombre || "").trim();
+      if (!nombre || /^sin dato$/i.test(nombre)) continue;
+      const g = f.geometry;
+      const pt = g?.type === "MultiPoint" ? g.coordinates[0] : g?.type === "Point" ? g.coordinates : null;
+      if (!pt || !(pt[0] >= BBOX.minLon && pt[0] <= BBOX.maxLon && pt[1] >= BBOX.minLat && pt[1] <= BBOX.maxLat)) continue;
+      // Mismo nombre en el mismo sitio (p. ej. varios juzgados en un edificio): una sola vez.
+      const clave = `${nombre.toLowerCase()}|${pt[0].toFixed(4)}|${pt[1].toFixed(4)}`;
+      if (vistos.has(clave)) continue;
+      vistos.add(clave);
+      const dir = String(p.direccion || "").trim();
+      lugares.push({
+        id: Number(p.id_dera) || lugares.length + 1,
+        nombre: nombreBonito(nombre),
+        categoria,
+        direccion: /^(sin dato|no disponible)$/i.test(dir) ? "" : nombreBonito(dir),
+        x: pt[0], y: pt[1],
+      });
+    }
+  }
+  if (lugares.length < 100) throw new Error(`DERA solo ha devuelto ${lugares.length} lugares`);
+  // Un nombre que se repite en sitios distintos («Capilla», «Cementerio»)
+  // no sirve para preguntar dónde está: fuera.
+  const veces = new Map<string, number>();
+  lugares.forEach((l) => veces.set(l.nombre.toLowerCase(), (veces.get(l.nombre.toLowerCase()) || 0) + 1));
+  return lugares.filter((l) => veces.get(l.nombre.toLowerCase()) === 1)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
+// ---------------------------------------------------------------------
+// Parques de bomberos
+// ---------------------------------------------------------------------
+// Línea divisoria de norte a sur, prolongada hasta fuera del término.
+async function lineaParques(sb: SupabaseClient): Promise<number[][] | null> {
+  const ids = LINEA_PARQUES.map((t) => t.id);
+  const { data, error } = await sb.from("callejero_vias").select("id_vial, geom, activa").in("id_vial", ids);
+  if (error || !data || data.length !== ids.length || data.some((v: any) => !v.activa)) return null;
+  const porId = new Map<number, number[][][]>(data.map((v: any) => [Number(v.id_vial), v.geom]));
+  const linea: number[][] = [];
+  for (const t of LINEA_PARQUES) {
+    // Los puntos de cada vía, de norte a sur (todas bajan hacia el sur).
+    const pts = porId.get(t.id)!.flat().filter((p) => t.latMax === undefined || p[1] <= t.latMax);
+    pts.sort((a, b) => b[1] - a[1]);
+    linea.push(...pts);
+  }
+  if (linea.length < 20) return null;
+  // Con 10 m de precisión basta (la banda es de 150 m) y el cálculo es
+  // unas 20 veces más rápido.
+  const simple = simplificar(linea, 10);
+  const n = simple[0], s = simple[simple.length - 1];
+  return [[n[0], 38.6], ...simple, [s[0], 37.2]];
+}
+
+// Cuadrícula (celdas de ~200 m) con los tramos de la línea que pasan a
+// menos de la banda de cada celda: para saber si un punto está cerca de la
+// línea solo hay que mirar los tramos de su celda.
+type Divisoria = { linea: number[][]; celdas: Map<string, number[]> };
+const CELDA = 0.002;
+const celdaDe = (x: number, y: number) => `${Math.floor(x / CELDA)}|${Math.floor(y / CELDA)}`;
+function prepararDivisoria(linea: number[][]): Divisoria {
+  const celdas = new Map<string, number[]>();
+  const mx = PARQUE_BANDA_M / (111320 * Math.cos((37.88 * Math.PI) / 180)), my = PARQUE_BANDA_M / 110540;
+  for (let k = 0; k < linea.length - 1; k++) {
+    const [x0, y0] = linea[k], [x1, y1] = linea[k + 1];
+    const cx0 = Math.floor((Math.min(x0, x1) - mx) / CELDA), cx1 = Math.floor((Math.max(x0, x1) + mx) / CELDA);
+    const cy0 = Math.floor((Math.min(y0, y1) - my) / CELDA), cy1 = Math.floor((Math.max(y0, y1) + my) / CELDA);
+    // Los tramos de prolongación (fuera del término) son muy largos: no hace falta indexarlos.
+    if ((cx1 - cx0) * (cy1 - cy0) > 4000) continue;
+    for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++) {
+      const c = `${cx}|${cy}`;
+      if (!celdas.has(c)) celdas.set(c, []);
+      celdas.get(c)!.push(k);
+    }
+  }
+  return { linea, celdas };
+}
+
+function distanciaALinea([x, y]: number[], linea: number[][], tramos?: number[]) {
+  const kx = 111320 * Math.cos((37.88 * Math.PI) / 180), ky = 110540;
+  let min = Infinity;
+  for (const k of tramos || linea.map((_, i) => i).slice(0, -1)) {
+    const ax = (linea[k][0] - x) * kx, ay = (linea[k][1] - y) * ky;
+    const bx = (linea[k + 1][0] - x) * kx, by = (linea[k + 1][1] - y) * ky;
+    const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+    const t = L ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L)) : 0;
+    min = Math.min(min, Math.hypot(ax + t * dx, ay + t * dy));
+  }
+  return min;
+}
+
+// Al este de la línea: dentro del polígono línea + borde este lejano.
+function alEste([x, y]: number[], linea: number[][]) {
+  const pol = [...linea, [-3.5, linea[linea.length - 1][1]], [-3.5, linea[0][1]]];
+  let dentro = false;
+  for (let i = 0, j = pol.length - 1; i < pol.length; j = i++) {
+    const [xi, yi] = pol[i], [xj, yj] = pol[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) dentro = !dentro;
+  }
+  return dentro;
+}
+
+// 1 Central · 2 Granadal · 0 si algún punto cae en la banda de la línea o
+// hay tramos a ambos lados. Un tramo continuo que nunca se acerca a la
+// línea no puede cruzarla, así que basta con mirar el lado de su primer
+// punto.
+function parqueDe(tramos: number[][][], d: Divisoria) {
+  let lado = 0;
+  for (const pts of tramos) {
+    for (const p of pts) {
+      const cerca = d.celdas.get(celdaDe(p[0], p[1]));
+      if (cerca && distanciaALinea(p, d.linea, cerca) < PARQUE_BANDA_M) return 0;
+    }
+    const l = alEste(pts[0], d.linea) ? PARQUE_GRANADAL : PARQUE_CENTRAL;
+    if (lado && l !== lado) return 0;
+    lado = l;
+  }
+  return lado;
+}
+
 async function publicar(sb: SupabaseClient, forzar = false) {
   const vias = await leerTodo(sb, "callejero_vias", "id_vial, tipo, nombre, jugable, geom", (q) => q.eq("activa", true));
   const { data: actual } = await sb.from("callejero_publicado").select("version, archivo").eq("id", 1).maybeSingle();
@@ -482,33 +688,69 @@ async function publicar(sb: SupabaseClient, forzar = false) {
     if (barrios) fila.push(barriosDeVia(v.geom, barrios));
     return fila;
   }).filter((f) => (f[4] as number[][]).length);
-  if (!barrios && previo?.zonas) {
+  const cargarPrevio = async () => {
+    if (previo || !actual?.archivo) return;
+    const { data: blob } = await sb.storage.from(BUCKET).download(actual.archivo);
+    if (blob) previo = JSON.parse(await blob.text());
+  };
+  if (!barrios) {
+    await cargarPrevio();
     // Se conserva la asignación del archivo anterior para las vías que ya estaban.
-    const asignado = new Map<number, number[]>((previo.vias || []).map((f: any[]) => [f[0], f[5] || []]));
+    const asignado = new Map<number, number[]>((previo?.vias || []).map((f: any[]) => [f[0], f[5] || []]));
     filas.forEach((f) => f.push(asignado.get(f[0] as number) || []));
   }
+  // Parque de bomberos de cada vía (7.º campo).
+  const linea = await lineaParques(sb);
+  const divisoria = linea ? prepararDivisoria(linea) : null;
+  if (divisoria) {
+    const porId = new Map<number, number[][][]>(vias.map((v) => [Number(v.id_vial), v.geom]));
+    filas.forEach((f) => f.push(parqueDe(porId.get(f[0] as number)!.map((l) => muestrear([l])), divisoria)));
+  } else {
+    await cargarPrevio();
+    const asignado = new Map<number, number>((previo?.vias || []).map((f: any[]) => [f[0], f[6] || 0]));
+    filas.forEach((f) => f.push(asignado.get(f[0] as number) || 0));
+  }
+  // Lugares: [id, nombre, categoría, dirección, x, y (×100 000), barrios, parque]
+  let lugares: unknown[][] | null = null;
+  try {
+    lugares = (await descargarLugares()).map((l) => [
+      l.id, l.nombre, l.categoria, l.direccion, Math.round(l.x * 1e5), Math.round(l.y * 1e5),
+      barrios ? barrios.map((b, i) => (dentroDeBarrio([l.x, l.y], b) ? i : -1)).filter((i) => i >= 0) : [],
+      divisoria ? parqueDe([[[l.x, l.y]]], divisoria) : 0,
+    ]);
+  } catch (e) {
+    await cargarPrevio();
+    lugares = previo?.lugares || null;
+    console.warn("Lugares del archivo anterior:", (e as Error).message);
+  }
+  const parques = linea ? { linea: codificar([linea], 5)[0] } : previo?.parques || null;
   const zonas = barrios
     ? { barrios: barrios.map((b) => [b.nombre, b.distrito, codificar(b.anillos, 5)]) }
     : previo?.zonas || null;
   const rio = codificar(await descargarRio(), 5);
   // El nombre del archivo depende de su contenido: nunca se sobrescribe
   // uno ya publicado (los móviles lo guardan para siempre).
-  const version = await sha(JSON.stringify([filas, rio, zonas]), 12);
+  const version = await sha(JSON.stringify([filas, rio, zonas, lugares, parques]), 12);
   if (!forzar && actual?.version === version) return { publicado: false, version };
 
   const archivo = `${CARPETA}/${version}.json`;
   const doc = JSON.stringify({
-    formato: 2,
+    formato: 3,
     version,
     generado: new Date().toISOString(),
     municipio: INE_MUNICIPIO,
     atribucion: ATRIBUCION,
-    // [id_vial, nombre, tipo, jugable (1/0), líneas codificadas, índices de sus barrios]
+    // [id_vial, nombre, tipo, jugable (1/0), líneas codificadas, índices de sus barrios,
+    //  parque (1 Central, 2 Granadal, 0 junto a la línea)]
     vias: filas,
     // Líneas del Guadalquivir, codificadas igual que las vías.
     rio,
     // barrios: [nombre, distrito, anillos del contorno codificados]
     zonas,
+    // [id, nombre, categoría, dirección, x, y (×100 000), índices de barrios, parque]
+    lugares,
+    // linea: la divisoria entre parques, codificada como una vía
+    parques,
   });
   const { error: errUp } = await sb.storage.from(BUCKET).upload(archivo, new Blob([doc], { type: "application/json" }), {
     contentType: "application/json", cacheControl: "31536000", upsert: true,
