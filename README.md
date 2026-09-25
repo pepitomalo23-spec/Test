@@ -64,6 +64,9 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   a que se aprueben. Si la descarga parece incompleta no se toca nada.
 - Tablas: `callejero_vias`, `callejero_cambios`, `callejero_sync_log`, `callejero_publicado` y
   `callejero_intentos` (respuestas de cada alumno). Ver `supabase/migrations/20260925_callejero.sql`.
+- El archivo publicado lleva también los 70 barrios urbanos de Córdoba con su distrito (DERA g13_24)
+  y en qué barrios está cada vía; con eso la app deja elegir qué estudiar: toda Córdoba, un
+  distrito, un barrio o las afueras y pedanías.
 - La app descarga un único archivo compacto (almacén público `callejero`, unos 750 KB) solo al
   abrir la pantalla; el service worker lo guarda para jugar sin conexión. El mapa (Leaflet) también
   se carga solo entonces. Tres estilos de mapa, sin nombres que den pistas: Sencillo y Plano

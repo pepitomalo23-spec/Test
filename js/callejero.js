@@ -26,6 +26,12 @@
    cualquier vía con ese mismo nombre (hay nombres repetidos en
    distintas pedanías). Cada respuesta se guarda en callejero_intentos.
 
+   Zona de estudio: toda Córdoba, un distrito, un barrio (barrios urbanos
+   de DERA, con su distrito) o las afueras y pedanías (vías que no están en
+   ningún barrio). Filtra las preguntas, el progreso y la lista de calles
+   del modo estudio, y se dibuja su contorno en el mapa. Se recuerda en el
+   dispositivo.
+
    Modo estudio: el mismo mapa, libre. Al tocar una vía se ve su nombre
    (y cuántas veces la has acertado), y se puede buscar cualquier vía por
    su nombre para que el mapa vaya hasta ella. No guarda nada.
@@ -60,6 +66,11 @@ const CJ = (function(){
   let ronda = null;          // { preguntas, i, aciertos, fallos: [], respondida }
   let modo = null;           // 'localiza' | 'estudio' (con el mapa abierto)
   let sugerencias = [];      // resultados de la búsqueda del modo estudio
+  let capaZona = null;       // contorno de la zona elegida
+  const ZONA_KEY = 'cj_zona';
+  // '' = toda Córdoba · 'd:<distrito>' · 'b:<barrio>' · 'fuera' = afueras y pedanías
+  let zona = '';
+  try{ zona = localStorage.getItem(ZONA_KEY) || ''; }catch(e){}
 
   /* ---------- carga perezosa de Leaflet ---------- */
   let leafletPromise = null;
@@ -103,9 +114,10 @@ const CJ = (function(){
     return c;
   }
   function decodificar(doc){
-    const vias = doc.vias.map(([id, nombre, tipo, jugable, lineas]) => {
+    const barrios = ((doc.zonas && doc.zonas.barrios) || []).map(([nombre, distrito, anillos]) => ({ nombre, distrito, anillos: decodificarLineas(anillos) }));
+    const vias = doc.vias.map(([id, nombre, tipo, jugable, lineas, enBarrios]) => {
       const l = decodificarLineas(lineas);
-      return { id, nombre, tipo, jugable: jugable === 1, lineas: l, caja: cajaDe(l), clave: normalizar(nombre) };
+      return { id, nombre, tipo, jugable: jugable === 1, lineas: l, caja: cajaDe(l), clave: normalizar(nombre), barrios: (enBarrios || []).map(i => barrios[i]).filter(Boolean) };
     });
     const porNombre = new Map();
     vias.forEach(v => {
@@ -113,7 +125,51 @@ const CJ = (function(){
       if(!porNombre.has(k)) porNombre.set(k, []);
       porNombre.get(k).push(v);
     });
-    return { version: doc.version, vias, porNombre, jugables: vias.filter(v => v.jugable), rio: decodificarLineas(doc.rio || []) };
+    const distritos = [...new Set(barrios.map(b => b.distrito).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+    return { version: doc.version, vias, porNombre, jugables: vias.filter(v => v.jugable), rio: decodificarLineas(doc.rio || []), barrios, distritos };
+  }
+
+  /* ---------- zonas ---------- */
+  function zonaValida(z){
+    if(!z || !datos) return !z;
+    if(z === 'fuera') return datos.barrios.length > 0;
+    if(z.startsWith('d:')) return datos.distritos.includes(z.slice(2));
+    if(z.startsWith('b:')) return datos.barrios.some(b => b.nombre === z.slice(2));
+    return false;
+  }
+  function enZona(v){
+    if(!zona) return true;
+    if(zona === 'fuera') return v.barrios.length === 0;
+    if(zona.startsWith('d:')) return v.barrios.some(b => b.distrito === zona.slice(2));
+    return v.barrios.some(b => b.nombre === zona.slice(2));
+  }
+  function nombreZona(){
+    if(!zona) return 'Toda Córdoba';
+    if(zona === 'fuera') return 'Afueras y pedanías';
+    if(zona.startsWith('d:')) return 'Distrito ' + zona.slice(2);
+    return zona.slice(2);
+  }
+  function barriosDeZona(){
+    if(!zona || zona === 'fuera') return [];
+    if(zona.startsWith('d:')) return datos.barrios.filter(b => b.distrito === zona.slice(2));
+    return datos.barrios.filter(b => b.nombre === zona.slice(2));
+  }
+  function cambiarZona(z){
+    zona = z || '';
+    try{ localStorage.setItem(ZONA_KEY, zona); }catch(e){}
+    pintarInicio();
+  }
+  function selectorZona(){
+    if(!datos.barrios.length) return '';
+    const op = (v, t) => '<option value="' + escapeHtml(v) + '"' + (v === zona ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
+    let html = '<select class="cj-zona-select" id="cjZona" onchange="CJ.cambiarZona(this.value)" aria-label="Zona de estudio">' + op('', 'Toda Córdoba');
+    html += '<optgroup label="Distritos">' + datos.distritos.map(d => op('d:' + d, 'Distrito ' + d)).join('') + '</optgroup>';
+    datos.distritos.forEach(d => {
+      html += '<optgroup label="Barrios · ' + escapeHtml(d) + '">' +
+        datos.barrios.filter(b => b.distrito === d).map(b => op('b:' + b.nombre, b.nombre)).join('') + '</optgroup>';
+    });
+    html += '<optgroup label="Fuera de los barrios">' + op('fuera', 'Afueras y pedanías') + '</optgroup></select>';
+    return html;
   }
 
   async function cargarDatos(){
@@ -213,6 +269,7 @@ const CJ = (function(){
     mapa.addControl(crearControlEstilo());
     mapa.setMaxBounds(limitesDe(datos.vias).pad(0.15));
     mapa.setView(CENTRO, 14);
+    capaZona = L.layerGroup().addTo(mapa);
     mapa.on('click', e => { if(modo === 'estudio') tocarEstudio(e.latlng); else responder(e.latlng); });
   }
 
@@ -260,6 +317,20 @@ const CJ = (function(){
     if(actual) actual.textContent = ESTILOS[estilo];
   }
 
+  // Dibuja el contorno de la zona elegida y centra el mapa en ella.
+  function pintarZona(){
+    capaZona.clearLayers();
+    barriosDeZona().forEach(b => {
+      L.polyline(b.anillos, { color: '#F2665C', weight: 2.5, opacity: 0.9, dashArray: '6 6', interactive: false }).addTo(capaZona);
+    });
+  }
+  function irAZona(animado){
+    const vias = zona ? datos.vias.filter(enZona) : [];
+    if(!vias.length){ animado ? mapa.flyTo(CENTRO, 14, { duration: 0.6 }) : mapa.setView(CENTRO, 14); return; }
+    const b = limitesDe(vias);
+    animado ? mapa.flyToBounds(b, { padding: [30, 30], maxZoom: 16, duration: 0.6 }) : mapa.fitBounds(b, { padding: [30, 30], maxZoom: 16 });
+  }
+
   function cambiarEstilo(nuevo){
     if(!ESTILOS[nuevo]) return;
     estilo = nuevo;
@@ -301,18 +372,28 @@ const CJ = (function(){
     const root = el('cjInicio');
     if(!root) return;
     if(!datos){ root.innerHTML = '<div class="cj-card">' + skelList(3) + '</div>'; return; }
-    const total = datos.jugables.length;
+    if(!zonaValida(zona)) zona = '';
+    const jugables = datos.jugables.filter(enZona);
+    const total = jugables.length;
     let dominadas = 0, vistas = 0, fallos = 0;
-    datos.jugables.forEach(v => {
+    jugables.forEach(v => {
       const p = progreso.get(v.id);
       if(!p) return;
       vistas++;
       if(p.ultimo_acierto) dominadas++; else fallos++;
     });
     const pct = total ? Math.round(dominadas * 100 / total) : 0;
+    const nombresZona = new Set(jugables.map(v => v.nombre)).size;
     root.innerHTML =
+      (datos.barrios.length
+        ? '<div class="cj-card cj-zona">' +
+            '<div class="cj-card-title">Qué estudiar</div>' +
+            selectorZona() +
+            '<div class="cj-zona-info">' + nombresZona.toLocaleString('es-ES') + ' calles en ' + escapeHtml(nombreZona()) + '</div>' +
+          '</div>'
+        : '') +
       '<div class="cj-card">' +
-        '<div class="cj-card-title">Tu callejero</div>' +
+        '<div class="cj-card-title">Tu callejero' + (zona ? ' · ' + escapeHtml(nombreZona()) : '') + '</div>' +
         '<div class="cj-pct"><span>' + pct + '%</span> dominado</div>' +
         '<div class="cj-bar"><div class="cj-bar-fill" style="width:' + pct + '%"></div></div>' +
         '<div class="cj-stats">' +
@@ -324,7 +405,7 @@ const CJ = (function(){
       '<button type="button" class="cj-mode" onclick="CJ.empezar()">' +
         '<div class="cj-mode-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></div>' +
         '<div class="cj-mode-text"><div class="cj-mode-title">Localiza la calle</div>' +
-        '<div class="cj-mode-desc">Te damos el nombre de una vía y la tocas en el mapa. ' + PREGUNTAS_POR_RONDA + ' preguntas; primero las que fallaste.</div></div>' +
+        '<div class="cj-mode-desc">Te damos el nombre de una vía y la tocas en el mapa. Hasta ' + PREGUNTAS_POR_RONDA + ' preguntas' + (zona ? ' de ' + escapeHtml(nombreZona()) : '') + '; primero las que fallaste.</div></div>' +
       '</button>' +
       '<button type="button" class="cj-mode" onclick="CJ.estudio()">' +
         '<div class="cj-mode-icon cj-mode-icon-estudio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></div>' +
@@ -362,7 +443,7 @@ const CJ = (function(){
   function barajar(a){ return shuffleArray(a); }
   function elegirPreguntas(){
     const falladas = [], nuevas = [], acertadas = [];
-    datos.jugables.forEach(v => {
+    datos.jugables.filter(enZona).forEach(v => {
       const p = progreso.get(v.id);
       if(!p) nuevas.push(v);
       else if(!p.ultimo_acierto) falladas.push(v);
@@ -387,11 +468,15 @@ const CJ = (function(){
       uiToast(e.message, 'error');
       return;
     }
-    ronda = { preguntas: elegirPreguntas(), i: 0, aciertos: 0, fallos: [], respondida: false };
+    const preguntas = elegirPreguntas();
+    if(!preguntas.length){ uiToast('No hay calles para preguntar en esta zona.', 'info'); return; }
+    ronda = { preguntas, i: 0, aciertos: 0, fallos: [], respondida: false };
     modo = 'localiza';
     mostrarVista('juego');
     ponerInterfaz();
     crearMapa();
+    pintarZona();
+    irAZona(false);
     siguientePregunta(true);
   }
 
@@ -409,6 +494,32 @@ const CJ = (function(){
     el('cjResultado').className = 'cj-resultado hidden';
     el('cjSugerencias').classList.add('hidden');
     el('cjBuscar').value = '';
+    el('cjLista').classList.add('hidden');
+    const boton = el('cjListaBoton');
+    if(estudio && zona){
+      const n = new Set(datos.vias.filter(enZona).map(v => v.nombre)).size;
+      boton.textContent = 'Calles de ' + nombreZona() + ' (' + n + ')';
+      boton.classList.remove('hidden');
+    }else boton.classList.add('hidden');
+  }
+
+  // Lista alfabética de las calles de la zona, sobre el mapa.
+  let listaZona = [];
+  function alternarLista(){
+    const caja = el('cjLista');
+    if(!caja.classList.contains('hidden')){ caja.classList.add('hidden'); return; }
+    const vistos = new Set();
+    listaZona = datos.vias.filter(enZona).filter(v => !vistos.has(v.clave) && vistos.add(v.clave))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    caja.innerHTML = listaZona.map((v, i) => '<button type="button" class="cj-lista-item" onclick="CJ.elegirDeLista(' + i + ')">' + escapeHtml(v.nombre) + '</button>').join('');
+    caja.scrollTop = 0;
+    caja.classList.remove('hidden');
+  }
+  function elegirDeLista(i){
+    const v = listaZona[i];
+    if(!v) return;
+    el('cjLista').classList.add('hidden');
+    seleccionar(v, true);
   }
 
   /* ---------- modo estudio ---------- */
@@ -425,7 +536,8 @@ const CJ = (function(){
     ponerInterfaz();
     crearMapa();
     capaMarcas.clearLayers();
-    mapa.setView(CENTRO, 14);
+    pintarZona();
+    irAZona(false);
   }
 
   // Vías a menos de ~20 píxeles del toque, de la más cercana a la más
@@ -536,7 +648,7 @@ const CJ = (function(){
     el('cjResultado').className = 'cj-resultado hidden';
     pintarCabecera();
     mapa.invalidateSize();
-    if(!primera) mapa.flyTo(CENTRO, 14, { duration: 0.6 });
+    if(!primera) irAZona(true);
   }
 
   function responder(latlng){
@@ -609,5 +721,5 @@ const CJ = (function(){
     salir();
   }
 
-  return { abrir, empezar, estudio, buscar, elegir, salir, confirmarSalir, siguiente: () => siguientePregunta(false), refrescarTema };
+  return { abrir, empezar, estudio, buscar, elegir, salir, cambiarZona, alternarLista, elegirDeLista, confirmarSalir, siguiente: () => siguientePregunta(false), refrescarTema };
 })();

@@ -17,7 +17,8 @@
 //   - "publicar": vuelve a generar el archivo que descarga la app.
 // Después de cualquier cambio se publica en el almacén público
 // «callejero» un archivo compacto con las vías activas, y su ruta se
-// guarda en callejero_publicado.
+// guarda en callejero_publicado. El archivo lleva también los barrios
+// urbanos (DERA) y, para cada vía, en qué barrios está.
 //
 // Invocación:
 //   - Cada lunes con pg_cron (cabecera "x-callejero-secret", valor en
@@ -49,11 +50,16 @@ const TIPOS_NO_JUGABLES = new Set(["CORTIJO", "EXTRARRADIO"]);
 // Tolerancia para simplificar el trazado del archivo publicado (metros).
 const SIMPLIFICAR_M = 1.5;
 const ATRIBUCION =
-  "Callejero: Callejero Digital de Andalucía Unificado (CDAU) · Río: DERA — Instituto de Estadística y Cartografía de Andalucía, Junta de Andalucía (CC BY 4.0).";
+  "Callejero: Callejero Digital de Andalucía Unificado (CDAU) · Río y barrios: DERA — Instituto de Estadística y Cartografía de Andalucía, Junta de Andalucía (CC BY 4.0).";
 // El Guadalquivir, solo para orientarse en el mapa (DERA, IECA, CC BY 4.0).
 const RIO_WFS = "https://www.ideandalucia.es/services/DERA_g3_hidrografia/wfs";
 const RIO_NOMBRE = "Río Guadalquivir";
 const RIO_CAJA = { minLon: -5.12, maxLon: -4.33, minLat: 37.65, maxLat: 38.15 };
+// Barrios urbanos de Córdoba, con su distrito (DERA g13_24, IECA, CC BY 4.0).
+const BARRIOS_WFS = "https://www.ideandalucia.es/services/DERA_g13_limites_administrativos/wfs";
+// Una vía está en un barrio si al menos esta parte de su trazado cae dentro.
+const BARRIO_MIN_FRACCION = 0.2;
+const MUESTREO_M = 25;
 
 type Via = {
   id_vial: number;
@@ -369,28 +375,129 @@ async function descargarRio(): Promise<number[][][]> {
   }
 }
 
+// ---------------------------------------------------------------------
+// Barrios
+// ---------------------------------------------------------------------
+type Barrio = { nombre: string; distrito: string; anillos: number[][][]; caja: number[] };
+
+async function descargarBarrios(): Promise<Barrio[]> {
+  const url = `${BARRIOS_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeNames=DERA_g13_limites_administrativos:g13_24_BarrioUrbano` +
+    `&outputFormat=application/json&srsName=${encodeURIComponent("urn:ogc:def:crs:EPSG::4326")}` +
+    `&CQL_FILTER=${encodeURIComponent(`cod_mun='${INE_MUNICIPIO}'`)}`;
+  const resp = await fetch(url, { signal: AbortSignal.timeout(60000) });
+  if (!resp.ok) throw new Error(`DERA respondió HTTP ${resp.status}`);
+  const data = JSON.parse(await leerCuerpo(resp));
+  const barrios: Barrio[] = [];
+  for (const f of data.features || []) {
+    const p = f.properties || {};
+    const g = f.geometry;
+    const poligonos: number[][][][] = g?.type === "MultiPolygon" ? g.coordinates : g?.type === "Polygon" ? [g.coordinates] : [];
+    const anillos = poligonos.flat().filter((r) => r.length >= 4);
+    if (!p.nombre || !anillos.length) continue;
+    const pts = anillos.flat();
+    barrios.push({
+      nombre: String(p.nombre).trim(),
+      distrito: String(p.distrito || "").trim(),
+      anillos,
+      caja: [Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1])), Math.max(...pts.map((q) => q[0])), Math.max(...pts.map((q) => q[1]))],
+    });
+  }
+  // Por debajo de esto, la respuesta está incompleta: no se usa.
+  if (barrios.length < 50) throw new Error(`DERA solo ha devuelto ${barrios.length} barrios`);
+  return barrios.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
+// Punto dentro de un barrio (regla par-impar: los huecos quedan fuera).
+function dentroDeBarrio([x, y]: number[], b: Barrio) {
+  if (x < b.caja[0] || x > b.caja[2] || y < b.caja[1] || y > b.caja[3]) return false;
+  let dentro = false;
+  for (const r of b.anillos) {
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      const [xi, yi] = r[i], [xj, yj] = r[j];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) dentro = !dentro;
+    }
+  }
+  return dentro;
+}
+
+// Puntos cada MUESTREO_M metros a lo largo del trazado de una vía.
+function muestrear(lineas: number[][][]) {
+  const kx = 111320 * Math.cos((37.88 * Math.PI) / 180), ky = 110540;
+  const pts: number[][] = [];
+  for (const l of lineas) {
+    for (let k = 0; k < l.length - 1; k++) {
+      const [x0, y0] = l[k], [x1, y1] = l[k + 1];
+      const n = Math.max(1, Math.ceil(Math.hypot((x1 - x0) * kx, (y1 - y0) * ky) / MUESTREO_M));
+      for (let t = 0; t < n; t++) pts.push([x0 + ((x1 - x0) * t) / n, y0 + ((y1 - y0) * t) / n]);
+    }
+    pts.push(l[l.length - 1]);
+  }
+  return pts;
+}
+
+// Índices (en `barrios`) de los barrios por los que pasa la vía.
+function barriosDeVia(lineas: number[][][], barrios: Barrio[]) {
+  const pts = muestrear(lineas);
+  const cuenta = new Map<number, number>();
+  for (const p of pts) {
+    for (let i = 0; i < barrios.length; i++) {
+      if (dentroDeBarrio(p, barrios[i])) { cuenta.set(i, (cuenta.get(i) || 0) + 1); break; }
+    }
+  }
+  const out = [...cuenta].filter(([, n]) => n / pts.length >= BARRIO_MIN_FRACCION).map(([i]) => i);
+  if (!out.length && cuenta.size) out.push([...cuenta].sort((a, b) => b[1] - a[1])[0][0]);
+  return out.sort((a, b) => a - b);
+}
+
 async function publicar(sb: SupabaseClient, forzar = false) {
   const vias = await leerTodo(sb, "callejero_vias", "id_vial, tipo, nombre, jugable, geom", (q) => q.eq("activa", true));
-  const filas = vias.map((v) => [Number(v.id_vial), v.nombre, v.tipo, v.jugable ? 1 : 0, codificar(v.geom)])
-    .filter((f) => (f[4] as number[][]).length);
+  const { data: actual } = await sb.from("callejero_publicado").select("version, archivo").eq("id", 1).maybeSingle();
+  // Barrios: de DERA; si no responde, los del archivo ya publicado (así
+  // una caída de DERA nunca deja la app sin barrios).
+  let barrios: Barrio[] | null = null;
+  let previo: any = null;
+  try {
+    barrios = await descargarBarrios();
+  } catch (e) {
+    if (actual?.archivo) {
+      const { data: blob } = await sb.storage.from(BUCKET).download(actual.archivo);
+      if (blob) previo = JSON.parse(await blob.text());
+    }
+    if (!previo?.zonas) console.warn("Sin barrios:", (e as Error).message);
+  }
+  // [id_vial, nombre, tipo, jugable (1/0), líneas codificadas, barrios]
+  const filas = vias.map((v) => {
+    const fila: unknown[] = [Number(v.id_vial), v.nombre, v.tipo, v.jugable ? 1 : 0, codificar(v.geom)];
+    if (barrios) fila.push(barriosDeVia(v.geom, barrios));
+    return fila;
+  }).filter((f) => (f[4] as number[][]).length);
+  if (!barrios && previo?.zonas) {
+    // Se conserva la asignación del archivo anterior para las vías que ya estaban.
+    const asignado = new Map<number, number[]>((previo.vias || []).map((f: any[]) => [f[0], f[5] || []]));
+    filas.forEach((f) => f.push(asignado.get(f[0] as number) || []));
+  }
+  const zonas = barrios
+    ? { barrios: barrios.map((b) => [b.nombre, b.distrito, codificar(b.anillos, 5)]) }
+    : previo?.zonas || null;
   const rio = codificar(await descargarRio(), 5);
   // El nombre del archivo depende de su contenido: nunca se sobrescribe
   // uno ya publicado (los móviles lo guardan para siempre).
-  const version = await sha(JSON.stringify([filas, rio]), 12);
-  const { data: actual } = await sb.from("callejero_publicado").select("version").eq("id", 1).maybeSingle();
+  const version = await sha(JSON.stringify([filas, rio, zonas]), 12);
   if (!forzar && actual?.version === version) return { publicado: false, version };
 
   const archivo = `${CARPETA}/${version}.json`;
   const doc = JSON.stringify({
-    formato: 1,
+    formato: 2,
     version,
     generado: new Date().toISOString(),
     municipio: INE_MUNICIPIO,
     atribucion: ATRIBUCION,
-    // [id_vial, nombre, tipo, jugable (1/0), líneas codificadas]
+    // [id_vial, nombre, tipo, jugable (1/0), líneas codificadas, índices de sus barrios]
     vias: filas,
     // Líneas del Guadalquivir, codificadas igual que las vías.
     rio,
+    // barrios: [nombre, distrito, anillos del contorno codificados]
+    zonas,
   });
   const { error: errUp } = await sb.storage.from(BUCKET).upload(archivo, new Blob([doc], { type: "application/json" }), {
     contentType: "application/json", cacheControl: "31536000", upsert: true,
