@@ -67,16 +67,24 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
 - El archivo publicado lleva también los 70 barrios urbanos de Córdoba con su distrito (DERA g13_24)
   y en qué barrios está cada vía; con eso la app deja elegir qué estudiar: toda Córdoba, un
   distrito, un barrio o las afueras y pedanías.
-- También lleva unos 370 **lugares importantes** (DERA g12: hospitales, colegios, edificios
-  religiosos, instalaciones deportivas…) y, para cada vía y lugar, **qué parque de bomberos acude**
-  según la línea divisoria del SEIS (CO-3405, Av. del Brillante, Llanos del Pretorio, Pl. de Colón,
-  Alfaros, Capitulares, San Fernando, Puente de Miraflores, Av. de Granada y N-432): al este el
-  Parque del Granadal y al oeste el Parque Central. Las vías a menos de 150 m de la línea no se
-  preguntan, porque no está claro a cuál le toca.
-- Modos de juego: Localiza la calle, ¿Cómo se llama? (4 opciones), Escribe el nombre (admite
-  tildes, abreviaturas como «Avda.» y pequeñas faltas), Cruces y paralelas (se calculan en la app
-  con el trazado de las vías), Lugares importantes y ¿Qué parque acude?. Además, el Modo estudio.
-- La app descarga un único archivo compacto (almacén público `callejero`, unos 860 KB) solo al
+- El CDAU se cruzó con el **Callejero del Censo Electoral del INE** (julio de 2026, 3.711 vías) y con
+  OpenStreetMap: el CDAU tiene todas las vías oficiales salvo 9 recientes, que la función añade con el
+  trazado de OpenStreetMap (`COMPLEMENTOS`) hasta que el CDAU las dibuje. Los nombres provisionales del
+  planeamiento («Calle B», «Calle 5 Sg-Ctim») se ven en el mapa pero no se preguntan.
+- También lleva unos 600 **lugares importantes**: los de DERA g12 (hospitales, centros de salud, colegios,
+  hoteles, instalaciones deportivas, comisarías…) y, para lo que DERA no tiene o le falta, OpenStreetMap
+  (monumentos, parques, estaciones, polígonos, teatros, residencias, algunos colegios públicos). Los
+  lugares grandes llevan un radio: vale tocar dentro. Si OpenStreetMap no responde en la sincronización,
+  se conservan los de la semana anterior.
+- Para cada vía y lugar, **qué parque de bomberos acude** según la línea divisoria del SEIS (CO-3405,
+  Av. del Brillante, Llanos del Pretorio, Pl. de Colón, Alfaros, Capitulares, San Fernando, Puente de
+  Miraflores, Av. de Granada y N-432): al este el Parque del Granadal y al oeste el Parque Central. La
+  línea sigue el trazado de cada vía (y el camino más corto por las calles entre una y la siguiente).
+  Las vías a menos de 150 m de la línea no se preguntan, porque no está claro a cuál le toca.
+- Modos de juego: Localiza la calle, ¿Cómo se llama? (4 opciones), Di el nombre (se marca una calle, uno
+  dice su nombre para sí, pulsa «Resolver» y se pone él mismo bien o mal), Cruces y paralelas (se calculan en la app con el trazado de las vías), Lugares importantes y
+  ¿Qué parque acude?. Además, el Modo estudio.
+- La app descarga un único archivo compacto (almacén público `callejero`, unos 900 KB) solo al
   abrir la pantalla; el service worker lo guarda para jugar sin conexión. El mapa (Leaflet) también
   se carga solo entonces. Tres estilos de mapa, sin nombres que den pistas: Sencillo y Plano
   (el trazado de las vías es el mapa, funcionan sin conexión) y Satélite (ortofotos PNOA del

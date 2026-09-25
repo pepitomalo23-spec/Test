@@ -59,7 +59,7 @@
 <link rel="stylesheet" href="css/pantallas.css?v=3f6c67404a">
 <link rel="stylesheet" href="css/test.css?v=06abd3d71a">
 <link rel="stylesheet" href="css/normativas.css?v=647d1c0791">
-<link rel="stylesheet" href="css/callejero.css?v=a66174108e">
+<link rel="stylesheet" href="css/callejero.css?v=d66da169ab">
 </head>
 <body>
 <div id="appSplash">
@@ -430,10 +430,11 @@
           <div class="cj-pregunta" id="cjPregunta">—</div>
         </div>
         <div class="cj-opciones hidden" id="cjOpciones"></div>
-        <form class="cj-escribe hidden" id="cjEscribe" onsubmit="event.preventDefault(); CJ.responderTexto()">
-          <input type="text" id="cjEscribeInput" placeholder="Nombre de la calle…" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done">
-          <button type="submit" class="btn btn-primary btn-light" id="cjEscribeBoton">Comprobar</button>
-        </form>
+        <div class="cj-voz hidden" id="cjVoz">
+          <button type="button" class="cj-voz-ver" id="cjVozVer" onclick="CJ.verRespuesta()">Resolver</button>
+          <button type="button" class="cj-voz-si hidden" id="cjVozSi" onclick="CJ.autoevaluar(true)">✓ Bien</button>
+          <button type="button" class="cj-voz-no hidden" id="cjVozNo" onclick="CJ.autoevaluar(false)">✗ Mal</button>
+        </div>
         <div class="cj-mapa-wrap">
           <div class="cj-mapa" id="cjMapa"></div>
           <div class="cj-pista hidden" id="cjPista">Toca una calle para ver cómo se llama</div>
@@ -1061,7 +1062,7 @@
 <script src="js/admin/importar-ia.js?v=fc5e42e6f8"></script>
 <script src="js/admin/callejero.js?v=5d85c58ac1"></script>
 <script src="js/normativas.js?v=7426a7cc1d"></script>
-<script src="js/callejero.js?v=2ff3c7d86e"></script>
+<script src="js/callejero.js?v=e407eb6ee1"></script>
 <script src="js/arranque.js?v=736412f343"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
   <button type="button" class="image-lightbox-close" onclick="closeImageLightbox(event)" title="Cerrar">

@@ -36,8 +36,8 @@
    elegida; primero las que se fallaron):
      - localiza: se da el nombre de una vía y hay que tocarla en el mapa.
      - opciones: se marca una vía y se elige su nombre entre 4 cercanas.
-     - escribe:  se marca una vía y hay que escribir su nombre (se
-                 perdonan tildes, mayúsculas, el tipo de vía y erratas).
+     - voz:      se marca una vía, uno dice su nombre para sí, pulsa
+                 «Resolver» y marca él mismo si lo ha dicho bien (✓) o mal (✗).
      - cruces:   «¿Cuál cruza con X?» o «¿Cuál es paralela a X?», con 4
                  opciones. Los cruces y las paralelas se calculan con el
                  trazado oficial (ver crucesDe y paralelasDe).
@@ -56,7 +56,7 @@ const CJ = (function(){
   const LEAFLET_JS_SRI = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
   const LEAFLET_CSS = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
   const LEAFLET_CSS_SRI = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
-  const ATRIBUCION = 'Callejero: <a href="https://www.callejerodeandalucia.es/" target="_blank" rel="noopener">CDAU</a> · Río: DERA · IECA, Junta de Andalucía (CC BY 4.0)';
+  const ATRIBUCION = 'Callejero: <a href="https://www.callejerodeandalucia.es/" target="_blank" rel="noopener">CDAU</a> · Río y lugares: DERA · IECA, Junta de Andalucía (CC BY 4.0) · Otros lugares y vías: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
   const PNOA = 'https://www.ign.es/wmts/pnoa-ma?service=WMTS&request=GetTile&version=1.0.0&Format=image/jpeg&layer=OI.OrthoimageCoverage&style=default&tilematrixset=GoogleMapsCompatible&TileMatrix={z}&TileRow={y}&TileCol={x}';
   const PNOA_RECIENTE = 'https://wms-pnoa.idee.es/pnoa-provisionales';
   const ATRIBUCION_PNOA = 'Ortofoto: <a href="https://pnoa.ign.es/" target="_blank" rel="noopener">PNOA</a> (vuelo más reciente) © Instituto Geográfico Nacional (CC BY 4.0)';
@@ -74,7 +74,7 @@ const CJ = (function(){
   const MODOS = {
     localiza: { titulo: 'Localiza la calle', respuesta: 'toque' },
     opciones: { titulo: '¿Cómo se llama?', respuesta: 'opciones' },
-    escribe: { titulo: 'Escribe el nombre', respuesta: 'texto' },
+    voz: { titulo: 'Di el nombre', respuesta: 'voz' },
     cruces: { titulo: 'Cruces y paralelas', respuesta: 'opciones' },
     lugares: { titulo: 'Lugares importantes', respuesta: 'toque' },
     parque: { titulo: '¿Qué parque acude?', respuesta: 'opciones' }
@@ -145,10 +145,11 @@ const CJ = (function(){
       const l = decodificarLineas(lineas);
       return { id, nombre, tipo, jugable: jugable === 1, lineas: l, caja: cajaDe(l), clave: normalizar(nombre), barrios: (enBarrios || []).map(i => barrios[i]).filter(Boolean), parque: parque || 0 };
     });
-    // [id, nombre, categoría, dirección, x, y (×100 000), barrios, parque]
-    const lugares = (doc.lugares || []).map(([id, nombre, categoria, direccion, x, y, enBarrios, parque]) => ({
+    // [id, nombre, categoría, dirección, x, y (×100 000), barrios, parque, radio, fuente]
+    // radio: metros alrededor del punto que son el propio lugar (un parque, un polígono).
+    const lugares = (doc.lugares || []).map(([id, nombre, categoria, direccion, x, y, enBarrios, parque, radio]) => ({
       id, nombre, categoria, direccion, lat: y / 1e5, lng: x / 1e5,
-      barrios: (enBarrios || []).map(i => barrios[i]).filter(Boolean), parque: parque || 0
+      barrios: (enBarrios || []).map(i => barrios[i]).filter(Boolean), parque: parque || 0, radio: radio || 0
     }));
     const lineaParques = doc.parques && doc.parques.linea ? decodificarLineas([doc.parques.linea])[0] : null;
     const porNombre = new Map();
@@ -442,12 +443,12 @@ const CJ = (function(){
         'Te damos el nombre de una vía y la tocas en el mapa.') +
       tarjetaModo('opciones', 'M9 11l3 3L22 4|M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
         'Te marcamos una calle en el mapa y eliges su nombre entre 4 calles cercanas.') +
-      tarjetaModo('escribe', 'M12 20h9|M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z',
-        'Te marcamos una calle y escribes cómo se llama. No importan tildes ni mayúsculas.') +
+      tarjetaModo('voz', 'M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z|M19 10v2a7 7 0 0 1-14 0v-2|M12 19v3',
+        'Te marcamos una calle, dices cómo se llama, pulsas Resolver y te pones tú mismo bien o mal.') +
       tarjetaModo('cruces', 'M12 3v18|M3 12h18|M8 3v4|M16 17v4',
         '¿Qué calle cruza con esta? ¿Cuál es su paralela? Elige entre 4.') +
       (datos.lugares.length ? tarjetaModo('lugares', 'M3 21h18|M5 21V7l8-4v18|M19 21V11l-6-4|M9 9v.01|M9 12v.01|M9 15v.01|M9 18v.01',
-        'Hospitales, colegios, museos, comisarías... te damos el nombre y lo tocas en el mapa.') : '') +
+        datos.lugares.length.toLocaleString('es-ES') + ' sitios: hospitales, colegios, monumentos, parques, polígonos... te damos el nombre y lo tocas en el mapa.') : '') +
       (datos.lineaParques ? tarjetaModo('parque', 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z',
         'Parque Central o Parque del Granadal, calle a calle y lugar a lugar (tema 48).') : '') +
       '<div class="cj-seccion">Estudiar</div>' +
@@ -456,7 +457,7 @@ const CJ = (function(){
         '<div class="cj-mode-text"><div class="cj-mode-title">Modo estudio</div>' +
         '<div class="cj-mode-desc">Explora el mapa a tu aire: toca cualquier calle para ver cómo se llama, o búscala por su nombre y te lleva hasta ella.</div></div>' +
       '</button>' +
-      '<div class="cj-fuente">' + total.toLocaleString('es-ES') + ' vías de Córdoba del callejero oficial de la Junta de Andalucía (CDAU), actualizado cada semana. ' +
+      '<div class="cj-fuente">' + total.toLocaleString('es-ES') + ' vías de Córdoba del callejero oficial de la Junta de Andalucía (CDAU), revisado cada semana y cruzado con el callejero del INE. ' +
         'Rondas de hasta ' + PREGUNTAS_POR_RONDA + ' preguntas' + (zona ? ' de ' + escapeHtml(nombreZona()) : '') + '; primero salen las que fallaste.' +
         (datos.lineaParques ? ' Zonas de los parques según el documento oficial del S.E.I.S.; lo que está pegado a la línea no se pregunta.' : '') + '</div>';
   }
@@ -650,8 +651,8 @@ const CJ = (function(){
         return Object.assign({ via: v, id: v.id, etiqueta: '¿Cómo se llama la calle marcada?', texto: '', nombre: v.nombre }, opcionesCon(v.nombre, otras));
       });
     }
-    if(m === 'escribe'){
-      return sinRepetirNombre(ordenarPorRepaso(vias, v => v.id), n, v => ({ via: v, id: v.id, etiqueta: 'Escribe el nombre de la calle marcada', texto: '', nombre: v.nombre }));
+    if(m === 'voz'){
+      return sinRepetirNombre(ordenarPorRepaso(vias, v => v.id), n, v => ({ via: v, id: v.id, etiqueta: 'Di el nombre de la calle marcada', texto: '', nombre: v.nombre }));
     }
     if(m === 'cruces'){
       let turno = 0;
@@ -731,9 +732,9 @@ const CJ = (function(){
     const respuesta = estudio ? null : MODOS[modo].respuesta;
     el('cjOpciones').classList.toggle('hidden', respuesta !== 'opciones');
     el('cjOpciones').innerHTML = '';
-    el('cjEscribe').classList.toggle('hidden', respuesta !== 'texto');
-    // Con botones o casilla debajo de la pregunta, el mapa se hace más bajo.
-    document.getElementById('screen-callejero').classList.toggle('cj-con-respuesta', respuesta === 'opciones' || respuesta === 'texto');
+    el('cjVoz').classList.toggle('hidden', respuesta !== 'voz');
+    // Con botones debajo de la pregunta, el mapa se hace más bajo.
+    document.getElementById('screen-callejero').classList.toggle('cj-con-respuesta', respuesta === 'opciones' || respuesta === 'voz');
     el('cjContador').classList.toggle('hidden', estudio);
     el('cjAciertos').classList.toggle('hidden', estudio);
     el('cjBarraTitulo').classList.toggle('hidden', !estudio);
@@ -911,18 +912,17 @@ const CJ = (function(){
     el('cjResultado').className = 'cj-resultado hidden';
     pintarCabecera();
     const q = ronda.preguntas[ronda.i];
-    // Opciones o casilla para escribir
+    // Opciones o botones de voz
     const tipo = MODOS[modo].respuesta;
     const caja = el('cjOpciones');
     if(tipo === 'opciones'){
       caja.innerHTML = q.opciones.map((o, i) => '<button type="button" class="cj-opcion" onclick="CJ.responderOpcion(' + i + ')">' + escapeHtml(o) + '</button>').join('');
       caja.classList.toggle('cj-opciones-dos', q.opciones.length === 2);
     }
-    const input = el('cjEscribeInput');
-    if(tipo === 'texto'){ input.value = ''; input.disabled = false; el('cjEscribeBoton').disabled = false; }
+    if(tipo === 'voz') prepararVoz();
     mapa.invalidateSize();
     // Lo que se ve en el mapa antes de responder
-    if(q.via && (modo === 'opciones' || modo === 'escribe')){
+    if(q.via && (modo === 'opciones' || modo === 'voz')){
       resaltar(q.via, '#F2665C', true);
       verVias([q.via]);
     }else if(modo === 'cruces'){
@@ -931,7 +931,6 @@ const CJ = (function(){
     }else if(!primera){
       irAZona(true);
     }
-    if(tipo === 'texto') setTimeout(() => input.focus(), 350);
   }
 
   function marcarRespondida(acierto, textoHtml, distancia, modoIntento){
@@ -952,11 +951,14 @@ const CJ = (function(){
     const pxEnMetros = mapa.distance(mapa.containerPointToLatLng([0, 0]), mapa.containerPointToLatLng([TOLERANCIA_PX, 0]));
     if(q.lugar){
       const l = q.lugar;
-      const dist = mapa.distance(latlng, [l.lat, l.lng]);
+      // En los lugares grandes (un parque, el aeropuerto) vale tocar dentro;
+      // la distancia del fallo se cuenta hasta su borde.
+      const dist = Math.max(0, mapa.distance(latlng, [l.lat, l.lng]) - l.radio);
       const acierto = dist <= Math.max(TOLERANCIA_LUGAR_M, pxEnMetros);
       L.circleMarker(latlng, { radius: 7, color: '#fff', weight: 2, fillColor: acierto ? '#34D399' : '#F2665C', fillOpacity: 1, interactive: false }).addTo(capaMarcas);
-      L.circleMarker([l.lat, l.lng], { radius: 11, color: '#34D399', weight: 3, fillColor: '#34D399', fillOpacity: 0.35, interactive: false }).addTo(capaMarcas);
-      if(!acierto) mapa.flyToBounds(L.latLngBounds([latlng, [l.lat, l.lng]]), { padding: [70, 70], maxZoom: 17, duration: 0.7 });
+      if(l.radio > 20) L.circle([l.lat, l.lng], { radius: l.radio, color: '#34D399', weight: 3, fillColor: '#34D399', fillOpacity: 0.2, interactive: false }).addTo(capaMarcas);
+      else L.circleMarker([l.lat, l.lng], { radius: 11, color: '#34D399', weight: 3, fillColor: '#34D399', fillOpacity: 0.35, interactive: false }).addTo(capaMarcas);
+      if(!acierto) mapa.flyToBounds(L.latLngBounds([latlng, [l.lat, l.lng]]), { paddingTopLeft: [60, 60], paddingBottomRight: [60, 130], maxZoom: 17, duration: 0.7 });
       const dir = l.direccion ? ' <span class="cj-dir">' + escapeHtml(l.direccion) + '</span>' : '';
       marcarRespondida(acierto, acierto
         ? '<b>¡Correcto!</b> ' + escapeHtml(l.nombre) + '.' + dir
@@ -1027,38 +1029,30 @@ const CJ = (function(){
     marcarRespondida(acierto, texto, null);
   }
 
-  // «calle san agustín» o «San Agustin» valen para «Calle San Agustín».
-  function distanciaEdicion(a, b){
-    const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
-    for(let j = 1; j <= b.length; j++) d[0][j] = j;
-    for(let i = 1; i <= a.length; i++) for(let j = 1; j <= b.length; j++)
-      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    return d[a.length][b.length];
+  /* ---------- modo «Di el nombre» ---------- */
+  // Uno dice el nombre para sí, pulsa «Resolver» y se corrige él mismo.
+  function prepararVoz(){
+    el('cjVozVer').classList.remove('hidden');
+    el('cjVozSi').classList.add('hidden');
+    el('cjVozNo').classList.add('hidden');
   }
-  function limpiarNombre(t){ return normalizar(t).replace(/[^a-z0-9ñ ]/g, ' ').replace(/\s+/g, ' ').trim(); }
-  // Tipos de vía (y sus abreviaturas) y artículos que se pueden omitir.
-  const TIPOS_OMITIBLES = /^(calle|c|cl|avenida|avda|av|plaza|pza|pl|paseo|p|po|glorieta|gta|ronda|rda|carretera|ctra|camino|cm|pasaje|pje|calleja|travesia|trv|urbanizacion|urb|barriada|bda|callejon|cjon|plazuela|puente|bulevar|via|vereda|sendero|parque|jardines|jardin|grupo|poligono|pol|enlace|autovia|acceso|carril|huerta|prolongacion|ramal|zona|lugar|aldea)\s+/;
-  const ARTICULOS = /^(de los|de las|de la|del|de|los|las|la|el)\s+/;
-  function nucleo(t){ return limpiarNombre(t).replace(TIPOS_OMITIBLES, '').replace(ARTICULOS, ''); }
-  function nombreCorrecto(escrito, v){
-    const e = limpiarNombre(escrito);
-    if(!e) return false;
-    const parecido = (a, b) => distanciaEdicion(a, b) <= (b.length <= 6 ? 0 : b.length <= 12 ? 1 : 2);
-    return parecido(e, limpiarNombre(v.nombre)) || (nucleo(v.nombre).length > 0 && parecido(nucleo(escrito), nucleo(v.nombre)));
-  }
-  function responderTexto(){
-    if(!ronda || ronda.respondida) return;
+  function verRespuesta(){
+    if(!ronda || ronda.respondida || MODOS[modo].respuesta !== 'voz') return;
     const q = ronda.preguntas[ronda.i];
-    const input = el('cjEscribeInput');
-    const escrito = input.value;
-    if(!escrito.trim()){ input.focus(); return; }
-    input.disabled = true;
-    el('cjEscribeBoton').disabled = true;
-    input.blur();
-    const acierto = nombreCorrecto(escrito, q.via);
+    el('cjPregunta').textContent = q.via.nombre;
+    el('cjPregunta').classList.remove('hidden');
+    el('cjVozVer').classList.add('hidden');
+    el('cjVozSi').classList.remove('hidden');
+    el('cjVozNo').classList.remove('hidden');
+  }
+  function autoevaluar(acierto){
+    if(!ronda || ronda.respondida || el('cjVozSi').classList.contains('hidden')) return;
+    const q = ronda.preguntas[ronda.i];
+    el('cjVozSi').classList.add('hidden');
+    el('cjVozNo').classList.add('hidden');
     marcarRespondida(acierto, acierto
-      ? '<b>¡Correcto!</b> ' + escapeHtml(q.via.nombre) + '.'
-      : '<b>Fallo.</b> Es ' + escapeHtml(q.via.nombre) + ' (has escrito «' + escapeHtml(escrito.trim()) + '»).', null);
+      ? '<span class="cj-marca ok">✓</span> <b>¡Bien!</b> ' + escapeHtml(q.via.nombre) + '.'
+      : '<span class="cj-marca ko">✗</span> <b>Mal.</b> Es ' + escapeHtml(q.via.nombre) + '.', null);
   }
 
   function formatearDistancia(m){
@@ -1099,5 +1093,5 @@ const CJ = (function(){
   }
 
   return { abrir, empezar, estudio, buscar, elegir, salir, cambiarZona, alternarLista, elegirDeLista, confirmarSalir,
-    responderOpcion, responderTexto, siguiente: () => siguientePregunta(false), refrescarTema };
+    responderOpcion, verRespuesta, autoevaluar, siguiente: () => siguientePregunta(false), refrescarTema };
 })();
