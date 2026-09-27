@@ -73,6 +73,10 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   OpenStreetMap: el CDAU tiene todas las vías oficiales salvo 9 recientes, que la función añade con el
   trazado de OpenStreetMap (`COMPLEMENTOS`) hasta que el CDAU las dibuje. Los nombres provisionales del
   planeamiento («Calle B», «Calle 5 Sg-Ctim») se ven en el mapa pero no se preguntan.
+- También se cruzó con el **Callejero Fiscal 2026** del Ayuntamiento (2.691 entradas; su número de vía es
+  el código INE que trae el CDAU): de las 2.551 que son calles, el mapa tiene el 96,6 %. De ahí salen 4
+  vías más en `COMPLEMENTOS` y 3 nombres que el CDAU tiene mal y el mapa corrige (`CORRECCIONES`, solo
+  mientras el CDAU no los cambie). El resto que falta son calles aún sin trazar o nombres antiguos.
 - También lleva unos 600 **lugares importantes**: los de DERA g12 (hospitales, centros de salud, colegios,
   hoteles, instalaciones deportivas, comisarías…) y, para lo que DERA no tiene o le falta, OpenStreetMap
   (monumentos, parques, estaciones, polígonos, teatros, residencias, algunos colegios públicos). Los

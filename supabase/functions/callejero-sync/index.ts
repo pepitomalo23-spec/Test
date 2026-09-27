@@ -21,8 +21,9 @@
 //   - los barrios urbanos (DERA) y, para cada vía, en qué barrios está;
 //   - los lugares importantes (DERA y, para lo que DERA no tiene,
 //     OpenStreetMap: hospitales, colegios, museos, monumentos...);
-//   - unas pocas vías que el INE da por oficiales y el CDAU aún no ha
-//     dibujado (ver COMPLEMENTOS);
+//   - unas pocas vías que el INE o el Ayuntamiento dan por oficiales y el
+//     CDAU aún no ha dibujado (ver COMPLEMENTOS), y los nombres que el
+//     CDAU tiene mal (ver CORRECCIONES);
 //   - la línea que reparte el término entre los dos parques de bomberos
 //     y qué parque acude a cada vía y a cada lugar.
 //
@@ -56,7 +57,7 @@ const TIPOS_NO_JUGABLES = new Set(["CORTIJO", "EXTRARRADIO"]);
 // Tolerancia para simplificar el trazado del archivo publicado (metros).
 const SIMPLIFICAR_M = 1.5;
 const ATRIBUCION =
-  "Callejero: Callejero Digital de Andalucía Unificado (CDAU) · Río, barrios y lugares: DERA — Instituto de Estadística y Cartografía de Andalucía, Junta de Andalucía (CC BY 4.0) · Otros lugares y el trazado de las vías que faltan en el CDAU: © colaboradores de OpenStreetMap (ODbL) · Nombres oficiales: Callejero del Censo Electoral (INE) · Parques de bomberos: S.E.I.S., Ayuntamiento de Córdoba.";
+  "Callejero: Callejero Digital de Andalucía Unificado (CDAU) · Río, barrios y lugares: DERA — Instituto de Estadística y Cartografía de Andalucía, Junta de Andalucía (CC BY 4.0) · Otros lugares y el trazado de las vías que faltan en el CDAU: © colaboradores de OpenStreetMap (ODbL) · Nombres oficiales: Callejero del Censo Electoral (INE) y Callejero Fiscal del Ayuntamiento de Córdoba · Parques de bomberos: S.E.I.S., Ayuntamiento de Córdoba.";
 // El Guadalquivir, solo para orientarse en el mapa (DERA, IECA, CC BY 4.0).
 const RIO_WFS = "https://www.ideandalucia.es/services/DERA_g3_hidrografia/wfs";
 const RIO_NOMBRE = "Río Guadalquivir";
@@ -237,6 +238,29 @@ const COMPLEMENTOS: { ine: string; tipo: string; nombre: string; geom: number[][
   { ine: "08788", tipo: "PASEO", nombre: "Paseo Valerio Molina", geom: [[[-4.76306,37.88395],[-4.76305,37.88492]]] },
   { ine: "01323", tipo: "PASAJE", nombre: "Pasaje Calerín de Eloy", geom: [[[-4.76376,37.89315],[-4.76286,37.8918]]] },
   { ine: "04864", tipo: "PLAZA", nombre: "Plaza Manuel Rivas Díaz", geom: [[[-4.80982,37.89804],[-4.809,37.89824],[-4.80895,37.89781],[-4.80981,37.89797],[-4.80982,37.89804]]] },
+  // Del Callejero Fiscal 2026 del Ayuntamiento (el código INE es su número
+  // de vía). Los dos últimos no tienen nombre en OpenStreetMap: son las
+  // zonas verdes que describe el acuerdo de 2019 que les puso nombre («entre
+  // la Avenida de Fray Albino, calle Israel y calle Cordel de Écija» y
+  // «entre la calle Periodista Rodríguez Mesa y Avenida de las Lonjas»).
+  { ine: "06455", tipo: "PLAZA", nombre: "Plaza Pintor Carlos González-Ripoll", geom: [[[-4.77586,37.87981],[-4.77583,37.87979],[-4.77581,37.87981],[-4.77578,37.87984],[-4.77576,37.87986],[-4.77579,37.8799],[-4.77581,37.87989],[-4.77588,37.87983],[-4.77587,37.87982],[-4.77586,37.87981]]] },
+  { ine: "04208", tipo: "JARDIN", nombre: "Jardín de Baden Powell", geom: [[[-4.77722,37.89181],[-4.77724,37.89165],[-4.77711,37.89166],[-4.77707,37.89166],[-4.77698,37.89167],[-4.77698,37.89168],[-4.77649,37.89172],[-4.77648,37.89172],[-4.77648,37.89173],[-4.77636,37.89174],[-4.77637,37.89178],[-4.77722,37.89181]]] },
+  { ine: "04229", tipo: "JARDIN", nombre: "Jardín 4 de Diciembre", geom: [[[-4.77982,37.87067],[-4.779,37.8715],[-4.77988,37.8721],[-4.78081,37.87121],[-4.77982,37.87067]]] },
+  { ine: "06227", tipo: "JARDIN", nombre: "Paseo Francisco Calzado Ferrer «Litri»", geom: [[[-4.76509,37.8753],[-4.75861,37.87849],[-4.75859,37.8785],[-4.75857,37.8785],[-4.75854,37.87849],[-4.75853,37.87847],[-4.75851,37.87841],[-4.75848,37.87837],[-4.75846,37.87833],[-4.75846,37.87829],[-4.75848,37.87824],[-4.76468,37.87521],[-4.76509,37.8753]]] },
+];
+
+// Vías que el CDAU tiene con un nombre distinto del oficial del Ayuntamiento
+// (Callejero Fiscal 2026), comprobado con OpenStreetMap o con su historia.
+// Solo se aplican mientras el CDAU siga con ese mismo nombre: si lo cambia,
+// manda el CDAU (y el cambio queda pendiente de un administrador, como siempre).
+const CORRECCIONES: { id: number; cdau: string; tipo: string; nombre: string }[] = [
+  // Errata del CDAU; el Ayuntamiento y OpenStreetMap: Rafael Villalba.
+  { id: 167004957, cdau: "Calle Rafael Villena", tipo: "CALLE", nombre: "Calle Rafael Villalba" },
+  // El CDAU la tiene sin nombre; es esta glorieta (Ayuntamiento y OpenStreetMap).
+  { id: 167003337, cdau: "Genérica sin Nombre5", tipo: "GLORIETA", nombre: "Glorieta Sargento Miguel Ángel Ayllón" },
+  // Alcolea: el defensor del puente en 1808, al que la Junta de Córdoba nombró
+  // general. El Ayuntamiento la llama «General Pedro A. Echevarría».
+  { id: 167001017, cdau: "Calle Soldado Pedro Agustín de Echevarria", tipo: "CALLE", nombre: "Calle General Pedro Agustín de Echevarría" },
 ];
 
 // Nombres provisionales del planeamiento o de parcelaciones («Calle B»,
@@ -1071,7 +1095,11 @@ function parqueDe(tramos: number[][][], d: Divisoria) {
 }
 
 async function publicar(sb: SupabaseClient, forzar = false) {
-  const vias = await leerTodo(sb, "callejero_vias", "id_vial, tipo, nombre, jugable, geom", (q) => q.eq("activa", true));
+  const vias = (await leerTodo(sb, "callejero_vias", "id_vial, tipo, nombre, jugable, geom", (q) => q.eq("activa", true)))
+    .map((v) => {
+      const c = CORRECCIONES.find((c) => c.id === Number(v.id_vial) && c.cdau === v.nombre);
+      return c ? { ...v, tipo: c.tipo, nombre: c.nombre, jugable: true } : v;
+    });
   const { data: actual } = await sb.from("callejero_publicado").select("version, archivo").eq("id", 1).maybeSingle();
   // Barrios: de DERA; si no responde, los del archivo ya publicado (así
   // una caída de DERA nunca deja la app sin barrios).
