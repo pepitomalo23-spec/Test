@@ -81,8 +81,13 @@ function handleAppBackgrounded(){
   const box = document.getElementById('imageLightbox');
   if(box && box.classList.contains('show')) closeImageLightbox();
 }
+// (el visor está al final de index.html: al cargar puede no existir todavía)
+function visorAbierto(){
+  const box = document.getElementById('imageLightbox');
+  return !!box && box.classList.contains('show');
+}
 function handleAppForegrounded(){
-  if(document.getElementById('imageLightbox').classList.contains('show')) return;
+  if(visorAbierto()) return;
   forceResetPinchZoom();
 }
 document.addEventListener('visibilitychange', () => {
@@ -100,6 +105,6 @@ window.addEventListener('pageshow', handleAppForegrounded);
 // había, alguno de estos reintentos cae después de que iOS lo reaplique.
 [100, 300, 600, 1000, 1500, 2000].forEach(delay => {
   setTimeout(() => {
-    if(!document.getElementById('imageLightbox').classList.contains('show')) forceResetPinchZoom();
+    if(!visorAbierto()) forceResetPinchZoom();
   }, delay);
 });

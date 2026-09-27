@@ -10,6 +10,9 @@
      (scripts/versionar.mjs). Antes de guardar un index.html nuevo se
      descargan todos sus archivos, para que nunca se mezclen archivos de
      dos versiones y la nueva funcione también sin conexión.
+   - Los datos/ (el temario del callejero) también se piden con su ?v=:
+     se guardan la primera vez que se usan y, al llegar una versión
+     nueva, se borra la anterior.
    - Las consultas de datos a Supabase (preguntas, temas, historial...)
      van primero a la red; si no hay conexión (o tarda demasiado) se usa
      la última respuesta guardada, para poder seguir estudiando.
@@ -74,6 +77,14 @@ function isAppFile(url){
   const p = new URL(url).pathname;
   return p.startsWith('/css/') || p.startsWith('/js/');
 }
+function isDataFile(url){ return new URL(url).pathname.startsWith('/datos/'); }
+// Al guardar un datos/ con un ?v= nuevo, fuera las versiones anteriores.
+async function pruneDataVersions(cache, url){
+  const p = new URL(url).pathname;
+  for(const req of await cache.keys()){
+    if(req.url !== url && new URL(req.url).pathname === p) await cache.delete(req);
+  }
+}
 // Descarga los que aún no estén guardados. Si alguno falla, lanza error y
 // no se guarda nada más (el index.html nuevo tampoco).
 async function cacheAppFiles(cache, urls){
@@ -136,9 +147,14 @@ async function handleNavigate(event){
 async function handleStatic(event, cacheName){
   const cache = await caches.open(cacheName);
   const cached = await cache.match(event.request);
-  if(cached && isAppFile(event.request.url) && new URL(event.request.url).searchParams.has('v')) return cached;
+  const url = event.request.url;
+  const versionado = (isAppFile(url) || isDataFile(url)) && new URL(url).searchParams.has('v');
+  if(cached && versionado) return cached;
   const network = fetch(event.request).then(res => {
-    if(res && (res.ok || res.type === 'opaque')) cache.put(event.request, res.clone());
+    if(res && (res.ok || res.type === 'opaque')){
+      cache.put(event.request, res.clone())
+        .then(() => versionado && isDataFile(url) ? pruneDataVersions(cache, url) : null).catch(() => {});
+    }
     return res;
   });
   if(cached){

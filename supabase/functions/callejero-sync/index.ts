@@ -287,18 +287,34 @@ function claveNombre(t: string) {
 // norte a sur por la CO-3405, Avenida del Brillante, Llanos del Pretorio,
 // Plaza de Colón, Alfaros, Capitulares, San Fernando, Puente de Miraflores,
 // Avenida de Granada y N-432»: al este, el Parque del Granadal; al oeste,
-// el Parque Central. La línea se dibuja con el trazado de esas vías en el
-// CDAU (por su id_vial). No se pregunta nada a menos de PARQUE_BANDA_M de
-// la línea: ahí la respuesta puede depender de la acera.
+// el Parque Central. La documentación de callejero de la academia da la
+// línea completa, con las vías que unen esas (Plaza de España, Acera
+// Guerrita, Puerta del Rincón, Diario Córdoba, Plaza Cruz del Rastro y, al
+// sur del río, Carmen Olmedo Checa, Av. Campo de la Verdad, Plaza Santa
+// Teresa, Av. de Cádiz, Plaza de Sor Pilar y Carretera de Castro): es la
+// que se usa. La línea se dibuja con el trazado de esas vías en el CDAU
+// (por su id_vial). No se pregunta nada a menos de PARQUE_BANDA_M de la
+// línea: ahí la respuesta puede depender de la acera.
 const LINEA_PARQUES: { id: number; latMax?: number }[] = [
   { id: 167002253 }, // Carretera CO-3405
   { id: 167000847 }, // Avenida del Brillante
   { id: 167001266 }, // Avenida Llanos del Pretorio
+  { id: 167005014 }, // Plaza de España
+  { id: 167000755 }, // Calle Acera de Guerrita
   { id: 167000158 }, // Plaza de Colón
+  { id: 167002802 }, // Calle Puerta del Rincón
   { id: 167000034 }, // Calle Alfaros
   { id: 167000892 }, // Calle Capitulares
+  { id: 167000462 }, // Calle Diario de Córdoba
   { id: 167001442 }, // Calle San Fernando
+  { id: 167000336 }, // Plaza Cruz del Rastro
   { id: 167002487 }, // Puente de Miraflores
+  { id: 167003087 }, // Calle Carmen Olmedo Checa
+  { id: 167001645 }, // Avenida del Campo de la Verdad
+  { id: 167001926 }, // Plaza Santa Teresa
+  { id: 167000088 }, // Avenida de Cádiz
+  { id: 167001838 }, // Plaza de Sor Pilar
+  { id: 167000149 }, // Calle Carretera de Castro
   { id: 167001159 }, // Avenida de Granada
   { id: 167002400, latMax: 37.8676 }, // Carretera N-432, solo hacia Granada
 ];
