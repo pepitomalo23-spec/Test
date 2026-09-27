@@ -12,13 +12,17 @@
 //       app (tabla client_errors) desde el último aviso.
 //  2) Desde la app, con la sesión del usuario ({ "test": true }): envía
 //     una notificación de prueba a sus propios dispositivos.
+//  3) Desde la app, callejero ({ "aviso": "tarea" | "mensaje", "id": … }):
+//     avisa al alumno de una tarea nueva de su profesor, o al otro de un
+//     mensaje en una tarea. Solo si quien llama es el autor, sigue siendo
+//     profesor de ese alumno y la tarea o el mensaje son de hace un momento.
 //
 // Las claves VAPID y el secreto del cron viven en app_secrets; nunca en
 // el repo. El cifrado del mensaje y la firma VAPID se hacen con WebCrypto,
 // sin dependencias externas.
 // =====================================================================
 
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -140,6 +144,41 @@ function dueCards(progress: Record<string, any> | null, validIds: Set<string>): 
   return n;
 }
 
+// ---- Callejero: a quién avisar de una tarea nueva o de un mensaje ----
+const corta = (t: string, n = 120) => (t.length > n ? t.slice(0, n - 1) + "…" : t);
+const RECIENTE_MS = 10 * 60_000;
+async function avisoCallejero(sb: SupabaseClient, autor: string, aviso: string, id: number):
+  Promise<{ para: string; push: Record<string, unknown> } | null> {
+  if (!Number.isFinite(id)) return null;
+  const tarea = async (tid: number) =>
+    (await sb.from("callejero_tareas").select("id, titulo, mensaje, profesor_id, alumno_id, archivada, creada_at").eq("id", tid).maybeSingle()).data as any;
+  const esTutor = async (profesor: string, alumno: string) => {
+    const [{ data: t }, { data: p }] = await Promise.all([
+      sb.from("tutorias").select("profesor_id").eq("profesor_id", profesor).eq("alumno_id", alumno).maybeSingle(),
+      sb.from("profiles").select("es_profesor, blocked").eq("id", profesor).maybeSingle(),
+    ]);
+    return !!t && !!(p as any)?.es_profesor && !(p as any)?.blocked;
+  };
+  if (aviso === "tarea") {
+    const t = await tarea(id);
+    if (!t || t.profesor_id !== autor || t.archivada || Date.now() - new Date(t.creada_at).getTime() > RECIENTE_MS) return null;
+    if (!(await esTutor(t.profesor_id, t.alumno_id))) return null;
+    return {
+      para: t.alumno_id,
+      push: { title: "📍 Nueva tarea del callejero", body: t.mensaje ? `${t.titulo}: ${corta(t.mensaje)}` : t.titulo, tag: `pjfire-tarea-${t.id}`, url: "./?callejero=1" },
+    };
+  }
+  const { data: m } = await sb.from("callejero_mensajes").select("id, texto, autor_id, tarea_id, creado_at").eq("id", id).maybeSingle();
+  if (!m || (m as any).autor_id !== autor || Date.now() - new Date((m as any).creado_at).getTime() > RECIENTE_MS) return null;
+  const t = await tarea((m as any).tarea_id);
+  if (!t || (autor !== t.profesor_id && autor !== t.alumno_id) || !(await esTutor(t.profesor_id, t.alumno_id))) return null;
+  const deProfesor = autor === t.profesor_id;
+  return {
+    para: deProfesor ? t.alumno_id : t.profesor_id,
+    push: { title: deProfesor ? "💬 Mensaje de tu profesor" : "💬 Mensaje de tu alumno", body: `${t.titulo}: ${corta((m as any).texto)}`, tag: `pjfire-mensaje-${t.id}`, url: "./?callejero=1" },
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
@@ -154,12 +193,28 @@ Deno.serve(async (req) => {
     if (status === 404 || status === 410) await sb.from("push_subscriptions").delete().eq("id", sub.id);
   };
 
-  // ---- Prueba desde la app (sesión del propio usuario) ----
+  // ---- Desde la app (sesión del usuario): avisos del callejero o prueba ----
   const isCron = !!sec.push_cron_secret && req.headers.get("x-push-secret") === sec.push_cron_secret;
   if (!isCron) {
     const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const { data: u } = await sb.auth.getUser(token);
     if (!u?.user) return json({ error: "unauthorized" }, 401);
+    let body: any = {};
+    try { body = await req.json(); } catch (_e) { /* sin cuerpo */ }
+    if (body?.aviso === "tarea" || body?.aviso === "mensaje") {
+      const aviso = await avisoCallejero(sb, u.user.id, body.aviso, Number(body.id));
+      if (!aviso) return json({ sent: 0 });
+      const { data: destino } = await sb.from("push_subscriptions").select("*").eq("user_id", aviso.para);
+      let sent = 0;
+      for (const s of (destino || []) as Sub[]) {
+        try {
+          const st = await sendPush(s, vapid, aviso.push);
+          if (st >= 200 && st < 300) sent++;
+          await dropIfGone(s, st);
+        } catch (_e) { /* sigue con el resto */ }
+      }
+      return json({ sent });
+    }
     const { data: subs } = await sb.from("push_subscriptions").select("*").eq("user_id", u.user.id);
     let sent = 0;
     for (const s of (subs || []) as Sub[]) {

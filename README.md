@@ -40,7 +40,8 @@ js/                  código, en orden de carga (ver el final de index.html)
   admin/             panel de administración (panel, actividad, usuarios,
                      copias, errores, boe, temario, importar-ia, callejero)
   normativas.js      Normativas (fichas estilo Quizlet)
-  callejero.js       Callejero: mapa, modos de juego y modo estudio
+  callejero.js       Callejero: mapa, modos de juego, modo estudio, tareas y modo selección
+  callejero-profesor.js  Callejero: «Mis alumnos» del profesor, tareas y mensajes
   arranque.js        escucha la sesión y arranca la app (siempre el último)
 sw.js                service worker: app sin conexión y actualizaciones
 scripts/versionar.mjs  pone el ?v= de cada css/js en index.html
@@ -63,7 +64,8 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   solos; los cambios de nombre y las vías que desaparecen esperan en Administración → Callejero
   a que se aprueben. Si la descarga parece incompleta no se toca nada.
 - Tablas: `callejero_vias`, `callejero_cambios`, `callejero_sync_log`, `callejero_publicado` y
-  `callejero_intentos` (respuestas de cada alumno). Ver `supabase/migrations/20260925_callejero.sql`.
+  `callejero_intentos` (respuestas de cada alumno, con su ronda, zona y tarea). Ver
+  `supabase/migrations/20260925_callejero.sql` y `20260927_callejero_profesor.sql`.
 - El archivo publicado lleva también los 70 barrios urbanos de Córdoba con su distrito (DERA g13_24)
   y en qué barrios está cada vía; con eso la app deja elegir qué estudiar: toda Córdoba, un
   distrito, un barrio o las afueras y pedanías.
@@ -84,12 +86,36 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
 - Modos de juego: Localiza la calle, ¿Cómo se llama? (4 opciones), Di el nombre (se marca una calle, uno
   dice su nombre para sí, pulsa «Resolver» y se pone él mismo bien o mal), Cruces y paralelas (se calculan en la app con el trazado de las vías), Lugares importantes y
   ¿Qué parque acude?. Además, el Modo estudio.
+- Pantalla, de arriba abajo: tareas del profesor, qué estudiar (zona), progreso, Aprender (modo estudio),
+  Practicar (¿Cómo se llama?, Di el nombre, Localiza la calle), Relacionar (cruces y paralelas), Servicio
+  (lugares y parque) y las últimas rondas.
+- Progreso por habilidad (nombres, situar calles, cruces, lugares y parque), con la regla de los tests:
+  dominada si nunca se ha fallado o si lleva 3 aciertos seguidos. Cada ronda empieza por lo fallado.
+- Cada respuesta lleva un `uid` que pone la app: la cola sin conexión se sube sin duplicar ni perder nada.
 - La app descarga un único archivo compacto (almacén público `callejero`, unos 900 KB) solo al
   abrir la pantalla; el service worker lo guarda para jugar sin conexión. El mapa (Leaflet) también
   se carga solo entonces. Tres estilos de mapa, sin nombres que den pistas: Sencillo y Plano
   (el trazado de las vías es el mapa, funcionan sin conexión) y Satélite (ortofotos PNOA del
   Instituto Geográfico Nacional, CC BY 4.0: la del último vuelo encima y la de «máxima actualidad»
   debajo; necesita conexión).
+
+## Profesor del callejero
+
+Un profesor es una cuenta normal (se registra con su correo como cualquiera y el administrador la
+confirma) que el administrador marca como **Profesor del callejero** en Administración → Usuarios,
+donde también le elige sus alumnos (`profiles.es_profesor` y tabla `tutorias`). No es administrador:
+solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
+
+- En Callejero ve «Mis alumnos | Mi callejero». Por cada alumno: cuándo estudió, rondas y aciertos de
+  la semana, su progreso por habilidad (en la zona que elija), lo que más falla y sus últimas rondas.
+- Le manda **tareas** (`callejero_tareas`): calles y lugares elegidos uno a uno en el mapa (tocándolos,
+  buscándolos o añadiendo un barrio o distrito entero) o una zona entera; qué modos cuentan, cuántas
+  rondas y con qué mínimo de aciertos, fecha límite y un mensaje. Se puede mandar a varios alumnos a la vez
+  y crear una directamente con lo que el alumno más falla.
+- Al alumno le salen arriba y cada tarea es una zona más: en sus rondas solo salen sus calles y lugares.
+  Con **«solo esto»**, mientras la tarea esté activa el alumno solo puede elegir las tareas del profesor.
+- Cada tarea tiene su conversación (`callejero_mensajes`). Tareas nuevas y mensajes se avisan con una
+  notificación (`push-reminders`, a quien tenga activado el recordatorio) y con un número en la pestaña.
 
 ## Al cambiar un css/ o js/
 

@@ -155,4 +155,5 @@ window.addEventListener('online', () => { flushPendingResults(); });
 
 let currentUser = null;
 let currentUserIsAdmin = false;
+let currentUserIsProfesor = false;  // profesor del callejero (profiles.es_profesor)
 let adminPollInterval = null;

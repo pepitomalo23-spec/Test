@@ -29,10 +29,70 @@ async function adminToggleDefaultFlag(key){
 async function adminLoadUsers(){
   const el = document.getElementById('adminList-users');
   el.innerHTML = skelList(4);
-  const { data, error } = await sb.rpc('admin_list_users');
+  const [{ data, error }, tut] = await Promise.all([
+    sb.rpc('admin_list_users'),
+    sb.from('tutorias').select('profesor_id, alumno_id')
+  ]);
   if(error){ el.innerHTML = '<div class="admin-empty">No se pudo cargar la lista de usuarios.</div>'; console.error(error); return; }
   adminData.users = data || [];
+  adminData.tutorias = (tut && !tut.error && tut.data) || [];
   adminRenderUsers();
+}
+/* Profesor del callejero: el switch lo marca (o desmarca) como profesor y,
+   si lo es, se eligen sus alumnos. El profesor ve el callejero de sus
+   alumnos y les manda tareas; nada más (no es administrador). */
+function adminProfesorRow(u){
+  const tutorias = adminData.tutorias || [];
+  const suyos = new Set(tutorias.filter(t => t.profesor_id === u.id).map(t => t.alumno_id));
+  const susProfesores = tutorias.filter(t => t.alumno_id === u.id)
+    .map(t => (adminData.users.find(x => x.id === t.profesor_id) || {}).email).filter(Boolean);
+  const otros = adminData.users.filter(x => x.id !== u.id && x.approved);
+  return '<div class="admin-user-row" style="margin-top:10px; flex-direction:column; align-items:stretch; gap:8px;">' +
+      '<div class="admin-user-row" style="justify-content:space-between;">' +
+        '<span style="font-size:13px;">Profesor del callejero</span>' +
+        '<span class="switch' + (u.es_profesor ? ' on' : '') + '" role="button" tabindex="0" ' +
+          'onclick="adminSetProfesor(\'' + u.id + '\', ' + !u.es_profesor + ')" ' +
+          'onkeydown="if(event.key===\'Enter\')adminSetProfesor(\'' + u.id + '\', ' + !u.es_profesor + ')">' +
+          '<span class="knob"></span>' +
+        '</span>' +
+      '</div>' +
+      (u.es_profesor
+        ? '<div class="admin-card-meta">Sus alumnos (ve su callejero y les manda tareas):</div>' +
+          (otros.length ? otros.map(x =>
+            '<label class="admin-check-row" style="margin-top:0;"><input type="checkbox"' + (suyos.has(x.id) ? ' checked' : '') +
+              ' onchange="adminSetTutoria(\'' + u.id + '\', \'' + x.id + '\', this.checked, this)"> <span style="font-size:13px;">' + esc(x.email || '(sin correo)') + '</span></label>').join('')
+            : '<div class="admin-card-meta">No hay otras cuentas confirmadas.</div>')
+        : '') +
+      (susProfesores.length ? '<div class="admin-card-meta">Su profesor' + (susProfesores.length > 1 ? 'es' : '') + ' del callejero: ' + susProfesores.map(esc).join(', ') + '</div>' : '') +
+      '<div class="admin-status" id="adminStatus-profesor-' + esc(u.id) + '"></div>' +
+    '</div>';
+}
+async function adminSetProfesor(userId, esProfesor){
+  const statusEl = document.getElementById('adminStatus-profesor-' + userId);
+  if(!esProfesor && (adminData.tutorias || []).some(t => t.profesor_id === userId) &&
+     !await uiConfirm('¿Quitarle el papel de profesor? Dejará de ver el callejero de sus alumnos y ellos dejarán de ver sus tareas (se conservan por si vuelve a serlo).')) return;
+  if(statusEl){ statusEl.textContent = 'Guardando…'; statusEl.className = 'admin-status'; }
+  const { error } = await sb.rpc('admin_set_profesor', { p_user_id: userId, p_es: esProfesor });
+  if(error){
+    if(statusEl){ statusEl.textContent = 'No se pudo actualizar: ' + error.message; statusEl.className = 'admin-status err'; }
+    return;
+  }
+  const u = (adminData.users || []).find(x => x.id === userId);
+  if(u) u.es_profesor = esProfesor;
+  adminRenderUsers();
+}
+async function adminSetTutoria(profesorId, alumnoId, activa, checkbox){
+  const statusEl = document.getElementById('adminStatus-profesor-' + profesorId);
+  if(statusEl){ statusEl.textContent = 'Guardando…'; statusEl.className = 'admin-status'; }
+  const { error } = await sb.rpc('admin_set_tutoria', { p_profesor: profesorId, p_alumno: alumnoId, p_activa: activa });
+  if(error){
+    if(checkbox) checkbox.checked = !activa;
+    if(statusEl){ statusEl.textContent = 'No se pudo actualizar: ' + error.message; statusEl.className = 'admin-status err'; }
+    return;
+  }
+  adminData.tutorias = (adminData.tutorias || []).filter(t => !(t.profesor_id === profesorId && t.alumno_id === alumnoId));
+  if(activa) adminData.tutorias.push({ profesor_id: profesorId, alumno_id: alumnoId });
+  if(statusEl) statusEl.textContent = '';
 }
 function adminRenderUsers(){
   const el = document.getElementById('adminList-users');
@@ -90,6 +150,7 @@ function adminRenderUsers(){
             '<div class="admin-card-meta">Registrado: '+formatDateTime(u.created_at)+'</div>' +
             '<div class="admin-user-badges">' +
               (u.is_admin ? '<span class="admin-badge admin">Administrador</span>' : '') +
+              (u.es_profesor ? '<span class="admin-badge admin">Profesor</span>' : '') +
               (pending ? '<span class="admin-badge pending">Pendiente</span>' : '') +
               blockedBadge +
               deviceBadge +
@@ -99,6 +160,7 @@ function adminRenderUsers(){
         '</div>' +
         pendingRow +
         manageRow +
+        (pending ? '' : adminProfesorRow(u)) +
         featureTogglesRow +
         '<div class="admin-status" id="adminStatus-deviceLimit-'+esc(u.id)+'"></div>' +
         '<div class="admin-status" id="adminStatus-manage-'+esc(u.id)+'"></div>' +

@@ -38,6 +38,9 @@ function handleDeepLink(href){
     setTimeout(tryStart, 300);
   } else if(url.searchParams.get('admin') === 'errores' && currentUserIsAdmin){
     openAdminPanel().then(() => switchAdminTab('errors'));
+  } else if(url.searchParams.get('callejero') && featureEnabled('callejero')){
+    // Aviso de una tarea o un mensaje del callejero (profesor ↔ alumno).
+    showScreen('screen-callejero');
   }
   if(url.search && url.href === location.href){
     try{ history.replaceState(null, '', location.pathname + location.hash); }catch(e){}
