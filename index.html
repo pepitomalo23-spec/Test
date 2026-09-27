@@ -59,7 +59,7 @@
 <link rel="stylesheet" href="css/pantallas.css?v=3f6c67404a">
 <link rel="stylesheet" href="css/test.css?v=06abd3d71a">
 <link rel="stylesheet" href="css/normativas.css?v=647d1c0791">
-<link rel="stylesheet" href="css/callejero.css?v=48643076cc">
+<link rel="stylesheet" href="css/callejero.css?v=438e81db4e">
 </head>
 <body>
 <div id="appSplash">
@@ -446,6 +446,7 @@
           <div class="cj-pista hidden" id="cjPista">Toca una calle para ver cómo se llama</div>
           <div class="cj-info hidden" id="cjInfo"></div>
           <div class="cj-lista hidden" id="cjLista"></div>
+          <div class="cj-plano hidden" id="cjPlano"></div>
           <div class="cj-resultado hidden" id="cjResultado">
             <div class="cj-resultado-texto" id="cjResultadoTexto"></div>
             <button type="button" class="btn btn-primary btn-light" id="cjSiguiente" onclick="CJ.siguiente()">Siguiente</button>
@@ -454,6 +455,7 @@
       </div>
       <div class="hidden" id="cjFin"></div>
       <div class="hidden" id="cjPanel"></div>
+      <div class="hidden" id="cjTemario"></div>
     </section>
 
     <section class="screen" id="screen-stats">
@@ -1051,7 +1053,7 @@
 <script src="js/configuracion-test.js?v=a7484ef8cc"></script>
 <script src="js/test-inteligente.js?v=a7a43bfe6a"></script>
 <script src="js/test.js?v=a7af84c693"></script>
-<script src="js/visor-imagen.js?v=9612553475"></script>
+<script src="js/visor-imagen.js?v=1bec9b7237"></script>
 <script src="js/splash.js?v=d8bfe1c6df"></script>
 <script src="js/notas.js?v=f2bfde0c15"></script>
 <script src="js/ia.js?v=e9d8fff760"></script>
@@ -1069,8 +1071,9 @@
 <script src="js/admin/importar-ia.js?v=fc5e42e6f8"></script>
 <script src="js/admin/callejero.js?v=5d85c58ac1"></script>
 <script src="js/normativas.js?v=7426a7cc1d"></script>
-<script src="js/callejero.js?v=c00c53edef"></script>
-<script src="js/callejero-profesor.js?v=fc7e250e9b"></script>
+<script src="js/callejero.js?v=c5f5a63679"></script>
+<script src="js/callejero-temario.js?v=99159452ce"></script>
+<script src="js/callejero-profesor.js?v=d7dc4e4a3e"></script>
 <script src="js/arranque.js?v=736412f343"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
   <button type="button" class="image-lightbox-close" onclick="closeImageLightbox(event)" title="Cerrar">

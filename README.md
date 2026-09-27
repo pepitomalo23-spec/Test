@@ -41,8 +41,10 @@ js/                  código, en orden de carga (ver el final de index.html)
                      copias, errores, boe, temario, importar-ia, callejero)
   normativas.js      Normativas (fichas estilo Quizlet)
   callejero.js       Callejero: mapa, modos de juego, modo estudio, tareas y modo selección
+  callejero-temario.js   Callejero: temario de la academia (fichas, en el mapa, preguntas y planos)
   callejero-profesor.js  Callejero: «Mis alumnos» del profesor, tareas y mensajes
   arranque.js        escucha la sesión y arranca la app (siempre el último)
+datos/               datos que la app descarga cuando hacen falta (callejero-temario.json)
 sw.js                service worker: app sin conexión y actualizaciones
 scripts/versionar.mjs  pone el ?v= de cada css/js en index.html
 supabase/            migraciones de la base de datos y funciones (Edge Functions)
@@ -82,10 +84,13 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   (monumentos, parques, estaciones, polígonos, teatros, residencias, algunos colegios públicos). Los
   lugares grandes llevan un radio: vale tocar dentro. Si OpenStreetMap no responde en la sincronización,
   se conservan los de la semana anterior.
-- Para cada vía y lugar, **qué parque de bomberos acude** según la línea divisoria del SEIS (CO-3405,
-  Av. del Brillante, Llanos del Pretorio, Pl. de Colón, Alfaros, Capitulares, San Fernando, Puente de
-  Miraflores, Av. de Granada y N-432): al este el Parque del Granadal y al oeste el Parque Central. La
-  línea sigue el trazado de cada vía (y el camino más corto por las calles entre una y la siguiente).
+- Para cada vía y lugar, **qué parque de bomberos acude** según la línea divisoria del SEIS, con las 21
+  vías que da la documentación de la academia (CO-3405, Av. del Brillante, Llanos del Pretorio, Pl. de
+  España, Acera Guerrita, Pl. de Colón, Puerta del Rincón, Alfaros, Capitulares, Diario Córdoba, San
+  Fernando, Pl. Cruz del Rastro, Puente de Miraflores, Carmen Olmedo Checa, Av. Campo de la Verdad, Pl.
+  Santa Teresa, Av. de Cádiz, Pl. de Sor Pilar, Carretera de Castro, Av. de Granada y N-432): al este el
+  Parque del Granadal y al oeste el Parque Central. La línea sigue el trazado de cada vía (y el camino
+  más corto por las calles entre una y la siguiente).
   Las vías a menos de 150 m de la línea no se preguntan, porque no está claro a cuál le toca.
 - Modos de juego: Localiza la calle, ¿Cómo se llama? (4 opciones), Di el nombre (se marca una calle, uno
   dice su nombre para sí, pulsa «Resolver» y se pone él mismo bien o mal), Cruces y paralelas (se calculan en la app con el trazado de las vías), Lugares importantes y
@@ -102,6 +107,27 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   (el trazado de las vías es el mapa, funcionan sin conexión) y Satélite (ortofotos PNOA del
   Instituto Geográfico Nacional, CC BY 4.0: la del último vuelo encima y la de «máxima actualidad»
   debajo; necesita conexión).
+
+## Temario del callejero
+
+La documentación de callejero de la academia (ficha General y una por distrito: Centro, Levante, Norte
+Sierra, Poniente Norte, Poniente Sur, Sur y Sureste; faltan Noroeste y los dos periurbanos) está pasada a
+datos en `datos/callejero-temario.json`: unos 1.200 elementos (colegios, plazas, recorridos desde el parque,
+carreteras, salidas de la A-4, urbanizaciones, polígonos, puentes, arroyos, zonas inundables, calles con
+otro nombre, datos generales y los planos de la Mezquita, el Alcázar y la Feria). Cada uno tiene un id fijo
+(desde 5 000 000 000 000) y, cuando se ha podido, sus vías, su lugar o su barrio del mapa. Las imágenes de la
+academia no se copian: todo se ve en el mapa del callejero y los tres planos están dibujados en
+`js/callejero-temario.js`, a grandes rasgos.
+
+- En Callejero, «Temario de la academia»: cada ficha con sus apartados. De cada apartado se ve la lista, se
+  ve **en el mapa** (lo del apartado en azul; al tocarlo, su ficha; los recorridos numerados) y se
+  **pregunta**: rondas del modo `temario` de hasta 20 preguntas, primero lo fallado, que se responden
+  tocando el mapa, eligiendo entre opciones o tocando el plano.
+- El progreso es por elemento, en la habilidad `temario` (misma regla de dominada).
+- El profesor manda fichas o apartados (`callejero_tareas.fichas`, migración `20260928_callejero_temario.sql`):
+  al alumno le salen como «Estúdiate esto», con su lista, su mapa y sus rondas, que cuentan para la tarea.
+- El archivo lleva `?v=` con su huella (la pone `scripts/versionar.mjs` en el js que lo pide): el service
+  worker lo guarda al usarlo y, cuando cambia, borra el anterior.
 
 ## Profesor del callejero
 
@@ -134,4 +160,5 @@ tienen la app guardada seguirán usando la versión anterior del archivo. GitHub
 lo comprueba en cada push («Comprobar»).
 
 Si añades un archivo nuevo, enlázalo en `index.html` en el sitio que le toque del orden
-de carga (con `?v=0`, por ejemplo) y ejecuta el script.
+de carga (con `?v=0`, por ejemplo) y ejecuta el script. Lo mismo al cambiar un archivo de
+`datos/`: el script actualiza su `?v=` en el js que lo pide.
