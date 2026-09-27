@@ -88,12 +88,18 @@ let permsCheckTimer = null;
 async function refreshMyPermissions(){
   if(!currentUser || currentUserIsAdmin) return;
   try{
-    const { data, error } = await sb.from('profiles').select('feature_flags, blocked, approved').eq('id', currentUser.id).maybeSingle();
+    const { data, error } = await sb.from('profiles').select('feature_flags, blocked, approved, es_profesor').eq('id', currentUser.id).maybeSingle();
     if(error || !data) return;
     if(data.blocked || !data.approved){
       await sb.auth.signOut();
       showAuthError(data.blocked ? 'Tu cuenta ha sido bloqueada por un administrador. Contacta con el administrador si crees que es un error.' : 'Tu cuenta está pendiente de confirmación por un administrador.');
       return;
+    }
+    // Si el admin le hace (o deja de hacer) profesor, cambia el Callejero.
+    if(!!data.es_profesor !== currentUserIsProfesor){
+      currentUserIsProfesor = !!data.es_profesor;
+      const active = document.querySelector('.screen.active');
+      if(active && active.id === 'screen-callejero' && typeof CJ !== 'undefined') CJ.volver();
     }
     const next = data.feature_flags || {};
     if(JSON.stringify(next) !== JSON.stringify(myFeatureFlags)){

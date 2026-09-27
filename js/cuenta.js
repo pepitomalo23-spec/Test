@@ -137,6 +137,7 @@ async function onLoggedIn(user, isFreshSignIn){
     profile = created;
   }
   currentUserIsAdmin = !!(profile && profile.is_admin);
+  currentUserIsProfesor = !!(profile && profile.es_profesor);
   myFeatureFlags = (profile && profile.feature_flags) || {};
   applyFeatureVisibility();
   startPermissionsWatch();
@@ -276,6 +277,7 @@ async function onLoggedIn(user, isFreshSignIn){
   if(smartLabelEl) smartLabelEl.innerHTML = SKEL_INLINE;
   finishSplash();
   handleDeepLink(location.href);
+  if(typeof CJ !== 'undefined') CJ.comprobarAvisos(true);
 
   const globalStatsSessionsPromise = sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
   let startupDone = false;
@@ -377,6 +379,9 @@ function onLoggedOut(){
   stopActivityLive();
   currentUser = null;
   currentUserIsAdmin = false;
+  currentUserIsProfesor = false;
+  if(typeof CJ !== 'undefined') CJ.reiniciar();
+  if(typeof CJP !== 'undefined') CJP.reiniciar();
   if(adminPollInterval){ clearInterval(adminPollInterval); adminPollInterval = null; }
   const adminBtn = document.getElementById('headerAdminBtn');
   if(adminBtn) adminBtn.classList.add('hidden');
