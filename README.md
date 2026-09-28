@@ -116,7 +116,15 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   móviles, si el móvil lo dice, hasta el 16: ~50 MB; nada con el ahorro de datos). Si se cierra antes,
   sigue la siguiente vez; al terminar se apunta en el dispositivo. El menú de estilos dice cómo va.
 - Las calles (y lo resaltado encima) se ensanchan al acercarse, como en un plano de verdad: cada línea
-  tiene su grosor de lejos y su anchura en metros, y se pinta con el mayor de los dos.
+  tiene su grosor de lejos y su anchura en metros, y se pinta con el mayor de los dos. Al alejarse del
+  zoom 16 adelgazan (las calles, hasta el 40 %; lo resaltado, hasta el 60 %), para que de lejos se vean
+  finas y no tapen el mapa.
+- **Marcar un barrio o distrito**: en todos los mapas, un botón en la columna de la derecha abre un
+  buscador con los distritos y los barrios; lo elegido queda marcado (línea blanca con borde oscuro y su
+  nombre) mientras se estudia y en los siguientes mapas, hasta quitarlo (se recuerda en el dispositivo).
+  Solo es para verlo: no cambia la zona de las preguntas. De un distrito se marca solo el borde de fuera:
+  se juntan los vértices a menos de ~12 m, se parte cada lado por los vértices que caen encima y se
+  quedan los tramos que no comparte ningún otro barrio.
 
 ## Temario del callejero
 
@@ -151,7 +159,9 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   su zona en la Lista; en Preguntar, las rondas del temario y los modos de juego con sus calles, que cuentan
   para la tarea.
 - **Mapa libre**: lo que ha mandado el profesor sale en morado; dentro del mapa, arriba, se elige qué tocar
-  (Calles, Lugares —todos como puntos— o Profesor —solo lo suyo, con su lista—). Todos los mapas (también
+  (Calles, Lugares —todos como puntos— o Profesor —solo lo suyo, con su lista—). Con el botón de colores
+  (al lado), cada cosa del profesor sale de un color distinto, también con su punto en la lista (se
+  recuerda). Todos los mapas (también
   jugando) tienen un botón para ponerlos a **pantalla completa**: el mapa ocupa todo el móvil, de borde a
   borde (y sin las barras del navegador donde se puede; en el iPhone, no), y lo demás flota encima en
   recuadros pequeños que se pliegan con un toque: arriba, la pregunta con las respuestas o el buscador;

@@ -49,7 +49,7 @@
 
   /* ---------- estilo del mapa ---------- */
   /* Por encima de los botones de debajo (pantalla completa y zoom), para que el menú no quede tapado */
-  .cj-mapa .leaflet-control.cj-estilo{ position:relative; z-index:801; }
+  .cj-mapa .leaflet-control.cj-estilo{ position:relative; z-index:803; }
   .cj-estilo-boton{ display:flex; align-items:center; gap:6px; padding:7px 10px; border-radius:10px; border:1px solid var(--line);
     background: var(--bg); color: var(--text); font: inherit; font-size:12.5px; font-weight:600; cursor:pointer; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
   .cj-estilo-boton svg{ width:16px; height:16px; }
@@ -608,6 +608,46 @@
   .cj-completa-boton .cj-ico-cerrar, #screen-callejero.cj-completa .cj-completa-boton .cj-ico-abrir{ display:none; }
   #screen-callejero.cj-completa .cj-completa-boton .cj-ico-cerrar{ display:flex; }
   .cj-mapa .leaflet-top.leaflet-right{ display:flex; flex-direction:column; align-items:flex-end; }
+
+  /* ---------- un barrio o distrito marcado (botón en todos los mapas) ---------- */
+  .cj-mapa .leaflet-control.cj-marcar{ position:relative; z-index:802; }
+  .cj-marcar-boton{ display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:10px; border:1px solid var(--line);
+    background: var(--bg); color: var(--text); cursor:pointer; box-shadow: 0 2px 8px rgba(0,0,0,.25); padding:0; }
+  .cj-marcar-boton svg{ width:17px; height:17px; }
+  .cj-marcar-boton.activo{ background: var(--text); border-color: var(--text); color: var(--bg); }
+  /* El menú se abre hacia la izquierda del botón */
+  .cj-marcar-menu{ position:absolute; top:0; right:calc(100% + 8px); width:290px; max-width:calc(100vw - 80px); display:flex; flex-direction:column;
+    max-height:min(62vh, 440px); background: var(--bg); border:1px solid var(--line); border-radius:12px; overflow:hidden; box-shadow: 0 10px 28px rgba(0,0,0,.35); }
+  .cj-marcar-menu.hidden{ display:none; }
+  .cj-marcar-actual{ display:flex; align-items:center; gap:8px; padding:9px 10px 9px 12px; border-bottom:1px solid var(--line-soft); font-size:12.5px; color: var(--muted); }
+  .cj-marcar-actual.hidden{ display:none; }
+  .cj-marcar-actual b{ color: var(--text); }
+  .cj-marcar-actual > span:first-child{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cj-marcar-acciones{ display:flex; gap:6px; flex-shrink:0; }
+  .cj-marcar-acciones button{ padding:5px 9px; border-radius:8px; border:1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size:12px; font-weight:600; cursor:pointer; }
+  .cj-marcar-acciones button[data-accion="quitar"]{ color: var(--coral); }
+  .cj-marcar-buscar{ margin:8px; padding:8px 10px; border-radius:9px; border:1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size:14px; outline:none; }
+  .cj-marcar-lista{ overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:4px; }
+  .cj-marcar-cab{ padding:8px 12px 4px; font-size:10.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color: var(--muted-2); }
+  .cj-marcar-opcion{ display:block; width:100%; text-align:left; padding:8px 12px; border:none; background:none; color: var(--text); font: inherit; font-size:14px; cursor:pointer; }
+  .cj-marcar-opcion:hover{ background: var(--w05); }
+  .cj-marcar-opcion.activa{ color: var(--coral); font-weight:700; }
+  .cj-marcar-vacio{ padding:10px 12px; font-size:13px; color: var(--muted); }
+  /* Su nombre, en el mapa */
+  .cj-marcado-nombre{ background:none; border:none; }
+  .cj-marcado-nombre span{ display:inline-block; transform: translate(-50%, -50%); white-space:nowrap; padding:4px 10px; border-radius:99px;
+    background: rgba(11,18,32,.82); color:#fff; font-size:12.5px; font-weight:700; box-shadow: 0 2px 8px rgba(0,0,0,.35); pointer-events:none; }
+  /* A pantalla completa, con un menú abierto, la columna de la derecha por encima del recuadro de arriba */
+  #screen-callejero.cj-completa .cj-mapa .leaflet-top.leaflet-right:has(.cj-estilo-menu:not(.hidden), .cj-marcar-menu:not(.hidden)){ z-index:1200; }
+
+  /* ---------- «Colores»: cada cosa del profesor, de un color ---------- */
+  .cj-chip.cj-chip-colores{ padding:6px 8px; }
+  .cj-chip.cj-chip-colores.activo{ background: var(--text); border-color: var(--text); }
+  .cj-chip-colores i{ display:inline-block; width:14px; height:14px; border-radius:50%;
+    background: conic-gradient(#EF4444, #F59E0B, #84CC16, #10B981, #06B6D4, #3B82F6, #A855F7, #EC4899, #EF4444); }
+  @media (max-width:380px){ .cj-chip{ padding:6px 8px; } .cj-chip.cj-chip-colores{ padding:6px 7px; } }
+  .cj-pista-morado.cj-pista-colores{ background: conic-gradient(#EF4444, #F59E0B, #84CC16, #10B981, #06B6D4, #3B82F6, #A855F7, #EC4899, #EF4444); box-shadow:none; }
+  .cj-punto-color{ display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:8px; vertical-align:-1px; box-shadow: 0 0 0 2px rgba(255,255,255,.15); }
   /* En el móvil, a la derecha solo iconos (estilo, pantalla completa, zoom): más sitio para las opciones */
   @media (max-width:640px){
     .cj-estilo-actual{ display:none; }
