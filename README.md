@@ -115,17 +115,25 @@ Sierra, Poniente Norte, Poniente Sur, Sur y Sureste; faltan Noroeste y los dos p
 datos en `datos/callejero-temario.json`: unos 1.200 elementos (colegios, plazas, recorridos desde el parque,
 carreteras, salidas de la A-4, urbanizaciones, polígonos, puentes, arroyos, zonas inundables, calles con
 otro nombre, datos generales y los planos de la Mezquita, el Alcázar y la Feria). Cada uno tiene un id fijo
-(desde 5 000 000 000 000) y, cuando se ha podido, sus vías, su lugar o su barrio del mapa. Las imágenes de la
-academia no se copian: todo se ve en el mapa del callejero y los tres planos están dibujados en
-`js/callejero-temario.js`, a grandes rasgos.
+(desde 5 000 000 000 000) y, cuando se ha podido, sus vías, su lugar o su barrio del mapa. Los planos para
+responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgos.
+
+- **Documento original**: las páginas de cada PDF (con todos sus mapas), en WebP, en el almacén **privado**
+  `temario` de Supabase (`v1/<documento>/<página>.webp`; migración `20260928b_temario_documento.sql`): solo
+  las pueden leer los usuarios aprobados y no bloqueados. No van en el repositorio, que es público. Cada ficha
+  tiene su botón «Documento original»; cada apartado, sus mapas del documento en miniatura y el enlace a sus
+  páginas (`secciones[].docs` del JSON), y los barrios, recorridos y polígonos, su página (`pg`). El service
+  worker guarda las páginas vistas con los datos del usuario (se borran al cerrar sesión).
 
 - En Callejero, «Temario de la academia»: cada ficha con sus apartados. De cada apartado se ve la lista, se
   ve **en el mapa** (lo del apartado en azul; al tocarlo, su ficha; los recorridos numerados) y se
   **pregunta**: rondas del modo `temario` de hasta 20 preguntas, primero lo fallado, que se responden
   tocando el mapa, eligiendo entre opciones o tocando el plano.
 - El progreso es por elemento, en la habilidad `temario` (misma regla de dominada).
-- El profesor manda fichas o apartados (`callejero_tareas.fichas`, migración `20260928_callejero_temario.sql`):
-  al alumno le salen como «Estúdiate esto», con su lista, su mapa y sus rondas, que cuentan para la tarea.
+- El profesor elige qué mandar **viendo el temario** («Elegir en el temario»: el documento, los mapas y las
+  listas, con casillas): fichas enteras, apartados o cosas sueltas (`callejero_tareas.fichas`: `centro`,
+  `centro/plazas` o `centro/plazas/<id>`). Al alumno le sale como «Estúdiate esto», con solo eso en la lista,
+  el mapa y las rondas, que cuentan para la tarea.
 - El archivo lleva `?v=` con su huella (la pone `scripts/versionar.mjs` en el js que lo pide): el service
   worker lo guarda al usarlo y, cuando cambia, borra el anterior.
 

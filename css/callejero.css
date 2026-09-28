@@ -363,13 +363,45 @@
   .cjt-hot.zona.incorrecta .cjt-forma{ fill: rgba(242,102,92,.25); stroke: var(--coral); }
   .cjt-hot.punto.correcta .cjt-forma, .cjt-hot.punto.incorrecta .cjt-forma, .cjt-hot.punto.marcado .cjt-forma{ r:20px; }
 
-  /* ---------- profesor: elegir fichas ---------- */
-  .cjt-selector{ border:1px solid var(--line); border-radius:12px; padding:4px 12px; }
-  .cjt-sel-ficha{ border-bottom:1px solid var(--line-soft); }
-  .cjt-sel-ficha:last-child{ border-bottom:none; }
-  .cjt-sel-ficha summary{ display:flex; align-items:center; gap:10px; cursor:pointer; list-style:none; padding:11px 0; font-size:14px; }
-  .cjt-sel-ficha summary::-webkit-details-marker{ display:none; }
-  .cjt-sel-nombre{ flex:1; min-width:0; }
-  .cjt-sel-ficha[open] .cjt-flecha{ transform: rotate(180deg); }
-  .cjt-sel-n{ font-size:12px; color: var(--blue); }
-  .cjt-sel-secs{ padding:0 0 8px 26px; }
+  /* ---------- documento original y mapas del documento ---------- */
+  .cjt-docs{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .cjt-docs:empty{ display:none; }
+  .cjt-btn-doc{ display:inline-flex; align-items:center; gap:7px; padding:8px 12px; font-size:13px; }
+  .cjt-btn-doc svg{ width:16px; height:16px; flex-shrink:0; }
+  .cjt-btn-doc small{ color: var(--muted-2); font-weight:500; }
+  .cjt-doc-nota{ margin:-4px 2px 12px; }
+  .cjt-doc{ display:flex; flex-direction:column; gap:14px; }
+  .cjt-pag{ margin:0; }
+  .cjt-pag-img{ display:block; width:100%; padding:0; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#fff; cursor:zoom-in;
+    aspect-ratio: 595 / 842; }
+  .cjt-pag-img img{ display:block; width:100%; height:100%; object-fit:contain; }
+  .cjt-pag:not(.cargada) .cjt-pag-img{ background: var(--w04); }
+  .cjt-pag.fallo .cjt-pag-img::after{ content:'No se ha podido cargar la página (¿sin conexión?)'; display:block; padding:40% 16px 0; text-align:center; font-size:13px; color: var(--muted); }
+  .cjt-pag figcaption{ font-size:12px; color: var(--muted-2); text-align:center; margin-top:4px; }
+  .cjt-galeria{ margin-top:10px; }
+  .cjt-minis{ display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; scroll-snap-type:x proximity; }
+  .cjt-mini{ flex:0 0 auto; width:104px; padding:0; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; cursor:pointer; position:relative; scroll-snap-align:start; }
+  .cjt-mini img{ display:block; width:100%; aspect-ratio: 595 / 842; object-fit:cover; background: var(--w04); }
+  .cjt-mini span{ position:absolute; left:0; right:0; bottom:0; padding:3px 0; font-size:11px; font-weight:600; color:#fff; background: rgba(0,0,0,.55); text-align:center; }
+  .cjt-link-doc{ display:inline-flex; align-items:center; gap:6px; margin-top:6px; padding:4px 0; border:none; background:none; color: var(--blue); font: inherit; font-size:13px; font-weight:600; cursor:pointer; text-align:left; }
+  .cjt-link-doc svg{ width:15px; height:15px; flex-shrink:0; }
+  .cjt-fila-btns{ display:flex; gap:4px; flex-shrink:0; }
+  .cjt-fila-btn{ width:34px; height:34px; display:flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:9px;
+    background: var(--card); color: var(--muted); cursor:pointer; padding:0; }
+  .cjt-fila-btn.azul{ color: var(--blue); }
+  .cjt-fila-btn svg{ width:17px; height:17px; }
+
+  /* ---------- profesor: elegir del temario ---------- */
+  .cjt-barra-el{ position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:8px; margin:0 0 12px; padding:10px 12px; border-radius:14px;
+    border:1px solid rgba(78,155,247,.45); background: var(--bg); box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+  .cjt-barra-el span{ flex:1; font-size:14px; }
+  .cjt-barra-el .btn{ padding:8px 12px; font-size:13px; }
+  .cjt-check{ width:20px; height:20px; flex-shrink:0; margin:0; accent-color: var(--coral); cursor:pointer; }
+  .cjt-el-ficha{ display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--line-soft); }
+  .cjt-el-ficha:last-child{ border-bottom:none; }
+  .cjt-el-ficha .cjt-ficha{ border-bottom:none; }
+  .cjt-el-sec{ display:flex; align-items:center; gap:10px; }
+  .cjt-el-sec .cjt-sec-cab{ padding:0; }
+  .cjt-el-toda{ display:flex !important; align-items:center; gap:10px; margin:0 !important; font-size:15px !important; }
+  .cjt-el-item label{ flex:1; min-width:0; display:flex; align-items:flex-start; gap:10px; cursor:pointer; }
+  .cjt-el-item .cjt-check{ margin-top:2px; }

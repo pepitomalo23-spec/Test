@@ -8,6 +8,9 @@
    El archivo se descarga solo al abrir el callejero (lleva ?v= con su
    huella, que pone scripts/versionar.mjs).
 
+   Cada ficha lleva también su documento original (las páginas de la
+   academia, con sus mapas), en el almacén privado «temario»: solo lo ven
+   los usuarios aprobados (el repositorio es público).
    Cada ficha tiene sus apartados, y de cada apartado se puede:
      - Ver: la lista, y «En el mapa» (modo estudio con lo del apartado
        marcado: calles, lugares, barrios y recorridos numerados).
@@ -16,11 +19,12 @@
        entre opciones o tocando un plano (Mezquita, Alcázar, Feria: planos
        dibujados aquí, esquemáticos).
    El progreso es por elemento (habilidad «temario», misma regla de
-   dominada que el resto). El profesor puede mandar fichas o apartados
-   (tareas con «fichas»): al alumno le salen como «Estúdiate esto».
+   dominada que el resto). El profesor elige qué mandar viendo el temario
+   (CJT.seleccionar): fichas, apartados o cosas sueltas (tareas con
+   «fichas»); al alumno le salen como «Estúdiate esto».
    ============================================================ */
 const CJT = (function(){
-  const ARCHIVO = 'datos/callejero-temario.json?v=3e4f4a980f';
+  const ARCHIVO = 'datos/callejero-temario.json?v=96e7519e05';
   const PARQUE_NOMBRE = { central: 'Parque Central', granadal: 'Parque del Granadal' };
   // Los dos parques de bomberos en los lugares del mapa (salida de los recorridos).
   const PARQUE_LUGAR = { central: 11215900007629, granadal: 11215900007679 };
@@ -64,32 +68,57 @@ const CJT = (function(){
   }
   function mayuscula(t){ return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; }
 
-  // Claves de ámbito: 'centro' (ficha entera) o 'centro/plazas' (un apartado).
+  // Claves de ámbito: 'centro' (ficha entera), 'centro/plazas' (un apartado)
+  // o 'centro/plazas/5003814547792' (un elemento suelto, lo elige el profesor).
+  function claveDe(s){ return s._f.id + '/' + s.id; }
+  function incluye(claves){
+    const set = new Set(claves);
+    return x => set.has(x._f.id) || set.has(claveDe(x._s)) || set.has(claveDe(x._s) + '/' + x.id);
+  }
   function seccionesDe(claves){
+    const inc = incluye(claves);
+    return T.fichas.flatMap(f => f.secciones).filter(s => s.items.some(inc));
+  }
+  function itemsDe(claves){
+    const inc = incluye(claves);
+    return T.fichas.flatMap(f => f.secciones.flatMap(s => s.items)).filter(inc);
+  }
+  // Las claves más cortas para unos elementos elegidos (fichas y apartados enteros juntos).
+  function comprimir(ids){
     const out = [];
-    T.fichas.forEach(f => f.secciones.forEach(s => {
-      if(claves.includes(f.id) || claves.includes(f.id + '/' + s.id)) out.push(s);
-    }));
+    T.fichas.forEach(f => {
+      const todos = f.secciones.flatMap(s => s.items);
+      if(todos.length && todos.every(x => ids.has(x.id))){ out.push(f.id); return; }
+      f.secciones.forEach(s => {
+        const n = s.items.filter(x => ids.has(x.id)).length;
+        if(n && n === s.items.length) out.push(claveDe(s));
+        else if(n) s.items.forEach(x => { if(ids.has(x.id)) out.push(claveDe(s) + '/' + x.id); });
+      });
+    });
     return out;
   }
-  function itemsDe(claves){ return seccionesDe(claves).flatMap(s => s.items); }
-  function claveDe(s){ return s._f.id + '/' + s.id; }
   function nombreClave(k){
-    const [fid, sid] = String(k).split('/');
+    const [fid, sid, iid] = String(k).split('/');
     const f = T && T.fichaPorId.get(fid);
     if(!f) return k;
     const s = sid ? f.secciones.find(x => x.id === sid) : null;
-    return s ? f.titulo + ' · ' + s.titulo : 'Ficha ' + f.titulo;
+    const x = s && iid ? T.porId.get(Number(iid)) : null;
+    return x ? f.titulo + ' · ' + s.titulo + ' · ' + x.n : s ? f.titulo + ' · ' + s.titulo : 'Ficha ' + f.titulo;
   }
   function nombreAmbito(k){ return 'Temario · ' + (T ? nombreClave(k) : k); }
-  // «Ficha Centro, General (Carreteras, Puentes, islas y molinos)»
+  // «Ficha Centro · General (Carreteras, Puentes, islas y molinos: 3)»
   function describirFichas(claves){
-    if(!T) return claves.length + (claves.length === 1 ? ' ficha del temario' : ' fichas del temario');
+    if(!T) return 'Fichas del temario';
+    const inc = incluye(claves);
     const partes = [];
     T.fichas.forEach(f => {
-      if(claves.includes(f.id)){ partes.push('Ficha ' + f.titulo); return; }
-      const ss = f.secciones.filter(s => claves.includes(f.id + '/' + s.id));
-      if(ss.length) partes.push(f.titulo + ' (' + ss.map(s => s.titulo).join(', ') + ')');
+      const todos = f.secciones.flatMap(s => s.items), elegidos = todos.filter(inc);
+      if(!elegidos.length) return;
+      if(elegidos.length === todos.length){ partes.push('Ficha ' + f.titulo); return; }
+      partes.push(f.titulo + ' (' + f.secciones.map(s => {
+        const n = s.items.filter(inc).length;
+        return !n ? null : n === s.items.length ? s.titulo : s.titulo + ': ' + n;
+      }).filter(Boolean).join(', ') + ')');
     });
     return partes.join(' · ') || 'Temario';
   }
@@ -542,6 +571,15 @@ const CJT = (function(){
     });
   }
   function preguntarClave(k){ preguntar([k]); }
+  // Un apartado de la pantalla: entero o, en una tarea, solo lo elegido de él.
+  function clavesSec(k){
+    const [fid, sid] = k.split('/');
+    const s = T.fichaPorId.get(fid).secciones.find(x => x.id === sid);
+    const inc = vista && vista.inc;
+    if(!inc || s.items.every(inc)) return [k];
+    return s.items.filter(inc).map(x => k + '/' + x.id);
+  }
+  function preguntarSec(k){ const c = clavesSec(k); preguntar(c, null, c.length > 1 ? nombreClave(k) : null); }
   // Distritos de las fichas (su contorno se ve en el mapa, para orientarse).
   function distritosDe(claves){
     return [...new Set(seccionesDe(claves).map(s => s._f).filter(f => f.grupo === 'distrito').map(f => f.titulo))];
@@ -565,66 +603,172 @@ const CJT = (function(){
       vias: g ? g.vias : [], lugar: g ? g.lugar : null, barrio: g ? g.barrio : null, ruta, salida: salidaDe(x), encuadre
     };
   }
-  async function verEnMapa(claves, focoId){
+  async function verEnMapa(claves, focoId, titulo){
     try{ await cargar(); }catch(e){ uiToast(e.message, 'error'); return; }
-    const secciones = seccionesDe(claves);
-    const items = secciones.flatMap(s => s.items).map(itemMapa).filter(Boolean);
+    const items = itemsDe(claves).map(itemMapa).filter(Boolean);
     if(!items.length){ uiToast('Esto no tiene nada que marcar en el mapa.', 'info'); return; }
-    const titulo = claves.length === 1 ? nombreClave(claves[0]) : (vista && vista.titulo) || 'Temario';
+    titulo = titulo || (claves.length === 1 ? nombreClave(claves[0]) : (vista && vista.titulo) || 'Temario');
     CJ.estudio({ titulo, items, distritos: distritosDe(claves), foco: focoId ? items.findIndex(i => i.id === focoId) : -1 });
   }
-  function verClave(k){ verEnMapa([k]); }
+  function verSec(k){ verEnMapa(clavesSec(k), null, nombreClave(k)); }
   function verItem(id){
     const x = T && T.porId.get(Number(id));
-    if(x) verEnMapa([claveDe(x._s)], x.id);
+    if(x){ const k = claveDe(x._s); verEnMapa(clavesSec(k), x.id, nombreClave(k)); }
+  }
+
+  /* ---------- documento original (páginas de la academia, almacén privado) ---------- */
+  // Las páginas están en el almacén «temario», que solo pueden leer los
+  // usuarios aprobados: se descargan con la sesión y se guardan en memoria
+  // (y en la caché de datos del service worker, que se borra al salir).
+  const imagenes = new Map();   // ruta → promesa de URL local
+  function rutaPagina(d, n){ return 'v1/' + d + '/' + String(n).padStart(2, '0') + '.webp'; }
+  function imagen(ruta){
+    if(!imagenes.has(ruta)){
+      imagenes.set(ruta, sb.storage.from('temario').download(ruta).then(({ data, error }) => {
+        if(error || !data) throw error || new Error('Sin imagen');
+        return URL.createObjectURL(data);
+      }).catch(e => { imagenes.delete(ruta); throw e; }));
+    }
+    return imagenes.get(ruta);
+  }
+  let observador = null;
+  function ponerImagen(img){
+    const caja = img.closest('.cjt-pag, .cjt-mini');
+    imagen(img.dataset.ruta).then(u => { img.src = u; if(caja) caja.classList.add('cargada'); },
+      () => { if(caja) caja.classList.add('fallo'); });
+  }
+  // Las imágenes se piden solo cuando van a verse.
+  function cargarImagenes(root){
+    const imgs = [...root.querySelectorAll('img[data-ruta]')];
+    if(observador) observador.disconnect();
+    if(!('IntersectionObserver' in window)){ imgs.forEach(ponerImagen); return; }
+    observador = new IntersectionObserver(es => es.forEach(e => {
+      if(e.isIntersecting){ observador.unobserve(e.target); ponerImagen(e.target); }
+    }), { rootMargin: '800px 0px' });
+    imgs.forEach(i => observador.observe(i));
+  }
+  function docInfo(d){
+    for(const f of T.fichas) for(const x of (f.docs || [])) if(x.id === d) return Object.assign({ ficha: f }, x);
+    return null;
+  }
+  let documento = null;          // { d, pag, pos }
+  function posicion(){ const m = document.querySelector('main'); return { w: window.scrollY, m: m ? m.scrollTop : 0 }; }
+  function irA(pos){ const m = document.querySelector('main'); window.scrollTo(0, pos.w); if(m) m.scrollTop = pos.m; }
+  function abrirDoc(d, pag){
+    if(!docInfo(d)) return;
+    documento = { d, pag: pag || 1, pos: posicion() };
+    pintar();
+  }
+  function cerrarDoc(){
+    const pos = documento && documento.pos;
+    documento = null;
+    pintar();
+    if(pos) irA(pos);
+  }
+  function pintarDocumento(root){
+    const info = docInfo(documento.d);
+    const n = info.paginas;
+    root.innerHTML = cabecera(info.ficha.titulo, info.titulo) +
+      '<div class="cj-hab-det cjt-doc-nota">Toca una página para verla en grande y ampliarla.</div>' +
+      '<div class="cjt-doc">' + Array.from({ length: n }, (_, k) => k + 1).map(p =>
+        '<figure class="cjt-pag" id="cjtPag' + p + '">' +
+          '<button type="button" class="cjt-pag-img" onclick="CJT.ampliar(this)" aria-label="Ver la página ' + p + ' en grande">' +
+            '<img data-ruta="' + rutaPagina(documento.d, p) + '" alt="Página ' + p + '"></button>' +
+          '<figcaption>Página ' + p + ' de ' + n + '</figcaption></figure>').join('') + '</div>';
+    cargarImagenes(root);
+    const destino = document.getElementById('cjtPag' + documento.pag);
+    if(destino && documento.pag > 1) destino.scrollIntoView({ block: 'start' });
+    else irA({ w: 0, m: 0 });
+  }
+  function ampliar(boton){
+    const img = boton.querySelector('img');
+    if(img && img.src) openImageLightbox(img.src);
+  }
+  // Botones «Documento original» de unas fichas.
+  function botonesDocs(fichas){
+    return fichas.flatMap(f => (f.docs || []).map(d =>
+      '<button type="button" class="btn btn-ghost cjt-btn-doc" onclick="CJT.abrirDoc(\'' + d.id + '\', 1)">' + ICONO_DOC +
+        (fichas.length > 1 || (f.docs || []).length > 1 ? escapeHtml(d.titulo) : 'Documento original') + ' <small>' + d.paginas + ' págs.</small></button>')).join('');
+  }
+  const ICONO_DOC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>';
+  // Los mapas del documento de un apartado (miniaturas) y el enlace a sus páginas.
+  function galeria(s){
+    const refs = s.docs || [];
+    if(!refs.length) return '';
+    const mapas = refs.flatMap(r => r.m.map(p => ({ d: r.d, p })));
+    return '<div class="cjt-galeria">' +
+      (mapas.length ? '<div class="cjt-minis">' + mapas.map(m =>
+        '<button type="button" class="cjt-mini" onclick="CJT.abrirDoc(\'' + m.d + '\', ' + m.p + ')" aria-label="Página ' + m.p + ' del documento">' +
+          '<img data-ruta="' + rutaPagina(m.d, m.p) + '" alt="Página ' + m.p + '"><span>pág. ' + m.p + '</span></button>').join('') + '</div>' : '') +
+      refs.map(r => '<button type="button" class="cjt-link-doc" onclick="CJT.abrirDoc(\'' + r.d + '\', ' + r.p[0] + ')">' + ICONO_DOC +
+        'Verlo en el documento' + (refs.length > 1 ? ' (' + escapeHtml(docInfo(r.d).titulo) + ')' : '') + ', ' +
+        (r.p[0] === r.p[1] ? 'pág. ' + r.p[0] : 'págs. ' + r.p[0] + '–' + r.p[1]) + '</button>').join('') +
+    '</div>';
   }
 
   /* ---------- pantalla del temario ---------- */
   function abrir(clave){
-    vista = { claves: [clave], titulo: nombreClave(clave).replace(/^Ficha /, '') };
+    vista = { claves: [clave], titulo: nombreClave(clave).replace(/^Ficha /, ''), inc: incluye([clave]) };
+    documento = null;
     abiertas.clear();
     mostrar();
   }
   function abrirTarea(id){
     const t = CJ.tareas().find(x => x.id === id);
     if(!t) return;
-    vista = { claves: t.fichas, titulo: t.titulo, tarea: t };
+    vista = { claves: t.fichas, titulo: t.titulo, tarea: t, inc: incluye(t.fichas) };
+    documento = null;
     abiertas.clear();
-    // Con un solo apartado, se abre ya desplegado.
-    if(t.fichas.length === 1 && t.fichas[0].includes('/')) abiertas.add(t.fichas[0]);
+    // Los apartados de los que se ha elegido solo una parte (o si solo hay uno) se abren ya desplegados.
+    if(T) seccionesDe(t.fichas).forEach((s, i, todas) => { if(todas.length === 1 || !s.items.every(vista.inc)) abiertas.add(claveDe(s)); });
     mostrar();
   }
   async function mostrar(){
     CJ.mostrarVista('temario');
     const root = document.getElementById('cjTemario');
     root.innerHTML = '<div class="cj-card">' + skelList(4) + '</div>';
-    window.scrollTo(0, 0);
+    irA({ w: 0, m: 0 });
     try{ await Promise.all([cargar(), CJ.cargarDatos()]); }
     catch(e){
       root.innerHTML = '<div class="cj-card cj-error">No se ha podido cargar el temario: ' + escapeHtml(e.message) +
         '<br><button type="button" class="btn btn-light" onclick="CJT.volver()">Volver</button></div>';
       return;
     }
+    if(vista && vista.tarea && !abiertas.size) seccionesDe(vista.claves).forEach((s, i, todas) => { if(todas.length === 1 || !s.items.every(vista.inc)) abiertas.add(claveDe(s)); });
     pintar();
   }
-  function volver(){ vista = null; CJ.mostrarVista('inicio'); CJ.repintar(); }
-  function repintar(){ if(vista && document.getElementById('cjTemario')) pintar(); }
+  // Atrás: del documento a la ficha; eligiendo, de la ficha a la lista de fichas; si no, fuera.
+  async function volver(){
+    if(documento){ cerrarDoc(); return; }
+    if(eleccion && eleccion.ficha){ eleccion.ficha = null; abiertas.clear(); pintar(); irA({ w: 0, m: 0 }); return; }
+    if(eleccion){ terminarEleccion(false); return; }
+    vista = null;
+    CJ.mostrarVista('inicio');
+    CJ.repintar();
+  }
+  function repintar(){ if((vista || eleccion) && document.getElementById('cjTemario')) pintar(); }
+  function cabecera(etiqueta, titulo){
+    return '<div class="cjt-cab"><button type="button" class="cj-salir" onclick="CJT.volver()" aria-label="Volver">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>' +
+      '<div><div class="cjt-cab-etq">' + escapeHtml(etiqueta) + '</div><h2>' + escapeHtml(titulo) + '</h2></div></div>';
+  }
 
   function pintar(){
     const root = document.getElementById('cjTemario');
-    if(!root || !vista || !T) return;
+    if(!root || !T) return;
+    if(documento) return pintarDocumento(root);
+    if(eleccion) return pintarEleccion(root);
+    if(!vista) return;
     const prog = CJ.progreso();
     const secciones = seccionesDe(vista.claves);
-    const todos = secciones.flatMap(s => s.items);
+    const todos = itemsDe(vista.claves);
     const r = cuenta(prog, todos);
     const t = vista.tarea;
     const conMapa = todos.some(tieneGeo) || todos.some(x => x.pv);
     // Agrupadas por ficha (una tarea puede mezclar apartados de varias).
     const fichas = [...new Set(secciones.map(s => s._f))];
     root.innerHTML =
-      '<div class="cjt-cab"><button type="button" class="cj-salir" onclick="CJT.volver()" aria-label="Volver">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>' +
-        '<div><div class="cjt-cab-etq">' + (t ? 'Estúdiate esto' : 'Temario') + '</div><h2>' + escapeHtml(vista.titulo) + '</h2></div></div>' +
+      cabecera(t ? 'Estúdiate esto' : 'Temario', vista.titulo) +
       (t && t.mensaje ? '<div class="cj-tarea-msg cjt-msg">' + escapeHtml(t.mensaje) + '</div>' : '') +
       '<div class="cj-card">' +
         '<div class="cj-hab-cab"><span>' + (t ? escapeHtml(describirFichas(t.fichas)) : 'Tu progreso') + '</span><b>' + pct(r) + '%</b></div>' + barra(r) +
@@ -637,42 +781,47 @@ const CJT = (function(){
           (conMapa ? '<button type="button" class="btn btn-ghost" onclick="CJT.verTodo()">Ver en el mapa</button>' : '') +
           (t ? '<button type="button" class="btn btn-ghost" onclick="CJP.abrirMensajes(' + t.id + ')">Mensajes</button>' : '') +
         '</div>' +
+        '<div class="cjt-docs">' + botonesDocs(fichas) + '</div>' +
       '</div>' +
       fichas.map(f => (fichas.length > 1 ? '<div class="cj-seccion">' + escapeHtml(f.titulo) + '</div>' : '') +
-        secciones.filter(s => s._f === f).map(s => tarjetaSeccion(s, prog)).join('')).join('') +
+        secciones.filter(s => s._f === f).map(s => tarjetaSeccion(s, prog, s.items.filter(vista.inc))).join('')).join('') +
       '<div class="cj-fuente">' + escapeHtml(T.fuente) + (T.faltan && T.faltan.length ? ' Faltan las fichas de ' + escapeHtml(T.faltan.join(', ')) + '.' : '') +
-        ' Los planos de la Mezquita, el Alcázar y la Feria están dibujados aquí, a grandes rasgos, con lo que se pregunta.</div>';
+        ' El documento original se ve dentro de cada ficha; los planos para responder tocando están dibujados aquí, a grandes rasgos.</div>';
+    cargarImagenes(root);
   }
   function verTodo(){ if(vista) verEnMapa(vista.claves); }
 
-  function tarjetaSeccion(s, prog){
+  function tarjetaSeccion(s, prog, items){
     const k = claveDe(s);
-    const r = cuenta(prog, s.items);
+    const r = cuenta(prog, items);
     const abierta = abiertas.has(k);
-    const conMapa = s.items.some(tieneGeo) || s.items.some(x => x.pv);
-    const n = s.items.length;
+    const conMapa = items.some(tieneGeo) || items.some(x => x.pv);
+    const parte = items.length < s.items.length;
     return '<div class="cj-card cjt-sec' + (abierta ? ' abierta' : '') + '">' +
       '<button type="button" class="cjt-sec-cab" onclick="CJT.alternar(\'' + escapeHtml(k) + '\')" aria-expanded="' + abierta + '">' +
-        '<span class="cjt-sec-titulo">' + escapeHtml(s.titulo) + ' <small>' + n + '</small></span>' +
+        '<span class="cjt-sec-titulo">' + escapeHtml(s.titulo) + ' <small>' + (parte ? items.length + ' de ' + s.items.length : s.items.length) + '</small></span>' +
         (r.total ? '<b>' + pct(r) + '%</b>' : '') +
         '<svg class="cjt-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>' +
       '</button>' +
       (r.total ? barra(r) : '') +
       (abierta
         ? (s.texto ? '<div class="cjt-texto">' + escapeHtml(s.texto) + '</div>' : '') +
+          galeria(s) +
           (s.tipo === 'plano' ? planoVerHtml(s) : '') +
-          '<div class="cjt-lista">' + s.items.map(x => filaItem(x, prog)).join('') + '</div>'
+          '<div class="cjt-lista">' + items.map(x => filaItem(x, prog)).join('') + '</div>'
         : '') +
       '<div class="cjt-sec-acciones">' +
-        (r.total ? '<button type="button" class="btn btn-primary btn-light" onclick="CJT.preguntarClave(\'' + escapeHtml(k) + '\')">Preguntar</button>' : '') +
-        (conMapa ? '<button type="button" class="btn btn-ghost" onclick="CJT.verClave(\'' + escapeHtml(k) + '\')">En el mapa</button>' : '') +
-        '<button type="button" class="btn btn-ghost" onclick="CJT.alternar(\'' + escapeHtml(k) + '\')">' + (abierta ? 'Ocultar lista' : 'Ver lista') + '</button>' +
+        (r.total ? '<button type="button" class="btn btn-primary btn-light" onclick="CJT.preguntarSec(\'' + escapeHtml(k) + '\')">Preguntar</button>' : '') +
+        (conMapa ? '<button type="button" class="btn btn-ghost" onclick="CJT.verSec(\'' + escapeHtml(k) + '\')">En el mapa</button>' : '') +
+        '<button type="button" class="btn btn-ghost" onclick="CJT.alternar(\'' + escapeHtml(k) + '\')">' + (abierta ? 'Ocultar' : 'Ver lista y mapas') + '</button>' +
       '</div>' +
     '</div>';
   }
   function alternar(k){
+    const pos = posicion();
     if(abiertas.has(k)) abiertas.delete(k); else abiertas.add(k);
     pintar();
+    irA(pos);
   }
 
   // Lo que se ve de cada elemento en la lista (y en la ficha del mapa).
@@ -712,21 +861,120 @@ const CJT = (function(){
     }
     return out.filter(Boolean);
   }
+  function tituloItem(x){
+    const numerado = x._s.tipo === 'linea' || x._s.tipo === 'plano';
+    return numerado ? (x._i + 1) + '. ' + x.n : x._s.tipo === 'otro_nombre' ? '«' + x.n + '»' : x.n;
+  }
+  function cuerpoItem(x, est){
+    return (est !== null ? '<i class="cjt-estado ' + est + '"></i>' : '') + '<span class="cjt-fila-txt"><span class="cjt-fila-n">' + escapeHtml(tituloItem(x)) + '</span>' +
+      lineasDetalle(x).map(l => '<span class="cjt-fila-d">' + l + '</span>').join('') + '</span>';
+  }
+  const ICONO_MAPA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>';
+  // Botones de la derecha de una fila: su página del documento y verlo en el mapa.
+  function botonesItem(x){
+    return (x.pg ? '<button type="button" class="cjt-fila-btn" onclick="CJT.abrirDoc(\'' + x.pg[0] + '\', ' + x.pg[1] + ')" aria-label="Verlo en el documento" title="Verlo en el documento">' + ICONO_DOC + '</button>' : '') +
+      (tieneGeo(x) || x.pv ? '<button type="button" class="cjt-fila-btn azul" onclick="CJT.verItem(' + x.id + ')" aria-label="Verlo en el mapa" title="Verlo en el mapa">' + ICONO_MAPA + '</button>' : '');
+  }
   function filaItem(x, prog){
     const est = preguntable(x) ? estado(prog, x) : '';
-    const mapa = tieneGeo(x) || x.pv;
-    const numerado = x._s.tipo === 'linea' || x._s.tipo === 'plano';
-    const titulo = numerado ? (x._i + 1) + '. ' + x.n : x._s.tipo === 'otro_nombre' ? '«' + x.n + '»' : x.n;
-    const cuerpo = '<i class="cjt-estado ' + est + '"></i><span class="cjt-fila-txt"><span class="cjt-fila-n">' + escapeHtml(titulo) + '</span>' +
-      lineasDetalle(x).map(l => '<span class="cjt-fila-d">' + l + '</span>').join('') + '</span>';
     // En los planos, la fila marca su sitio en el plano de arriba.
     if(x._s.tipo === 'plano'){
-      return '<button type="button" class="cjt-fila' + (planoVer[x._s.plano] === x.k ? ' activa' : '') + '" onclick="CJT.verEnPlano(\'' + x._s.plano + '\', \'' + x.k + '\')">' + cuerpo + '</button>';
+      return '<button type="button" class="cjt-fila' + (planoVer[x._s.plano] === x.k ? ' activa' : '') + '" onclick="CJT.verEnPlano(\'' + x._s.plano + '\', \'' + x.k + '\')">' + cuerpoItem(x, est) + '</button>';
     }
-    return mapa
-      ? '<button type="button" class="cjt-fila" onclick="CJT.verItem(' + x.id + ')">' + cuerpo +
-          '<svg class="cjt-fila-ir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></button>'
-      : '<div class="cjt-fila">' + cuerpo + '</div>';
+    return '<div class="cjt-fila">' + cuerpoItem(x, est) + '<span class="cjt-fila-btns">' + botonesItem(x) + '</span></div>';
+  }
+
+  /* ---------- el profesor elige qué mandar ---------- */
+  // CJT.seleccionar(claves) abre el temario para elegir fichas enteras,
+  // apartados o cosas sueltas, viendo su contenido (lista, mapas del
+  // documento, el documento y el mapa del callejero). Devuelve las claves
+  // elegidas al pulsar «Listo», o null si se sale sin guardar.
+  let eleccion = null;           // { ids: Set, ficha, cambios, resolver }
+  async function seleccionar(claves){
+    await cargar();
+    return new Promise(resolve => {
+      eleccion = { ids: new Set(itemsDe(claves || []).map(x => x.id)), ficha: null, cambios: false, resolver: resolve };
+      documento = null;
+      abiertas.clear();
+      mostrar();
+    });
+  }
+  function elegirFicha(fid){ if(eleccion){ eleccion.ficha = fid; abiertas.clear(); pintar(); irA({ w: 0, m: 0 }); } }
+  function itemsDeFicha(f){ return f.secciones.flatMap(s => s.items); }
+  function estadoCasilla(items){
+    const n = items.filter(x => eleccion.ids.has(x.id)).length;
+    return { n, todos: n === items.length && n > 0, algunos: n > 0 && n < items.length };
+  }
+  function casilla(tipo, id, est, etiqueta){
+    return '<input type="checkbox" class="cjt-check" aria-label="' + escapeHtml(etiqueta) + '"' + (est.todos ? ' checked' : '') + (est.algunos ? ' data-medio="1"' : '') +
+      ' onclick="event.stopPropagation()" onchange="CJT.marcar(\'' + tipo + '\', \'' + escapeHtml(String(id)) + '\', this.checked)">';
+  }
+  function marcar(tipo, id, on){
+    if(!eleccion) return;
+    let items = [];
+    if(tipo === 'f') items = itemsDeFicha(T.fichaPorId.get(id));
+    else if(tipo === 's'){ const [fid, sid] = id.split('/'); items = T.fichaPorId.get(fid).secciones.find(x => x.id === sid).items; }
+    else{ const x = T.porId.get(Number(id)); if(x) items = [x]; }
+    items.forEach(x => { if(on) eleccion.ids.add(x.id); else eleccion.ids.delete(x.id); });
+    eleccion.cambios = true;
+    const pos = posicion();
+    pintar();
+    irA(pos);
+  }
+  function pintarEleccion(root){
+    const n = eleccion.ids.size;
+    const barraEl = '<div class="cjt-barra-el"><span><b>' + n + '</b> ' + (n === 1 ? 'cosa elegida' : 'cosas elegidas') + '</span>' +
+      '<button type="button" class="btn btn-ghost" onclick="CJT.terminarEleccion(false)">Cancelar</button>' +
+      '<button type="button" class="btn btn-primary btn-light" onclick="CJT.terminarEleccion(true)">Listo</button></div>';
+    if(!eleccion.ficha){
+      root.innerHTML = cabecera('Tarea del temario', 'Elige qué tiene que estudiar') + barraEl +
+        '<div class="cj-hab-det cjt-intro">Marca fichas enteras, o entra en una ficha para ver todo su contenido (la lista, los mapas y el documento original) y marcar apartados o cosas sueltas.</div>' +
+        '<div class="cj-card cjt-inicio">' + T.fichas.map(f => {
+          const est = estadoCasilla(itemsDeFicha(f));
+          return '<div class="cjt-el-ficha">' + casilla('f', f.id, est, 'Toda la ficha ' + f.titulo) +
+            '<button type="button" class="cjt-ficha" onclick="CJT.elegirFicha(\'' + escapeHtml(f.id) + '\')">' +
+              '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">' + escapeHtml(f.titulo) + '</span>' +
+              '<span class="cjt-ficha-d">' + (est.n ? est.n + ' de ' + itemsDeFicha(f).length + ' elegidas' : f.secciones.length + ' apartados · ' + itemsDeFicha(f).length + ' cosas') + '</span></span>' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>' +
+            '</button></div>';
+        }).join('') + '</div>';
+    }else{
+      const f = T.fichaPorId.get(eleccion.ficha);
+      const estF = estadoCasilla(itemsDeFicha(f));
+      root.innerHTML = cabecera('Elegir del temario', f.titulo) + barraEl +
+        '<div class="cj-card"><label class="cjp-check cjt-el-toda">' + casilla('f', f.id, estF, 'Toda la ficha') + ' <b>Toda la ficha ' + escapeHtml(f.titulo) + '</b></label>' +
+          '<div class="cjt-docs">' + botonesDocs([f]) + '</div></div>' +
+        f.secciones.map(s => {
+          const k = claveDe(s), abierta = abiertas.has(k), est = estadoCasilla(s.items);
+          const conMapa = s.items.some(tieneGeo) || s.items.some(x => x.pv);
+          return '<div class="cj-card cjt-sec' + (abierta ? ' abierta' : '') + '">' +
+            '<div class="cjt-el-sec">' + casilla('s', k, est, 'Todo el apartado ' + s.titulo) +
+              '<button type="button" class="cjt-sec-cab" onclick="CJT.alternar(\'' + escapeHtml(k) + '\')" aria-expanded="' + abierta + '">' +
+                '<span class="cjt-sec-titulo">' + escapeHtml(s.titulo) + ' <small>' + (est.n ? est.n + ' de ' : '') + s.items.length + '</small></span>' +
+                '<svg class="cjt-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>' +
+              '</button></div>' +
+            (abierta
+              ? (s.texto ? '<div class="cjt-texto">' + escapeHtml(s.texto) + '</div>' : '') + galeria(s) +
+                (s.tipo === 'plano' ? planoVerHtml(s) : '') +
+                (conMapa ? '<div class="cjt-sec-acciones"><button type="button" class="btn btn-ghost" onclick="CJT.verSec(\'' + escapeHtml(k) + '\')">Ver el apartado en el mapa</button></div>' : '') +
+                '<div class="cjt-lista">' + s.items.map(x =>
+                  '<div class="cjt-fila cjt-el-item"><label>' + casilla('i', x.id, { todos: eleccion.ids.has(x.id), algunos: false }, tituloItem(x)) + cuerpoItem(x, null) + '</label>' +
+                    '<span class="cjt-fila-btns">' + botonesItem(x) + '</span></div>').join('') + '</div>'
+              : '') +
+          '</div>';
+        }).join('');
+    }
+    root.querySelectorAll('input[data-medio]').forEach(c => { c.indeterminate = true; });
+    cargarImagenes(root);
+  }
+  async function terminarEleccion(guardar){
+    const e = eleccion;
+    if(!e) return;
+    if(!guardar && e.cambios && !(await uiConfirm('¿Salir sin guardar lo que has elegido?'))) return;
+    eleccion = null;
+    documento = null;
+    abiertas.clear();
+    e.resolver(guardar ? comprimir(e.ids) : null);
   }
 
   /* ---------- en la pantalla principal del callejero ---------- */
@@ -738,7 +986,7 @@ const CJT = (function(){
     const prog = CJ.progreso();
     return '<div class="cj-seccion">Temario de la academia</div>' +
       '<div class="cj-card cjt-inicio">' +
-        '<div class="cj-hab-det cjt-intro">Lo de la documentación, ficha a ficha: míralo en la lista o en el mapa y pregúntatelo.</div>' +
+        '<div class="cj-hab-det cjt-intro">La documentación, ficha a ficha: el documento original con sus mapas, la lista, el mapa del callejero y las preguntas.</div>' +
         T.fichas.map(f => {
           const r = cuenta(prog, f.secciones.flatMap(s => s.items));
           return '<button type="button" class="cjt-ficha" onclick="CJT.abrir(\'' + escapeHtml(f.id) + '\')">' +
@@ -762,47 +1010,15 @@ const CJT = (function(){
           '<div class="cj-hab-det">' + r.dominada + ' dominadas · ' + r.progreso + ' en progreso · ' + r.fallada + ' por repasar · ' + r.nueva + ' sin ver</div></div>';
       }).join('') + '</div>';
   }
-  // Casillas de fichas y apartados. `elegidas`: claves ya elegidas.
-  function selectorFichas(elegidas){
-    if(!T) return '<div class="cj-hab-det">Cargando el temario…</div>';
-    const sel = new Set(elegidas || []);
-    return '<div class="cjt-selector">' + T.fichas.map(f => {
-      const entera = sel.has(f.id);
-      const marcadas = f.secciones.filter(s => entera || sel.has(f.id + '/' + s.id)).length;
-      // La casilla elige la ficha entera; el nombre despliega sus apartados.
-      return '<details class="cjt-sel-ficha"' + (marcadas && !entera ? ' open' : '') + '>' +
-        '<summary><input type="checkbox" class="cjt-sel-f" value="' + escapeHtml(f.id) + '" aria-label="Toda la ficha ' + escapeHtml(f.titulo) + '"' +
-          (marcadas === f.secciones.length ? ' checked' : '') + ' onclick="event.stopPropagation()" onchange="CJT.marcarFicha(this)">' +
-          '<span class="cjt-sel-nombre"><b>' + escapeHtml(f.titulo) + '</b> <span class="cj-sug-cat">' + f.secciones.length + ' apartados</span></span>' +
-          '<span class="cjt-sel-n" data-f="' + escapeHtml(f.id) + '">' + (marcadas && marcadas < f.secciones.length ? marcadas + ' de ' + f.secciones.length : '') + '</span>' +
-          '<svg class="cjt-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>' +
-        '<div class="cjt-sel-secs">' + f.secciones.map(s =>
-          '<label class="cjp-check"><input type="checkbox" class="cjt-sel-s" data-f="' + escapeHtml(f.id) + '" value="' + escapeHtml(f.id + '/' + s.id) + '"' +
-            (entera || sel.has(f.id + '/' + s.id) ? ' checked' : '') + ' onchange="CJT.marcarApartado(this)"> ' + escapeHtml(s.titulo) +
-            ' <span class="cj-sug-cat">' + s.items.length + '</span></label>').join('') + '</div>' +
-      '</details>';
-    }).join('') + '</div>';
+  // Cuántas cosas entran en unas claves (para el formulario de la tarea).
+  function contarElegidas(claves){ return T ? itemsDe(claves || []).length : 0; }
+
+  // Al cerrar sesión: fuera las páginas guardadas en memoria.
+  function reiniciar(){
+    imagenes.forEach(p => p.then(u => URL.revokeObjectURL(u), () => {}));
+    imagenes.clear();
+    vista = null; documento = null; eleccion = null;
   }
-  function casillas(fid){ return [...document.querySelectorAll('.cjt-sel-s')].filter(c => c.dataset.f === fid); }
-  function contarFicha(fid){
-    const cs = casillas(fid), n = cs.filter(c => c.checked).length;
-    const f = [...document.querySelectorAll('.cjt-sel-f')].find(c => c.value === fid);
-    if(f){ f.checked = n === cs.length; f.indeterminate = n > 0 && n < cs.length; }
-    const etq = [...document.querySelectorAll('.cjt-sel-n')].find(e => e.dataset.f === fid);
-    if(etq) etq.textContent = n && n < cs.length ? n + ' de ' + cs.length : '';
-  }
-  function marcarFicha(c){ casillas(c.value).forEach(s => { s.checked = c.checked; }); contarFicha(c.value); }
-  function marcarApartado(c){ contarFicha(c.dataset.f); }
-  function leerSelector(){
-    const out = [];
-    document.querySelectorAll('.cjt-sel-f').forEach(f => {
-      const cs = casillas(f.value), marcadas = cs.filter(c => c.checked);
-      if(cs.length && marcadas.length === cs.length) out.push(f.value);
-      else marcadas.forEach(c => out.push(c.value));
-    });
-    return out;
-  }
-  function iniciarSelector(){ document.querySelectorAll('.cjt-sel-f').forEach(f => contarFicha(f.value)); }
 
   /* ---------- planos (dibujados aquí, a grandes rasgos) ---------- */
   // Cada plano: viewBox, dibujo de fondo y la posición de cada cosa que se
@@ -976,8 +1192,8 @@ const CJT = (function(){
 
   return {
     cargar, listo, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
-    abrir, abrirTarea, volver, repintar, alternar, verTodo, verClave, verItem, preguntarClave, preguntarTarea,
-    selectorFichas, marcarFicha, marcarApartado, leerSelector, iniciarSelector,
+    abrir, abrirTarea, volver, repintar, alternar, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
+    abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar,
     clicPlano, pintarPlano, marcarPlano, verEnPlano
   };
 })();

@@ -179,7 +179,8 @@ const CJP = (function(){
   function tareaConFalladas(temario){
     if(!ficha || !ficha.falladas.length) return;
     if(temario){
-      const fichas = [...new Set(ficha.falladas.filter(r => r.temario).map(r => CJT.claveDeItem(r.id)).filter(Boolean))];
+      // Justo lo que falla: cada cosa suelta (clave del apartado + su id).
+      const fichas = [...new Set(ficha.falladas.filter(r => r.temario).map(r => CJT.claveDeItem(r.id) && CJT.claveDeItem(r.id) + '/' + r.id).filter(Boolean))];
       nuevaTarea(ficha.alumno.alumno_id, { titulo: 'Repaso del temario', tipo: 'temario', fichas });
       return;
     }
@@ -272,8 +273,11 @@ const CJP = (function(){
           '<button type="button" class="' + (b.tipo === 'temario' ? 'activo' : '') + '" onclick="CJP.cambiarTipo(\'temario\')">Fichas del temario</button>' +
         '</div>' +
         (b.tipo === 'temario'
-          ? CJT.selectorFichas(b.fichas) +
-            '<div class="cj-hab-det">Al alumno le sale como «Estúdiate esto»: lo ve en la lista y en el mapa, y las rondas de la tarea le preguntan solo esto.</div>'
+          ? '<div class="cjp-eleccion"><b>' + (b.fichas.length ? n(CJT.contarElegidas(b.fichas), 'cosa elegida', 'cosas elegidas') : 'Nada elegido todavía') + '</b>' +
+              '<button type="button" class="btn btn-ghost" onclick="CJP.elegirEnTemario()">' + (b.fichas.length ? 'Cambiar en el temario' : 'Elegir en el temario') + '</button></div>' +
+            (b.fichas.length ? '<div class="cjp-nombres">' + escapeHtml(CJT.describirFichas(b.fichas)) + '</div>' : '') +
+            '<div class="cj-hab-det">Se abre el temario entero (el documento original, los mapas y las listas) para marcar fichas, apartados o cosas sueltas. ' +
+              'Al alumno le sale como «Estúdiate esto» y las rondas de la tarea le preguntan solo eso.</div>'
           : b.tipo === 'lista'
           ? '<div class="cjp-eleccion"><b>' + n(b.vias.length, 'calle', 'calles') + ' y ' + n(b.lugares.length, 'lugar', 'lugares') + '</b>' +
               '<button type="button" class="btn btn-ghost" onclick="CJP.elegirEnMapa()">' + (b.vias.length + b.lugares.length ? 'Cambiar en el mapa' : 'Elegir en el mapa') + '</button></div>' +
@@ -301,7 +305,6 @@ const CJP = (function(){
           '<button type="button" class="btn btn-primary btn-light" id="cjpGuardar" onclick="CJP.guardarTarea()">' + (b.id ? 'Guardar' : 'Mandar tarea') + '</button>' +
         '</div>' +
       '</div>');
-    if(b.tipo === 'temario') CJT.iniciarSelector();
   }
   // Lo escrito en el formulario pasa al borrador (antes de irse al mapa o de guardar).
   function leerFormulario(){
@@ -310,7 +313,6 @@ const CJP = (function(){
     b.titulo = el('cjpTitulo').value.trim();
     if(!b.id) b.alumnos = new Set([...document.querySelectorAll('.cjp-alumno-check')].filter(c => c.checked).map(c => c.value));
     if(el('cjpZona')) b.zona = el('cjpZona').value;
-    if(document.querySelector('.cjt-sel-f')) b.fichas = CJT.leerSelector();
     if(b.tipo !== 'temario') b.modos = new Set([...document.querySelectorAll('.cjp-modo')].filter(c => c.checked).map(c => c.value));
     b.rondas = Math.max(1, Math.min(50, parseInt(el('cjpRondas').value, 10) || 1));
     b.minimo = parseInt(el('cjpMinimo').value, 10) || 80;
@@ -334,6 +336,15 @@ const CJP = (function(){
     catch(e){ uiToast('No se ha podido abrir el mapa: ' + e.message, 'error'); }
     if(r){ borrador.vias = r.vias; borrador.lugares = r.lugares; }
     pintarFormulario();
+  }
+  // El temario se abre para elegir (CJT.seleccionar) y se vuelve aquí con lo elegido.
+  async function elegirEnTemario(){
+    leerFormulario();
+    let r = null;
+    try{ r = await CJT.seleccionar(borrador.fichas); }
+    catch(e){ uiToast('No se ha podido abrir el temario: ' + e.message, 'error'); }
+    if(r && borrador) borrador.fichas = r;
+    if(borrador) pintarFormulario();
   }
   async function cancelarFormulario(){
     const b = borrador;
@@ -446,6 +457,6 @@ const CJP = (function(){
   function reiniciar(){ alumnos = null; alumnosAt = 0; ficha = null; borrador = null; hilo = null; }
 
   return { pintarAlumnos, abrirAlumno, volverALista, cambiarZonaFicha, alternarRondas, tareaConFalladas,
-    nuevaTarea, editarTarea, cambiarTipo, elegirEnMapa, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
+    nuevaTarea, editarTarea, cambiarTipo, elegirEnMapa, elegirEnTemario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
     abrirMensajes, enviarMensaje, cerrarMensajes, reiniciar };
 })();

@@ -470,6 +470,7 @@ const CJ = (function(){
     try{ Object.keys(localStorage).filter(k => k.startsWith('cj_tareas_')).forEach(k => localStorage.removeItem(k)); }catch(e){}
     progreso = new Map(); tareas = []; rondasServidor = []; rondasLocales = [];
     ronda = null; modo = null; seleccion = null; verTemario = null; desdeTemario = false; ultimosAvisos = 0;
+    if(typeof CJT !== 'undefined') CJT.reiniciar();
     if(el('cjInicio')) mostrarVista('inicio');
     const punto = document.getElementById('navCallejeroAviso');
     if(punto) punto.classList.add('hidden');
