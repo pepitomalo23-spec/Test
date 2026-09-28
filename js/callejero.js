@@ -569,12 +569,15 @@ const CJ = (function(){
     capaPuntos = L.layerGroup();
     capaProfesor = L.layerGroup();
     capaLugares = L.layerGroup();
+    capaMarcado = L.layerGroup();
     aplicarEstilo();
-    // Arriba a la derecha: estilo, pantalla completa y zoom (la izquierda,
-    // para las opciones del mapa libre).
+    // Arriba a la derecha: estilo, pantalla completa, barrio o distrito
+    // marcado y zoom (la izquierda, para las opciones del mapa libre).
     mapa.addControl(crearControlEstilo());
     mapa.addControl(crearControlCompleta());
+    mapa.addControl(crearControlMarcar());
     L.control.zoom({ position: 'topright' }).addTo(mapa);
+    pintarMarcado();
     prepararAtribucion();
     mapa.on('zoomend', reescalar);
     mapa.on('dragstart', () => cancelarPrecarga(true));
@@ -583,6 +586,7 @@ const CJ = (function(){
     mapa.setView(CENTRO, 14);
     capaZona = L.layerGroup().addTo(mapa);
     mapa.on('click', e => {
+      if(cerrarMenus()) return;
       if(modo === 'estudio') tocarEstudio(e.latlng);
       else if(modo === 'seleccion') tocarSeleccion(e.latlng);
       else responder(e.latlng);
@@ -593,17 +597,18 @@ const CJ = (function(){
   // Metros por píxel en el zoom 0 a la latitud de Córdoba.
   const M_POR_PX = 156543.03 * Math.cos(CENTRO[0] * Math.PI / 180);
   // El grosor de una línea: el de lejos (min) o su anchura en metros, lo que
-  // sea mayor. Las calles del fondo (encoge) además adelgazan al alejarse
-  // del zoom 14, para que la ciudad entera no sea una mancha.
+  // sea mayor. Al alejarse del zoom 16 adelgaza (encoge: hasta dónde, p. ej.
+  // 0,4 = al 40 %), para que de lejos se vean finas y no tapen el mapa: las
+  // calles del fondo del todo; lo resaltado, algo menos.
   function grosor(min, metros, encoge){
     const z = mapa && mapa.getZoom() !== undefined ? mapa.getZoom() : 14;
-    const lejos = encoge && z < 14 ? Math.max(0.5, Math.pow(2, (z - 14) / 2)) : 1;
+    const lejos = encoge && z < 16 ? Math.max(encoge, Math.pow(2, (z - 16) / 2)) : 1;
     return Math.max(min * lejos, metros ? metros * Math.pow(2, z) / M_POR_PX : 0);
   }
   // Una línea de lo resaltado (calle marcada, lo del profesor…) que se
   // ensancha con el zoom: st.weight es su grosor de lejos; st.metros, su anchura.
   function lineaAncha(lineas, st){
-    const o = Object.assign({ interactive: false }, st, { pesoMin: st.weight });
+    const o = Object.assign({ interactive: false, encoge: 0.6 }, st, { pesoMin: st.weight });
     o.weight = grosor(o.pesoMin, o.metros, o.encoge);
     return L.polyline(lineas, o);
   }
@@ -848,7 +853,7 @@ const CJ = (function(){
     const poner = (capa, st) => {
       if(!capa) return;
       if(st){
-        capa.setStyle(Object.assign({}, st, { pesoMin: st.weight, encoge: true, weight: grosor(st.weight, st.metros, true) }));
+        capa.setStyle(Object.assign({}, st, { pesoMin: st.weight, encoge: 0.4, weight: grosor(st.weight, st.metros, 0.4) }));
         if(!mapa.hasLayer(capa)) capa.addTo(mapa);
       }
       else if(mapa.hasLayer(capa)) mapa.removeLayer(capa);
@@ -857,12 +862,13 @@ const CJ = (function(){
     else if(mapa.hasLayer(capaFoto)) mapa.removeLayer(capaFoto);
     ponerNotaSatelite();
     // Orden de abajo arriba: río, bordes, rellenos y, encima de todo, las marcas.
-    [capaRio, capas.restoBorde, capas.princBorde, capas.resto, capas.princ, capaProfesor, capaLugares, capaPuntos, capaMarcas].forEach(c => { if(c && mapa.hasLayer(c)) mapa.removeLayer(c); });
+    [capaRio, capas.restoBorde, capas.princBorde, capas.resto, capas.princ, capaMarcado, capaProfesor, capaLugares, capaPuntos, capaMarcas].forEach(c => { if(c && mapa.hasLayer(c)) mapa.removeLayer(c); });
     poner(capaRio, S.rio);
     poner(capas.restoBorde, S.restoBorde);
     poner(capas.princBorde, S.princBorde);
     poner(capas.resto, S.resto);
     poner(capas.princ, S.princ);
+    if(capaMarcado) capaMarcado.addTo(mapa);
     if(capaProfesor) capaProfesor.addTo(mapa);
     if(capaLugares) capaLugares.addTo(mapa);
     if(capaPuntos) capaPuntos.addTo(mapa);
@@ -882,6 +888,210 @@ const CJ = (function(){
     barriosDeZona().forEach(b => {
       L.polyline(b.anillos, { color: '#F2665C', weight: 2.5, opacity: 0.9, dashArray: '6 6', interactive: false }).addTo(capaZona);
     });
+  }
+
+  /* ---------- un barrio o distrito marcado ---------- */
+  // Botón en todos los mapas (columna de la derecha): se busca y se elige un
+  // barrio o un distrito y su contorno queda marcado (línea blanca con borde
+  // oscuro, que se ve en los tres estilos, y su nombre) mientras se estudia y
+  // en los siguientes mapas, hasta quitarlo. Se recuerda en el dispositivo.
+  // Es solo para verlo: no cambia la zona de las preguntas.
+  const MARCADO_KEY = 'cj_marcado';
+  let marcado = null;            // 'b:<barrio>' o 'd:<distrito>'
+  try{ marcado = localStorage.getItem(MARCADO_KEY) || null; }catch(e){}
+  let capaMarcado = null;
+  const contornosDistrito = new Map();
+  function marcadoValido(){
+    if(!marcado || !datos) return null;
+    if(marcado.startsWith('d:') && datos.distritos.includes(marcado.slice(2))) return marcado;
+    if(marcado.startsWith('b:') && datos.barrios.some(b => b.nombre === marcado.slice(2))) return marcado;
+    return null;
+  }
+  function barriosDeMarcado(m){
+    return m.startsWith('d:') ? datos.barrios.filter(b => b.distrito === m.slice(2)) : datos.barrios.filter(b => b.nombre === m.slice(2));
+  }
+  function nombreMarcado(m){ return m.startsWith('d:') ? 'Distrito ' + m.slice(2) : m.slice(2); }
+  // El contorno de fuera de un distrito (sin los bordes entre sus barrios):
+  // se juntan los vértices a menos de ~12 m, se parte cada lado por los
+  // vértices que caen encima (un barrio puede tener un vértice a mitad del
+  // lado del vecino) y se quedan los tramos que no comparte nadie. En
+  // unidades de 1e-5 grados, como vienen los datos.
+  function contornoDistrito(d){
+    if(contornosDistrito.has(d)) return contornosDistrito.get(d);
+    const TOL = 12, C = 200, rep = new Map(), rejilla = new Map();
+    const clave = p => p[0] + ',' + p[1];
+    const celda = (x, y) => Math.floor(x / C) + ':' + Math.floor(y / C);
+    const anillos = barriosDeMarcado('d:' + d).flatMap(b => b.anillos)
+      .map(a => a.map(([la, ln]) => [Math.round(ln * 1e5), Math.round(la * 1e5)]));
+    const junto = p => {
+      const k = clave(p);
+      if(rep.has(k)) return rep.get(k);
+      const cx = Math.floor(p[0] / C), cy = Math.floor(p[1] / C);
+      for(let i = -1; i <= 1; i++) for(let j = -1; j <= 1; j++){
+        for(const q of rejilla.get((cx + i) + ':' + (cy + j)) || []){
+          if((q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2 <= TOL * TOL){ rep.set(k, q); return q; }
+        }
+      }
+      rep.set(k, p);
+      const c = celda(p[0], p[1]);
+      if(!rejilla.has(c)) rejilla.set(c, []);
+      rejilla.get(c).push(p);
+      return p;
+    };
+    const lados = [];
+    anillos.forEach(a => {
+      const pts = a.map(junto);
+      if(clave(pts[0]) !== clave(pts[pts.length - 1])) pts.push(pts[0]);
+      for(let i = 0; i < pts.length - 1; i++) if(clave(pts[i]) !== clave(pts[i + 1])) lados.push([pts[i], pts[i + 1]]);
+    });
+    const cuenta = new Map();
+    lados.forEach(([a, b]) => {
+      const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy, cortes = [];
+      const x0 = Math.floor((Math.min(a[0], b[0]) - TOL) / C), x1 = Math.floor((Math.max(a[0], b[0]) + TOL) / C);
+      const y0 = Math.floor((Math.min(a[1], b[1]) - TOL) / C), y1 = Math.floor((Math.max(a[1], b[1]) + TOL) / C);
+      for(let x = x0; x <= x1; x++) for(let y = y0; y <= y1; y++){
+        for(const p of rejilla.get(x + ':' + y) || []){
+          if(p === a || p === b) continue;
+          const t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2;
+          if(t <= 0 || t >= 1) continue;
+          if((p[0] - a[0] - t * dx) ** 2 + (p[1] - a[1] - t * dy) ** 2 <= TOL * TOL) cortes.push([t, p]);
+        }
+      }
+      const seq = [a, ...cortes.sort((u, v) => u[0] - v[0]).map(c => c[1]), b];
+      for(let i = 0; i < seq.length - 1; i++){
+        if(seq[i] === seq[i + 1]) continue;
+        const k = [clave(seq[i]), clave(seq[i + 1])].sort().join('|');
+        const e = cuenta.get(k);
+        if(e) e.n++; else cuenta.set(k, { n: 1, a: seq[i], b: seq[i + 1] });
+      }
+    });
+    const tramos = [];
+    cuenta.forEach(e => { if(e.n === 1) tramos.push([[e.a[1] / 1e5, e.a[0] / 1e5], [e.b[1] / 1e5, e.b[0] / 1e5]]); });
+    contornosDistrito.set(d, tramos);
+    return tramos;
+  }
+  // Dónde poner el nombre: el centro de la caja si cae dentro; si no, el del
+  // barrio más grande.
+  function puntoNombre(barrios){
+    const caja = L.latLngBounds(barrios.flatMap(b => b.anillos.flat()));
+    const c = caja.getCenter();
+    if(barrios.some(b => dentroDeBarrio(c.lat, c.lng, b))) return c;
+    const grande = barrios.map(b => ({ b, caja: L.latLngBounds(b.anillos.flat()) }))
+      .sort((x, y) => areaCaja(y.caja) - areaCaja(x.caja))[0];
+    const cb = grande.caja.getCenter();
+    return dentroDeBarrio(cb.lat, cb.lng, grande.b) ? cb : L.latLng(grande.b.anillos[0][0]);
+  }
+  function areaCaja(caja){ return (caja.getNorth() - caja.getSouth()) * (caja.getEast() - caja.getWest()); }
+  function pintarMarcado(){
+    if(!capaMarcado) return;
+    capaMarcado.clearLayers();
+    const m = marcadoValido();
+    ponerBotonMarcar();
+    if(!m) return;
+    const barrios = barriosDeMarcado(m);
+    const lineas = m.startsWith('d:') ? contornoDistrito(m.slice(2)) : barrios.flatMap(b => b.anillos.map(a => a.concat([a[0]])));
+    const estilo = (color, weight, opacity) => ({ color, weight, opacity, interactive: false, lineCap: 'round', lineJoin: 'round' });
+    L.polyline(lineas, estilo('#0b1220', 8, 0.55)).addTo(capaMarcado);
+    L.polyline(lineas, estilo('#ffffff', 3.5, 1)).addTo(capaMarcado);
+    L.marker(puntoNombre(barrios), {
+      icon: L.divIcon({ className: 'cj-marcado-nombre', html: '<span>' + escapeHtml(nombreMarcado(m)) + '</span>', iconSize: null }),
+      interactive: false, keyboard: false
+    }).addTo(capaMarcado);
+  }
+  function irAMarcado(){
+    const m = marcadoValido();
+    if(!m) return;
+    mapa.flyToBounds(L.latLngBounds(barriosDeMarcado(m).flatMap(b => b.anillos.flat())), { padding: [40, 40], maxZoom: 16, duration: 0.6 });
+  }
+  function marcar(m){
+    marcado = m || null;
+    try{ marcado ? localStorage.setItem(MARCADO_KEY, marcado) : localStorage.removeItem(MARCADO_KEY); }catch(e){}
+    pintarMarcado();
+    cerrarMenus();
+    if(marcado) irAMarcado();
+  }
+  // El botón y su menú: arriba lo marcado (Ir · Quitar), un buscador y la
+  // lista de distritos y barrios.
+  const ICONO_MARCAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8c0 3.6-3.9 7.4-5.4 8.8a1 1 0 0 1-1.2 0C9.9 15.4 6 11.6 6 8a6 6 0 0 1 12 0"/><circle cx="12" cy="8" r="2"/><path d="M8.7 14H5a1 1 0 0 0-.9.7l-2 6A1 1 0 0 0 3 22h18a1 1 0 0 0 .9-1.3l-2-6a1 1 0 0 0-.9-.7h-3.7"/></svg>';
+  function crearControlMarcar(){
+    const Control = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd: function(){
+        const div = L.DomUtil.create('div', 'cj-marcar');
+        div.innerHTML =
+          '<button type="button" class="cj-marcar-boton" aria-label="Marcar un barrio o distrito" title="Marcar un barrio o distrito" aria-expanded="false">' + ICONO_MARCAR + '</button>' +
+          '<div class="cj-marcar-menu hidden">' +
+            '<div class="cj-marcar-actual hidden"></div>' +
+            '<input type="search" class="cj-marcar-buscar" placeholder="Buscar barrio o distrito…" autocomplete="off" spellcheck="false" aria-label="Buscar barrio o distrito">' +
+            '<div class="cj-marcar-lista"></div>' +
+          '</div>';
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.disableScrollPropagation(div);
+        const menu = div.querySelector('.cj-marcar-menu'), buscar = div.querySelector('.cj-marcar-buscar');
+        div.querySelector('.cj-marcar-boton').addEventListener('click', () => {
+          const abrir = menu.classList.contains('hidden');
+          cerrarMenus();
+          if(!abrir) return;
+          buscar.value = '';
+          pintarListaMarcar('');
+          menu.classList.remove('hidden');
+          div.querySelector('.cj-marcar-boton').setAttribute('aria-expanded', 'true');
+        });
+        buscar.addEventListener('input', () => pintarListaMarcar(buscar.value));
+        buscar.addEventListener('keydown', e => {
+          if(e.key !== 'Enter') return;
+          const primero = div.querySelector('.cj-marcar-opcion');
+          if(primero) marcar(primero.dataset.m);
+        });
+        div.querySelector('.cj-marcar-lista').addEventListener('click', e => {
+          const b = e.target.closest('.cj-marcar-opcion');
+          if(b) marcar(b.dataset.m);
+        });
+        div.querySelector('.cj-marcar-actual').addEventListener('click', e => {
+          const b = e.target.closest('button');
+          if(!b) return;
+          if(b.dataset.accion === 'quitar') marcar(null);
+          else{ cerrarMenus(); irAMarcado(); }
+        });
+        return div;
+      }
+    });
+    return new Control();
+  }
+  function pintarListaMarcar(texto){
+    const lista = document.querySelector('.cj-marcar-lista');
+    if(!lista) return;
+    const q = normalizar(texto.trim());
+    const vale = n => !q || normalizar(n).includes(q);
+    const op = (m, t, extra) => '<button type="button" class="cj-marcar-opcion' + (m === marcado ? ' activa' : '') + '" data-m="' + escapeHtml(m) + '">' +
+      escapeHtml(t) + (extra ? ' <small>' + escapeHtml(extra) + '</small>' : '') + '</button>';
+    let html = '';
+    const ds = datos.distritos.filter(d => vale('Distrito ' + d));
+    if(ds.length) html += '<div class="cj-marcar-cab">Distritos</div>' + ds.map(d => op('d:' + d, 'Distrito ' + d)).join('');
+    datos.distritos.forEach(d => {
+      const bs = datos.barrios.filter(b => b.distrito === d && (vale(b.nombre) || (q && vale(d))));
+      if(bs.length) html += '<div class="cj-marcar-cab">Barrios · ' + escapeHtml(d) + '</div>' + bs.map(b => op('b:' + b.nombre, b.nombre)).join('');
+    });
+    lista.innerHTML = html || '<div class="cj-marcar-vacio">Ningún barrio ni distrito con ese nombre</div>';
+  }
+  // El botón, resaltado si hay algo marcado; y arriba del menú, qué es.
+  function ponerBotonMarcar(){
+    const m = marcadoValido();
+    const boton = document.querySelector('.cj-marcar-boton');
+    if(boton) boton.classList.toggle('activo', !!m);
+    const actual = document.querySelector('.cj-marcar-actual');
+    if(!actual) return;
+    actual.classList.toggle('hidden', !m);
+    actual.innerHTML = m ? '<span>Marcado: <b>' + escapeHtml(nombreMarcado(m)) + '</b></span>' +
+      '<span class="cj-marcar-acciones"><button type="button" data-accion="ir">Ir</button><button type="button" data-accion="quitar">Quitar</button></span>' : '';
+  }
+  // Solo un menú abierto a la vez; tocar el mapa con uno abierto solo lo cierra.
+  function cerrarMenus(){
+    let habia = false;
+    document.querySelectorAll('.cj-estilo-menu, .cj-marcar-menu').forEach(x => { if(!x.classList.contains('hidden')){ habia = true; x.classList.add('hidden'); } });
+    const b = document.querySelector('.cj-marcar-boton');
+    if(b) b.setAttribute('aria-expanded', 'false');
+    return habia;
   }
 
   /* ---------- mapa libre: lo del profesor y los lugares ---------- */
@@ -908,14 +1118,44 @@ const CJ = (function(){
     items.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
     return { vias, lugares, items };
   }
+  // Con «Colores», cada cosa del profesor (de su lista) con su color, y su
+  // punto de ese color en la lista; si no, todo en morado. Se recuerda.
+  const COLORES_KEY = 'cj_colores_profesor';
+  const PALETA = ['#EF4444', '#3B82F6', '#F59E0B', '#10B981', '#EC4899', '#06B6D4', '#84CC16', '#A855F7', '#F97316', '#14B8A6', '#6366F1', '#EAB308'];
+  let coloresProfe = false;
+  try{ coloresProfe = localStorage.getItem(COLORES_KEY) === '1'; }catch(e){}
+  function colorDeItem(i){ return coloresProfe ? PALETA[i % PALETA.length] : MORADO; }
   function pintarProfesor(){
     capaProfesor.clearLayers();
     if(!delProfesor) return;
-    delProfesor.vias.forEach(v => {
-      lineaAncha(v.lineas, { color: MORADO, weight: 9, metros: 14, opacity: 0.25, lineCap: 'round' }).addTo(capaProfesor);
-      lineaAncha(v.lineas, { color: MORADO, weight: 3.5, metros: 6, opacity: 0.95, lineCap: 'round' }).addTo(capaProfesor);
+    // Cada calle y lugar, con el color de su cosa de la lista (o de la que se
+    // llama igual: la lista tiene una por nombre).
+    const colorVia = new Map(), colorLugar = new Map(), porNombre = new Map();
+    delProfesor.items.forEach((it, i) => {
+      const c = colorDeItem(i);
+      porNombre.set(normalizar(it.nombre), c);
+      it.vias.forEach(v => colorVia.set(v.id, c));
+      if(it.lugar) colorLugar.set(it.lugar.id, c);
     });
-    delProfesor.lugares.forEach(l => L.circleMarker([l.lat, l.lng], { radius: 7, color: '#fff', weight: 2, fillColor: MORADO, fillOpacity: 1, interactive: false }).addTo(capaProfesor));
+    delProfesor.vias.forEach(v => {
+      const c = colorVia.get(v.id) || porNombre.get(normalizar(v.nombre)) || MORADO;
+      lineaAncha(v.lineas, { color: c, weight: 9, metros: 14, opacity: 0.25, lineCap: 'round' }).addTo(capaProfesor);
+      lineaAncha(v.lineas, { color: c, weight: 3.5, metros: 6, opacity: 0.95, lineCap: 'round' }).addTo(capaProfesor);
+    });
+    delProfesor.lugares.forEach(l => {
+      const c = colorLugar.get(l.id) || porNombre.get(normalizar(l.nombre)) || MORADO;
+      L.circleMarker([l.lat, l.lng], { radius: 7, color: '#fff', weight: 2, fillColor: c, fillOpacity: 1, interactive: false }).addTo(capaProfesor);
+    });
+  }
+  function alternarColores(){
+    coloresProfe = !coloresProfe;
+    try{ localStorage.setItem(COLORES_KEY, coloresProfe ? '1' : '0'); }catch(e){}
+    pintarProfesor();
+    ponerChips();
+    if(verEstudio === 'profesor') el('cjPista').textContent = coloresProfe ? 'Toca lo de colores para ver qué es' : 'Toca lo morado para ver qué es';
+    // La lista de lo del profesor, si está abierta, con sus puntos de color.
+    const caja = el('cjLista');
+    if(!caja.classList.contains('hidden') && verEstudio === 'profesor'){ caja.classList.add('hidden'); alternarLista(); }
   }
   function hayDelProfesor(){ return !!delProfesor && (delProfesor.vias.size + delProfesor.lugares.size) > 0; }
   // Todos los lugares de la zona, como puntos (con «Lugares» arriba).
@@ -934,7 +1174,9 @@ const CJ = (function(){
     const b = (k, texto, clase) => '<button type="button" role="tab" aria-selected="' + (verEstudio === k) + '" class="cj-chip' + (clase ? ' ' + clase : '') + (verEstudio === k ? ' activo' : '') +
       '" onclick="CJ.cambiarVerEstudio(\'' + k + '\')">' + texto + '</button>';
     caja.innerHTML = b('calles', 'Calles') + (nl ? b('lugares', 'Lugares') : '') +
-      (hayDelProfesor() ? b('profesor', '<i></i>Profesor', 'cj-chip-profe') : '');
+      (hayDelProfesor() ? b('profesor', '<i></i>Profesor', 'cj-chip-profe') +
+        '<button type="button" class="cj-chip cj-chip-colores' + (coloresProfe ? ' activo' : '') + '" aria-pressed="' + coloresProfe +
+        '" aria-label="Colores: cada cosa del profesor, de un color" title="Colores: cada cosa del profesor, de un color" onclick="CJ.alternarColores()"><i></i></button>' : '');
   }
   function cambiarVerEstudio(v){
     if(modo !== 'estudio' || verTemario) return;
@@ -946,7 +1188,7 @@ const CJ = (function(){
     ponerBotonLista();
     pintarLugares();
     el('cjPista').textContent = verEstudio === 'lugares' ? 'Toca un punto para ver qué lugar es'
-      : verEstudio === 'profesor' ? 'Toca lo morado para ver qué es' : 'Toca una calle para ver cómo se llama';
+      : verEstudio === 'profesor' ? (coloresProfe ? 'Toca lo de colores para ver qué es' : 'Toca lo morado para ver qué es') : 'Toca una calle para ver cómo se llama';
     el('cjPista').classList.remove('hidden');
     if(verEstudio === 'profesor'){
       const pts = [];
@@ -1114,7 +1356,11 @@ const CJ = (function(){
             '<div class="cj-estilo-nota hidden"></div>' +
           '</div>';
         L.DomEvent.disableClickPropagation(div);
-        div.querySelector('.cj-estilo-boton').addEventListener('click', () => div.querySelector('.cj-estilo-menu').classList.toggle('hidden'));
+        div.querySelector('.cj-estilo-boton').addEventListener('click', () => {
+          const menu = div.querySelector('.cj-estilo-menu'), abrir = menu.classList.contains('hidden');
+          cerrarMenus();
+          if(abrir) menu.classList.remove('hidden');
+        });
         div.querySelectorAll('.cj-estilo-opcion').forEach(b => b.addEventListener('click', () => cambiarEstilo(b.dataset.estilo)));
         return div;
       }
@@ -1906,7 +2152,9 @@ const CJ = (function(){
       (x.cat ? ' <span class="cj-sug-cat">' + escapeHtml(x.cat) + '</span>' : '') + '</button>';
     if(verEstudio === 'profesor' && delProfesor){
       listaZona = delProfesor.items.map(it => ({ profe: it, nombre: it.nombre, cat: it.tipo }));
-      caja.innerHTML = listaZona.map(item).join('');
+      const punto = i => coloresProfe ? '<i class="cj-punto-color" style="background:' + colorDeItem(i) + '"></i>' : '';
+      caja.innerHTML = listaZona.map((x, i) => '<button type="button" class="cj-lista-item" onclick="CJ.elegirDeLista(' + i + ')">' + punto(i) + escapeHtml(x.nombre) +
+        (x.cat ? ' <span class="cj-sug-cat">' + escapeHtml(x.cat) + '</span>' : '') + '</button>').join('');
       caja.scrollTop = 0;
       caja.classList.remove('hidden');
       return;
@@ -1973,7 +2221,8 @@ const CJ = (function(){
     ponerChips();
     ponerBotonLista();
     if(hayDelProfesor()){
-      el('cjPista').innerHTML = '<i class="cj-pista-morado"></i>En morado, lo que te ha mandado tu profesor';
+      el('cjPista').innerHTML = coloresProfe ? '<i class="cj-pista-morado cj-pista-colores"></i>En colores, lo que te ha mandado tu profesor'
+        : '<i class="cj-pista-morado"></i>En morado, lo que te ha mandado tu profesor';
       el('cjPista').classList.remove('hidden');
     }
   }
@@ -2666,8 +2915,8 @@ const CJ = (function(){
 
   return { abrir, empezar, estudio, buscar, elegir, salir, cambiarZona, alternarLista, elegirDeLista, confirmarSalir,
     responderOpcion, verRespuesta, autoevaluar, siguiente: () => siguientePregunta(false), refrescarTema,
-    // pantalla completa y sus recuadros
-    pantallaCompleta, plegarCabeza,
+    // pantalla completa y sus recuadros; colores de lo del profesor
+    pantallaCompleta, plegarCabeza, alternarColores,
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
