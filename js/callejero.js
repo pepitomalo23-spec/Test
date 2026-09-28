@@ -794,7 +794,8 @@ const CJ = (function(){
         '</div>'
       : '';
     if(profe && vistaProfesor === 'alumnos' && typeof CJP !== 'undefined'){
-      root.innerHTML = segmento + '<div id="cjpAlumnos"></div>';
+      // Debajo de sus alumnos, el temario: lo ve entero y desde él les manda lo que quiera.
+      root.innerHTML = segmento + '<div id="cjpAlumnos"></div>' + (typeof CJT !== 'undefined' ? CJT.tarjetaInicio(true) : '');
       CJP.pintarAlumnos(el('cjpAlumnos'));
       return;
     }

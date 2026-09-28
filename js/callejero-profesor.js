@@ -8,6 +8,9 @@
      - Ficha de un alumno: sus tareas, su progreso por habilidad (en la
        zona que elija), lo que más falla y sus últimas rondas. Solo lee,
        con funciones que comprueban que es su alumno.
+     - Temario: lo ve entero (debajo de sus alumnos) y, desde la propia
+       ficha, manda a un alumno la ficha, un apartado o cosas sueltas
+       (CJP.mandarTemario abre la tarea ya rellena).
      - Tareas: qué estudiar (calles y lugares elegidos en el mapa, con
        CJ.seleccionar, una zona entera o fichas y apartados del temario de
        la academia, js/callejero-temario.js), qué modos cuentan, cuántas
@@ -237,6 +240,14 @@ const CJP = (function(){
     if(borrador.tipo === 'temario') CJT.cargar().then(() => { if(borrador) pintarFormulario(); }, () => {});
     pintarFormulario();
   }
+  // Desde el temario: manda una ficha, un apartado o lo elegido. Con un solo
+  // alumno ya sale marcado; al acabar (o cancelar) se vuelve al temario.
+  async function mandarTemario(claves, titulo){
+    try{ await cargarAlumnos(); }catch(e){}
+    const unico = alumnos && alumnos.length === 1 ? alumnos[0].alumno_id : null;
+    nuevaTarea(unico, { tipo: 'temario', fichas: claves.slice(), titulo: (titulo || '').slice(0, 120), volverA: null, volverTemario: true });
+  }
+  function volverAlTemario(){ CJ.mostrarVista('temario'); CJT.repintar(); }
   function editarTarea(id){
     const t = ficha && ficha.tareas.find(x => x.id === id);
     if(!t) return;
@@ -351,7 +362,8 @@ const CJP = (function(){
     const escrito = b && !b.id && ((el('cjpTitulo') && el('cjpTitulo').value.trim()) || b.vias.length || b.lugares.length || b.fichas.length);
     if(escrito && !(await uiConfirm('¿Salir sin mandar la tarea?'))) return;
     borrador = null;
-    if(b && b.volverA && ficha) pintarFicha();
+    if(b && b.volverTemario) volverAlTemario();
+    else if(b && b.volverA && ficha) pintarFicha();
     else volverALista();
   }
   async function guardarTarea(){
@@ -386,6 +398,7 @@ const CJP = (function(){
     uiToast(b.id ? 'Tarea guardada.' : (b.alumnos.size > 1 ? 'Tarea mandada a ' + b.alumnos.size + ' alumnos.' : 'Tarea mandada.'), 'success');
     borrador = null;
     alumnosAt = 0;
+    if(b.volverTemario){ volverAlTemario(); return; }
     const volverA = b.volverA || (b.alumnos.size === 1 ? [...b.alumnos][0] : null);
     if(volverA) abrirAlumno(volverA); else volverALista();
   }
@@ -457,6 +470,6 @@ const CJP = (function(){
   function reiniciar(){ alumnos = null; alumnosAt = 0; ficha = null; borrador = null; hilo = null; }
 
   return { pintarAlumnos, abrirAlumno, volverALista, cambiarZonaFicha, alternarRondas, tareaConFalladas,
-    nuevaTarea, editarTarea, cambiarTipo, elegirEnMapa, elegirEnTemario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
+    nuevaTarea, editarTarea, cambiarTipo, elegirEnMapa, elegirEnTemario, mandarTemario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
     abrirMensajes, enviarMensaje, cerrarMensajes, reiniciar };
 })();

@@ -19,9 +19,10 @@
        entre opciones o tocando un plano (Mezquita, Alcázar, Feria: planos
        dibujados aquí, esquemáticos).
    El progreso es por elemento (habilidad «temario», misma regla de
-   dominada que el resto). El profesor elige qué mandar viendo el temario
-   (CJT.seleccionar): fichas, apartados o cosas sueltas (tareas con
-   «fichas»); al alumno le salen como «Estúdiate esto».
+   dominada que el resto). El profesor ve el temario entero y lo manda
+   desde él (la ficha, un apartado o cosas sueltas) o desde el formulario
+   de la tarea (CJT.seleccionar); son tareas con «fichas» y al alumno le
+   salen como «Estúdiate esto».
    ============================================================ */
 const CJT = (function(){
   const ARCHIVO = 'datos/callejero-temario.json?v=96e7519e05';
@@ -706,6 +707,20 @@ const CJT = (function(){
     '</div>';
   }
 
+  /* ---------- el profesor manda desde el temario ---------- */
+  function esProfe(){ return typeof currentUserIsProfesor !== 'undefined' && !!currentUserIsProfesor && typeof CJP !== 'undefined'; }
+  // Una ficha o un apartado entero, tal cual.
+  function mandar(k){ CJP.mandarTemario([k], nombreClave(k)); }
+  // Cosas sueltas: se eligen en el propio temario (con la ficha ya abierta) y luego, a quién.
+  async function elegirParaMandar(){
+    if(!vista) return;
+    const fid = String(vista.claves[0]).split('/')[0];
+    const r = await seleccionar([], fid, 'Mandar');
+    if(r && r.length) CJP.mandarTemario(r, r.length === 1 ? nombreClave(r[0]) : describirFichas(r));
+    else{ if(r) uiToast('No has elegido nada.', 'info'); pintar(); }
+  }
+  const ICONO_MANDAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>';
+
   /* ---------- pantalla del temario ---------- */
   function abrir(clave){
     vista = { claves: [clave], titulo: nombreClave(clave).replace(/^Ficha /, ''), inc: incluye([clave]) };
@@ -770,6 +785,14 @@ const CJT = (function(){
     root.innerHTML =
       cabecera(t ? 'Estúdiate esto' : 'Temario', vista.titulo) +
       (t && t.mensaje ? '<div class="cj-tarea-msg cjt-msg">' + escapeHtml(t.mensaje) + '</div>' : '') +
+      (esProfe() && !t
+        ? '<div class="cj-card cjt-mandar"><div class="cj-card-title">Para tus alumnos</div>' +
+            '<div class="cj-hab-det">Mándale a un alumno esta ficha entera, un apartado (botón «Mandar» de cada uno) o solo las cosas que elijas.</div>' +
+            '<div class="cj-tarea-acciones">' +
+              '<button type="button" class="btn btn-primary btn-light cjt-btn-mandar" onclick="CJT.mandar(\'' + escapeHtml(vista.claves[0]) + '\')">' + ICONO_MANDAR + 'Mandar la ficha</button>' +
+              '<button type="button" class="btn btn-ghost" onclick="CJT.elegirParaMandar()">Elegir cosas sueltas</button>' +
+            '</div></div>'
+        : '') +
       '<div class="cj-card">' +
         '<div class="cj-hab-cab"><span>' + (t ? escapeHtml(describirFichas(t.fichas)) : 'Tu progreso') + '</span><b>' + pct(r) + '%</b></div>' + barra(r) +
         '<div class="cj-hab-det">' + r.dominada + ' dominadas · ' + r.progreso + ' en progreso · ' + r.fallada + ' por repasar · ' + r.nueva + ' sin ver</div>' +
@@ -814,6 +837,7 @@ const CJT = (function(){
         (r.total ? '<button type="button" class="btn btn-primary btn-light" onclick="CJT.preguntarSec(\'' + escapeHtml(k) + '\')">Preguntar</button>' : '') +
         (conMapa ? '<button type="button" class="btn btn-ghost" onclick="CJT.verSec(\'' + escapeHtml(k) + '\')">En el mapa</button>' : '') +
         '<button type="button" class="btn btn-ghost" onclick="CJT.alternar(\'' + escapeHtml(k) + '\')">' + (abierta ? 'Ocultar' : 'Ver lista y mapas') + '</button>' +
+        (esProfe() && !vista.tarea ? '<button type="button" class="btn btn-ghost cjt-btn-mandar" onclick="CJT.mandar(\'' + escapeHtml(k) + '\')">' + ICONO_MANDAR + 'Mandar</button>' : '') +
       '</div>' +
     '</div>';
   }
@@ -890,10 +914,11 @@ const CJT = (function(){
   // documento, el documento y el mapa del callejero). Devuelve las claves
   // elegidas al pulsar «Listo», o null si se sale sin guardar.
   let eleccion = null;           // { ids: Set, ficha, cambios, resolver }
-  async function seleccionar(claves){
+  // `ficha`: abrir ya esa ficha; `listo`: el texto del botón de terminar.
+  async function seleccionar(claves, ficha, listo){
     await cargar();
     return new Promise(resolve => {
-      eleccion = { ids: new Set(itemsDe(claves || []).map(x => x.id)), ficha: null, cambios: false, resolver: resolve };
+      eleccion = { ids: new Set(itemsDe(claves || []).map(x => x.id)), ficha: ficha || null, listo: listo || 'Listo', cambios: false, resolver: resolve };
       documento = null;
       abiertas.clear();
       mostrar();
@@ -925,9 +950,9 @@ const CJT = (function(){
     const n = eleccion.ids.size;
     const barraEl = '<div class="cjt-barra-el"><span><b>' + n + '</b> ' + (n === 1 ? 'cosa elegida' : 'cosas elegidas') + '</span>' +
       '<button type="button" class="btn btn-ghost" onclick="CJT.terminarEleccion(false)">Cancelar</button>' +
-      '<button type="button" class="btn btn-primary btn-light" onclick="CJT.terminarEleccion(true)">Listo</button></div>';
+      '<button type="button" class="btn btn-primary btn-light" onclick="CJT.terminarEleccion(true)">' + escapeHtml(eleccion.listo) + '</button></div>';
     if(!eleccion.ficha){
-      root.innerHTML = cabecera('Tarea del temario', 'Elige qué tiene que estudiar') + barraEl +
+      root.innerHTML = cabecera(eleccion.listo === 'Mandar' ? 'Mandar a un alumno' : 'Tarea del temario', 'Elige qué tiene que estudiar') + barraEl +
         '<div class="cj-hab-det cjt-intro">Marca fichas enteras, o entra en una ficha para ver todo su contenido (la lista, los mapas y el documento original) y marcar apartados o cosas sueltas.</div>' +
         '<div class="cj-card cjt-inicio">' + T.fichas.map(f => {
           const est = estadoCasilla(itemsDeFicha(f));
@@ -941,7 +966,7 @@ const CJT = (function(){
     }else{
       const f = T.fichaPorId.get(eleccion.ficha);
       const estF = estadoCasilla(itemsDeFicha(f));
-      root.innerHTML = cabecera('Elegir del temario', f.titulo) + barraEl +
+      root.innerHTML = cabecera(eleccion.listo === 'Mandar' ? 'Elige qué mandar' : 'Elegir del temario', f.titulo) + barraEl +
         '<div class="cj-card"><label class="cjp-check cjt-el-toda">' + casilla('f', f.id, estF, 'Toda la ficha') + ' <b>Toda la ficha ' + escapeHtml(f.titulo) + '</b></label>' +
           '<div class="cjt-docs">' + botonesDocs([f]) + '</div></div>' +
         f.secciones.map(s => {
@@ -978,7 +1003,8 @@ const CJT = (function(){
   }
 
   /* ---------- en la pantalla principal del callejero ---------- */
-  function tarjetaInicio(){
+  // `profe`: en «Mis alumnos» (sin su propio progreso; lo ve para mandarlo).
+  function tarjetaInicio(profe){
     if(!T){
       cargar().then(() => CJ.repintar(), () => {});
       return '<div class="cj-seccion">Temario</div><div class="cj-card">' + skelList(2) + '</div>';
@@ -986,12 +1012,17 @@ const CJT = (function(){
     const prog = CJ.progreso();
     return '<div class="cj-seccion">Temario de la academia</div>' +
       '<div class="cj-card cjt-inicio">' +
-        '<div class="cj-hab-det cjt-intro">La documentación, ficha a ficha: el documento original con sus mapas, la lista, el mapa del callejero y las preguntas.</div>' +
+        '<div class="cj-hab-det cjt-intro">' + (profe
+          ? 'Todo el temario, ficha a ficha, con el documento original y sus mapas. Desde cada ficha puedes mandar a tus alumnos la ficha, un apartado o cosas sueltas.'
+          : 'La documentación, ficha a ficha: el documento original con sus mapas, la lista, el mapa del callejero y las preguntas.') + '</div>' +
         T.fichas.map(f => {
           const r = cuenta(prog, f.secciones.flatMap(s => s.items));
+          const n = f.secciones.reduce((a, s) => a + s.items.length, 0);
           return '<button type="button" class="cjt-ficha" onclick="CJT.abrir(\'' + escapeHtml(f.id) + '\')">' +
             '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">' + escapeHtml(f.titulo) + '</span>' +
-              '<span class="cjt-ficha-d">' + f.secciones.length + ' apartados · ' + r.total + ' preguntas · ' + pct(r) + '% dominado</span>' + barra(r) + '</span>' +
+              (profe
+                ? '<span class="cjt-ficha-d">' + f.secciones.length + ' apartados · ' + n + ' cosas · ' + (f.docs || []).reduce((a, d) => a + d.paginas, 0) + ' páginas</span></span>'
+                : '<span class="cjt-ficha-d">' + f.secciones.length + ' apartados · ' + r.total + ' preguntas · ' + pct(r) + '% dominado</span>' + barra(r) + '</span>') +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>' +
           '</button>';
         }).join('') +
@@ -1193,7 +1224,7 @@ const CJT = (function(){
   return {
     cargar, listo, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
     abrir, abrirTarea, volver, repintar, alternar, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
-    abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar,
+    abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
     clicPlano, pintarPlano, marcarPlano, verEnPlano
   };
 })();

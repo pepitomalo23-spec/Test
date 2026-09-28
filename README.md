@@ -130,8 +130,10 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   **pregunta**: rondas del modo `temario` de hasta 20 preguntas, primero lo fallado, que se responden
   tocando el mapa, eligiendo entre opciones o tocando el plano.
 - El progreso es por elemento, en la habilidad `temario` (misma regla de dominada).
-- El profesor elige qué mandar **viendo el temario** («Elegir en el temario»: el documento, los mapas y las
-  listas, con casillas): fichas enteras, apartados o cosas sueltas (`callejero_tareas.fichas`: `centro`,
+- El profesor tiene el temario entero debajo de «Mis alumnos» y **manda desde él**: en cada ficha, «Mandar la
+  ficha», el botón «Mandar» de cada apartado o «Elegir cosas sueltas»; se abre la tarea ya rellena (título y,
+  si solo tiene un alumno, el alumno) y al mandarla vuelve a la ficha. También puede elegir desde el formulario
+  de la tarea («Elegir en el temario»: el documento, los mapas y las listas, con casillas): fichas enteras, apartados o cosas sueltas (`callejero_tareas.fichas`: `centro`,
   `centro/plazas` o `centro/plazas/<id>`). Al alumno le sale como «Estúdiate esto», con solo eso en la lista,
   el mapa y las rondas, que cuentan para la tarea.
 - El archivo lleva `?v=` con su huella (la pone `scripts/versionar.mjs` en el js que lo pide): el service
