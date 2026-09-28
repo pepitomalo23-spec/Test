@@ -601,6 +601,9 @@
   .cj-completa-boton{ display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:10px; border:1px solid var(--line);
     background: var(--bg); color: var(--text); cursor:pointer; box-shadow: 0 2px 8px rgba(0,0,0,.25); padding:0; }
   .cj-completa-boton svg{ width:17px; height:17px; }
+  .cj-completa-boton span{ display:flex; }
+  .cj-completa-boton .cj-ico-cerrar, #screen-callejero.cj-completa .cj-completa-boton .cj-ico-abrir{ display:none; }
+  #screen-callejero.cj-completa .cj-completa-boton .cj-ico-cerrar{ display:flex; }
   .cj-mapa .leaflet-top.leaflet-right{ display:flex; flex-direction:column; align-items:flex-end; }
   /* En el móvil, a la derecha solo iconos (estilo, pantalla completa, zoom): más sitio para las opciones */
   @media (max-width:640px){

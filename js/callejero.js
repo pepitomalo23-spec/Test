@@ -762,9 +762,10 @@ const CJ = (function(){
     const pantalla = document.getElementById('screen-callejero');
     on = on === undefined ? !pantalla.classList.contains('cj-completa') : !!on;
     pantalla.classList.toggle('cj-completa', on);
+    // (Los dos iconos están en el botón y el CSS enseña uno: cambiar su HTML
+    // en pleno toque haría que el mapa también lo recibiera.)
     const b = document.querySelector('.cj-completa-boton');
     if(b){
-      b.innerHTML = on ? ICONO_SALIR_COMPLETA : ICONO_COMPLETA;
       b.setAttribute('aria-label', on ? 'Salir de pantalla completa' : 'Pantalla completa');
       b.title = b.getAttribute('aria-label');
     }
@@ -775,9 +776,10 @@ const CJ = (function(){
       options: { position: 'topright' },
       onAdd: function(){
         const div = L.DomUtil.create('div', 'cj-completa-ctl');
-        div.innerHTML = '<button type="button" class="cj-completa-boton" aria-label="Pantalla completa" title="Pantalla completa">' + ICONO_COMPLETA + '</button>';
+        div.innerHTML = '<button type="button" class="cj-completa-boton" aria-label="Pantalla completa" title="Pantalla completa">' +
+          '<span class="cj-ico-abrir">' + ICONO_COMPLETA + '</span><span class="cj-ico-cerrar">' + ICONO_SALIR_COMPLETA + '</span></button>';
         L.DomEvent.disableClickPropagation(div);
-        div.querySelector('button').addEventListener('click', () => pantallaCompleta());
+        div.querySelector('button').addEventListener('click', e => { L.DomEvent.stop(e); pantallaCompleta(); });
         return div;
       }
     });
