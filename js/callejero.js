@@ -14,11 +14,16 @@
      - Plano: el mismo trazado con colores de plano (calles blancas con
        borde, avenidas y carreteras en amarillo, río azul).
      - Satélite: ortofotos del PNOA (Instituto Geográfico Nacional,
-       CC BY 4.0) con las vías encima, finas. Necesita conexión. Encima va
-       la del último vuelo (servicio de ortofotos provisionales: 2025 en
-       Córdoba), que tarda más en llegar; debajo, la de «máxima
-       actualidad» (2022 en Córdoba), que sale al instante y cubre
-       cualquier hueco o caída del servicio provisional.
+       CC BY 4.0) con las vías encima, finas. Necesita conexión. Solo se
+       ve la del último vuelo (servicio de ortofotos provisionales: 2025
+       en Córdoba), en trozos de 512 px con el doble de píxeles en
+       pantallas retina, para que se vea nítida. La de «máxima actualidad»
+       (2022 en Córdoba) solo entra en el trozo que falle o tarde más de
+       12 s. Con el mapa quieto se precargan los trozos del siguiente zoom
+       alrededor del centro: al ampliar ya están en la caché del navegador.
+   Las calles (y lo resaltado encima) se ensanchan al acercarse, como en
+   un plano de verdad: cada línea tiene su grosor de lejos y su anchura en
+   metros, y se pinta con el mayor de los dos.
 
    Modo «Localiza la calle»: se da el nombre de una vía y hay que
    tocarla en el mapa. Cuenta como acierto si el toque cae a menos de
@@ -88,8 +93,8 @@ const CJ = (function(){
   const LEAFLET_CSS = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
   const LEAFLET_CSS_SRI = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
   const ATRIBUCION = 'Callejero: <a href="https://www.callejerodeandalucia.es/" target="_blank" rel="noopener">CDAU</a> · Río y lugares: DERA · IECA, Junta de Andalucía (CC BY 4.0) · Otros lugares y vías: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
-  const PNOA = 'https://www.ign.es/wmts/pnoa-ma?service=WMTS&request=GetTile&version=1.0.0&Format=image/jpeg&layer=OI.OrthoimageCoverage&style=default&tilematrixset=GoogleMapsCompatible&TileMatrix={z}&TileRow={y}&TileCol={x}';
   const PNOA_RECIENTE = 'https://wms-pnoa.idee.es/pnoa-provisionales';
+  const PNOA_WMS = 'https://www.ign.es/wms-inspire/pnoa-ma';
   const ATRIBUCION_PNOA = 'Ortofoto: <a href="https://pnoa.ign.es/" target="_blank" rel="noopener">PNOA</a> (vuelo más reciente) © Instituto Geográfico Nacional (CC BY 4.0)';
   const ESTILOS = { sencillo: 'Sencillo', plano: 'Plano', satelite: 'Satélite' };
   const ESTILO_KEY = 'cj_estilo_mapa';
@@ -550,11 +555,7 @@ const CJ = (function(){
     mapa = L.map(el, { zoomControl: false, attributionControl: true, preferCanvas: true, minZoom: 11, maxZoom: 19, zoomSnap: 0.5 });
     mapa.attributionControl.setPrefix(false);
     mapa.attributionControl.addAttribution(ATRIBUCION);
-    capaFoto = L.layerGroup([
-      L.tileLayer(PNOA, { maxZoom: 19, attribution: ATRIBUCION_PNOA, zIndex: 1 }),
-      // Trozos de 512 px: la mitad de peticiones a un servicio lento.
-      L.tileLayer.wms(PNOA_RECIENTE, { layers: 'OrtoimagenRapida', format: 'image/jpeg', version: '1.3.0', tileSize: 512, maxZoom: 19, zIndex: 2 })
-    ]);
+    capaFoto = crearCapaFoto();
     const renderer = L.canvas({ padding: 0.3, tolerance: 4 });
     const linea = lineas => L.polyline(lineas, { renderer, interactive: false, lineCap: 'round', lineJoin: 'round' });
     if(datos.rio.length) capaRio = linea(datos.rio);
@@ -571,6 +572,10 @@ const CJ = (function(){
     mapa.addControl(crearControlEstilo());
     mapa.addControl(crearControlCompleta());
     L.control.zoom({ position: 'topright' }).addTo(mapa);
+    prepararAtribucion();
+    mapa.on('zoomend', reescalar);
+    mapa.on('dragstart', () => cancelarPrecarga(true));
+    mapa.on('zoomstart', () => cancelarPrecarga(false));
     mapa.setMaxBounds(limitesDe(datos.vias).pad(0.15));
     mapa.setView(CENTRO, 14);
     capaZona = L.layerGroup().addTo(mapa);
@@ -581,31 +586,159 @@ const CJ = (function(){
     });
   }
 
-  // Qué capas se ven y con qué colores en cada estilo.
+  /* ---------- grosor según el zoom ---------- */
+  // Metros por píxel en el zoom 0 a la latitud de Córdoba.
+  const M_POR_PX = 156543.03 * Math.cos(CENTRO[0] * Math.PI / 180);
+  // El grosor de una línea: el de lejos (min) o su anchura en metros, lo que
+  // sea mayor. Las calles del fondo (encoge) además adelgazan al alejarse
+  // del zoom 14, para que la ciudad entera no sea una mancha.
+  function grosor(min, metros, encoge){
+    const z = mapa && mapa.getZoom() !== undefined ? mapa.getZoom() : 14;
+    const lejos = encoge && z < 14 ? Math.max(0.5, Math.pow(2, (z - 14) / 2)) : 1;
+    return Math.max(min * lejos, metros ? metros * Math.pow(2, z) / M_POR_PX : 0);
+  }
+  // Una línea de lo resaltado (calle marcada, lo del profesor…) que se
+  // ensancha con el zoom: st.weight es su grosor de lejos; st.metros, su anchura.
+  function lineaAncha(lineas, st){
+    const o = Object.assign({ interactive: false }, st, { pesoMin: st.weight });
+    o.weight = grosor(o.pesoMin, o.metros, o.encoge);
+    return L.polyline(lineas, o);
+  }
+  function ajustarGrosor(l){
+    if(l.eachLayer){ l.eachLayer(ajustarGrosor); return; }
+    const o = l.options;
+    if(o && o.metros) l.setStyle({ weight: grosor(o.pesoMin, o.metros, o.encoge) });
+  }
+  function reescalar(){
+    [capaRio, ...Object.values(capas || {})].forEach(c => { if(c && mapa.hasLayer(c)) ajustarGrosor(c); });
+    [capaMarcas, capaProfesor, capaZona].forEach(g => { if(g) ajustarGrosor(g); });
+  }
+
+  /* ---------- satélite ---------- */
+  // Solo la ortofoto del último vuelo, en trozos de 512 px (la mitad de
+  // peticiones a un servicio lento) con el doble de píxeles en pantallas
+  // retina. Si un trozo falla o tarda más de 12 s, ese trozo se pide a la
+  // de «máxima actualidad» (más antigua, pero siempre responde).
+  function crearCapaFoto(){
+    const WMS = L.TileLayer.WMS;
+    const Foto = WMS.extend({
+      createTile(coords, done){
+        const img = WMS.prototype.createTile.call(this, coords, done);
+        img._respaldo = this.getTileUrl(coords).replace(PNOA_RECIENTE, PNOA_WMS).replace('layers=OrtoimagenRapida', 'layers=OI.OrthoimageCoverage');
+        img._espera = setTimeout(() => this._alRespaldo(img), 12000);
+        return img;
+      },
+      _tileOnLoad(done, tile){ clearTimeout(tile._espera); WMS.prototype._tileOnLoad.call(this, done, tile); },
+      _tileOnError(done, tile, e){
+        clearTimeout(tile._espera);
+        if(!this._alRespaldo(tile)) WMS.prototype._tileOnError.call(this, done, tile, e);
+      },
+      _alRespaldo(tile){
+        if(!tile._respaldo || !tile.parentNode) return false;
+        const url = tile._respaldo;
+        tile._respaldo = null;
+        tile.src = url;
+        return true;
+      }
+    });
+    const capa = new Foto(PNOA_RECIENTE, {
+      layers: 'OrtoimagenRapida', format: 'image/jpeg', version: '1.3.0', tileSize: 512, detectRetina: true,
+      maxZoom: 19, attribution: ATRIBUCION_PNOA,
+      // Carga mientras se arrastra, pero no los niveles intermedios al pellizcar.
+      updateWhenIdle: false, updateWhenZooming: false, keepBuffer: 3
+    });
+    capa.on('load', () => { clearTimeout(esperaPrecarga); esperaPrecarga = setTimeout(precargarFoto, 300); });
+    return capa;
+  }
+  // Con el mapa quieto y lo que se ve ya cargado, se piden los trozos del
+  // siguiente zoom alrededor del centro (lo que se vería al ampliar): quedan
+  // en la caché del navegador y al ampliar salen nítidos al momento. Pocos
+  // a la vez (el servicio va por HTTP/1.1 y hay que dejar hueco a lo que se
+  // ve) y nada con el ahorro de datos puesto.
+  let esperaPrecarga = null, colaPrecarga = [];
+  const precargando = new Map(), precargadas = new Set();
+  function ahorroDatos(){
+    const c = navigator.connection;
+    return !!(c && (c.saveData || /2g/.test(c.effectiveType || '')));
+  }
+  function precargarFoto(){
+    if(!mapa || !mapa.hasLayer(capaFoto) || ahorroDatos()) return;
+    const z = Math.round(mapa.getZoom() + 1);
+    if(z > mapa.getMaxZoom()) return;
+    const ts = capaFoto.getTileSize(), c = mapa.getCenter(), b = mapa.getBounds();
+    const mitad = (a, x) => a + (x - a) / 2;
+    const no = mapa.project([mitad(c.lat, b.getNorth()), mitad(c.lng, b.getWest())], z).unscaleBy(ts).floor();
+    const se = mapa.project([mitad(c.lat, b.getSouth()), mitad(c.lng, b.getEast())], z).unscaleBy(ts).floor();
+    const centro = mapa.project(c, z).unscaleBy(ts);
+    const trozos = [];
+    for(let x = no.x; x <= se.x; x++) for(let y = no.y; y <= se.y; y++) trozos.push(L.point(x, y));
+    trozos.sort((p, q) => p.add([0.5, 0.5]).distanceTo(centro) - q.add([0.5, 0.5]).distanceTo(centro));
+    colaPrecarga = trozos.slice(0, 8).map(p => { p.z = z; return capaFoto.getTileUrl(p); })
+      .filter(u => !precargadas.has(u) && !precargando.has(u));
+    siguientePrecarga();
+  }
+  function siguientePrecarga(){
+    while(precargando.size < 3 && colaPrecarga.length){
+      const url = colaPrecarga.shift();
+      const img = new Image();
+      img.onload = () => { precargando.delete(url); precargadas.add(url); siguientePrecarga(); };
+      img.onerror = () => { precargando.delete(url); siguientePrecarga(); };
+      precargando.set(url, img);
+      img.src = url;
+    }
+  }
+  // Al arrastrar, lo que se estaba precargando ya no sirve: fuera, para dejar
+  // sitio a lo que se va a ver. Al ampliar se deja (es justo lo que hace falta).
+  function cancelarPrecarga(todo){
+    colaPrecarga = [];
+    if(!todo) return;
+    precargando.forEach(img => { img.onload = img.onerror = null; img.src = ''; });
+    precargando.clear();
+  }
+
+  // Los créditos del mapa, a pantalla completa, en un botón «i» que se abre
+  // y se cierra al tocarlo (así no tapan el mapa).
+  function prepararAtribucion(){
+    const at = mapa.attributionControl.getContainer();
+    L.DomEvent.disableClickPropagation(at);
+    at.addEventListener('click', e => {
+      if(!document.getElementById('screen-callejero').classList.contains('cj-completa')) return;
+      if(at.classList.contains('abierta') && e.target.closest('a')) return;
+      e.preventDefault();
+      at.classList.toggle('abierta');
+    });
+  }
+
+  // Qué capas se ven y con qué colores en cada estilo. weight es el grosor
+  // de lejos; metros, la anchura de verdad (para cuando se acerca).
   function aplicarEstilo(){
     if(!mapa) return;
     const S = {
       sencillo: {
         fondo: null, foto: false,
-        rio: { color: colorRio(), weight: 9, opacity: 1 },
-        restoBorde: null, resto: { color: colorCalles(), weight: 2, opacity: 0.9 },
-        princBorde: null, princ: { color: colorCalles(), weight: 2, opacity: 0.9 }
+        rio: { color: colorRio(), weight: 9, metros: 50, opacity: 1 },
+        restoBorde: null, resto: { color: colorCalles(), weight: 2, metros: 5, opacity: 0.9 },
+        princBorde: null, princ: { color: colorCalles(), weight: 2, metros: 8, opacity: 0.9 }
       },
       plano: {
         fondo: '#efe9dc', foto: false,
-        rio: { color: '#9ccbeb', weight: 11, opacity: 1 },
-        restoBorde: { color: '#cbc2b0', weight: 5, opacity: 1 }, resto: { color: '#ffffff', weight: 3, opacity: 1 },
-        princBorde: { color: '#d9a93a', weight: 7, opacity: 1 }, princ: { color: '#fbd96b', weight: 4.5, opacity: 1 }
+        rio: { color: '#9ccbeb', weight: 11, metros: 50, opacity: 1 },
+        restoBorde: { color: '#cbc2b0', weight: 5, metros: 7, opacity: 1 }, resto: { color: '#ffffff', weight: 3, metros: 5, opacity: 1 },
+        princBorde: { color: '#d9a93a', weight: 7, metros: 12, opacity: 1 }, princ: { color: '#fbd96b', weight: 4.5, metros: 9, opacity: 1 }
       },
+      // En el satélite, finas (una raya por el centro de la calle) para no tapar la foto.
       satelite: {
         fondo: '#1b1d1a', foto: true, rio: null,
-        restoBorde: null, resto: { color: '#ffffff', weight: 1.5, opacity: 0.5 },
-        princBorde: null, princ: { color: '#ffe38a', weight: 2, opacity: 0.6 }
+        restoBorde: null, resto: { color: '#ffffff', weight: 1.5, metros: 2, opacity: 0.5 },
+        princBorde: null, princ: { color: '#ffe38a', weight: 2, metros: 3, opacity: 0.6 }
       }
     }[estilo];
     const poner = (capa, st) => {
       if(!capa) return;
-      if(st){ capa.setStyle(st); if(!mapa.hasLayer(capa)) capa.addTo(mapa); }
+      if(st){
+        capa.setStyle(Object.assign({}, st, { pesoMin: st.weight, encoge: true, weight: grosor(st.weight, st.metros, true) }));
+        if(!mapa.hasLayer(capa)) capa.addTo(mapa);
+      }
       else if(mapa.hasLayer(capa)) mapa.removeLayer(capa);
     };
     if(S.foto){ if(!mapa.hasLayer(capaFoto)) capaFoto.addTo(mapa); }
@@ -666,8 +799,8 @@ const CJ = (function(){
     capaProfesor.clearLayers();
     if(!delProfesor) return;
     delProfesor.vias.forEach(v => {
-      L.polyline(v.lineas, { color: MORADO, weight: 9, opacity: 0.25, interactive: false, lineCap: 'round' }).addTo(capaProfesor);
-      L.polyline(v.lineas, { color: MORADO, weight: 3.5, opacity: 0.95, interactive: false, lineCap: 'round' }).addTo(capaProfesor);
+      lineaAncha(v.lineas, { color: MORADO, weight: 9, metros: 14, opacity: 0.25, lineCap: 'round' }).addTo(capaProfesor);
+      lineaAncha(v.lineas, { color: MORADO, weight: 3.5, metros: 6, opacity: 0.95, lineCap: 'round' }).addTo(capaProfesor);
     });
     delProfesor.lugares.forEach(l => L.circleMarker([l.lat, l.lng], { radius: 7, color: '#fff', weight: 2, fillColor: MORADO, fillOpacity: 1, interactive: false }).addTo(capaProfesor));
   }
@@ -754,14 +887,25 @@ const CJ = (function(){
     if(menu) menu.classList.add('hidden');
   }
 
-  // Pantalla completa: el mapa (con la pregunta o el buscador) ocupa toda la
-  // pantalla, sin la cabecera de la app. Se quita con el mismo botón o al salir.
+  // Pantalla completa: el mapa ocupa todo el móvil, de borde a borde (y, si
+  // el navegador deja, también sin sus barras), y lo demás flota encima en
+  // recuadros pequeños que se pliegan con un toque: arriba, la pregunta o el
+  // buscador (CJ.plegarCabeza); abajo, lo que se ha tocado (se pliega
+  // tocándolo). Se quita con el mismo botón, con «atrás» o al salir, y se
+  // recuerda en el dispositivo para los siguientes mapas.
   const ICONO_COMPLETA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>';
   const ICONO_SALIR_COMPLETA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/></svg>';
-  function pantallaCompleta(on){
+  const COMPLETA_KEY = 'cj_pantalla_completa';
+  let completaNavegador = false;   // si la pantalla completa del navegador la hemos pedido nosotros
+  let cabezaPlegada = false;
+  const enNavegador = () => document.fullscreenElement || document.webkitFullscreenElement;
+  function estaCompleta(){ return document.getElementById('screen-callejero').classList.contains('cj-completa'); }
+  // recordar: al pulsar el botón (o salir con «atrás»), no al cerrar el mapa.
+  function pantallaCompleta(on, recordar){
     const pantalla = document.getElementById('screen-callejero');
     on = on === undefined ? !pantalla.classList.contains('cj-completa') : !!on;
     pantalla.classList.toggle('cj-completa', on);
+    if(recordar){ try{ localStorage.setItem(COMPLETA_KEY, on ? '1' : '0'); }catch(e){} }
     // (Los dos iconos están en el botón y el CSS enseña uno: cambiar su HTML
     // en pleno toque haría que el mapa también lo recibiera.)
     const b = document.querySelector('.cj-completa-boton');
@@ -769,7 +913,62 @@ const CJ = (function(){
       b.setAttribute('aria-label', on ? 'Salir de pantalla completa' : 'Pantalla completa');
       b.title = b.getAttribute('aria-label');
     }
+    const raiz = document.documentElement;
+    const pedir = raiz.requestFullscreen || raiz.webkitRequestFullscreen;
+    if(on && pedir && !enNavegador()){
+      // Todo el documento (no solo el mapa), para que los avisos y los
+      // diálogos se sigan viendo. En el iPhone no existe: se queda en el CSS.
+      completaNavegador = true;
+      try{
+        const p = pedir.call(raiz, { navigationUI: 'hide' });
+        if(p && p.catch) p.catch(() => { completaNavegador = false; });
+      }catch(e){ completaNavegador = false; }
+    } else if(!on && completaNavegador){
+      completaNavegador = false;
+      const dejar = document.exitFullscreen || document.webkitExitFullscreen;
+      if(enNavegador() && dejar){
+        try{ const p = dejar.call(document); if(p && p.catch) p.catch(() => {}); }catch(e){}
+      }
+    }
+    if(on) vigilarCabeza();
     if(mapa) setTimeout(() => mapa.invalidateSize(), 0);
+  }
+  // Si se sale de la pantalla completa del navegador (con «atrás» o Esc),
+  // también de la del mapa.
+  function alCambiarNavegador(){
+    if(enNavegador() || !completaNavegador) return;
+    completaNavegador = false;
+    if(estaCompleta()) pantallaCompleta(false, true);
+  }
+  document.addEventListener('fullscreenchange', alCambiarNavegador);
+  document.addEventListener('webkitfullscreenchange', alCambiarNavegador);
+  function completaRecordada(){ try{ return localStorage.getItem(COMPLETA_KEY) === '1'; }catch(e){ return false; } }
+  // El recuadro de arriba (pregunta, opciones, buscador…) plegado deja solo
+  // la barra y la pregunta en una línea.
+  function plegarCabeza(plegar){
+    cabezaPlegada = plegar === undefined ? !cabezaPlegada : !!plegar;
+    el('cjCabeza').classList.toggle('plegada', cabezaPlegada);
+    const b = el('cjPlegar');
+    b.setAttribute('aria-expanded', String(!cabezaPlegada));
+    b.setAttribute('aria-label', cabezaPlegada ? 'Desplegar' : 'Plegar');
+    b.title = b.getAttribute('aria-label');
+    if(cabezaPlegada) el('cjSugerencias').classList.add('hidden');
+  }
+  // Lo que flota bajo el recuadro de arriba (Calles/Lugares/Profesor, la
+  // lista) se coloca según su alto: --cj-arriba, en píxeles desde arriba.
+  let vigilandoCabeza = false;
+  function vigilarCabeza(){
+    const cab = el('cjCabeza'), juego = el('cjJuego');
+    const poner = () => juego.style.setProperty('--cj-arriba', (cab.offsetTop + cab.offsetHeight) + 'px');
+    poner();
+    if(vigilandoCabeza) return;
+    vigilandoCabeza = true;
+    if(window.ResizeObserver) new ResizeObserver(poner).observe(cab);
+    // El recuadro de lo tocado se pliega y despliega tocándolo (no sus botones).
+    el('cjInfo').addEventListener('click', e => {
+      if(!estaCompleta() || e.target.closest('button, a, input, select')) return;
+      el('cjInfo').classList.toggle('plegada');
+    });
   }
   function crearControlCompleta(){
     const Control = L.Control.extend({
@@ -779,7 +978,7 @@ const CJ = (function(){
         div.innerHTML = '<button type="button" class="cj-completa-boton" aria-label="Pantalla completa" title="Pantalla completa">' +
           '<span class="cj-ico-abrir">' + ICONO_COMPLETA + '</span><span class="cj-ico-cerrar">' + ICONO_SALIR_COMPLETA + '</span></button>';
         L.DomEvent.disableClickPropagation(div);
-        div.querySelector('button').addEventListener('click', e => { L.DomEvent.stop(e); pantallaCompleta(); });
+        div.querySelector('button').addEventListener('click', e => { L.DomEvent.stop(e); pantallaCompleta(undefined, true); });
         return div;
       }
     });
@@ -1239,6 +1438,7 @@ const CJ = (function(){
     el('cjTemario').classList.toggle('hidden', v !== 'temario');
     document.getElementById('screen-callejero').classList.toggle('cj-jugando', v === 'juego');
     if(v !== 'juego') pantallaCompleta(false);
+    else if(completaRecordada() && !estaCompleta()) pantallaCompleta(true);
   }
 
   /* ---------- cruces y paralelas (calculados con el trazado) ---------- */
@@ -1676,7 +1876,7 @@ const CJ = (function(){
         it.barrio.anillos.forEach(a => a.forEach(p => pts.push(p)));
       }
       it.vias.concat((it.ruta || []).flatMap(p => p.vias)).forEach(v => {
-        L.polyline(v.lineas, { color: azul, weight: 6, opacity: 0.4, interactive: false }).addTo(capaZona);
+        lineaAncha(v.lineas, { color: azul, weight: 6, metros: 10, opacity: 0.4 }).addTo(capaZona);
       });
       if(it.lugar) L.circleMarker([it.lugar.lat, it.lugar.lng], { radius: 7, color: '#fff', weight: 2, fillColor: azul, fillOpacity: 1, interactive: false }).addTo(capaPuntos);
       puntosItem(it).forEach(p => pts.push(p));
@@ -1811,8 +2011,8 @@ const CJ = (function(){
     capaMarcas.clearLayers();
     iguales.forEach(o => {
       const principal = o === v;
-      L.polyline(o.lineas, { color: '#F2665C', weight: principal ? 10 : 7, opacity: principal ? 0.3 : 0.18, interactive: false }).addTo(capaMarcas);
-      L.polyline(o.lineas, { color: '#F2665C', weight: principal ? 4 : 3, opacity: principal ? 1 : 0.6, interactive: false }).addTo(capaMarcas);
+      lineaAncha(o.lineas, { color: '#F2665C', weight: principal ? 10 : 7, metros: 14, opacity: principal ? 0.3 : 0.18 }).addTo(capaMarcas);
+      lineaAncha(o.lineas, { color: '#F2665C', weight: principal ? 4 : 3, metros: 6, opacity: principal ? 1 : 0.6 }).addTo(capaMarcas);
     });
     if(centrar) mapa.flyToBounds(limitesDe(iguales), { padding: [70, 70], maxZoom: 17, duration: 0.7 });
     const extra = v.jugable ? textoAciertosDe(v.id, ['nombre', 'localiza', 'cruces', 'parque']) : 'No entra en las preguntas del juego.';
@@ -1939,8 +2139,8 @@ const CJ = (function(){
     const v = on && datos.viaPorId.get(id);
     if(!v) return;
     const g = L.layerGroup([
-      L.polyline(v.lineas, { color: '#F2665C', weight: 9, opacity: 0.3, interactive: false }),
-      L.polyline(v.lineas, { color: '#F2665C', weight: 4, opacity: 1, interactive: false })
+      lineaAncha(v.lineas, { color: '#F2665C', weight: 9, metros: 14, opacity: 0.3 }),
+      lineaAncha(v.lineas, { color: '#F2665C', weight: 4, metros: 6, opacity: 1 })
     ]).addTo(capaMarcas);
     marcasSel.vias.set(id, g);
   }
@@ -2061,8 +2261,8 @@ const CJ = (function(){
 
   // Dibuja una vía resaltada (borde suave + línea) en la capa de marcas.
   function resaltar(v, color, fuerte){
-    L.polyline(v.lineas, { color, weight: fuerte ? 10 : 8, opacity: 0.3, interactive: false }).addTo(capaMarcas);
-    L.polyline(v.lineas, { color, weight: fuerte ? 4.5 : 3.5, opacity: 1, interactive: false }).addTo(capaMarcas);
+    lineaAncha(v.lineas, { color, weight: fuerte ? 10 : 8, metros: 14, opacity: 0.3 }).addTo(capaMarcas);
+    lineaAncha(v.lineas, { color, weight: fuerte ? 4.5 : 3.5, metros: 6, opacity: 1 }).addTo(capaMarcas);
   }
   function verVias(vias, extra){
     const b = limitesDe(vias);
@@ -2352,6 +2552,8 @@ const CJ = (function(){
 
   return { abrir, empezar, estudio, buscar, elegir, salir, cambiarZona, alternarLista, elegirDeLista, confirmarSalir,
     responderOpcion, verRespuesta, autoevaluar, siguiente: () => siguientePregunta(false), refrescarTema,
+    // pantalla completa y sus recuadros
+    pantallaCompleta, plegarCabeza,
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal

@@ -612,16 +612,71 @@
     .cj-chips{ right:52px; }
     .cj-mapa-wrap .cj-lista-boton{ max-width:calc(100% - 64px); }
   }
-  /* Pantalla completa: el mapa ocupa todo lo que queda bajo la pregunta o el buscador */
-  #screen-callejero.cj-completa #cjJuego{ position:fixed; inset:0; z-index:250; display:flex; flex-direction:column; background: var(--bg);
-    padding: calc(8px + env(safe-area-inset-top, 0px)) 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
+  /* La lista, bajo su botón (que sigue a la vista para cerrarla) */
+  .cj-mapa-wrap .cj-lista-boton:not(.hidden) ~ .cj-lista{ top:48px; }
+  .cj-chips:not(.hidden) ~ .cj-lista-boton:not(.hidden) ~ .cj-lista{ top:86px; }
+  /* Botón de plegar el recuadro de arriba: solo a pantalla completa */
+  .cj-plegar{ display:none; }
+
+  /* ---------- Pantalla completa: el mapa ocupa todo el móvil, de borde a borde,
+     y lo demás flota encima en recuadros pequeños que se pliegan con un toque ---------- */
+  #screen-callejero.cj-completa #cjJuego{ position:fixed; inset:0; z-index:250; display:block; padding:0; background: var(--bg); }
   #screen-callejero.cj-completa #cjJuego.hidden{ display:none; }
-  #screen-callejero.cj-completa .cj-barra{ margin-bottom:6px; }
-  #screen-callejero.cj-completa .cj-buscar, #screen-callejero.cj-completa .cj-pregunta-wrap,
-  #screen-callejero.cj-completa .cj-sel, #screen-callejero.cj-completa .cj-opciones, #screen-callejero.cj-completa .cj-voz{ margin-bottom:6px; }
-  #screen-callejero.cj-completa .cj-mapa-wrap{ flex:1; min-height:0; }
-  #screen-callejero.cj-completa .cj-mapa{ height:100% !important; min-height:0 !important; border-radius:14px; }
+  #screen-callejero.cj-completa .cj-mapa-wrap{ position:absolute; inset:0; }
+  #screen-callejero.cj-completa .cj-mapa{ height:100% !important; min-height:0 !important; border-radius:0; border:none; }
   body:has(#screen-callejero.cj-completa.active) header{ visibility:hidden; }
+  #screen-callejero.cj-completa .cj-mapa .leaflet-top{ top: env(safe-area-inset-top, 0px); }
+  #screen-callejero.cj-completa .cj-mapa .leaflet-bottom{ bottom: env(safe-area-inset-bottom, 0px); }
+  /* Arriba: la barra, la pregunta (o el buscador) y las respuestas; a la
+     derecha quedan el estilo, la pantalla completa y el zoom */
+  #screen-callejero.cj-completa .cj-cabeza{ position:absolute; z-index:1100; top: calc(8px + env(safe-area-inset-top, 0px)); left:8px; right:56px; max-width:440px;
+    padding:6px; border-radius:16px; border:1px solid var(--line); background: var(--bg); box-shadow: 0 6px 20px rgba(0,0,0,.35); }
+  #screen-callejero.cj-completa .cj-cabeza .cj-barra{ margin:0; gap:8px; }
+  #screen-callejero.cj-completa .cj-salir{ width:32px; height:32px; border-radius:9px; }
+  #screen-callejero.cj-completa .cj-plegar{ display:flex; align-items:center; justify-content:center; flex-shrink:0; width:32px; height:32px; margin-left:auto; padding:0;
+    border-radius:9px; border:1px solid var(--line); background: var(--card); color: var(--text); cursor:pointer; }
+  #screen-callejero.cj-completa .cj-aciertos:not(.hidden) ~ .cj-plegar{ margin-left:0; }
+  .cj-plegar svg{ width:18px; height:18px; transition: transform .15s; }
+  .cj-cabeza.plegada .cj-plegar svg{ transform: rotate(180deg); }
+  #screen-callejero.cj-completa .cj-cabeza .cj-pregunta-wrap{ margin:6px 0 0; padding:7px 10px; border-radius:11px; }
+  #screen-callejero.cj-completa .cj-cabeza .cj-pregunta{ font-size:16px; }
+  #screen-callejero.cj-completa .cj-cabeza :is(.cj-buscar, .cj-sel, .cj-opciones, .cj-voz){ margin:6px 0 0; }
+  #screen-callejero.cj-completa .cj-cabeza .cj-buscar input{ padding:9px 12px; border-radius:11px; }
+  #screen-callejero.cj-completa .cj-cabeza .cj-opciones{ gap:6px; }
+  #screen-callejero.cj-completa .cj-cabeza .cj-opcion{ min-height:40px; padding:7px 10px; border-radius:10px; font-size:13px; }
+  /* Plegado: la barra y la pregunta, en una línea */
+  #screen-callejero.cj-completa .cj-cabeza.plegada :is(.cj-buscar, .cj-sel, .cj-opciones, .cj-voz){ display:none; }
+  #screen-callejero.cj-completa .cj-cabeza.plegada .cj-pregunta-wrap{ padding:5px 10px; }
+  #screen-callejero.cj-completa .cj-cabeza.plegada .cj-pregunta-wrap:has(.cj-pregunta:not(:empty)) .cj-pregunta-label{ display:none; }
+  #screen-callejero.cj-completa .cj-cabeza.plegada .cj-pregunta{ font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* Bajo el recuadro de arriba: Calles/Lugares/Profesor y la lista */
+  #screen-callejero.cj-completa .cj-chips{ top: calc(var(--cj-arriba, 56px) + 8px); left:8px; }
+  #screen-callejero.cj-completa .cj-mapa-wrap .cj-lista-boton{ top: calc(var(--cj-arriba, 56px) + 8px); left:8px; }
+  #screen-callejero.cj-completa .cj-chips:not(.hidden) ~ .cj-lista-boton{ top: calc(var(--cj-arriba, 56px) + 46px); }
+  #screen-callejero.cj-completa .cj-lista{ top: calc(var(--cj-arriba, 56px) + 8px); left:8px; right:8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); max-width:520px; }
+  #screen-callejero.cj-completa .cj-lista-boton:not(.hidden) ~ .cj-lista{ top: calc(var(--cj-arriba, 56px) + 46px); }
+  #screen-callejero.cj-completa .cj-chips:not(.hidden) ~ .cj-lista-boton:not(.hidden) ~ .cj-lista{ top: calc(var(--cj-arriba, 56px) + 84px); }
+  /* Abajo: lo tocado, el resultado y la pista */
+  #screen-callejero.cj-completa :is(.cj-info, .cj-resultado){ left:8px; right:8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); max-width:520px; margin:0 auto; }
+  #screen-callejero.cj-completa .cj-pista{ bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  /* El plano (preguntas del temario), entero bajo el recuadro de arriba */
+  #screen-callejero.cj-completa .cj-plano{ border-radius:0; border:none; padding: calc(var(--cj-arriba, 56px) + 8px) 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
+  #screen-callejero.cj-completa .cj-resultado{ padding:9px 10px 9px 12px; }
+  #screen-callejero.cj-completa .cj-info{ padding:10px 40px 10px 12px; cursor:pointer; max-height:40%; }
+  #screen-callejero.cj-completa .cj-info-nombre{ font-size:16px; }
+  #screen-callejero.cj-completa .cj-info::after{ content:''; position:absolute; top:14px; right:16px; width:7px; height:7px;
+    border:solid var(--muted); border-width:0 2px 2px 0; transform: rotate(45deg); }
+  #screen-callejero.cj-completa .cj-info.plegada::after{ top:18px; transform: rotate(-135deg); }
+  #screen-callejero.cj-completa .cj-info.plegada{ padding-top:7px; padding-bottom:7px; }
+  #screen-callejero.cj-completa .cj-info.plegada :is(.cj-info-extra, .cj-info-cruce, .cj-info-accion){ display:none; }
+  #screen-callejero.cj-completa .cj-info.plegada .cj-info-nombre{ font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* Los créditos, en un botón «i» que se abre al tocarlo */
+  #screen-callejero.cj-completa .leaflet-control-attribution:not(.abierta){ position:relative; width:22px; height:22px; margin:0 8px 8px 0; padding:0;
+    border-radius:50%; overflow:hidden; font-size:0; color:transparent; cursor:pointer; background: var(--bg); border:1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  #screen-callejero.cj-completa .leaflet-control-attribution:not(.abierta) *{ display:none; }
+  #screen-callejero.cj-completa .leaflet-control-attribution:not(.abierta)::before{ content:'i'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font: italic 700 13px/1 Georgia, serif; color: var(--text); }
+  #screen-callejero.cj-completa .leaflet-control-attribution.abierta{ max-width:calc(100vw - 16px); margin:0 8px 8px 0; border-radius:10px; padding:6px 8px; cursor:pointer; }
 
   /* ---------- profesor: qué lleva la tarea (una, dos o las tres cosas) ---------- */
   .cjp-parte{ border-bottom:1px solid var(--line-soft); }
