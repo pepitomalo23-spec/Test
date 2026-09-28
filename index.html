@@ -59,7 +59,7 @@
 <link rel="stylesheet" href="css/pantallas.css?v=3f6c67404a">
 <link rel="stylesheet" href="css/test.css?v=06abd3d71a">
 <link rel="stylesheet" href="css/normativas.css?v=647d1c0791">
-<link rel="stylesheet" href="css/callejero.css?v=3a2497c78b">
+<link rel="stylesheet" href="css/callejero.css?v=723e9df52b">
 </head>
 <body>
 <div id="appSplash">
@@ -413,32 +413,37 @@
       </div>
       <div id="cjInicio"></div>
       <div class="cj-juego hidden" id="cjJuego">
-        <div class="cj-barra">
-          <button type="button" class="cj-salir" onclick="CJ.confirmarSalir()" title="Salir" aria-label="Salir">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-          </button>
-          <span class="cj-contador" id="cjContador">1 / 20</span>
-          <span class="cj-aciertos" id="cjAciertos">0 aciertos</span>
-          <span class="cj-barra-titulo hidden" id="cjBarraTitulo">Modo estudio</span>
-        </div>
-        <div class="cj-buscar hidden" id="cjBuscarWrap">
-          <input type="search" id="cjBuscar" placeholder="Buscar una calle o un lugar…" autocomplete="off" autocapitalize="off" spellcheck="false" oninput="CJ.buscar(this.value)" onkeydown="if(event.key==='Enter')CJ.elegir(0)">
-          <div class="cj-sugerencias hidden" id="cjSugerencias"></div>
-        </div>
-        <div class="cj-sel hidden" id="cjSel">
-          <select class="cj-zona-select" id="cjSelZona" onchange="CJ.anadirZona(this.value); this.value=''" aria-label="Añadir una zona entera"></select>
-          <button type="button" class="btn btn-ghost" id="cjSelLista" onclick="CJ.alternarLista()">Lista (0)</button>
-          <button type="button" class="btn btn-primary btn-light" onclick="CJ.terminarSeleccion()">Listo</button>
-        </div>
-        <div class="cj-pregunta-wrap" id="cjPreguntaWrap">
-          <div class="cj-pregunta-label" id="cjPreguntaLabel">Localiza</div>
-          <div class="cj-pregunta" id="cjPregunta">—</div>
-        </div>
-        <div class="cj-opciones hidden" id="cjOpciones"></div>
-        <div class="cj-voz hidden" id="cjVoz">
-          <button type="button" class="cj-voz-ver" id="cjVozVer" onclick="CJ.verRespuesta()">Resolver</button>
-          <button type="button" class="cj-voz-si hidden" id="cjVozSi" onclick="CJ.autoevaluar(true)">✓ Bien</button>
-          <button type="button" class="cj-voz-no hidden" id="cjVozNo" onclick="CJ.autoevaluar(false)">✗ Mal</button>
+        <div class="cj-cabeza" id="cjCabeza">
+          <div class="cj-barra">
+            <button type="button" class="cj-salir" onclick="CJ.confirmarSalir()" title="Salir" aria-label="Salir">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <span class="cj-contador" id="cjContador">1 / 20</span>
+            <span class="cj-aciertos" id="cjAciertos">0 aciertos</span>
+            <span class="cj-barra-titulo hidden" id="cjBarraTitulo">Modo estudio</span>
+            <button type="button" class="cj-plegar" id="cjPlegar" onclick="CJ.plegarCabeza()" aria-expanded="true" aria-label="Plegar" title="Plegar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+            </button>
+          </div>
+          <div class="cj-buscar hidden" id="cjBuscarWrap">
+            <input type="search" id="cjBuscar" placeholder="Buscar una calle o un lugar…" autocomplete="off" autocapitalize="off" spellcheck="false" oninput="CJ.buscar(this.value)" onkeydown="if(event.key==='Enter')CJ.elegir(0)">
+            <div class="cj-sugerencias hidden" id="cjSugerencias"></div>
+          </div>
+          <div class="cj-sel hidden" id="cjSel">
+            <select class="cj-zona-select" id="cjSelZona" onchange="CJ.anadirZona(this.value); this.value=''" aria-label="Añadir una zona entera"></select>
+            <button type="button" class="btn btn-ghost" id="cjSelLista" onclick="CJ.alternarLista()">Lista (0)</button>
+            <button type="button" class="btn btn-primary btn-light" onclick="CJ.terminarSeleccion()">Listo</button>
+          </div>
+          <div class="cj-pregunta-wrap" id="cjPreguntaWrap">
+            <div class="cj-pregunta-label" id="cjPreguntaLabel">Localiza</div>
+            <div class="cj-pregunta" id="cjPregunta">—</div>
+          </div>
+          <div class="cj-opciones hidden" id="cjOpciones"></div>
+          <div class="cj-voz hidden" id="cjVoz">
+            <button type="button" class="cj-voz-ver" id="cjVozVer" onclick="CJ.verRespuesta()">Resolver</button>
+            <button type="button" class="cj-voz-si hidden" id="cjVozSi" onclick="CJ.autoevaluar(true)">✓ Bien</button>
+            <button type="button" class="cj-voz-no hidden" id="cjVozNo" onclick="CJ.autoevaluar(false)">✗ Mal</button>
+          </div>
         </div>
         <div class="cj-mapa-wrap">
           <div class="cj-mapa" id="cjMapa"></div>
@@ -1072,7 +1077,7 @@
 <script src="js/admin/importar-ia.js?v=fc5e42e6f8"></script>
 <script src="js/admin/callejero.js?v=5d85c58ac1"></script>
 <script src="js/normativas.js?v=7426a7cc1d"></script>
-<script src="js/callejero.js?v=b55e8be915"></script>
+<script src="js/callejero.js?v=d178fae6e3"></script>
 <script src="js/callejero-temario.js?v=67f996a5e2"></script>
 <script src="js/callejero-profesor.js?v=55890007ea"></script>
 <script src="js/arranque.js?v=736412f343"></script>

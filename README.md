@@ -105,8 +105,13 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   abrir la pantalla; el service worker lo guarda para jugar sin conexión. El mapa (Leaflet) también
   se carga solo entonces. Tres estilos de mapa, sin nombres que den pistas: Sencillo y Plano
   (el trazado de las vías es el mapa, funcionan sin conexión) y Satélite (ortofotos PNOA del
-  Instituto Geográfico Nacional, CC BY 4.0: la del último vuelo encima y la de «máxima actualidad»
-  debajo; necesita conexión).
+  Instituto Geográfico Nacional, CC BY 4.0; necesita conexión). En Satélite solo se ve la del último
+  vuelo (servicio de ortofotos provisionales, 2024-2025), con el doble de píxeles en pantallas retina;
+  la de «máxima actualidad» (más antigua) solo entra en el trozo que falle o tarde más de 12 s. Con el
+  mapa quieto se precargan los trozos del siguiente zoom alrededor del centro (pocos a la vez, nada con
+  el ahorro de datos), así que al ampliar ya salen nítidos.
+- Las calles (y lo resaltado encima) se ensanchan al acercarse, como en un plano de verdad: cada línea
+  tiene su grosor de lejos y su anchura en metros, y se pinta con el mayor de los dos.
 
 ## Temario del callejero
 
@@ -142,7 +147,11 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   para la tarea.
 - **Mapa libre**: lo que ha mandado el profesor sale en morado; dentro del mapa, arriba, se elige qué tocar
   (Calles, Lugares —todos como puntos— o Profesor —solo lo suyo, con su lista—). Todos los mapas (también
-  jugando) tienen un botón para ponerlos a pantalla completa.
+  jugando) tienen un botón para ponerlos a **pantalla completa**: el mapa ocupa todo el móvil, de borde a
+  borde (y sin las barras del navegador donde se puede; en el iPhone, no), y lo demás flota encima en
+  recuadros pequeños que se pliegan con un toque: arriba, la pregunta con las respuestas o el buscador;
+  abajo, lo que se ha tocado; los créditos, en un botón «i». Se recuerda en el dispositivo para los
+  siguientes mapas y se quita con el mismo botón o con «atrás».
 - El progreso es por elemento, en la habilidad `temario` (misma regla de dominada).
 - El profesor tiene el temario entero en su pestaña «Temario» y **manda desde él**: en cada ficha, «Mandar la
   ficha», el botón «Mandar» de cada apartado o «Elegir cosas sueltas»; se abre la tarea ya rellena (título y,
