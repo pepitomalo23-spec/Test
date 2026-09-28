@@ -2,25 +2,29 @@
    CALLEJERO · Profesor y mensajes
    El profesor es un usuario normal que el administrador marca como
    profesor y vincula con sus alumnos (Administración → Usuarios; tablas
-   profiles.es_profesor y tutorias). En Callejero ve «Mis alumnos»:
-     - Lista: cuándo estudió cada uno por última vez, rondas y aciertos
-       de la semana, tareas activas y mensajes sin leer.
-     - Ficha de un alumno: sus tareas, su progreso por habilidad (en la
-       zona que elija), lo que más falla y sus últimas rondas. Solo lee,
-       con funciones que comprueban que es su alumno.
-     - Temario: lo ve entero (debajo de sus alumnos) y, desde la propia
-       ficha, manda a un alumno la ficha, un apartado o cosas sueltas
-       (CJP.mandarTemario abre la tarea ya rellena).
-     - Tareas: qué estudiar (calles y lugares elegidos en el mapa, con
+   profiles.es_profesor y tutorias). En Callejero ve dos pestañas,
+   «Alumnos» y «Temario» (y el enlace «Mi callejero», para estudiar él):
+     - Alumnos: con un semáforo (verde si estudió en los 2 últimos días,
+       ámbar en la semana, rojo si hace más), rondas y aciertos de la
+       semana, tareas activas y mensajes sin leer.
+     - Página de un alumno, en pestañas: Tareas, Progreso (temario, calles
+       en la zona que elija y últimas rondas), Fallos (lo que más falla,
+       con botón para mandárselo) y Mensajes; «Mandar tarea» siempre a
+       mano. Solo lee, con funciones que comprueban que es su alumno.
+     - Temario: lo ve entero y, desde la propia ficha, manda a un alumno
+       la ficha, un apartado o cosas sueltas (CJP.mandarTemario abre la
+       tarea ya rellena).
+     - Tareas, en dos pasos: qué estudiar (calles y lugares elegidos en el mapa, con
        CJ.seleccionar, una zona entera o fichas y apartados del temario de
        la academia, js/callejero-temario.js), qué modos cuentan, cuántas
        rondas y con qué mínimo de aciertos, fecha límite, mensaje y «solo
        esto» (mientras esté activa, el alumno solo puede estudiar sus
-       tareas). Una tarea nueva se puede mandar a varios alumnos a la vez.
+       tareas); lo que no es título, alumnos ni mensaje va plegado en «Más
+       opciones». Una tarea nueva se puede mandar a varios alumnos a la vez.
    Mensajes: cada tarea tiene su conversación profesor ↔ alumno; la usan
    los dos (CJP.abrirMensajes). Al mandar una tarea o un mensaje se avisa
    al otro con una notificación (push-reminders) si las tiene activadas.
-   La lista se pinta en «Mis alumnos» (dentro de #cjInicio, la llama
+   La lista se pinta en «Alumnos» (dentro de #cjInicio, la llama
    CJ.pintarInicio) y lo demás en #cjPanel.
    ============================================================ */
 const CJP = (function(){
@@ -81,24 +85,34 @@ const CJP = (function(){
     }
     if(caja.isConnected) caja.innerHTML = htmlAlumnos();
   }
+  // Semáforo: verde si estudió en los 2 últimos días, ámbar en la última semana, rojo si hace más o nunca.
+  function semaforo(a){
+    if(!a.ultima_vez) return { color: 'rojo', texto: 'Todavía no ha estudiado' };
+    const dias = (Date.now() - new Date(a.ultima_vez).getTime()) / 864e5;
+    return { color: dias <= 2 ? 'verde' : dias <= 7 ? 'ambar' : 'rojo', texto: 'Estudió ' + hace(a.ultima_vez) };
+  }
+  function semanaTxt(a){
+    const pct = a.respuestas_7d ? Math.round(a.aciertos_7d * 100 / a.respuestas_7d) : 0;
+    return a.rondas_7d + (a.rondas_7d === 1 ? ' ronda' : ' rondas') + ' esta semana' + (a.respuestas_7d ? ' (' + pct + '% bien)' : '');
+  }
+  const FLECHA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
   function htmlAlumnos(){
     if(!alumnos.length){
-      return '<div class="cj-card"><div class="cj-card-title">Mis alumnos</div>' +
-        '<div class="cj-hab-det">Todavía no tienes alumnos. El administrador te los asigna desde Administración → Usuarios.</div></div>';
+      return '<div class="cj-card"><div class="cj-hab-det">Todavía no tienes alumnos. El administrador te los asigna desde Administración → Usuarios.</div></div>';
     }
-    return '<div class="cj-seccion">Mis alumnos</div>' + alumnos.map(a => {
-      const pct = a.respuestas_7d ? Math.round(a.aciertos_7d * 100 / a.respuestas_7d) : 0;
-      return '<button type="button" class="cj-mode cjp-alumno" onclick="CJP.abrirAlumno(\'' + a.alumno_id + '\')">' +
-        '<div class="cj-mode-icon cjp-inicial">' + escapeHtml((a.email || '?').charAt(0).toUpperCase()) + '</div>' +
-        '<div class="cj-mode-text">' +
-          '<div class="cj-mode-title">' + escapeHtml(a.email || '(sin correo)') + (a.sin_leer ? ' <span class="cj-num">' + a.sin_leer + '</span>' : '') + '</div>' +
-          '<div class="cj-mode-desc">' + (a.ultima_vez ? 'Estudió por última vez ' + escapeHtml(hace(a.ultima_vez)) : 'Todavía no ha estudiado el callejero') + '<br>' +
-            'Esta semana: ' + a.rondas_7d + (a.rondas_7d === 1 ? ' ronda' : ' rondas') + ', ' + a.respuestas_7d + ' respuestas' + (a.respuestas_7d ? ' (' + pct + '% bien)' : '') +
-            ' · ' + a.tareas_activas + (a.tareas_activas === 1 ? ' tarea activa' : ' tareas activas') + '</div>' +
-        '</div>' +
+    return '<div class="cj-card cjt-filas">' + alumnos.map(a => {
+      const s = semaforo(a);
+      return '<button type="button" class="cjt-accion cjp-alumno" onclick="CJP.abrirAlumno(\'' + a.alumno_id + '\')">' +
+        '<i class="cjp-luz ' + s.color + '" title="' + escapeHtml(s.texto) + '"></i>' +
+        '<span class="cjt-accion-txt"><b>' + escapeHtml(a.email || '(sin correo)') + '</b>' +
+          '<small>' + escapeHtml(s.texto) + ' · ' + escapeHtml(semanaTxt(a)) +
+            (a.tareas_activas ? ' · ' + a.tareas_activas + (a.tareas_activas === 1 ? ' tarea' : ' tareas') : '') + '</small></span>' +
+        (a.sin_leer ? '<span class="cj-num" title="Mensajes sin leer">' + a.sin_leer + '</span>' : '') +
+        '<span class="cjp-flecha">' + FLECHA + '</span>' +
       '</button>';
-    }).join('') +
-    (alumnos.length > 1 ? '<button type="button" class="btn btn-ghost cjp-varios" onclick="CJP.nuevaTarea()">Nueva tarea para varios alumnos</button>' : '');
+    }).join('') + '</div>' +
+    '<div class="cj-leyenda cjp-leyenda"><span><i class="cjp-luz verde"></i>Estudió en los 2 últimos días</span><span><i class="cjp-luz ambar"></i>Esta semana</span><span><i class="cjp-luz rojo"></i>Hace más o nunca</span></div>' +
+    (alumnos.length > 1 ? '<button type="button" class="btn btn-ghost cjp-varios" onclick="CJP.nuevaTarea()">Mandar una tarea a varios alumnos</button>' : '');
   }
   function volverALista(){
     ficha = null;
@@ -106,14 +120,15 @@ const CJP = (function(){
     CJ.volver();
   }
 
-  /* ---------- ficha de un alumno ---------- */
+  /* ---------- página de un alumno: Tareas · Progreso · Fallos · Mensajes ---------- */
   async function abrirAlumno(id){
     try{ await cargarAlumnos(); }catch(e){}
     const a = (alumnos || []).find(x => x.alumno_id === id);
     if(!a){ volverALista(); return; }
-    const zona = ficha && ficha.alumno.alumno_id === id ? ficha.zona : '';
-    ficha = { alumno: a, filas: [], progreso: new Map(), rondas: [], tareas: [], zona, verRondas: false, falladas: [] };
-    panel(cabecera(a.email, 'CJP.volverALista()') + '<div class="cj-card">' + skelList(4) + '</div>');
+    const mismo = ficha && ficha.alumno.alumno_id === id;
+    ficha = { alumno: a, filas: [], progreso: new Map(), rondas: [], tareas: [], zona: mismo ? ficha.zona : '', verRondas: false, falladas: [],
+      pestana: mismo ? ficha.pestana : 'tareas' };
+    panel(cabeceraAlumno(a) + '<div class="cj-card">' + skelList(4) + '</div>');
     try{
       await Promise.all([CJ.cargarDatos(), CJT.cargar().catch(() => {})]);
       const [p, r, t] = await Promise.all([
@@ -130,28 +145,59 @@ const CJP = (function(){
       ficha.tareas = CJ.prepararTareas(t.data);
       pintarFicha();
     }catch(e){
-      panel(cabecera(a.email, 'CJP.volverALista()') + tarjetaError('No se ha podido cargar su callejero: ' + e.message, 'CJP.abrirAlumno(\'' + id + '\')'));
+      panel(cabeceraAlumno(a) + tarjetaError('No se ha podido cargar su callejero: ' + e.message, 'CJP.abrirAlumno(\'' + id + '\')'));
     }
+  }
+  function cabeceraAlumno(a){
+    const s = semaforo(a);
+    return cabecera(a.email, 'CJP.volverALista()') +
+      '<div class="cjp-estado"><i class="cjp-luz ' + s.color + '"></i>' + escapeHtml(s.texto) + ' · ' + escapeHtml(semanaTxt(a)) + '</div>';
   }
   function pintarFicha(){
     const f = ficha;
-    const filtro = CJ.filtroDe(f.zona);
-    const activas = f.tareas.filter(t => !t.archivada), archivadas = f.tareas.filter(t => t.archivada);
-    panel(cabecera(f.alumno.email, 'CJP.volverALista()') +
-      '<div class="cjp-acciones"><button type="button" class="btn btn-primary btn-light" onclick="CJP.nuevaTarea(\'' + f.alumno.alumno_id + '\')">Mandarle una tarea</button></div>' +
-      '<div class="cj-seccion">Tareas</div>' +
-      (activas.length ? activas.map(tarjetaTarea).join('') : '<div class="cj-card"><div class="cj-hab-det">No le has mandado ninguna tarea activa.</div></div>') +
-      (archivadas.length ? '<details class="cj-hechas"><summary>Archivadas (' + archivadas.length + ')</summary>' + archivadas.map(tarjetaTarea).join('') + '</details>' : '') +
-      '<div class="cj-seccion">Progreso</div>' +
-      '<div class="cj-card cj-zona"><div class="cj-card-title">Zona</div>' +
-        '<select class="cj-zona-select" onchange="CJP.cambiarZonaFicha(this.value)" aria-label="Zona">' + CJ.opcionesZona(f.zona) + '</select></div>' +
-      CJ.tarjetaProgreso(f.progreso, filtro, 'Su progreso' + (f.zona ? ' · ' + CJ.nombreZonaDe(f.zona) : '')) +
-      CJT.tarjetaProgresoAlumno(f.progreso) +
-      '<div class="cj-seccion">Lo que más falla</div>' + htmlFalladas(filtro) +
+    const p = f.pestana;
+    const sinLeer = f.tareas.reduce((n, t) => n + (t.sin_leer || 0), 0);
+    const b = (k, texto, n) => '<button type="button" role="tab" aria-selected="' + (p === k) + '"' + (p === k ? ' class="activo"' : '') +
+      ' onclick="CJP.cambiarPestana(\'' + k + '\')">' + texto + (n ? ' <span class="cj-num">' + n + '</span>' : '') + '</button>';
+    panel(cabeceraAlumno(f.alumno) +
+      '<div class="cj-segmento cj-pestanas" role="tablist">' + b('tareas', 'Tareas') + b('progreso', 'Progreso') + b('fallos', 'Fallos') + b('mensajes', 'Mensajes', sinLeer) + '</div>' +
+      (p === 'progreso' ? htmlProgreso() : p === 'fallos' ? htmlFallos() : p === 'mensajes' ? htmlMensajes() : htmlTareas()) +
+      '<div class="cjp-fijo"><button type="button" class="btn btn-primary btn-light" id="cjpMandar" onclick="CJP.nuevaTarea(\'' + f.alumno.alumno_id + '\')">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>Mandar tarea</button></div>');
+  }
+  function cambiarPestana(p){ if(ficha){ ficha.pestana = p; pintarFicha(); } }
+  function htmlTareas(){
+    const activas = ficha.tareas.filter(t => !t.archivada), archivadas = ficha.tareas.filter(t => t.archivada);
+    return (activas.length ? activas.map(tarjetaTarea).join('') : '<div class="cj-card"><div class="cj-hab-det">No le has mandado ninguna tarea activa.</div></div>') +
+      (archivadas.length ? '<details class="cj-hechas"><summary>Archivadas (' + archivadas.length + ')</summary>' + archivadas.map(tarjetaTarea).join('') + '</details>' : '');
+  }
+  function selectorZona(){
+    return '<div class="cj-card cj-zona"><select class="cj-zona-select" onchange="CJP.cambiarZonaFicha(this.value)" aria-label="Zona de las calles">' + CJ.opcionesZona(ficha.zona) + '</select></div>';
+  }
+  function htmlProgreso(){
+    const f = ficha;
+    return '<div class="cj-seccion">Temario</div>' + CJT.tarjetaProgresoAlumno(f.progreso) +
+      '<div class="cj-seccion">Calles</div>' + selectorZona() +
+      CJ.tarjetaProgreso(f.progreso, CJ.filtroDe(f.zona), CJ.nombreZonaDe(f.zona)) +
       '<div class="cj-seccion">Últimas rondas</div>' +
       '<div class="cj-card cj-rondas">' + CJ.rondasHtml(f.rondas, f.tareas, f.verRondas ? 50 : 8) +
         (f.rondas.length > 8 ? '<button type="button" class="cj-ver-mas" onclick="CJP.alternarRondas()">' + (f.verRondas ? 'Ver menos' : 'Ver más') + '</button>' : '') +
-      '</div>');
+      '</div>';
+  }
+  function htmlFallos(){
+    return '<div class="cj-hab-det cjp-nota">Lo que la última vez falló, o falló y aún no domina: todo el temario y las calles de la zona que elijas.</div>' +
+      selectorZona() + htmlFalladas(CJ.filtroDe(ficha.zona));
+  }
+  // Cada tarea tiene su conversación.
+  function htmlMensajes(){
+    const ts = ficha.tareas.slice().sort((a, b) => (b.sin_leer || 0) - (a.sin_leer || 0) || (b.mensajes || 0) - (a.mensajes || 0) || a.archivada - b.archivada);
+    if(!ts.length) return '<div class="cj-card"><div class="cj-hab-det">Cada tarea tiene su conversación. Mándale una tarea para poder escribirle.</div></div>';
+    return '<div class="cj-card cjt-filas">' + ts.map(t =>
+      '<button type="button" class="cjt-accion" onclick="CJP.abrirMensajes(' + t.id + ')">' +
+        '<span class="cjt-accion-txt"><b>' + escapeHtml(t.titulo) + '</b><small>' +
+          (t.mensajes ? t.mensajes + (t.mensajes === 1 ? ' mensaje' : ' mensajes') : 'Sin mensajes todavía') + (t.archivada ? ' · archivada' : '') + '</small></span>' +
+        (t.sin_leer ? '<span class="cj-num">' + t.sin_leer + '</span>' : '') +
+        '<span class="cjp-flecha">' + FLECHA + '</span></button>').join('') + '</div>';
   }
   function cambiarZonaFicha(z){ if(ficha){ ficha.zona = z || ''; pintarFicha(); } }
   function alternarRondas(){ if(ficha){ ficha.verRondas = !ficha.verRondas; pintarFicha(); } }
@@ -196,6 +242,7 @@ const CJP = (function(){
   function tarjetaTarea(t){
     const { que, modos } = CJ.describirTarea(t);
     const hecha = CJ.tareaHecha(t);
+    const temario = CJ.esTemario(t);
     const pct = Math.min(100, Math.round(t.rondas_validas * 100 / t.rondas));
     const estado = t.archivada ? 'Archivada' : hecha ? '✓ Hecha' : t.vista_at ? 'Vista' : 'Sin ver todavía';
     return '<div class="cj-card cj-tarea' + (hecha ? ' hecha' : '') + '">' +
@@ -204,17 +251,20 @@ const CJP = (function(){
         (t.fecha_limite ? '<span class="cj-tarea-fecha">Hasta el ' + CJ.fechaCorta(t.fecha_limite) + '</span>' : '') +
       '</div>' +
       '<div class="cj-tarea-titulo">' + escapeHtml(t.titulo) + '</div>' +
-      '<div class="cj-tarea-que">' + escapeHtml(que) + ' · ' + t.rondas + (t.rondas === 1 ? ' ronda' : ' rondas') + ' de ' + escapeHtml(modos) + ' con al menos un ' + t.minimo + '% de aciertos</div>' +
-      '<div class="cj-bar"><div class="cj-bar-fill" style="width:' + pct + '%"></div></div>' +
-      '<div class="cj-tarea-prog">Lleva ' + Math.min(t.rondas_validas, t.rondas) + ' de ' + t.rondas +
-        (t.rondas_jugadas > t.rondas_validas ? ' · ' + (t.rondas_jugadas - t.rondas_validas) + ' sin contar' : '') +
+      '<div class="cj-tarea-que">' + escapeHtml(que) + '</div>' +
+      '<div class="cj-tarea-barra"><div class="cj-bar"><div class="cj-bar-fill" style="width:' + pct + '%"></div></div>' +
+        '<b>' + Math.min(t.rondas_validas, t.rondas) + '/' + t.rondas + '</b></div>' +
+      '<div class="cj-tarea-prog">' + t.rondas + (t.rondas === 1 ? ' ronda' : ' rondas') + (temario ? '' : ' de ' + escapeHtml(modos)) + ' con un ' + t.minimo + '% o más' +
+        (t.rondas_jugadas > t.rondas_validas ? ' · ' + (t.rondas_jugadas - t.rondas_validas) + ' no cuentan' : '') +
         (t.ultima_vez ? ' · última ronda ' + escapeHtml(hace(t.ultima_vez)) : '') + '</div>' +
       '<div class="cj-tarea-acciones">' +
         '<button type="button" class="btn btn-ghost" onclick="CJP.abrirMensajes(' + t.id + ')">Mensajes' +
           (t.sin_leer ? ' <span class="cj-num">' + t.sin_leer + '</span>' : (t.mensajes ? ' (' + t.mensajes + ')' : '')) + '</button>' +
         '<button type="button" class="btn btn-ghost" onclick="CJP.editarTarea(' + t.id + ')">Editar</button>' +
-        '<button type="button" class="btn btn-ghost" onclick="CJP.archivarTarea(' + t.id + ', ' + !t.archivada + ')">' + (t.archivada ? 'Recuperar' : 'Archivar') + '</button>' +
-        '<button type="button" class="btn btn-ghost cjp-borrar" onclick="CJP.borrarTarea(' + t.id + ')">Borrar</button>' +
+        '<details class="cjp-mas"><summary class="btn btn-ghost" aria-label="Más acciones">···</summary><div class="cjp-mas-menu">' +
+          '<button type="button" onclick="CJP.archivarTarea(' + t.id + ', ' + !t.archivada + ')">' + (t.archivada ? 'Recuperar' : 'Archivar (el alumno deja de verla)') + '</button>' +
+          '<button type="button" class="cjp-borrar" onclick="CJP.borrarTarea(' + t.id + ')">Borrar</button>' +
+        '</div></details>' +
       '</div>' +
     '</div>';
   }
@@ -231,14 +281,18 @@ const CJP = (function(){
     if(ficha) abrirAlumno(ficha.alumno.alumno_id);
   }
 
-  /* ---------- crear y editar tareas ---------- */
+  /* ---------- crear y editar tareas (en dos pasos) ---------- */
+  // Paso 1: qué tiene que estudiar. Paso 2: para quién, título, mensaje y,
+  // plegadas, las demás opciones (rondas, mínimo, fecha, modos y «solo esto»).
+  const POR_DEFECTO = { rondas: 3, minimo: 80 };
   function nuevaTarea(alumnoId, inicial){
     borrador = Object.assign({
-      id: null, alumnos: new Set(alumnoId ? [alumnoId] : []), titulo: '', mensaje: '', tipo: 'lista', vias: [], lugares: [], zona: '', fichas: [],
-      modos: new Set(), rondas: 3, minimo: 80, fecha: '', solo_esto: false, volverA: alumnoId || null
+      id: null, alumnos: new Set(alumnoId ? [alumnoId] : []), titulo: '', mensaje: '', tipo: 'temario', vias: [], lugares: [], zona: '', fichas: [],
+      modos: new Set(), rondas: POR_DEFECTO.rondas, minimo: POR_DEFECTO.minimo, fecha: '', solo_esto: false, volverA: alumnoId || null,
+      paso: inicial ? 2 : 1
     }, inicial || {});
-    // El selector de fichas necesita el temario cargado.
-    if(borrador.tipo === 'temario') CJT.cargar().then(() => { if(borrador) pintarFormulario(); }, () => {});
+    // Lo elegido del temario se describe con el temario cargado.
+    if(borrador.tipo === 'temario' && !CJT.listo()) CJT.cargar().then(() => { if(borrador){ leerFormulario(); pintarFormulario(); } }, () => {});
     pintarFormulario();
   }
   // Desde el temario: manda una ficha, un apartado o lo elegido. Con un solo
@@ -258,79 +312,127 @@ const CJP = (function(){
       id: t.id, alumnos: new Set([t.alumno_id]), titulo: t.titulo, mensaje: t.mensaje || '', tipo: temario ? 'temario' : lista ? 'lista' : 'zona',
       vias: t.vias.slice(), lugares: t.lugares.slice(), zona: lista || temario ? '' : (t.zona || ''), fichas: t.fichas.slice(),
       modos: new Set(temario ? [] : t.modos), rondas: t.rondas,
-      minimo: t.minimo, fecha: t.fecha_limite || '', solo_esto: t.solo_esto, volverA: t.alumno_id
+      minimo: t.minimo, fecha: t.fecha_limite || '', solo_esto: t.solo_esto, volverA: t.alumno_id, paso: 2
     };
     pintarFormulario();
   }
+  const TIPOS = [
+    ['temario', 'Temario de la academia', 'Fichas enteras, apartados o cosas sueltas'],
+    ['lista', 'Calles y lugares del mapa', 'Elegidos uno a uno, o barrios enteros'],
+    ['zona', 'Una zona entera', 'Toda Córdoba, un distrito o un barrio']
+  ];
+  const n = (k, uno, varios) => k + ' ' + (k === 1 ? uno : varios);
+  // Lo elegido, en una línea (paso 2).
+  function resumenQue(b){
+    if(b.tipo === 'temario') return n(CJT.contarElegidas(b.fichas), 'cosa elegida', 'cosas elegidas') + ': ' + CJT.describirFichas(b.fichas);
+    if(b.tipo === 'lista') return n(b.vias.length, 'calle', 'calles') + ' y ' + n(b.lugares.length, 'lugar', 'lugares') + ' elegidos en el mapa';
+    return CJ.nombreZonaDe(b.zona);
+  }
+  function pasos(b){
+    return '<div class="cjp-pasos"><span class="' + (b.paso === 1 ? 'activo' : 'hecho') + '"><b>1</b> Qué</span><i></i>' +
+      '<span class="' + (b.paso === 2 ? 'activo' : '') + '"><b>2</b> Para quién y cómo</span></div>';
+  }
   function pintarFormulario(){
     const b = borrador;
+    const titulo = b.id ? 'Editar tarea' : 'Nueva tarea';
+    if(b.paso !== 2){ pintarPaso1(titulo); return; }
+    pintarPaso2(titulo);
+  }
+  function pintarPaso1(titulo){
+    const b = borrador;
     const datos = CJ.datos();
-    const n = (k, uno, varios) => k + ' ' + (k === 1 ? uno : varios);
     const nombres = b.vias.map(id => datos && datos.viaPorId.get(id)).filter(Boolean).map(v => v.nombre)
       .concat(b.lugares.map(id => datos && datos.lugarPorId.get(id)).filter(Boolean).map(l => l.nombre))
       .sort((x, y) => x.localeCompare(y, 'es'));
+    panel(cabecera(titulo, 'CJP.cancelarFormulario()') + pasos(b) +
+      '<div class="cj-card cjt-filas cjp-tipos">' + TIPOS.map(([k, t, d]) =>
+        '<button type="button" class="cjt-accion cjp-tipo' + (b.tipo === k ? ' activo' : '') + '" onclick="CJP.cambiarTipo(\'' + k + '\')" aria-pressed="' + (b.tipo === k) + '">' +
+          '<span class="cjp-radio"></span><span class="cjt-accion-txt"><b>' + t + '</b><small>' + d + '</small></span></button>').join('') + '</div>' +
+      '<div class="cj-card cjp-form">' +
+        (b.tipo === 'temario'
+          ? '<div class="cjp-eleccion"><b>' + (b.fichas.length ? n(CJT.contarElegidas(b.fichas), 'cosa elegida', 'cosas elegidas') : 'Nada elegido todavía') + '</b>' +
+              '<button type="button" class="btn ' + (b.fichas.length ? 'btn-ghost' : 'btn-primary btn-light') + '" onclick="CJP.elegirEnTemario()">' + (b.fichas.length ? 'Cambiar en el temario' : 'Elegir en el temario') + '</button></div>' +
+            (b.fichas.length ? '<div class="cjp-nombres">' + escapeHtml(CJT.describirFichas(b.fichas)) + '</div>' : '') +
+            '<div class="cj-hab-det">Se abre el temario (documento, mapas y listas) para marcar lo que quieras. Al alumno le sale como «Estúdiate esto».</div>'
+          : b.tipo === 'lista'
+          ? '<div class="cjp-eleccion"><b>' + n(b.vias.length, 'calle', 'calles') + ' y ' + n(b.lugares.length, 'lugar', 'lugares') + '</b>' +
+              '<button type="button" class="btn ' + (b.vias.length + b.lugares.length ? 'btn-ghost' : 'btn-primary btn-light') + '" onclick="CJP.elegirEnMapa()">' + (b.vias.length + b.lugares.length ? 'Cambiar en el mapa' : 'Elegir en el mapa') + '</button></div>' +
+            (nombres.length ? '<details class="cjp-nombres"><summary>Ver la lista</summary>' + nombres.map(x => '<div>' + escapeHtml(x) + '</div>').join('') + '</details>' : '') +
+            '<div class="cj-hab-det">En las rondas de la tarea solo le saldrá esto.</div>'
+          : '<select id="cjpZona" class="cj-zona-select" aria-label="Zona">' + (datos ? CJ.opcionesZona(b.zona) : '') + '</select>') +
+      '</div>' +
+      '<div class="admin-form-actions">' +
+        '<button type="button" class="btn btn-ghost" onclick="CJP.cancelarFormulario()">Cancelar</button>' +
+        '<button type="button" class="btn btn-primary btn-light" id="cjpSiguiente" onclick="CJP.irAlPaso(2)">Siguiente</button>' +
+      '</div>');
+  }
+  function pintarPaso2(titulo){
+    const b = borrador;
     const para = b.id
       ? '<div class="cjp-para">' + escapeHtml(((alumnos || []).find(a => a.alumno_id === [...b.alumnos][0]) || {}).email || '') + '</div>'
       : (alumnos || []).map(a => '<label class="cjp-check"><input type="checkbox" value="' + a.alumno_id + '" class="cjp-alumno-check"' +
           (b.alumnos.has(a.alumno_id) ? ' checked' : '') + '> ' + escapeHtml(a.email) + '</label>').join('');
-    panel(cabecera(b.id ? 'Editar tarea' : 'Nueva tarea', 'CJP.cancelarFormulario()') +
+    const temario = b.tipo === 'temario';
+    // «Más opciones» se abre sola si algo no está como viene.
+    const cambiadas = b.rondas !== POR_DEFECTO.rondas || b.minimo !== POR_DEFECTO.minimo || !!b.fecha || b.solo_esto || b.modos.size > 0;
+    const resumenOp = n(b.rondas, 'ronda', 'rondas') + ' · ' + b.minimo + '% · ' + (b.fecha ? 'hasta el ' + CJ.fechaCorta(b.fecha) : 'sin fecha') + (b.solo_esto ? ' · solo esto' : '');
+    panel(cabecera(titulo, 'CJP.cancelarFormulario()') + pasos(b) +
+      '<div class="cj-card cjp-que"><div class="cjp-que-txt"><small>Qué</small><b>' + escapeHtml(resumenQue(b)) + '</b></div>' +
+        '<button type="button" class="btn btn-ghost" onclick="CJP.irAlPaso(1)">Cambiar</button></div>' +
       '<div class="admin-form cjp-form">' +
+        '<label>Para</label>' + (para || '<div class="cj-hab-det">No tienes alumnos.</div>') +
         '<label for="cjpTitulo">Título</label>' +
         '<input id="cjpTitulo" maxlength="120" placeholder="Por ejemplo: Casco histórico, semana 1" value="' + escapeHtml(b.titulo) + '">' +
-        '<label>Para</label>' + (para || '<div class="cj-hab-det">No tienes alumnos.</div>') +
-        '<label>Qué tiene que estudiar</label>' +
-        '<div class="cj-segmento">' +
-          '<button type="button" class="' + (b.tipo === 'lista' ? 'activo' : '') + '" onclick="CJP.cambiarTipo(\'lista\')">Calles y lugares elegidos</button>' +
-          '<button type="button" class="' + (b.tipo === 'zona' ? 'activo' : '') + '" onclick="CJP.cambiarTipo(\'zona\')">Una zona entera</button>' +
-          '<button type="button" class="' + (b.tipo === 'temario' ? 'activo' : '') + '" onclick="CJP.cambiarTipo(\'temario\')">Fichas del temario</button>' +
-        '</div>' +
-        (b.tipo === 'temario'
-          ? '<div class="cjp-eleccion"><b>' + (b.fichas.length ? n(CJT.contarElegidas(b.fichas), 'cosa elegida', 'cosas elegidas') : 'Nada elegido todavía') + '</b>' +
-              '<button type="button" class="btn btn-ghost" onclick="CJP.elegirEnTemario()">' + (b.fichas.length ? 'Cambiar en el temario' : 'Elegir en el temario') + '</button></div>' +
-            (b.fichas.length ? '<div class="cjp-nombres">' + escapeHtml(CJT.describirFichas(b.fichas)) + '</div>' : '') +
-            '<div class="cj-hab-det">Se abre el temario entero (el documento original, los mapas y las listas) para marcar fichas, apartados o cosas sueltas. ' +
-              'Al alumno le sale como «Estúdiate esto» y las rondas de la tarea le preguntan solo eso.</div>'
-          : b.tipo === 'lista'
-          ? '<div class="cjp-eleccion"><b>' + n(b.vias.length, 'calle', 'calles') + ' y ' + n(b.lugares.length, 'lugar', 'lugares') + '</b>' +
-              '<button type="button" class="btn btn-ghost" onclick="CJP.elegirEnMapa()">' + (b.vias.length + b.lugares.length ? 'Cambiar en el mapa' : 'Elegir en el mapa') + '</button></div>' +
-            (nombres.length ? '<details class="cjp-nombres"><summary>Ver la lista</summary>' + nombres.map(x => '<div>' + escapeHtml(x) + '</div>').join('') + '</details>' : '') +
-            '<div class="cj-hab-det">Al alumno solo le saldrá esto: en las rondas de la tarea no aparece ninguna otra calle ni lugar.</div>'
-          : '<select id="cjpZona" aria-label="Zona">' + (datos ? CJ.opcionesZona(b.zona) : '') + '</select>') +
-        (b.tipo === 'temario' ? '' :
-          '<label>Modos que cuentan</label>' +
-          '<div class="cjp-modos">' + Object.keys(CJ.MODOS).filter(m => m !== 'temario').map(m => '<label class="cjp-check"><input type="checkbox" class="cjp-modo" value="' + m + '"' +
-            (b.modos.has(m) ? ' checked' : '') + '> ' + escapeHtml(CJ.MODOS[m].titulo) + '</label>').join('') + '</div>' +
-          '<div class="cj-hab-det">Si no marcas ninguno, vale cualquiera.</div>') +
-        '<div class="cjp-fila">' +
-          '<div><label for="cjpRondas">Rondas</label><input id="cjpRondas" type="number" min="1" max="50" value="' + b.rondas + '"></div>' +
-          '<div><label for="cjpMinimo">Aciertos mínimos</label><select id="cjpMinimo">' +
-            MINIMOS.map(v => '<option value="' + v + '"' + (v === b.minimo ? ' selected' : '') + '>' + v + '%</option>').join('') + '</select></div>' +
-        '</div>' +
-        '<label for="cjpFecha">Fecha límite (opcional)</label>' +
-        '<input id="cjpFecha" type="date" value="' + escapeHtml(b.fecha) + '">' +
-        '<label class="cjp-check cjp-solo"><input type="checkbox" id="cjpSolo"' + (b.solo_esto ? ' checked' : '') + '> ' +
-          '<span><b>Solo esto.</b> Mientras la tarea esté activa, el alumno solo puede estudiar tus tareas (no puede elegir otras zonas). Se quita al archivarla o al desmarcarlo.</span></label>' +
         '<label for="cjpMensaje">Mensaje (opcional)</label>' +
         '<textarea id="cjpMensaje" maxlength="2000" placeholder="Explícale qué quieres que haga, en qué fijarse…">' + escapeHtml(b.mensaje) + '</textarea>' +
+        '<details class="cjp-opciones"' + (cambiadas ? ' open' : '') + '><summary>Más opciones <small>' + escapeHtml(resumenOp) + '</small></summary>' +
+          '<div class="cjp-fila">' +
+            '<div><label for="cjpRondas">Rondas</label><input id="cjpRondas" type="number" min="1" max="50" value="' + b.rondas + '"></div>' +
+            '<div><label for="cjpMinimo">Aciertos mínimos</label><select id="cjpMinimo">' +
+              MINIMOS.map(v => '<option value="' + v + '"' + (v === b.minimo ? ' selected' : '') + '>' + v + '%</option>').join('') + '</select></div>' +
+          '</div>' +
+          '<label for="cjpFecha">Fecha límite</label>' +
+          '<input id="cjpFecha" type="date" value="' + escapeHtml(b.fecha) + '">' +
+          (temario ? '' :
+            '<label>Modos que cuentan <small>(si no marcas ninguno, vale cualquiera)</small></label>' +
+            '<div class="cjp-modos">' + Object.keys(CJ.MODOS).filter(m => m !== 'temario').map(m => '<label class="cjp-check"><input type="checkbox" class="cjp-modo" value="' + m + '"' +
+              (b.modos.has(m) ? ' checked' : '') + '> ' + escapeHtml(CJ.MODOS[m].titulo) + '</label>').join('') + '</div>') +
+          '<label class="cjp-check cjp-solo"><input type="checkbox" id="cjpSolo"' + (b.solo_esto ? ' checked' : '') + '> ' +
+            '<span><b>Solo esto.</b> Mientras la tarea esté activa, el alumno solo puede estudiar tus tareas. Se quita al archivarla o al desmarcarlo.</span></label>' +
+        '</details>' +
         '<div class="admin-form-actions">' +
-          '<button type="button" class="btn btn-ghost" onclick="CJP.cancelarFormulario()">Cancelar</button>' +
+          (b.id ? '<button type="button" class="btn btn-ghost" onclick="CJP.cancelarFormulario()">Cancelar</button>'
+                : '<button type="button" class="btn btn-ghost" onclick="CJP.irAlPaso(1)">Atrás</button>') +
           '<button type="button" class="btn btn-primary btn-light" id="cjpGuardar" onclick="CJP.guardarTarea()">' + (b.id ? 'Guardar' : 'Mandar tarea') + '</button>' +
         '</div>' +
       '</div>');
   }
-  // Lo escrito en el formulario pasa al borrador (antes de irse al mapa o de guardar).
+  // Lo escrito en el formulario pasa al borrador (antes de cambiar de paso, irse al mapa o guardar).
   function leerFormulario(){
     const b = borrador;
-    if(!b || !el('cjpTitulo')) return;
-    b.titulo = el('cjpTitulo').value.trim();
-    if(!b.id) b.alumnos = new Set([...document.querySelectorAll('.cjp-alumno-check')].filter(c => c.checked).map(c => c.value));
+    if(!b) return;
+    if(el('cjpTitulo')) b.titulo = el('cjpTitulo').value.trim();
+    if(!b.id && el('cjpTitulo')) b.alumnos = new Set([...document.querySelectorAll('.cjp-alumno-check')].filter(c => c.checked).map(c => c.value));
     if(el('cjpZona')) b.zona = el('cjpZona').value;
-    if(b.tipo !== 'temario') b.modos = new Set([...document.querySelectorAll('.cjp-modo')].filter(c => c.checked).map(c => c.value));
-    b.rondas = Math.max(1, Math.min(50, parseInt(el('cjpRondas').value, 10) || 1));
-    b.minimo = parseInt(el('cjpMinimo').value, 10) || 80;
-    b.fecha = el('cjpFecha').value || '';
-    b.solo_esto = el('cjpSolo').checked;
-    b.mensaje = el('cjpMensaje').value.trim();
+    if(document.querySelector('.cjp-modo')) b.modos = new Set([...document.querySelectorAll('.cjp-modo')].filter(c => c.checked).map(c => c.value));
+    if(el('cjpRondas')) b.rondas = Math.max(1, Math.min(50, parseInt(el('cjpRondas').value, 10) || 1));
+    if(el('cjpMinimo')) b.minimo = parseInt(el('cjpMinimo').value, 10) || 80;
+    if(el('cjpFecha')) b.fecha = el('cjpFecha').value || '';
+    if(el('cjpSolo')) b.solo_esto = el('cjpSolo').checked;
+    if(el('cjpMensaje')) b.mensaje = el('cjpMensaje').value.trim();
+  }
+  function irAlPaso(p){
+    leerFormulario();
+    const b = borrador;
+    if(p === 2){
+      if(b.tipo === 'lista' && !(b.vias.length + b.lugares.length)){ uiToast('Elige en el mapa las calles o los lugares que tiene que estudiar.', 'info'); return; }
+      if(b.tipo === 'temario' && !b.fichas.length){ uiToast('Elige en el temario lo que tiene que estudiar.', 'info'); return; }
+      // Un título de partida, si no tiene.
+      if(!b.titulo && b.tipo === 'temario') b.titulo = CJT.describirFichas(b.fichas).slice(0, 120);
+      if(!b.titulo && b.tipo === 'zona') b.titulo = CJ.nombreZonaDe(b.zona).slice(0, 120);
+    }
+    b.paso = p;
+    pintarFormulario();
   }
   async function cambiarTipo(tipo){
     leerFormulario();
@@ -360,7 +462,8 @@ const CJP = (function(){
   }
   async function cancelarFormulario(){
     const b = borrador;
-    const escrito = b && !b.id && ((el('cjpTitulo') && el('cjpTitulo').value.trim()) || b.vias.length || b.lugares.length || b.fichas.length);
+    leerFormulario();
+    const escrito = b && !b.id && (b.titulo || b.mensaje || b.vias.length || b.lugares.length || b.fichas.length);
     if(escrito && !(await uiConfirm('¿Salir sin mandar la tarea?'))) return;
     borrador = null;
     if(b && b.volverTemario) volverAlTemario();
@@ -401,6 +504,7 @@ const CJP = (function(){
     alumnosAt = 0;
     if(b.volverTemario){ volverAlTemario(); return; }
     const volverA = b.volverA || (b.alumnos.size === 1 ? [...b.alumnos][0] : null);
+    if(ficha) ficha.pestana = 'tareas';   // para ver la tarea que se acaba de mandar
     if(volverA) abrirAlumno(volverA); else volverALista();
   }
 
@@ -470,7 +574,7 @@ const CJP = (function(){
 
   function reiniciar(){ alumnos = null; alumnosAt = 0; ficha = null; borrador = null; hilo = null; }
 
-  return { pintarAlumnos, abrirAlumno, volverALista, cambiarZonaFicha, alternarRondas, tareaConFalladas,
-    nuevaTarea, editarTarea, cambiarTipo, elegirEnMapa, elegirEnTemario, mandarTemario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
+  return { pintarAlumnos, abrirAlumno, volverALista, cambiarPestana, cambiarZonaFicha, alternarRondas, tareaConFalladas,
+    nuevaTarea, editarTarea, irAlPaso, cambiarTipo, elegirEnMapa, elegirEnTemario, mandarTemario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
     abrirMensajes, enviarMensaje, cerrarMensajes, reiniciar };
 })();

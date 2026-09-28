@@ -42,7 +42,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   normativas.js      Normativas (fichas estilo Quizlet)
   callejero.js       Callejero: mapa, modos de juego, modo estudio, tareas y modo selección
   callejero-temario.js   Callejero: temario de la academia (fichas, en el mapa, preguntas y planos)
-  callejero-profesor.js  Callejero: «Mis alumnos» del profesor, tareas y mensajes
+  callejero-profesor.js  Callejero: los alumnos del profesor, tareas y mensajes
   arranque.js        escucha la sesión y arranca la app (siempre el último)
 datos/               datos que la app descarga cuando hacen falta (callejero-temario.json)
 sw.js                service worker: app sin conexión y actualizaciones
@@ -137,7 +137,7 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   fallado, que se responden tocando el mapa, eligiendo entre opciones o tocando el plano; y los modos de
   juego con las calles de su distrito o, en la General, de toda Córdoba).
 - El progreso es por elemento, en la habilidad `temario` (misma regla de dominada).
-- El profesor tiene el temario entero debajo de «Mis alumnos» y **manda desde él**: en cada ficha, «Mandar la
+- El profesor tiene el temario entero en su pestaña «Temario» y **manda desde él**: en cada ficha, «Mandar la
   ficha», el botón «Mandar» de cada apartado o «Elegir cosas sueltas»; se abre la tarea ya rellena (título y,
   si solo tiene un alumno, el alumno) y al mandarla vuelve a la ficha. También puede elegir desde el formulario
   de la tarea («Elegir en el temario»: el documento, los mapas y las listas, con casillas): fichas enteras, apartados o cosas sueltas (`callejero_tareas.fichas`: `centro`,
@@ -153,13 +153,17 @@ confirma) que el administrador marca como **Profesor del callejero** en Administ
 donde también le elige sus alumnos (`profiles.es_profesor` y tabla `tutorias`). No es administrador:
 solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 
-- En Callejero ve «Mis alumnos | Mi callejero» (su callejero es el de un alumno, con «‹ Volver a mis
-  alumnos» arriba). Por cada alumno: cuándo estudió, rondas y aciertos de
-  la semana, su progreso por habilidad (en la zona que elija), lo que más falla y sus últimas rondas.
-- Le manda **tareas** (`callejero_tareas`): calles y lugares elegidos uno a uno en el mapa (tocándolos,
-  buscándolos o añadiendo un barrio o distrito entero) o una zona entera; qué modos cuentan, cuántas
-  rondas y con qué mínimo de aciertos, fecha límite y un mensaje. Se puede mandar a varios alumnos a la vez
-  y crear una directamente con lo que el alumno más falla.
+- En Callejero ve dos pestañas, **Alumnos** y **Temario**, y el enlace «Mi callejero ›» (el de un alumno, con
+  «‹ Volver a mis alumnos» arriba). En Alumnos, cada uno con un semáforo (verde: estudió en los 2 últimos días;
+  ámbar: esta semana; rojo: hace más o nunca), rondas y aciertos de la semana, tareas y mensajes sin leer.
+- La página de un alumno va en pestañas: **Tareas**, **Progreso** (temario, calles en la zona que elija y
+  últimas rondas), **Fallos** (lo que más falla, con botón para mandárselo) y **Mensajes** (la conversación de
+  cada tarea); «Mandar tarea» está siempre a mano.
+- Le manda **tareas** (`callejero_tareas`) en dos pasos. 1) Qué: fichas, apartados o cosas sueltas del temario;
+  calles y lugares elegidos uno a uno en el mapa (tocándolos, buscándolos o añadiendo un barrio o distrito
+  entero); o una zona entera. 2) Para quién, título y mensaje; plegado en «Más opciones»: cuántas rondas y con
+  qué mínimo de aciertos, fecha límite, qué modos cuentan y «solo esto». Se puede mandar a varios alumnos a la
+  vez y crear una directamente con lo que el alumno más falla.
 - Al alumno le salen en «Hoy» y cada tarea es una zona más: en sus rondas solo salen sus calles y lugares.
   Con **«solo esto»**, mientras la tarea esté activa el alumno solo puede elegir las tareas del profesor.
 - Cada tarea tiene su conversación (`callejero_mensajes`). Tareas nuevas y mensajes se avisan con una
