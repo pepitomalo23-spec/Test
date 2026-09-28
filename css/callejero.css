@@ -48,7 +48,8 @@
   .cj-resultado .btn{ flex-shrink:0; }
 
   /* ---------- estilo del mapa ---------- */
-  .cj-estilo{ position:relative; }
+  /* Por encima de los botones de debajo (pantalla completa y zoom), para que el menú no quede tapado */
+  .cj-mapa .leaflet-control.cj-estilo{ position:relative; z-index:801; }
   .cj-estilo-boton{ display:flex; align-items:center; gap:6px; padding:7px 10px; border-radius:10px; border:1px solid var(--line);
     background: var(--bg); color: var(--text); font: inherit; font-size:12.5px; font-weight:600; cursor:pointer; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
   .cj-estilo-boton svg{ width:16px; height:16px; }
@@ -56,8 +57,10 @@
     border-radius:12px; overflow:hidden; box-shadow: 0 10px 28px rgba(0,0,0,.35); }
   .cj-estilo-opcion{ display:block; width:100%; text-align:left; padding:10px 14px; border:none; border-bottom:1px solid var(--line-soft);
     background:none; color: var(--text); font: inherit; font-size:14px; cursor:pointer; }
-  .cj-estilo-opcion:last-child{ border-bottom:none; }
+  .cj-estilo-opcion:last-of-type{ border-bottom:none; }
   .cj-estilo-opcion.activa{ color: var(--coral); font-weight:700; }
+  .cj-estilo-nota{ padding:8px 14px 10px; border-top:1px solid var(--line-soft); font-size:11.5px; line-height:1.4; color: var(--muted); max-width:190px; }
+  .cj-estilo-nota.hidden{ display:none; }
 
   /* ---------- modos: secciones, opciones y botones de voz ---------- */
   .cj-seccion{ font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color: var(--muted-2); margin:18px 2px 8px; }

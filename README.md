@@ -107,9 +107,14 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   (el trazado de las vías es el mapa, funcionan sin conexión) y Satélite (ortofotos PNOA del
   Instituto Geográfico Nacional, CC BY 4.0; necesita conexión). En Satélite solo se ve la del último
   vuelo (servicio de ortofotos provisionales, 2024-2025), con el doble de píxeles en pantallas retina;
-  la de «máxima actualidad» (más antigua) solo entra en el trozo que falle o tarde más de 12 s. Con el
-  mapa quieto se precargan los trozos del siguiente zoom alrededor del centro (pocos a la vez, nada con
-  el ahorro de datos), así que al ampliar ya salen nítidos.
+  la de «máxima actualidad» (más antigua) solo entra en el trozo que falle o tarde más de 12 s. El
+  servicio tarda unos 2 s por trozo y no tiene caché, así que el satélite se **guarda en el móvil**: el
+  service worker guarda cada trozo (caché `pjfire-sat-v1`, caché primero, solo respuestas CORS, tope de
+  1.500 trozos) y la app, por detrás y con prioridad baja, precarga lo de alrededor de lo que se ve
+  (siguiente zoom en el centro, el anterior y los lados) y descarga toda Córdoba hasta el zoom 13 y la
+  ciudad (la caja de sus barrios) hasta el 17: unos 570 trozos, ~125 MB, una sola vez (con datos
+  móviles, si el móvil lo dice, hasta el 16: ~50 MB; nada con el ahorro de datos). Si se cierra antes,
+  sigue la siguiente vez; al terminar se apunta en el dispositivo. El menú de estilos dice cómo va.
 - Las calles (y lo resaltado encima) se ensanchan al acercarse, como en un plano de verdad: cada línea
   tiene su grosor de lejos y su anchura en metros, y se pinta con el mayor de los dos.
 

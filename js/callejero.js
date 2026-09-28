@@ -19,8 +19,10 @@
        en Córdoba), en trozos de 512 px con el doble de píxeles en
        pantallas retina, para que se vea nítida. La de «máxima actualidad»
        (2022 en Córdoba) solo entra en el trozo que falle o tarde más de
-       12 s. Con el mapa quieto se precargan los trozos del siguiente zoom
-       alrededor del centro: al ampliar ya están en la caché del navegador.
+       12 s. Cada trozo se guarda en el móvil (service worker) y, por
+       detrás, se precarga lo de alrededor (siguiente zoom, anterior y los
+       lados) y se descarga toda Córdoba hasta el zoom 13 y la ciudad hasta
+       el 17: al ampliar y alejar sale al momento.
    Las calles (y lo resaltado encima) se ensanchan al acercarse, como en
    un plano de verdad: cada línea tiene su grosor de lejos y su anchura en
    metros, y se pinta con el mayor de los dos.
@@ -556,7 +558,8 @@ const CJ = (function(){
     mapa.attributionControl.setPrefix(false);
     mapa.attributionControl.addAttribution(ATRIBUCION);
     capaFoto = crearCapaFoto();
-    const renderer = L.canvas({ padding: 0.3, tolerance: 4 });
+    // Con medio mapa de margen a cada lado: al alejar, las calles de alrededor ya están pintadas.
+    const renderer = L.canvas({ padding: 0.5, tolerance: 4 });
     const linea = lineas => L.polyline(lineas, { renderer, interactive: false, lineCap: 'round', lineJoin: 'round' });
     if(datos.rio.length) capaRio = linea(datos.rio);
     const princ = datos.vias.filter(v => TIPOS_PRINCIPALES.has(v.tipo)).flatMap(v => v.lineas);
@@ -645,55 +648,164 @@ const CJ = (function(){
       layers: 'OrtoimagenRapida', format: 'image/jpeg', version: '1.3.0', tileSize: 512, detectRetina: true,
       maxZoom: 19, attribution: ATRIBUCION_PNOA,
       // Carga mientras se arrastra, pero no los niveles intermedios al pellizcar.
-      updateWhenIdle: false, updateWhenZooming: false, keepBuffer: 3
+      updateWhenIdle: false, updateWhenZooming: false, keepBuffer: 3,
+      // Con CORS: así el service worker puede guardarlos (ver arriba).
+      crossOrigin: true
     });
-    capa.on('load', () => { clearTimeout(esperaPrecarga); esperaPrecarga = setTimeout(precargarFoto, 300); });
+    capa.on('load', () => { clearTimeout(esperaCerca); esperaCerca = setTimeout(precargarCerca, 300); siguientePedido(); });
     return capa;
   }
-  // Con el mapa quieto y lo que se ve ya cargado, se piden los trozos del
-  // siguiente zoom alrededor del centro (lo que se vería al ampliar): quedan
-  // en la caché del navegador y al ampliar salen nítidos al momento. Pocos
-  // a la vez (el servicio va por HTTP/1.1 y hay que dejar hueco a lo que se
-  // ve) y nada con el ahorro de datos puesto.
-  let esperaPrecarga = null, colaPrecarga = [];
-  const precargando = new Map(), precargadas = new Set();
+  /* ---------- satélite siempre cargado ---------- */
+  // Cada trozo se guarda en el móvil (sw.js, caché «pjfire-sat»): lo que se
+  // ha visto una vez sale al momento, también al volver otro día. Y además,
+  // por detrás:
+  //  - cerca: con el mapa quieto y lo que se ve ya cargado, los del zoom
+  //    siguiente en el centro, los del anterior y los de alrededor (al
+  //    ampliar, alejar o moverse ya están);
+  //  - guardar: poco a poco, toda Córdoba hasta el zoom 13 y la ciudad (la
+  //    caja de sus barrios) hasta el 17 (con datos móviles, hasta el 16). Si
+  //    se cierra antes, sigue en la siguiente vez; al terminar se apunta en
+  //    el dispositivo y ya no se repite.
+  // Pocas peticiones a la vez y con prioridad baja (el servicio va por
+  // HTTP/1.1 y lo que se ve va primero); nada con el ahorro de datos puesto.
+  const GUARDADO_KEY = 'cj_satelite_guardado';
+  const FIRMA_FOTO = 'OrtoimagenRapida:' + (window.devicePixelRatio > 1 ? 1024 : 512);
+  let esperaCerca = null, colaCerca = [], colaGuardar = null, guardar = null, fallosSeguidos = 0;
+  const pidiendo = new Map(), pedidas = new Set();
   function ahorroDatos(){
     const c = navigator.connection;
     return !!(c && (c.saveData || /2g/.test(c.effectiveType || '')));
   }
-  function precargarFoto(){
-    if(!mapa || !mapa.hasLayer(capaFoto) || ahorroDatos()) return;
-    const z = Math.round(mapa.getZoom() + 1);
-    if(z > mapa.getMaxZoom()) return;
-    const ts = capaFoto.getTileSize(), c = mapa.getCenter(), b = mapa.getBounds();
-    const mitad = (a, x) => a + (x - a) / 2;
-    const no = mapa.project([mitad(c.lat, b.getNorth()), mitad(c.lng, b.getWest())], z).unscaleBy(ts).floor();
-    const se = mapa.project([mitad(c.lat, b.getSouth()), mitad(c.lng, b.getEast())], z).unscaleBy(ts).floor();
-    const centro = mapa.project(c, z).unscaleBy(ts);
-    const trozos = [];
-    for(let x = no.x; x <= se.x; x++) for(let y = no.y; y <= se.y; y++) trozos.push(L.point(x, y));
-    trozos.sort((p, q) => p.add([0.5, 0.5]).distanceTo(centro) - q.add([0.5, 0.5]).distanceTo(centro));
-    colaPrecarga = trozos.slice(0, 8).map(p => { p.z = z; return capaFoto.getTileUrl(p); })
-      .filter(u => !precargadas.has(u) && !precargando.has(u));
-    siguientePrecarga();
+  function enCurso(tipo){ let n = 0; pidiendo.forEach(x => { if(x.tipo === tipo) n++; }); return n; }
+  // Los trozos (512 px) de una caja en un zoom.
+  function trozosEn(caja, z){
+    const ts = capaFoto.getTileSize();
+    const a = mapa.project(caja.getNorthWest(), z).unscaleBy(ts).floor();
+    const b = mapa.project(caja.getSouthEast(), z).unscaleBy(ts).floor();
+    const out = [];
+    for(let x = a.x; x <= b.x; x++) for(let y = a.y; y <= b.y; y++){ const p = L.point(x, y); p.z = z; out.push(p); }
+    return out;
   }
-  function siguientePrecarga(){
-    while(precargando.size < 3 && colaPrecarga.length){
-      const url = colaPrecarga.shift();
-      const img = new Image();
-      img.onload = () => { precargando.delete(url); precargadas.add(url); siguientePrecarga(); };
-      img.onerror = () => { precargando.delete(url); siguientePrecarga(); };
-      precargando.set(url, img);
-      img.src = url;
+  function porCercania(trozos, z){
+    const c = mapa.project(mapa.getCenter(), z).unscaleBy(capaFoto.getTileSize());
+    return trozos.sort((p, q) => p.add([0.5, 0.5]).distanceTo(c) - q.add([0.5, 0.5]).distanceTo(c));
+  }
+  function pedir(url, tipo){
+    const ctl = new AbortController();
+    pidiendo.set(url, { ctl, tipo });
+    fetch(url, { mode: 'cors', priority: 'low', signal: ctl.signal })
+      .then(r => { if(!r.ok) throw new Error(String(r.status)); return r.blob(); })
+      .then(() => { pedidas.add(url); fallosSeguidos = 0; return true; },
+            e => { if(e.name !== 'AbortError') fallosSeguidos++; return false; })
+      .then(ok => {
+        // (Si se canceló y se volvió a pedir, la nueva petición no es esta.)
+        if(pidiendo.has(url) && pidiendo.get(url).ctl === ctl) pidiendo.delete(url);
+        if(tipo === 'guardar' && guardar){ if(ok) guardar.hechos++; else guardar.fallos++; ponerNotaSatelite(); }
+        siguientePedido();
+      });
+  }
+  // Lo de cerca, hasta 3 a la vez; lo de guardar, 2, y solo cuando lo que se
+  // ve ya ha cargado y no queda nada de cerca.
+  function siguientePedido(){
+    if(!mapa || !capaFoto || !mapa.hasLayer(capaFoto)) return;
+    while(colaCerca.length && enCurso('cerca') < 3){
+      const u = colaCerca.shift();
+      if(!pedidas.has(u) && !pidiendo.has(u)) pedir(u, 'cerca');
     }
+    if(!colaGuardar) return;
+    // Sin conexión (o el servicio caído): se deja para la próxima vez.
+    if(fallosSeguidos >= 5){ if(!enCurso('guardar')){ colaGuardar = null; ponerNotaSatelite(); } return; }
+    if(colaGuardar.length && !capaFoto.isLoading() && !colaCerca.length && !enCurso('cerca')){
+      while(colaGuardar.length && enCurso('guardar') < 2){
+        const u = colaGuardar.shift();
+        if(pedidas.has(u) || pidiendo.has(u)){ guardar.hechos++; continue; }
+        pedir(u, 'guardar');
+      }
+    }
+    if(!colaGuardar.length && !enCurso('guardar')) terminarGuardado();
   }
-  // Al arrastrar, lo que se estaba precargando ya no sirve: fuera, para dejar
-  // sitio a lo que se va a ver. Al ampliar se deja (es justo lo que hace falta).
+  function precargarCerca(){
+    if(!mapa || !mapa.hasLayer(capaFoto) || ahorroDatos()) return;
+    const z = Math.round(mapa.getZoom()), b = mapa.getBounds(), lista = [];
+    const zMas = Math.round(mapa.getZoom() + 1);
+    if(zMas <= mapa.getMaxZoom()) lista.push(...porCercania(trozosEn(b.pad(-0.25), zMas), zMas).slice(0, 6));
+    if(z - 1 >= mapa.getMinZoom()) lista.push(...porCercania(trozosEn(b.pad(0.5), z - 1), z - 1).slice(0, 4));
+    const dentro = new Set(trozosEn(b, z).map(p => p.x + ':' + p.y));
+    lista.push(...porCercania(trozosEn(b.pad(0.5), z), z).filter(p => !dentro.has(p.x + ':' + p.y)).slice(0, 8));
+    colaCerca = lista.map(p => capaFoto.getTileUrl(p)).filter(u => !pedidas.has(u) && !pidiendo.has(u));
+    siguientePedido();
+  }
+  // Al arrastrar, lo de cerca que se estaba pidiendo ya no sirve: fuera, para
+  // dejar sitio a lo que se va a ver. Al ampliar se deja (es lo que hace falta).
   function cancelarPrecarga(todo){
-    colaPrecarga = [];
+    colaCerca = [];
     if(!todo) return;
-    precargando.forEach(img => { img.onload = img.onerror = null; img.src = ''; });
-    precargando.clear();
+    pidiendo.forEach((x, u) => { if(x.tipo === 'cerca'){ x.ctl.abort(); pidiendo.delete(u); } });
+  }
+  // La caja de la ciudad: la de todos sus barrios.
+  function cajaCiudad(){
+    const pts = datos.barrios.flatMap(b => b.anillos.flat());
+    return pts.length ? L.latLngBounds(pts) : limitesDe(datos.vias);
+  }
+  function leerGuardado(){ try{ return JSON.parse(localStorage.getItem(GUARDADO_KEY) || 'null'); }catch(e){ return null; } }
+  async function empezarGuardado(){
+    // Solo con el service worker (sin él no quedaría guardado de verdad), una
+    // vez por sesión y sin el ahorro de datos.
+    if(guardar || !mapa.hasLayer(capaFoto) || !('caches' in window) || !navigator.serviceWorker || !navigator.serviceWorker.controller) return;
+    if(ahorroDatos()){ ponerNotaSatelite(); return; }
+    const movil = !!(navigator.connection && navigator.connection.type === 'cellular');
+    const hasta = movil ? 16 : 17;
+    const todo = limitesDe(datos.vias), ciudad = cajaCiudad(), trozos = [];
+    for(let z = 11; z <= 13; z++) trozos.push(...trozosEn(todo, z));
+    for(let z = 14; z <= hasta; z++) trozos.push(...porCercania(trozosEn(ciudad, z), z));
+    const urls = trozos.map(p => capaFoto.getTileUrl(p));
+    guardar = { urls, total: urls.length, hechos: 0, fallos: 0, hasta, listo: false };
+    const antes = leerGuardado();
+    // Ya se guardó: se comprueba que sigue ahí (el navegador puede borrarlo).
+    if(antes && antes.firma === FIRMA_FOTO && antes.hasta >= hasta && await siguenGuardados(urls)){
+      guardar.hechos = guardar.total; guardar.listo = true; ponerNotaSatelite(); return;
+    }
+    try{ if(navigator.storage && navigator.storage.persist && !(await navigator.storage.persisted())) navigator.storage.persist(); }catch(e){}
+    colaGuardar = urls.slice();
+    ponerNotaSatelite();
+    siguientePedido();
+  }
+  // El primero, el del medio y el último, en la caché del service worker (si
+  // al empezar aún mandaba la versión anterior, que no los guardaba, no).
+  async function siguenGuardados(urls){
+    try{
+      for(const u of [urls[0], urls[urls.length >> 1], urls[urls.length - 1]]) if(!(await caches.match(u))) return false;
+      return true;
+    }catch(e){ return false; }
+  }
+  async function terminarGuardado(){
+    colaGuardar = null;
+    // El service worker guarda cada trozo justo después de entregarlo: se
+    // le da un momento al último.
+    let todos = false;
+    for(let i = 0; i < 6 && guardar.fallos === 0 && !todos; i++){
+      if(i) await new Promise(r => setTimeout(r, 500));
+      todos = await siguenGuardados(guardar.urls);
+    }
+    if(todos){
+      guardar.listo = true;
+      try{ localStorage.setItem(GUARDADO_KEY, JSON.stringify({ firma: FIRMA_FOTO, hasta: guardar.hasta })); }catch(e){}
+    }
+    ponerNotaSatelite();
+  }
+  // Cómo va, en el menú de estilos (debajo de «Satélite»).
+  function ponerNotaSatelite(){
+    const nota = document.querySelector('.cj-estilo-nota');
+    if(!nota) return;
+    let t = '';
+    if(estilo === 'satelite'){
+      if(ahorroDatos() && !(guardar && guardar.listo)) t = 'Con el ahorro de datos puesto no se guarda en el móvil.';
+      else if(guardar && guardar.listo) t = 'Guardado en el móvil: sale al momento.';
+      else if(guardar && colaGuardar) t = 'Guardándolo en el móvil para que salga al momento: ' + Math.floor(100 * guardar.hechos / guardar.total) + ' %';
+      else if(guardar) t = 'Guardado en parte (' + Math.floor(100 * guardar.hechos / guardar.total) + ' %); sigue la próxima vez.';
+    }
+    nota.textContent = t;
+    nota.classList.toggle('hidden', !t);
   }
 
   // Los créditos del mapa, a pantalla completa, en un botón «i» que se abre
@@ -741,8 +853,9 @@ const CJ = (function(){
       }
       else if(mapa.hasLayer(capa)) mapa.removeLayer(capa);
     };
-    if(S.foto){ if(!mapa.hasLayer(capaFoto)) capaFoto.addTo(mapa); }
+    if(S.foto){ if(!mapa.hasLayer(capaFoto)){ capaFoto.addTo(mapa); mapa.whenReady(empezarGuardado); } }
     else if(mapa.hasLayer(capaFoto)) mapa.removeLayer(capaFoto);
+    ponerNotaSatelite();
     // Orden de abajo arriba: río, bordes, rellenos y, encima de todo, las marcas.
     [capaRio, capas.restoBorde, capas.princBorde, capas.resto, capas.princ, capaProfesor, capaLugares, capaPuntos, capaMarcas].forEach(c => { if(c && mapa.hasLayer(c)) mapa.removeLayer(c); });
     poner(capaRio, S.rio);
@@ -998,6 +1111,7 @@ const CJ = (function(){
           '</button>' +
           '<div class="cj-estilo-menu hidden">' +
             Object.keys(ESTILOS).map(k => '<button type="button" class="cj-estilo-opcion' + (k === estilo ? ' activa' : '') + '" data-estilo="' + k + '">' + ESTILOS[k] + '</button>').join('') +
+            '<div class="cj-estilo-nota hidden"></div>' +
           '</div>';
         L.DomEvent.disableClickPropagation(div);
         div.querySelector('.cj-estilo-boton').addEventListener('click', () => div.querySelector('.cj-estilo-menu').classList.toggle('hidden'));

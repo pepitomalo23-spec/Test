@@ -17,6 +17,13 @@
    - Las consultas de datos a Supabase (preguntas, temas, historial...)
      van primero a la red; si no hay conexión (o tarda demasiado) se usa
      la última respuesta guardada, para poder seguir estudiando.
+   - Los trozos del mapa de satélite del callejero (ortofotos del IGN) no
+     cambian nunca (misma URL, misma foto): caché primero, sin volver a
+     pedirlos, en su propia caché, que no se borra al cerrar sesión. La app
+     descarga por detrás los de Córdoba (js/callejero.js) y así el mapa sale
+     al momento al ampliar y alejar. Solo se guardan respuestas CORS (las
+     opacas cuentan ~7 MB cada una en la cuota del navegador) y como mucho
+     SAT_MAX trozos (fuera los más antiguos).
    - Nunca se guardan en caché ni el inicio de sesión, ni las funciones
      (IA), ni nada que no sea una lectura (GET).
    ===================================================================== */
@@ -26,6 +33,9 @@ const VERSION = 'v1';
 const SHELL = 'pjfire-shell-v2';
 const STATIC = 'pjfire-static-' + VERSION;
 const DATA = 'pjfire-data-' + VERSION;
+const SAT = 'pjfire-sat-v1';
+const SAT_HOSTS = ['wms-pnoa.idee.es', 'www.ign.es'];
+const SAT_MAX = 1500;   // unos 330 MB
 const SUPABASE_HOST = 'tsjaaqkvncgxqtpmlugv.supabase.co';
 const DATA_TIMEOUT_MS = 6000;
 
@@ -46,7 +56,7 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
-    const keep = [SHELL, STATIC, DATA];
+    const keep = [SHELL, STATIC, DATA, SAT];
     for(const k of await caches.keys()){
       if(!keep.includes(k)) await caches.delete(k);
     }
@@ -182,6 +192,26 @@ async function handleData(event){
   }
 }
 
+// Satélite: caché primero. Se guarda en segundo plano (la imagen no espera)
+// y cada 50 trozos nuevos se quitan los más antiguos si pasan de SAT_MAX.
+let satNuevos = 0;
+async function handleSatelite(event){
+  const cache = await caches.open(SAT);
+  const cached = await cache.match(event.request.url);
+  if(cached) return cached;
+  const res = await fetch(event.request);
+  const imagen = (res.headers.get('content-type') || '').startsWith('image/');
+  if(res && res.ok && res.type === 'cors' && imagen){
+    event.waitUntil(cache.put(event.request.url, res.clone()).then(() => recortarSatelite(cache)).catch(() => {}));
+  }
+  return res;
+}
+async function recortarSatelite(cache){
+  if(++satNuevos % 50) return;
+  const keys = await cache.keys();
+  for(let i = 0; i < keys.length - SAT_MAX; i++) await cache.delete(keys[i]);
+}
+
 async function handlePrivateImage(event){
   const cache = await caches.open(DATA);
   const cached = await cache.match(event.request);
@@ -225,6 +255,10 @@ self.addEventListener('fetch', event => {
       event.respondWith(handlePrivateImage(event));
       return;
     }
+  }
+  if(SAT_HOSTS.includes(url.hostname) && /[?&]request=getmap(&|$)/i.test(url.search)){
+    event.respondWith(handleSatelite(event));
+    return;
   }
   // Todo lo demás (inicio de sesión, funciones, etc.) va directo a la red.
 });
