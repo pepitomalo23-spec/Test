@@ -555,3 +555,5 @@
   .cjt-prog-ficha .cj-hab-cab{ font-size:14px; margin-bottom:5px; }
   .cjt-prog-ficha .cj-hab-cab b{ font-size:17px; }
   .cjt-prog-ficha .cj-bar{ height:5px; }
+  /* Pantallas estrechas: que quepan las cuatro pestañas con su número */
+  @media (max-width:380px){ .cj-pestanas button{ font-size:12.5px; padding:9px 3px; } .cj-pestanas .cj-num{ min-width:16px; height:16px; font-size:10px; } }
