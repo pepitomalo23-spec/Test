@@ -11,13 +11,17 @@
    Cada ficha lleva también su documento original (las páginas de la
    academia, con sus mapas), en el almacén privado «temario»: solo lo ven
    los usuarios aprobados (el repositorio es público).
-   Cada ficha tiene sus apartados, y de cada apartado se puede:
+   Cada ficha se ve en cuatro pestañas (Lista, Documento, Mapa, Preguntar)
+   y de cada apartado se puede:
      - Ver: la lista, y «En el mapa» (modo estudio con lo del apartado
        marcado: calles, lugares, barrios y recorridos numerados).
      - Preguntar: rondas del modo «temario» (hasta 20 preguntas, primero
        lo fallado). Según lo que sea, se pregunta tocando el mapa, eligiendo
        entre opciones o tocando un plano (Mezquita, Alcázar, Feria: planos
        dibujados aquí, esquemáticos).
+   En una ficha de distrito (y en la General, con toda Córdoba) están también
+   los modos de juego y el mapa libre con sus calles. «Repasar lo que fallas»
+   (en «Hoy») pregunta lo fallado de todo el temario (zona «f:repaso»).
    El progreso es por elemento (habilidad «temario», misma regla de
    dominada que el resto). El profesor ve el temario entero y lo manda
    desde él (la ficha, un apartado o cosas sueltas) o desde el formulario
@@ -99,6 +103,7 @@ const CJT = (function(){
     return out;
   }
   function nombreClave(k){
+    if(k === 'repaso') return 'Repaso de lo que fallas';
     const [fid, sid, iid] = String(k).split('/');
     const f = T && T.fichaPorId.get(fid);
     if(!f) return k;
@@ -558,14 +563,15 @@ const CJT = (function(){
   }
 
   /* ---------- rondas ---------- */
-  async function preguntar(claves, tareaId, titulo){
+  // `zona`: la de las respuestas (por defecto, la tarea o la primera clave).
+  async function preguntar(claves, tareaId, titulo, zona){
     try{ await cargar(); }catch(e){ uiToast(e.message, 'error'); return; }
     const items = itemsDe(claves);
     if(!items.length){ uiToast('No se encuentra esta parte del temario. Actualiza la app.', 'info'); return; }
     await CJ.empezarTemario({
       crear: () => crearPreguntas(items),
       distritos: distritosDe(claves),
-      zona: tareaId ? 't:' + tareaId : 'f:' + claves[0],
+      zona: zona || (tareaId ? 't:' + tareaId : 'f:' + claves[0]),
       tareaId: tareaId || null,
       titulo: titulo || (claves.length === 1 ? nombreClave(claves[0]) : 'Temario'),
       encuadre: () => limitesItems(items)
@@ -652,11 +658,22 @@ const CJT = (function(){
     for(const f of T.fichas) for(const x of (f.docs || [])) if(x.id === d) return Object.assign({ ficha: f }, x);
     return null;
   }
+  // En una ficha, el documento es su pestaña «Documento»; eligiendo qué
+  // mandar, se abre encima (documento) y «atrás» vuelve a donde se estaba.
   let documento = null;          // { d, pag, pos }
-  function posicion(){ const m = document.querySelector('main'); return { w: window.scrollY, m: m ? m.scrollTop : 0 }; }
-  function irA(pos){ const m = document.querySelector('main'); window.scrollTo(0, pos.w); if(m) m.scrollTop = pos.m; }
+  // La página se desplaza dentro de #app (no la ventana).
+  function desplazable(){ return document.getElementById('app') || document.scrollingElement || document.documentElement; }
+  function posicion(){ return desplazable().scrollTop; }
+  function irA(pos){ desplazable().scrollTop = pos; }
   function abrirDoc(d, pag){
     if(!docInfo(d)) return;
+    if(vista && !eleccion && docsVista().some(x => x.id === d)){
+      if(vista.pestana !== 'documento') vista.regreso = { pestana: vista.pestana, pos: posicion() };
+      vista.pestana = 'documento';
+      vista.irPag = { d, p: pag || 1 };
+      pintar();
+      return;
+    }
     documento = { d, pag: pag || 1, pos: posicion() };
     pintar();
   }
@@ -671,15 +688,18 @@ const CJT = (function(){
     const n = info.paginas;
     root.innerHTML = cabecera(info.ficha.titulo, info.titulo) +
       '<div class="cj-hab-det cjt-doc-nota">Toca una página para verla en grande y ampliarla.</div>' +
-      '<div class="cjt-doc">' + Array.from({ length: n }, (_, k) => k + 1).map(p =>
-        '<figure class="cjt-pag" id="cjtPag' + p + '">' +
-          '<button type="button" class="cjt-pag-img" onclick="CJT.ampliar(this)" aria-label="Ver la página ' + p + ' en grande">' +
-            '<img data-ruta="' + rutaPagina(documento.d, p) + '" alt="Página ' + p + '"></button>' +
-          '<figcaption>Página ' + p + ' de ' + n + '</figcaption></figure>').join('') + '</div>';
+      '<div class="cjt-doc">' + paginasHtml(documento.d, n) + '</div>';
     cargarImagenes(root);
-    const destino = document.getElementById('cjtPag' + documento.pag);
+    const destino = document.getElementById('cjtPag-' + documento.d + '-' + documento.pag);
     if(destino && documento.pag > 1) destino.scrollIntoView({ block: 'start' });
-    else irA({ w: 0, m: 0 });
+    else irA(0);
+  }
+  function paginasHtml(d, n){
+    return Array.from({ length: n }, (_, k) => k + 1).map(p =>
+      '<figure class="cjt-pag" id="cjtPag-' + d + '-' + p + '">' +
+        '<button type="button" class="cjt-pag-img" onclick="CJT.ampliar(this)" aria-label="Ver la página ' + p + ' en grande">' +
+          '<img data-ruta="' + rutaPagina(d, p) + '" alt="Página ' + p + '"></button>' +
+        '<figcaption>Página ' + p + ' de ' + n + '</figcaption></figure>').join('');
   }
   function ampliar(boton){
     const img = boton.querySelector('img');
@@ -722,8 +742,18 @@ const CJT = (function(){
   const ICONO_MANDAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>';
 
   /* ---------- pantalla del temario ---------- */
+  // Una ficha (o una tarea) con cuatro pestañas:
+  //   Lista:     los apartados; al abrir uno, sus botones (Preguntar, En el
+  //              mapa y, al profesor, Mandar), los mapas del documento y la lista.
+  //   Documento: las páginas originales.
+  //   Mapa:      verlo en el mapa del callejero (todo o por apartados) y el
+  //              mapa libre de su distrito.
+  //   Preguntar: toda la ficha o por apartados y, en una ficha, los modos de
+  //              juego con las calles de su distrito (o de toda Córdoba).
+  const ULTIMA_KEY = 'cjt_ultima';   // la última ficha abierta («Seguir con…» en «Hoy»)
   function abrir(clave){
-    vista = { claves: [clave], titulo: nombreClave(clave).replace(/^Ficha /, ''), inc: incluye([clave]) };
+    vista = { claves: [clave], titulo: nombreClave(clave).replace(/^Ficha /, ''), inc: incluye([clave]), pestana: 'lista' };
+    try{ localStorage.setItem(ULTIMA_KEY, String(clave).split('/')[0]); }catch(e){}
     documento = null;
     abiertas.clear();
     mostrar();
@@ -731,41 +761,70 @@ const CJT = (function(){
   function abrirTarea(id){
     const t = CJ.tareas().find(x => x.id === id);
     if(!t) return;
-    vista = { claves: t.fichas, titulo: t.titulo, tarea: t, inc: incluye(t.fichas) };
+    vista = { claves: t.fichas, titulo: t.titulo, tarea: t, inc: incluye(t.fichas), pestana: 'lista' };
     documento = null;
     abiertas.clear();
-    // Los apartados de los que se ha elegido solo una parte (o si solo hay uno) se abren ya desplegados.
-    if(T) seccionesDe(t.fichas).forEach((s, i, todas) => { if(todas.length === 1 || !s.items.every(vista.inc)) abiertas.add(claveDe(s)); });
     mostrar();
   }
   async function mostrar(){
     CJ.mostrarVista('temario');
     const root = document.getElementById('cjTemario');
     root.innerHTML = '<div class="cj-card">' + skelList(4) + '</div>';
-    irA({ w: 0, m: 0 });
+    irA(0);
     try{ await Promise.all([cargar(), CJ.cargarDatos()]); }
     catch(e){
       root.innerHTML = '<div class="cj-card cj-error">No se ha podido cargar el temario: ' + escapeHtml(e.message) +
         '<br><button type="button" class="btn btn-light" onclick="CJT.volver()">Volver</button></div>';
       return;
     }
+    // En una tarea, los apartados de los que se ha elegido solo una parte (o si solo hay uno) se abren ya desplegados.
     if(vista && vista.tarea && !abiertas.size) seccionesDe(vista.claves).forEach((s, i, todas) => { if(todas.length === 1 || !s.items.every(vista.inc)) abiertas.add(claveDe(s)); });
     pintar();
   }
-  // Atrás: del documento a la ficha; eligiendo, de la ficha a la lista de fichas; si no, fuera.
+  // Atrás: del documento abierto desde la lista, a la lista; eligiendo, de la
+  // ficha a la lista de fichas; si no, fuera.
   async function volver(){
     if(documento){ cerrarDoc(); return; }
-    if(eleccion && eleccion.ficha){ eleccion.ficha = null; abiertas.clear(); pintar(); irA({ w: 0, m: 0 }); return; }
+    if(vista && vista.regreso){
+      const r = vista.regreso;
+      vista.regreso = null;
+      vista.pestana = r.pestana;
+      pintar();
+      irA(r.pos);
+      return;
+    }
+    if(eleccion && eleccion.ficha){ eleccion.ficha = null; abiertas.clear(); pintar(); irA(0); return; }
     if(eleccion){ terminarEleccion(false); return; }
     vista = null;
     CJ.mostrarVista('inicio');
     CJ.repintar();
   }
   function repintar(){ if((vista || eleccion) && document.getElementById('cjTemario')) pintar(); }
-  function cabecera(etiqueta, titulo){
+  function cabecera(etiqueta, titulo, porcentaje){
     return '<div class="cjt-cab"><button type="button" class="cj-salir" onclick="CJT.volver()" aria-label="Volver">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>' +
-      '<div><div class="cjt-cab-etq">' + escapeHtml(etiqueta) + '</div><h2>' + escapeHtml(titulo) + '</h2></div></div>';
+      '<div class="cjt-cab-txt"><div class="cjt-cab-etq">' + escapeHtml(etiqueta) + '</div><h2>' + escapeHtml(titulo) + '</h2></div>' +
+      (porcentaje != null ? '<b class="cjt-cab-pct" title="Dominado">' + porcentaje + '%</b>' : '') + '</div>';
+  }
+  function cambiarPestana(p){
+    if(!vista) return;
+    vista.pestana = p;
+    vista.regreso = null;
+    vista.irPag = null;
+    pintar();
+    irA(0);
+  }
+  // Fichas y documentos de lo que se ve.
+  function fichasVista(){ return [...new Set(seccionesDe(vista.claves).map(s => s._f))]; }
+  function docsVista(){ return fichasVista().flatMap(f => f.docs || []); }
+  // Zona del callejero de una ficha: su distrito o, la General, toda Córdoba (null: ninguna).
+  function zonaFicha(){
+    if(vista.tarea || vista.claves.length !== 1 || String(vista.claves[0]).includes('/')) return null;
+    const f = T.fichaPorId.get(vista.claves[0]);
+    const d = CJ.datos();
+    if(!f || !d) return null;
+    if(f.grupo === 'distrito') return d.distritos.includes(f.titulo) ? 'd:' + f.titulo : null;
+    return f.id === 'general' ? '' : null;
   }
 
   function pintar(){
@@ -779,48 +838,75 @@ const CJT = (function(){
     const todos = itemsDe(vista.claves);
     const r = cuenta(prog, todos);
     const t = vista.tarea;
-    const conMapa = todos.some(tieneGeo) || todos.some(x => x.pv);
     // Agrupadas por ficha (una tarea puede mezclar apartados de varias).
     const fichas = [...new Set(secciones.map(s => s._f))];
+    const docs = fichas.flatMap(f => f.docs || []);
+    const pestanas = [['lista', 'Lista', true], ['documento', 'Documento', docs.length > 0],
+      ['mapa', 'Mapa', todos.some(x => tieneGeo(x) || x.pv)], ['preguntar', 'Preguntar', r.total > 0]].filter(p => p[2]);
+    if(!pestanas.some(p => p[0] === vista.pestana)) vista.pestana = 'lista';
+    const p = vista.pestana;
     root.innerHTML =
-      cabecera(t ? 'Estúdiate esto' : 'Temario', vista.titulo) +
-      (t && t.mensaje ? '<div class="cj-tarea-msg cjt-msg">' + escapeHtml(t.mensaje) + '</div>' : '') +
-      (esProfe() && !t
-        ? '<div class="cj-card cjt-mandar"><div class="cj-card-title">Para tus alumnos</div>' +
-            '<div class="cj-hab-det">Mándale a un alumno esta ficha entera, un apartado (botón «Mandar» de cada uno) o solo las cosas que elijas.</div>' +
-            '<div class="cj-tarea-acciones">' +
-              '<button type="button" class="btn btn-primary btn-light cjt-btn-mandar" onclick="CJT.mandar(\'' + escapeHtml(vista.claves[0]) + '\')">' + ICONO_MANDAR + 'Mandar la ficha</button>' +
-              '<button type="button" class="btn btn-ghost" onclick="CJT.elegirParaMandar()">Elegir cosas sueltas</button>' +
-            '</div></div>'
-        : '') +
-      '<div class="cj-card">' +
-        '<div class="cj-hab-cab"><span>' + (t ? escapeHtml(describirFichas(t.fichas)) : 'Tu progreso') + '</span><b>' + pct(r) + '%</b></div>' + barra(r) +
-        '<div class="cj-hab-det">' + r.dominada + ' dominadas · ' + r.progreso + ' en progreso · ' + r.fallada + ' por repasar · ' + r.nueva + ' sin ver</div>' +
-        (t ? '<div class="cj-tarea-que">' + t.rondas + (t.rondas === 1 ? ' ronda' : ' rondas') + ' con al menos un ' + t.minimo + '% de aciertos · llevas ' +
-          Math.min(t.rondas_validas, t.rondas) + '</div>' : '') +
-        '<div class="cj-tarea-acciones">' +
-          '<button type="button" class="btn btn-primary btn-light" onclick="' + (t ? 'CJT.preguntarTarea(' + t.id + ')' : 'CJT.preguntarClave(\'' + escapeHtml(vista.claves[0]) + '\')') + '">' +
-            (t ? 'Preguntar (cuenta para la tarea)' : 'Preguntar toda la ficha') + '</button>' +
-          (conMapa ? '<button type="button" class="btn btn-ghost" onclick="CJT.verTodo()">Ver en el mapa</button>' : '') +
-          (t ? '<button type="button" class="btn btn-ghost" onclick="CJP.abrirMensajes(' + t.id + ')">Mensajes</button>' : '') +
-        '</div>' +
-        '<div class="cjt-docs">' + botonesDocs(fichas) + '</div>' +
-      '</div>' +
-      fichas.map(f => (fichas.length > 1 ? '<div class="cj-seccion">' + escapeHtml(f.titulo) + '</div>' : '') +
-        secciones.filter(s => s._f === f).map(s => tarjetaSeccion(s, prog, s.items.filter(vista.inc))).join('')).join('') +
-      '<div class="cj-fuente">' + escapeHtml(T.fuente) + (T.faltan && T.faltan.length ? ' Faltan las fichas de ' + escapeHtml(T.faltan.join(', ')) + '.' : '') +
-        ' El documento original se ve dentro de cada ficha; los planos para responder tocando están dibujados aquí, a grandes rasgos.</div>';
+      cabecera(t ? 'Estúdiate esto' : 'Temario', vista.titulo, r.total ? pct(r) : null) +
+      (t ? tarjetaTarea(t) : '') +
+      (esProfe() && !t ? barraMandar() : '') +
+      '<div class="cj-segmento cj-pestanas cjt-pestanas" role="tablist">' + pestanas.map(([k, texto]) =>
+        '<button type="button" role="tab" aria-selected="' + (k === p) + '"' + (k === p ? ' class="activo"' : '') +
+          ' onclick="CJT.cambiarPestana(\'' + k + '\')">' + texto + '</button>').join('') + '</div>' +
+      (p === 'documento' ? htmlDocumento(docs)
+        : p === 'mapa' ? htmlMapa(fichas, secciones)
+        : p === 'preguntar' ? htmlPreguntar(fichas, secciones, prog)
+        : htmlLista(fichas, secciones, prog));
     cargarImagenes(root);
+    if(p === 'documento' && vista.irPag){
+      const destino = document.getElementById('cjtPag-' + vista.irPag.d + '-' + vista.irPag.p);
+      vista.irPag = null;
+      if(destino) destino.scrollIntoView({ block: 'start' });
+    }
   }
   function verTodo(){ if(vista) verEnMapa(vista.claves); }
+  // En una tarea: el mensaje del profesor, cuánto lleva y «Preguntar» (cuenta para la tarea).
+  function tarjetaTarea(t){
+    return '<div class="cj-card cjt-tarea">' +
+      (t.mensaje ? '<div class="cj-tarea-msg">' + escapeHtml(t.mensaje) + '</div>' : '') +
+      '<div class="cj-tarea-que">' + escapeHtml(describirFichas(t.fichas)) + '</div>' +
+      '<div class="cj-tarea-prog">' + t.rondas + (t.rondas === 1 ? ' ronda' : ' rondas') + ' con un ' + t.minimo + '% o más · llevas ' +
+        Math.min(t.rondas_validas, t.rondas) + '</div>' +
+      '<div class="cj-tarea-acciones">' +
+        '<button type="button" class="btn btn-primary btn-light" onclick="CJT.preguntarTarea(' + t.id + ')">Preguntar (cuenta para la tarea)</button>' +
+        '<button type="button" class="btn btn-ghost" onclick="CJP.abrirMensajes(' + t.id + ')">Mensajes' +
+          (t.sin_leer ? ' <span class="cj-num">' + t.sin_leer + '</span>' : (t.mensajes ? ' (' + t.mensajes + ')' : '')) + '</button>' +
+      '</div></div>';
+  }
+  // Al profesor: mandar la ficha entera o elegir qué cosas.
+  function barraMandar(){
+    return '<div class="cj-card cjt-mandar">' +
+      '<span class="cjt-mandar-t">' + ICONO_MANDAR + 'Para tus alumnos</span>' +
+      '<button type="button" class="btn btn-primary btn-light cjt-btn-mandar" onclick="CJT.mandar(\'' + escapeHtml(vista.claves[0]) + '\')">Mandar la ficha</button>' +
+      '<button type="button" class="btn btn-ghost" onclick="CJT.elegirParaMandar()">Elegir cosas</button>' +
+    '</div>';
+  }
 
+  // Una fila que lleva a algo (ver en el mapa, preguntar...).
+  function filaAccion(accion, titulo, sub, derecha, icono){
+    return '<button type="button" class="cjt-accion" onclick="' + accion + '">' +
+      '<span class="cjt-accion-txt"><b>' + escapeHtml(titulo) + '</b>' + (sub ? '<small>' + escapeHtml(sub) + '</small>' : '') + '</span>' +
+      (derecha ? '<span class="cjt-accion-der">' + escapeHtml(derecha) + '</span>' : '') +
+      '<span class="cjt-accion-ico">' + icono + '</span></button>';
+  }
+  const ICONO_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>';
+
+  // ---- Lista ----
+  function htmlLista(fichas, secciones, prog){
+    return fichas.map(f => (fichas.length > 1 ? '<div class="cj-seccion">' + escapeHtml(f.titulo) + '</div>' : '') +
+      '<div class="cj-card cjt-secs">' + secciones.filter(s => s._f === f).map(s => tarjetaSeccion(s, prog, s.items.filter(vista.inc))).join('') + '</div>').join('');
+  }
   function tarjetaSeccion(s, prog, items){
     const k = claveDe(s);
     const r = cuenta(prog, items);
     const abierta = abiertas.has(k);
-    const conMapa = items.some(tieneGeo) || items.some(x => x.pv);
+    const conMapa = items.some(x => tieneGeo(x) || x.pv);
     const parte = items.length < s.items.length;
-    return '<div class="cj-card cjt-sec' + (abierta ? ' abierta' : '') + '">' +
+    return '<div class="cjt-sec' + (abierta ? ' abierta' : '') + '">' +
       '<button type="button" class="cjt-sec-cab" onclick="CJT.alternar(\'' + escapeHtml(k) + '\')" aria-expanded="' + abierta + '">' +
         '<span class="cjt-sec-titulo">' + escapeHtml(s.titulo) + ' <small>' + (parte ? items.length + ' de ' + s.items.length : s.items.length) + '</small></span>' +
         (r.total ? '<b>' + pct(r) + '%</b>' : '') +
@@ -828,17 +914,16 @@ const CJT = (function(){
       '</button>' +
       (r.total ? barra(r) : '') +
       (abierta
-        ? (s.texto ? '<div class="cjt-texto">' + escapeHtml(s.texto) + '</div>' : '') +
+        ? '<div class="cjt-sec-acciones">' +
+            (r.total ? '<button type="button" class="btn btn-primary btn-light" onclick="CJT.preguntarSec(\'' + escapeHtml(k) + '\')">Preguntar</button>' : '') +
+            (conMapa ? '<button type="button" class="btn btn-ghost" onclick="CJT.verSec(\'' + escapeHtml(k) + '\')">En el mapa</button>' : '') +
+            (esProfe() && !vista.tarea ? '<button type="button" class="btn btn-ghost cjt-btn-mandar" onclick="CJT.mandar(\'' + escapeHtml(k) + '\')">' + ICONO_MANDAR + 'Mandar</button>' : '') +
+          '</div>' +
+          (s.texto ? '<div class="cjt-texto">' + escapeHtml(s.texto) + '</div>' : '') +
           galeria(s) +
           (s.tipo === 'plano' ? planoVerHtml(s) : '') +
           '<div class="cjt-lista">' + items.map(x => filaItem(x, prog)).join('') + '</div>'
         : '') +
-      '<div class="cjt-sec-acciones">' +
-        (r.total ? '<button type="button" class="btn btn-primary btn-light" onclick="CJT.preguntarSec(\'' + escapeHtml(k) + '\')">Preguntar</button>' : '') +
-        (conMapa ? '<button type="button" class="btn btn-ghost" onclick="CJT.verSec(\'' + escapeHtml(k) + '\')">En el mapa</button>' : '') +
-        '<button type="button" class="btn btn-ghost" onclick="CJT.alternar(\'' + escapeHtml(k) + '\')">' + (abierta ? 'Ocultar' : 'Ver lista y mapas') + '</button>' +
-        (esProfe() && !vista.tarea ? '<button type="button" class="btn btn-ghost cjt-btn-mandar" onclick="CJT.mandar(\'' + escapeHtml(k) + '\')">' + ICONO_MANDAR + 'Mandar</button>' : '') +
-      '</div>' +
     '</div>';
   }
   function alternar(k){
@@ -846,6 +931,49 @@ const CJT = (function(){
     if(abiertas.has(k)) abiertas.delete(k); else abiertas.add(k);
     pintar();
     irA(pos);
+  }
+
+  // ---- Documento ----
+  function htmlDocumento(docs){
+    return '<div class="cj-hab-det cjt-doc-nota">Toca una página para verla en grande y ampliarla.</div>' +
+      docs.map(d => (docs.length > 1 ? '<div class="cj-seccion">' + escapeHtml(d.titulo) + ' · ' + d.paginas + ' págs.</div>' : '') +
+        '<div class="cjt-doc">' + paginasHtml(d.id, d.paginas) + '</div>').join('');
+  }
+
+  // ---- Mapa ----
+  function htmlMapa(fichas, secciones){
+    const z = zonaFicha();
+    const filas = secciones.map(s => {
+      const items = s.items.filter(vista.inc);
+      const n = items.filter(x => tieneGeo(x) || x.pv).length;
+      return n ? filaAccion('CJT.verSec(\'' + escapeHtml(claveDe(s)) + '\')', s.titulo, (fichas.length > 1 ? s._f.titulo + ' · ' : '') + n + ' en el mapa', '', ICONO_MAPA) : '';
+    }).join('');
+    return '<div class="cj-card">' +
+        '<button type="button" class="btn btn-primary btn-light cjt-btn-ancho" onclick="CJT.verTodo()">' + ICONO_MAPA + (vista.tarea ? 'Verlo todo en el mapa' : 'Toda la ficha en el mapa') + '</button>' +
+        (z !== null ? '<button type="button" class="btn btn-ghost cjt-btn-ancho" onclick="' + escapeHtml('CJ.estudioEn(' + JSON.stringify(z) + ')') + '">' +
+          'Mapa libre ' + (z ? 'del distrito' : 'de Córdoba') + ' (todas las calles)</button>' : '') +
+        '<div class="cj-hab-det">Lo de la ficha se marca en el mapa del callejero; toca cada cosa para ver qué es.</div>' +
+      '</div>' +
+      '<div class="cj-seccion">Por apartados</div><div class="cj-card cjt-filas">' + filas + '</div>';
+  }
+
+  // ---- Preguntar ----
+  function htmlPreguntar(fichas, secciones, prog){
+    const t = vista.tarea;
+    const z = zonaFicha();
+    const filas = secciones.map(s => {
+      const rs = cuenta(prog, s.items.filter(vista.inc));
+      if(!rs.total) return '';
+      return filaAccion('CJT.preguntarSec(\'' + escapeHtml(claveDe(s)) + '\')', s.titulo,
+        (fichas.length > 1 ? s._f.titulo + ' · ' : '') + rs.dominada + ' de ' + rs.total + ' dominadas' + (rs.fallada ? ' · ' + rs.fallada + ' por repasar' : ''), pct(rs) + '%', ICONO_PLAY);
+    }).join('');
+    return '<div class="cj-card">' +
+        '<button type="button" class="btn btn-primary btn-light cjt-btn-ancho" onclick="' + (t ? 'CJT.preguntarTarea(' + t.id + ')' : 'CJT.preguntarClave(\'' + escapeHtml(vista.claves[0]) + '\')') + '">' +
+          ICONO_PLAY + (t ? 'Preguntar todo (cuenta para la tarea)' : 'Preguntar toda la ficha') + '</button>' +
+        '<div class="cj-hab-det">Rondas de hasta ' + CJ.PREGUNTAS_POR_RONDA + ' preguntas; primero sale lo que fallaste.</div>' +
+      '</div>' +
+      (z !== null ? '<div class="cj-seccion">Calles ' + (z ? 'del distrito' : 'de Córdoba') + '</div>' + CJ.mosaicoModos(z, true, true) : '') +
+      '<div class="cj-seccion">Por apartados</div><div class="cj-card cjt-filas">' + filas + '</div>';
   }
 
   // Lo que se ve de cada elemento en la lista (y en la ficha del mapa).
@@ -924,7 +1052,7 @@ const CJT = (function(){
       mostrar();
     });
   }
-  function elegirFicha(fid){ if(eleccion){ eleccion.ficha = fid; abiertas.clear(); pintar(); irA({ w: 0, m: 0 }); } }
+  function elegirFicha(fid){ if(eleccion){ eleccion.ficha = fid; abiertas.clear(); pintar(); irA(0); } }
   function itemsDeFicha(f){ return f.secciones.flatMap(s => s.items); }
   function estadoCasilla(items){
     const n = items.filter(x => eleccion.ids.has(x.id)).length;
@@ -1003,28 +1131,75 @@ const CJT = (function(){
   }
 
   /* ---------- en la pantalla principal del callejero ---------- */
-  // `profe`: en «Mis alumnos» (sin su propio progreso; lo ve para mandarlo).
-  function tarjetaInicio(profe){
-    if(!T){
-      cargar().then(() => CJ.repintar(), () => {});
-      return '<div class="cj-seccion">Temario</div><div class="cj-card">' + skelList(2) + '</div>';
-    }
+  let falloCarga = false;
+  // Descarga el temario si hace falta y, al tenerlo, repinta la pantalla principal.
+  function asegurar(){
+    if(!T && !cargando && !falloCarga) cargar().then(() => CJ.repintar(), () => { falloCarga = true; CJ.repintar(); });
+    return !!T;
+  }
+  function reintentar(){ falloCarga = false; asegurar(); CJ.repintar(); }
+  function cargandoHtml(){
+    return '<div class="cj-card">' + (falloCarga
+      ? '<div class="cj-hab-det">No se ha podido descargar el temario.</div><button type="button" class="btn btn-light" onclick="CJT.reintentar()">Reintentar</button>'
+      : skelList(2)) + '</div>';
+  }
+  const FLECHA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+  // Las fichas, cada una con su progreso (pestañas «Estudiar» y, con más detalle, «Progreso»).
+  function filasFichas(detalle){
+    if(!asegurar()) return cargandoHtml();
     const prog = CJ.progreso();
+    const total = cuenta(prog, T.fichas.flatMap(itemsDeFicha));
+    return '<div class="cj-card cjt-inicio">' +
+      (detalle ? '<div class="cj-hab"><div class="cj-hab-cab"><span>Todo el temario</span><b>' + pct(total) + '%</b></div>' + barra(total) +
+        '<div class="cj-hab-det">' + total.dominada + ' dominadas · ' + total.progreso + ' en progreso · ' + total.fallada + ' por repasar · ' + total.nueva + ' sin ver</div></div>' : '') +
+      T.fichas.map(f => {
+        const r = cuenta(prog, itemsDeFicha(f));
+        return '<button type="button" class="cjt-ficha" onclick="CJT.abrir(\'' + escapeHtml(f.id) + '\')">' +
+          '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">' + escapeHtml(f.titulo) + '</span>' +
+            '<span class="cjt-ficha-d">' + (detalle
+              ? r.dominada + ' de ' + r.total + ' dominadas' + (r.fallada ? ' · ' + r.fallada + ' por repasar' : '')
+              : f.secciones.length + ' apartados · ' + pct(r) + '% dominado') + '</span>' + barra(r) + '</span>' +
+          (detalle ? '<b class="cjt-ficha-pct">' + pct(r) + '%</b>' : '') + FLECHA +
+        '</button>';
+      }).join('') +
+      (T.faltan && T.faltan.length ? '<div class="cj-hab-det">Todavía faltan: ' + escapeHtml(T.faltan.join(', ')) + '.</div>' : '') +
+    '</div>';
+  }
+  function tarjetaProgresoFichas(){ return filasFichas(true); }
+  // Para «Hoy»: cuánto hay dominado, cuánto por repasar y la última ficha abierta (null mientras se descarga).
+  function resumen(){
+    if(!asegurar()) return falloCarga ? { pct: 0, falladas: 0, ultima: null } : null;
+    const prog = CJ.progreso();
+    const r = cuenta(prog, T.fichas.flatMap(itemsDeFicha));
+    let ultima = null;
+    try{
+      const f = T.fichaPorId.get(localStorage.getItem(ULTIMA_KEY));
+      if(f) ultima = { id: f.id, titulo: f.titulo, pct: pct(cuenta(prog, itemsDeFicha(f))) };
+    }catch(e){}
+    return { pct: pct(r), falladas: r.fallada, ultima };
+  }
+  // Ronda con lo que falla de todo el temario (primero lo de la última vez mal, luego lo que está a medias).
+  function repasar(){
+    if(!T) return;
+    const prog = CJ.progreso();
+    const ids = new Set(T.fichas.flatMap(itemsDeFicha).filter(x => preguntable(x) && ['fallada', 'progreso'].includes(estado(prog, x))).map(x => x.id));
+    if(!ids.size){ uiToast('No tienes nada del temario por repasar.', 'info'); return; }
+    preguntar(comprimir(ids), null, nombreClave('repaso'), 'f:repaso');
+  }
+  function fuente(){ return T ? T.fuente + (T.faltan && T.faltan.length ? ' Faltan las fichas de ' + T.faltan.join(', ') + '.' : '') : ''; }
+
+  // Para el profesor, en «Mis alumnos»: todo el temario, para verlo y mandarlo.
+  function tarjetaInicio(){
+    if(!asegurar()) return '<div class="cj-seccion">Temario</div>' + cargandoHtml();
     return '<div class="cj-seccion">Temario de la academia</div>' +
       '<div class="cj-card cjt-inicio">' +
-        '<div class="cj-hab-det cjt-intro">' + (profe
-          ? 'Todo el temario, ficha a ficha, con el documento original y sus mapas. Desde cada ficha puedes mandar a tus alumnos la ficha, un apartado o cosas sueltas.'
-          : 'La documentación, ficha a ficha: el documento original con sus mapas, la lista, el mapa del callejero y las preguntas.') + '</div>' +
+        '<div class="cj-hab-det cjt-intro">Todo el temario, ficha a ficha, con el documento original y sus mapas. Desde cada ficha puedes mandar a tus alumnos la ficha, un apartado o cosas sueltas.</div>' +
         T.fichas.map(f => {
-          const r = cuenta(prog, f.secciones.flatMap(s => s.items));
           const n = f.secciones.reduce((a, s) => a + s.items.length, 0);
           return '<button type="button" class="cjt-ficha" onclick="CJT.abrir(\'' + escapeHtml(f.id) + '\')">' +
             '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">' + escapeHtml(f.titulo) + '</span>' +
-              (profe
-                ? '<span class="cjt-ficha-d">' + f.secciones.length + ' apartados · ' + n + ' cosas · ' + (f.docs || []).reduce((a, d) => a + d.paginas, 0) + ' páginas</span></span>'
-                : '<span class="cjt-ficha-d">' + f.secciones.length + ' apartados · ' + r.total + ' preguntas · ' + pct(r) + '% dominado</span>' + barra(r) + '</span>') +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>' +
-          '</button>';
+              '<span class="cjt-ficha-d">' + f.secciones.length + ' apartados · ' + n + ' cosas · ' + (f.docs || []).reduce((a, d) => a + d.paginas, 0) + ' páginas</span></span>' +
+            FLECHA + '</button>';
         }).join('') +
         (T.faltan && T.faltan.length ? '<div class="cj-hab-det">Todavía faltan: ' + escapeHtml(T.faltan.join(', ')) + '.</div>' : '') +
       '</div>';
@@ -1202,7 +1377,7 @@ const CJT = (function(){
     const k = planoVer[s.plano];
     const x = k ? s.items.find(y => y.k === k) : null;
     return '<div class="cjt-plano-ver">' + svgPlano(s.plano, 'ver', k) +
-      '<div class="cjt-plano-nombre">' + (x ? escapeHtml(x.n) : 'Toca un número del plano para ver qué es') + '</div></div>';
+      '<div class="cjt-plano-nombre">' + (x ? escapeHtml(x.n) : 'Toca un número del plano para ver qué es (plano a grandes rasgos)') + '</div></div>';
   }
   // En una ronda: el plano de la pregunta (sobre el mapa).
   function pintarPlano(q){
@@ -1223,7 +1398,8 @@ const CJT = (function(){
 
   return {
     cargar, listo, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
-    abrir, abrirTarea, volver, repintar, alternar, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
+    filasFichas, tarjetaProgresoFichas, resumen, repasar, fuente, reintentar,
+    abrir, abrirTarea, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
     clicPlano, pintarPlano, marcarPlano, verEnPlano
   };

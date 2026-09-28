@@ -38,7 +38,8 @@ const CJP = (function(){
   function panel(html){
     el('cjPanel').innerHTML = html;
     CJ.mostrarVista('panel');
-    window.scrollTo(0, 0);
+    const app = el('app');   // la página se desplaza dentro de #app
+    if(app) app.scrollTop = 0; else window.scrollTo(0, 0);
   }
   function cabecera(titulo, volver){
     return '<div class="cjp-cab">' +
