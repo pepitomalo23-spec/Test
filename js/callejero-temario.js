@@ -1081,7 +1081,7 @@ const CJT = (function(){
       '<button type="button" class="btn btn-primary btn-light" onclick="CJT.terminarEleccion(true)">' + escapeHtml(eleccion.listo) + '</button></div>';
     if(!eleccion.ficha){
       root.innerHTML = cabecera(eleccion.listo === 'Mandar' ? 'Mandar a un alumno' : 'Tarea del temario', 'Elige qué tiene que estudiar') + barraEl +
-        '<div class="cj-hab-det cjt-intro">Marca fichas enteras, o entra en una ficha para ver todo su contenido (la lista, los mapas y el documento original) y marcar apartados o cosas sueltas.</div>' +
+        '<div class="cj-hab-det cjt-intro">Marca fichas enteras, o entra en una (con su lista, mapas y documento) para marcar apartados o cosas sueltas.</div>' +
         '<div class="cj-card cjt-inicio">' + T.fichas.map(f => {
           const est = estadoCasilla(itemsDeFicha(f));
           return '<div class="cjt-el-ficha">' + casilla('f', f.id, est, 'Toda la ficha ' + f.titulo) +
@@ -1151,7 +1151,7 @@ const CJT = (function(){
     const total = cuenta(prog, T.fichas.flatMap(itemsDeFicha));
     return '<div class="cj-card cjt-inicio">' +
       (detalle ? '<div class="cj-hab"><div class="cj-hab-cab"><span>Todo el temario</span><b>' + pct(total) + '%</b></div>' + barra(total) +
-        '<div class="cj-hab-det">' + total.dominada + ' dominadas · ' + total.progreso + ' en progreso · ' + total.fallada + ' por repasar · ' + total.nueva + ' sin ver</div></div>' : '') +
+        '<div class="cj-hab-det">' + CJ.detalleProgreso(total) + '</div></div>' : '') +
       T.fichas.map(f => {
         const r = cuenta(prog, itemsDeFicha(f));
         return '<button type="button" class="cjt-ficha" onclick="CJT.abrir(\'' + escapeHtml(f.id) + '\')">' +
@@ -1211,7 +1211,7 @@ const CJT = (function(){
     const total = cuenta(prog, T.fichas.flatMap(itemsDeFicha));
     return '<div class="cj-card">' +
       '<div class="cj-hab"><div class="cj-hab-cab"><span>Todo el temario</span><b>' + pct(total) + '%</b></div>' + barra(total) +
-        '<div class="cj-hab-det">' + total.dominada + ' dominadas · ' + total.progreso + ' en progreso · ' + total.fallada + ' por repasar · ' + total.nueva + ' sin ver</div></div>' +
+        '<div class="cj-hab-det">' + CJ.detalleProgreso(total) + '</div></div>' +
       T.fichas.map(f => {
         const r = cuenta(prog, itemsDeFicha(f));
         return '<div class="cjt-prog-ficha"><div class="cj-hab-cab"><span>' + escapeHtml(f.titulo) + ' <small>' + r.dominada + ' de ' + r.total +

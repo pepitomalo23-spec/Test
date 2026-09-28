@@ -663,6 +663,11 @@ const CJ = (function(){
     ids.forEach(id => { r[estadoDe(prog.get(claveP(hab, id)))]++; });
     return r;
   }
+  // «120 de 3.084 dominadas · 15 en progreso · 4 por repasar» (lo que es 0, no se dice).
+  function detalleProgreso(r){
+    const n = x => x.toLocaleString('es-ES');
+    return n(r.dominada) + ' de ' + n(r.total) + ' dominadas' + (r.progreso ? ' · ' + n(r.progreso) + ' en progreso' : '') + (r.fallada ? ' · ' + n(r.fallada) + ' por repasar' : '');
+  }
   // Tarjeta de progreso por habilidad (prog) de lo que entra en el filtro f.
   // La usa también el profesor con el progreso de su alumno.
   function tarjetaProgreso(prog, f, titulo){
@@ -684,7 +689,7 @@ const CJ = (function(){
           '<div class="cj-bar-seg progreso" style="width:' + ancho(r.progreso) + '"></div>' +
           '<div class="cj-bar-seg fallada" style="width:' + ancho(r.fallada) + '"></div>' +
         '</div>' +
-        '<div class="cj-hab-det">' + r.dominada + ' dominadas · ' + r.progreso + ' en progreso · ' + r.fallada + ' por repasar · ' + r.nueva + ' sin ver</div>' +
+        '<div class="cj-hab-det">' + detalleProgreso(r) + '</div>' +
       '</div>';
     }).join('');
     return '<div class="cj-card">' +
@@ -2140,7 +2145,7 @@ const CJ = (function(){
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)
     cargarDatos, datos: () => datos, MODOS, HABILIDAD, mostrarVista, opcionesZona, nombreZonaDe, filtroDe,
-    progresoDesdeFilas, tarjetaProgreso, rondasHtml, estadoDe, claveP, prepararTareas, describirTarea, tareaHecha, fechaCorta,
+    progresoDesdeFilas, tarjetaProgreso, detalleProgreso, rondasHtml, estadoDe, claveP, prepararTareas, describirTarea, tareaHecha, fechaCorta,
     // temario (js/callejero-temario.js)
     empezarTemario, otraRonda, responderPlano, ordenarPorRepaso, PREGUNTAS_POR_RONDA, esTemario,
     progreso: () => progreso, tareas: () => tareasActivas(), repintar: () => { if(vistaActual === 'inicio') pintarInicio(); } };
