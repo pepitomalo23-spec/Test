@@ -12,7 +12,8 @@
      dos versiones y la nueva funcione también sin conexión.
    - Los datos/ (el temario del callejero) también se piden con su ?v=:
      se guardan la primera vez que se usan y, al llegar una versión
-     nueva, se borra la anterior.
+     nueva, se borra la anterior. Las páginas del documento del temario
+     (almacén privado) se guardan con los datos del usuario.
    - Las consultas de datos a Supabase (preguntas, temas, historial...)
      van primero a la red; si no hay conexión (o tarda demasiado) se usa
      la última respuesta guardada, para poder seguir estudiando.
@@ -181,6 +182,15 @@ async function handleData(event){
   }
 }
 
+async function handlePrivateImage(event){
+  const cache = await caches.open(DATA);
+  const cached = await cache.match(event.request);
+  if(cached) return cached;
+  const res = await fetch(event.request);
+  if(res && res.ok) cache.put(event.request, res.clone()).catch(() => {});
+  return res;
+}
+
 self.addEventListener('fetch', event => {
   const req = event.request;
   if(req.method !== 'GET') return;
@@ -206,6 +216,13 @@ self.addEventListener('fetch', event => {
     }
     if(url.pathname.startsWith('/storage/v1/object/public/')){
       event.respondWith(handleStatic(event, STATIC));
+      return;
+    }
+    // Páginas del temario (almacén privado, con la sesión): no cambian
+    // nunca (van con versión en la ruta), así que caché primero. Van con
+    // los datos del usuario: se borran al cerrar sesión.
+    if(url.pathname.startsWith('/storage/v1/object/temario/')){
+      event.respondWith(handlePrivateImage(event));
       return;
     }
   }
