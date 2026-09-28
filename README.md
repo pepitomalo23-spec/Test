@@ -121,14 +121,21 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
 - **Documento original**: las páginas de cada PDF (con todos sus mapas), en WebP, en el almacén **privado**
   `temario` de Supabase (`v1/<documento>/<página>.webp`; migración `20260928b_temario_documento.sql`): solo
   las pueden leer los usuarios aprobados y no bloqueados. No van en el repositorio, que es público. Cada ficha
-  tiene su botón «Documento original»; cada apartado, sus mapas del documento en miniatura y el enlace a sus
+  tiene su pestaña «Documento»; cada apartado, sus mapas del documento en miniatura y el enlace a sus
   páginas (`secciones[].docs` del JSON), y los barrios, recorridos y polígonos, su página (`pg`). El service
   worker guarda las páginas vistas con los datos del usuario (se borran al cerrar sesión).
 
-- En Callejero, «Temario de la academia»: cada ficha con sus apartados. De cada apartado se ve la lista, se
-  ve **en el mapa** (lo del apartado en azul; al tocarlo, su ficha; los recorridos numerados) y se
-  **pregunta**: rondas del modo `temario` de hasta 20 preguntas, primero lo fallado, que se responden
-  tocando el mapa, eligiendo entre opciones o tocando el plano.
+- La pantalla del Callejero tiene tres pestañas: **Hoy** (las tareas del profesor y un botón grande con lo que
+  más conviene: repasar lo fallado del temario o de las calles, seguir con la última ficha o empezar por la
+  General; y un resumen), **Estudiar** (las fichas del temario y «Calles de Córdoba»: la zona y los modos de
+  juego en baldosas) y **Progreso** (el temario ficha a ficha, lo que más falla, las calles y las últimas
+  rondas; de dónde salen los datos, plegado).
+- Cada ficha se ve en cuatro pestañas: **Lista** (los apartados; al abrir uno, sus botones, los mapas del
+  documento y la lista), **Documento** (las páginas originales), **Mapa** (lo de la ficha o de un apartado
+  **en el mapa**: en azul; al tocarlo, su ficha; los recorridos numerados; y el mapa libre de su distrito) y
+  **Preguntar** (toda la ficha o un apartado: rondas del modo `temario` de hasta 20 preguntas, primero lo
+  fallado, que se responden tocando el mapa, eligiendo entre opciones o tocando el plano; y los modos de
+  juego con las calles de su distrito o, en la General, de toda Córdoba).
 - El progreso es por elemento, en la habilidad `temario` (misma regla de dominada).
 - El profesor tiene el temario entero debajo de «Mis alumnos» y **manda desde él**: en cada ficha, «Mandar la
   ficha», el botón «Mandar» de cada apartado o «Elegir cosas sueltas»; se abre la tarea ya rellena (título y,
@@ -146,13 +153,14 @@ confirma) que el administrador marca como **Profesor del callejero** en Administ
 donde también le elige sus alumnos (`profiles.es_profesor` y tabla `tutorias`). No es administrador:
 solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 
-- En Callejero ve «Mis alumnos | Mi callejero». Por cada alumno: cuándo estudió, rondas y aciertos de
+- En Callejero ve «Mis alumnos | Mi callejero» (su callejero es el de un alumno, con «‹ Volver a mis
+  alumnos» arriba). Por cada alumno: cuándo estudió, rondas y aciertos de
   la semana, su progreso por habilidad (en la zona que elija), lo que más falla y sus últimas rondas.
 - Le manda **tareas** (`callejero_tareas`): calles y lugares elegidos uno a uno en el mapa (tocándolos,
   buscándolos o añadiendo un barrio o distrito entero) o una zona entera; qué modos cuentan, cuántas
   rondas y con qué mínimo de aciertos, fecha límite y un mensaje. Se puede mandar a varios alumnos a la vez
   y crear una directamente con lo que el alumno más falla.
-- Al alumno le salen arriba y cada tarea es una zona más: en sus rondas solo salen sus calles y lugares.
+- Al alumno le salen en «Hoy» y cada tarea es una zona más: en sus rondas solo salen sus calles y lugares.
   Con **«solo esto»**, mientras la tarea esté activa el alumno solo puede elegir las tareas del profesor.
 - Cada tarea tiene su conversación (`callejero_mensajes`). Tareas nuevas y mensajes se avisan con una
   notificación (`push-reminders`, a quien tenga activado el recordatorio) y con un número en la pestaña.
