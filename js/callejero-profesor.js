@@ -14,9 +14,10 @@
      - Temario: lo ve entero y, desde la propia ficha, manda a un alumno
        la ficha, un apartado o cosas sueltas (CJP.mandarTemario abre la
        tarea ya rellena).
-     - Tareas, en dos pasos: qué estudiar (calles y lugares elegidos en el mapa, con
-       CJ.seleccionar, una zona entera o fichas y apartados del temario de
-       la academia, js/callejero-temario.js), qué modos cuentan, cuántas
+     - Tareas, en dos pasos: qué estudiar (fichas, apartados o cosas sueltas
+       del temario de la academia, js/callejero-temario.js; calles y lugares
+       elegidos en el mapa, con CJ.seleccionar; una zona entera; o varias de
+       las tres cosas juntas en la misma tarea), qué modos cuentan, cuántas
        rondas y con qué mínimo de aciertos, fecha límite, mensaje y «solo
        esto» (mientras esté activa, el alumno solo puede estudiar sus
        tareas); lo que no es título, alumnos ni mensaje va plegado en «Más
@@ -222,27 +223,25 @@ const CJP = (function(){
         '<div class="cj-ronda-zona">' + escapeHtml(r.temario ? r.x.donde : HAB_TXT[r.hab] || r.hab) + ' · ' + r.aciertos + ' de ' + r.intentos + ' bien' +
           (r.racha === 0 ? ' · la última, mal' : ' · recuperándola') + '</div>' +
       '</div><b class="ko">' + r.fallos + (r.fallos === 1 ? ' fallo' : ' fallos') + '</b></div>').join('') +
-      (filas.some(r => !r.temario) ? '<button type="button" class="cj-ver-mas" onclick="CJP.tareaConFalladas()">Mandarle una tarea con estas calles y lugares</button>' : '') +
-      (filas.some(r => r.temario) ? '<button type="button" class="cj-ver-mas" onclick="CJP.tareaConFalladas(true)">Mandarle una tarea con esos apartados del temario</button>' : '') +
+      '<button type="button" class="cj-ver-mas" onclick="CJP.tareaConFalladas()">Mandarle una tarea con todo esto</button>' +
       '</div>';
   }
-  function tareaConFalladas(temario){
+  // Una tarea con justo lo que falla: las cosas sueltas del temario (clave del
+  // apartado + su id) y las calles y lugares, todo en la misma tarea.
+  function tareaConFalladas(){
     if(!ficha || !ficha.falladas.length) return;
-    if(temario){
-      // Justo lo que falla: cada cosa suelta (clave del apartado + su id).
-      const fichas = [...new Set(ficha.falladas.filter(r => r.temario).map(r => CJT.claveDeItem(r.id) && CJT.claveDeItem(r.id) + '/' + r.id).filter(Boolean))];
-      nuevaTarea(ficha.alumno.alumno_id, { titulo: 'Repaso del temario', tipo: 'temario', fichas });
-      return;
-    }
+    const fichas = [...new Set(ficha.falladas.filter(r => r.temario).map(r => CJT.claveDeItem(r.id) && CJT.claveDeItem(r.id) + '/' + r.id).filter(Boolean))];
     const vias = [...new Set(ficha.falladas.filter(r => !r.temario && r.id > 0).map(r => r.id))];
     const lugares = [...new Set(ficha.falladas.filter(r => r.id < 0).map(r => -r.id))];
-    nuevaTarea(ficha.alumno.alumno_id, { titulo: 'Repaso de lo que fallas', tipo: 'lista', vias, lugares });
+    const partes = new Set();
+    if(fichas.length) partes.add('temario');
+    if(vias.length + lugares.length) partes.add('lista');
+    nuevaTarea(ficha.alumno.alumno_id, { titulo: 'Repaso de lo que fallas', partes, fichas, vias, lugares });
   }
 
   function tarjetaTarea(t){
-    const { que, modos } = CJ.describirTarea(t);
+    const { que } = CJ.describirTarea(t);
     const hecha = CJ.tareaHecha(t);
-    const temario = CJ.esTemario(t);
     const pct = Math.min(100, Math.round(t.rondas_validas * 100 / t.rondas));
     const estado = t.archivada ? 'Archivada' : hecha ? '✓ Hecha' : t.vista_at ? 'Vista' : 'Sin ver todavía';
     return '<div class="cj-card cj-tarea' + (hecha ? ' hecha' : '') + '">' +
@@ -254,9 +253,7 @@ const CJP = (function(){
       '<div class="cj-tarea-que">' + escapeHtml(que) + '</div>' +
       '<div class="cj-tarea-barra"><div class="cj-bar"><div class="cj-bar-fill" style="width:' + pct + '%"></div></div>' +
         '<b>' + Math.min(t.rondas_validas, t.rondas) + '/' + t.rondas + '</b></div>' +
-      '<div class="cj-tarea-prog">' + t.rondas + (t.rondas === 1 ? ' ronda' : ' rondas') + (temario ? '' : ' de ' + escapeHtml(modos)) + ' con un ' + t.minimo + '% o más' +
-        (t.rondas_jugadas > t.rondas_validas ? ' · ' + (t.rondas_jugadas - t.rondas_validas) + ' no cuentan' : '') +
-        (t.ultima_vez ? ' · última ronda ' + escapeHtml(hace(t.ultima_vez)) : '') + '</div>' +
+      '<div class="cj-tarea-prog">' + escapeHtml(CJ.textoRondas(t)) + (t.ultima_vez ? ' · última ronda ' + escapeHtml(hace(t.ultima_vez)) : '') + '</div>' +
       '<div class="cj-tarea-acciones">' +
         '<button type="button" class="btn btn-ghost" onclick="CJP.abrirMensajes(' + t.id + ')">Mensajes' +
           (t.sin_leer ? ' <span class="cj-num">' + t.sin_leer + '</span>' : (t.mensajes ? ' (' + t.mensajes + ')' : '')) + '</button>' +
@@ -282,17 +279,19 @@ const CJP = (function(){
   }
 
   /* ---------- crear y editar tareas (en dos pasos) ---------- */
-  // Paso 1: qué tiene que estudiar. Paso 2: para quién, título, mensaje y,
-  // plegadas, las demás opciones (rondas, mínimo, fecha, modos y «solo esto»).
+  // Paso 1: qué tiene que estudiar: temario, calles y lugares del mapa y una
+  // zona entera, lo que quiera de las tres (juntas en la misma tarea).
+  // Paso 2: para quién, título, mensaje y, plegadas, las demás opciones
+  // (rondas, mínimo, fecha, modos y «solo esto»).
   const POR_DEFECTO = { rondas: 3, minimo: 80 };
   function nuevaTarea(alumnoId, inicial){
     borrador = Object.assign({
-      id: null, alumnos: new Set(alumnoId ? [alumnoId] : []), titulo: '', mensaje: '', tipo: 'temario', vias: [], lugares: [], zona: '', fichas: [],
+      id: null, alumnos: new Set(alumnoId ? [alumnoId] : []), titulo: '', mensaje: '', partes: new Set(['temario']), vias: [], lugares: [], zona: '', fichas: [],
       modos: new Set(), rondas: POR_DEFECTO.rondas, minimo: POR_DEFECTO.minimo, fecha: '', solo_esto: false, volverA: alumnoId || null,
       paso: inicial ? 2 : 1
     }, inicial || {});
     // Lo elegido del temario se describe con el temario cargado.
-    if(borrador.tipo === 'temario' && !CJT.listo()) CJT.cargar().then(() => { if(borrador){ leerFormulario(); pintarFormulario(); } }, () => {});
+    if(borrador.partes.has('temario') && !CJT.listo()) CJT.cargar().then(() => { if(borrador){ leerFormulario(); pintarFormulario(); } }, () => {});
     pintarFormulario();
   }
   // Desde el temario: manda una ficha, un apartado o lo elegido. Con un solo
@@ -300,18 +299,20 @@ const CJP = (function(){
   async function mandarTemario(claves, titulo){
     try{ await cargarAlumnos(); }catch(e){}
     const unico = alumnos && alumnos.length === 1 ? alumnos[0].alumno_id : null;
-    nuevaTarea(unico, { tipo: 'temario', fichas: claves.slice(), titulo: (titulo || '').slice(0, 120), volverA: null, volverTemario: true });
+    nuevaTarea(unico, { partes: new Set(['temario']), fichas: claves.slice(), titulo: (titulo || '').slice(0, 120), volverA: null, volverTemario: true });
   }
   function volverAlTemario(){ CJ.mostrarVista('temario'); CJT.repintar(); }
   function editarTarea(id){
     const t = ficha && ficha.tareas.find(x => x.id === id);
     if(!t) return;
-    const lista = t.vias.length + t.lugares.length > 0;
-    const temario = t.fichas.length > 0;
+    const partes = new Set();
+    if(t.fichas.length) partes.add('temario');
+    if(t.vias.length + t.lugares.length) partes.add('lista');
+    if(t.zona !== null && t.zona !== undefined) partes.add('zona');
     borrador = {
-      id: t.id, alumnos: new Set([t.alumno_id]), titulo: t.titulo, mensaje: t.mensaje || '', tipo: temario ? 'temario' : lista ? 'lista' : 'zona',
-      vias: t.vias.slice(), lugares: t.lugares.slice(), zona: lista || temario ? '' : (t.zona || ''), fichas: t.fichas.slice(),
-      modos: new Set(temario ? [] : t.modos), rondas: t.rondas,
+      id: t.id, alumnos: new Set([t.alumno_id]), titulo: t.titulo, mensaje: t.mensaje || '', partes,
+      vias: t.vias.slice(), lugares: t.lugares.slice(), zona: t.zona || '', fichas: t.fichas.slice(),
+      modos: new Set(t.modos.filter(m => m !== 'temario')), rondas: t.rondas,
       minimo: t.minimo, fecha: t.fecha_limite || '', solo_esto: t.solo_esto, volverA: t.alumno_id, paso: 2
     };
     pintarFormulario();
@@ -324,10 +325,13 @@ const CJP = (function(){
   const n = (k, uno, varios) => k + ' ' + (k === 1 ? uno : varios);
   // Lo elegido, en una línea (paso 2).
   function resumenQue(b){
-    if(b.tipo === 'temario') return n(CJT.contarElegidas(b.fichas), 'cosa elegida', 'cosas elegidas') + ': ' + CJT.describirFichas(b.fichas);
-    if(b.tipo === 'lista') return n(b.vias.length, 'calle', 'calles') + ' y ' + n(b.lugares.length, 'lugar', 'lugares') + ' elegidos en el mapa';
-    return CJ.nombreZonaDe(b.zona);
+    const partes = [];
+    if(b.partes.has('temario')) partes.push(n(CJT.contarElegidas(b.fichas), 'cosa elegida', 'cosas elegidas') + ' del temario: ' + CJT.describirFichas(b.fichas));
+    if(b.partes.has('lista')) partes.push(n(b.vias.length, 'calle', 'calles') + ' y ' + n(b.lugares.length, 'lugar', 'lugares') + ' elegidos en el mapa');
+    if(b.partes.has('zona')) partes.push(CJ.nombreZonaDe(b.zona));
+    return partes.join(' · ');
   }
+  function conCalles(b){ return b.partes.has('lista') || b.partes.has('zona'); }
   function pasos(b){
     return '<div class="cjp-pasos"><span class="' + (b.paso === 1 ? 'activo' : 'hecho') + '"><b>1</b> Qué</span><i></i>' +
       '<span class="' + (b.paso === 2 ? 'activo' : '') + '"><b>2</b> Para quién y cómo</span></div>';
@@ -344,23 +348,26 @@ const CJP = (function(){
     const nombres = b.vias.map(id => datos && datos.viaPorId.get(id)).filter(Boolean).map(v => v.nombre)
       .concat(b.lugares.map(id => datos && datos.lugarPorId.get(id)).filter(Boolean).map(l => l.nombre))
       .sort((x, y) => x.localeCompare(y, 'es'));
+    // Lo de cada parte, debajo de ella cuando está marcada.
+    const eleccion = {
+      temario: () => '<div class="cjp-eleccion"><b>' + (b.fichas.length ? n(CJT.contarElegidas(b.fichas), 'cosa elegida', 'cosas elegidas') : 'Nada elegido todavía') + '</b>' +
+          '<button type="button" class="btn ' + (b.fichas.length ? 'btn-ghost' : 'btn-primary btn-light') + '" onclick="CJP.elegirEnTemario()">' + (b.fichas.length ? 'Cambiar en el temario' : 'Elegir en el temario') + '</button></div>' +
+        (b.fichas.length ? '<div class="cjp-nombres">' + escapeHtml(CJT.describirFichas(b.fichas)) + '</div>' : ''),
+      lista: () => '<div class="cjp-eleccion"><b>' + n(b.vias.length, 'calle', 'calles') + ' y ' + n(b.lugares.length, 'lugar', 'lugares') + '</b>' +
+          '<button type="button" class="btn ' + (b.vias.length + b.lugares.length ? 'btn-ghost' : 'btn-primary btn-light') + '" onclick="CJP.elegirEnMapa()">' + (b.vias.length + b.lugares.length ? 'Cambiar en el mapa' : 'Elegir en el mapa') + '</button></div>' +
+        (nombres.length ? '<details class="cjp-nombres"><summary>Ver la lista</summary>' + nombres.map(x => '<div>' + escapeHtml(x) + '</div>').join('') + '</details>' : ''),
+      zona: () => '<select id="cjpZona" class="cj-zona-select" aria-label="Zona">' + (datos ? CJ.opcionesZona(b.zona) : '') + '</select>'
+    };
     panel(cabecera(titulo, 'CJP.cancelarFormulario()') + pasos(b) +
-      '<div class="cj-card cjt-filas cjp-tipos">' + TIPOS.map(([k, t, d]) =>
-        '<button type="button" class="cjt-accion cjp-tipo' + (b.tipo === k ? ' activo' : '') + '" onclick="CJP.cambiarTipo(\'' + k + '\')" aria-pressed="' + (b.tipo === k) + '">' +
-          '<span class="cjp-radio"></span><span class="cjt-accion-txt"><b>' + t + '</b><small>' + d + '</small></span></button>').join('') + '</div>' +
-      '<div class="cj-card cjp-form">' +
-        (b.tipo === 'temario'
-          ? '<div class="cjp-eleccion"><b>' + (b.fichas.length ? n(CJT.contarElegidas(b.fichas), 'cosa elegida', 'cosas elegidas') : 'Nada elegido todavía') + '</b>' +
-              '<button type="button" class="btn ' + (b.fichas.length ? 'btn-ghost' : 'btn-primary btn-light') + '" onclick="CJP.elegirEnTemario()">' + (b.fichas.length ? 'Cambiar en el temario' : 'Elegir en el temario') + '</button></div>' +
-            (b.fichas.length ? '<div class="cjp-nombres">' + escapeHtml(CJT.describirFichas(b.fichas)) + '</div>' : '') +
-            '<div class="cj-hab-det">Se abre el temario (documento, mapas y listas) para marcar lo que quieras. Al alumno le sale como «Estúdiate esto».</div>'
-          : b.tipo === 'lista'
-          ? '<div class="cjp-eleccion"><b>' + n(b.vias.length, 'calle', 'calles') + ' y ' + n(b.lugares.length, 'lugar', 'lugares') + '</b>' +
-              '<button type="button" class="btn ' + (b.vias.length + b.lugares.length ? 'btn-ghost' : 'btn-primary btn-light') + '" onclick="CJP.elegirEnMapa()">' + (b.vias.length + b.lugares.length ? 'Cambiar en el mapa' : 'Elegir en el mapa') + '</button></div>' +
-            (nombres.length ? '<details class="cjp-nombres"><summary>Ver la lista</summary>' + nombres.map(x => '<div>' + escapeHtml(x) + '</div>').join('') + '</details>' : '') +
-            '<div class="cj-hab-det">En las rondas de la tarea solo le saldrá esto.</div>'
-          : '<select id="cjpZona" class="cj-zona-select" aria-label="Zona">' + (datos ? CJ.opcionesZona(b.zona) : '') + '</select>') +
-      '</div>' +
+      '<div class="cj-hab-det cjp-nota">Marca lo que quieras mandarle: una cosa, dos o las tres juntas en la misma tarea.</div>' +
+      '<div class="cj-card cjt-filas cjp-tipos">' + TIPOS.map(([k, t, d]) => {
+        const on = b.partes.has(k);
+        return '<div class="cjp-parte' + (on ? ' activa' : '') + '">' +
+          '<button type="button" class="cjt-accion cjp-tipo' + (on ? ' activo' : '') + '" onclick="CJP.alternarParte(\'' + k + '\')" aria-pressed="' + on + '">' +
+            '<span class="cjp-casilla"></span><span class="cjt-accion-txt"><b>' + t + '</b><small>' + d + '</small></span></button>' +
+          (on ? '<div class="cjp-parte-el">' + eleccion[k]() + '</div>' : '') +
+        '</div>';
+      }).join('') + '</div>' +
       '<div class="admin-form-actions">' +
         '<button type="button" class="btn btn-ghost" onclick="CJP.cancelarFormulario()">Cancelar</button>' +
         '<button type="button" class="btn btn-primary btn-light" id="cjpSiguiente" onclick="CJP.irAlPaso(2)">Siguiente</button>' +
@@ -372,7 +379,7 @@ const CJP = (function(){
       ? '<div class="cjp-para">' + escapeHtml(((alumnos || []).find(a => a.alumno_id === [...b.alumnos][0]) || {}).email || '') + '</div>'
       : (alumnos || []).map(a => '<label class="cjp-check"><input type="checkbox" value="' + a.alumno_id + '" class="cjp-alumno-check"' +
           (b.alumnos.has(a.alumno_id) ? ' checked' : '') + '> ' + escapeHtml(a.email) + '</label>').join('');
-    const temario = b.tipo === 'temario';
+    const calles = conCalles(b);
     // «Más opciones» se abre sola si algo no está como viene.
     const cambiadas = b.rondas !== POR_DEFECTO.rondas || b.minimo !== POR_DEFECTO.minimo || !!b.fecha || b.solo_esto || b.modos.size > 0;
     const resumenOp = n(b.rondas, 'ronda', 'rondas') + ' · ' + b.minimo + '% · ' + (b.fecha ? 'hasta el ' + CJ.fechaCorta(b.fecha) : 'sin fecha') + (b.solo_esto ? ' · solo esto' : '');
@@ -393,8 +400,8 @@ const CJP = (function(){
           '</div>' +
           '<label for="cjpFecha">Fecha límite</label>' +
           '<input id="cjpFecha" type="date" value="' + escapeHtml(b.fecha) + '">' +
-          (temario ? '' :
-            '<label>Modos que cuentan <small>(si no marcas ninguno, vale cualquiera)</small></label>' +
+          (!calles ? '' :
+            '<label>Modos que cuentan con las calles <small>(si no marcas ninguno, vale cualquiera' + (b.partes.has('temario') ? '; las preguntas del temario cuentan siempre' : '') + ')</small></label>' +
             '<div class="cjp-modos">' + Object.keys(CJ.MODOS).filter(m => m !== 'temario').map(m => '<label class="cjp-check"><input type="checkbox" class="cjp-modo" value="' + m + '"' +
               (b.modos.has(m) ? ' checked' : '') + '> ' + escapeHtml(CJ.MODOS[m].titulo) + '</label>').join('') + '</div>') +
           '<label class="cjp-check cjp-solo"><input type="checkbox" id="cjpSolo"' + (b.solo_esto ? ' checked' : '') + '> ' +
@@ -425,22 +432,35 @@ const CJP = (function(){
     leerFormulario();
     const b = borrador;
     if(p === 2){
-      if(b.tipo === 'lista' && !(b.vias.length + b.lugares.length)){ uiToast('Elige en el mapa las calles o los lugares que tiene que estudiar.', 'info'); return; }
-      if(b.tipo === 'temario' && !b.fichas.length){ uiToast('Elige en el temario lo que tiene que estudiar.', 'info'); return; }
+      const falta = queFalta(b);
+      if(falta){ uiToast(falta, 'info'); return; }
       // Un título de partida, si no tiene.
-      if(!b.titulo && b.tipo === 'temario') b.titulo = CJT.describirFichas(b.fichas).slice(0, 120);
-      if(!b.titulo && b.tipo === 'zona') b.titulo = CJ.nombreZonaDe(b.zona).slice(0, 120);
+      if(!b.titulo){
+        const t = [];
+        if(b.partes.has('temario')) t.push(CJT.describirFichas(b.fichas));
+        if(b.partes.has('lista')) t.push(n(b.vias.length + b.lugares.length, 'calle o lugar', 'calles y lugares'));
+        if(b.partes.has('zona')) t.push(CJ.nombreZonaDe(b.zona));
+        b.titulo = t.join(' · ').slice(0, 120);
+      }
     }
     b.paso = p;
     pintarFormulario();
   }
-  async function cambiarTipo(tipo){
+  // Lo que falta por elegir (o '' si está todo).
+  function queFalta(b){
+    if(!b.partes.size) return 'Marca qué tiene que estudiar: temario, calles y lugares o una zona.';
+    if(b.partes.has('temario') && !b.fichas.length) return 'Elige en el temario lo que tiene que estudiar (o desmarca el temario).';
+    if(b.partes.has('lista') && !(b.vias.length + b.lugares.length)) return 'Elige en el mapa las calles o los lugares (o desmarca esa parte).';
+    return '';
+  }
+  async function alternarParte(parte){
     leerFormulario();
-    borrador.tipo = tipo;
+    const b = borrador;
+    if(b.partes.has(parte)) b.partes.delete(parte); else b.partes.add(parte);
     pintarFormulario();
-    if(tipo === 'temario' && !CJT.listo()){
+    if(parte === 'temario' && b.partes.has('temario') && !CJT.listo()){
       try{ await CJT.cargar(); }catch(e){ uiToast(e.message, 'error'); }
-      if(borrador && borrador.tipo === 'temario'){ leerFormulario(); pintarFormulario(); }
+      if(borrador){ leerFormulario(); pintarFormulario(); }
     }
   }
   async function elegirEnMapa(){
@@ -475,13 +495,16 @@ const CJP = (function(){
     const b = borrador;
     if(!b.titulo){ uiToast('Ponle un título a la tarea.', 'info'); return; }
     if(!b.alumnos.size){ uiToast('Elige al menos un alumno.', 'info'); return; }
-    if(b.tipo === 'lista' && !(b.vias.length + b.lugares.length)){ uiToast('Elige en el mapa las calles o los lugares que tiene que estudiar.', 'info'); return; }
-    if(b.tipo === 'temario' && !b.fichas.length){ uiToast('Elige al menos una ficha o un apartado del temario.', 'info'); return; }
-    const temario = b.tipo === 'temario';
+    const falta = queFalta(b);
+    if(falta){ uiToast(falta, 'info'); return; }
+    const temario = b.partes.has('temario'), lista = b.partes.has('lista'), calles = conCalles(b);
+    // Qué rondas cuentan: solo temario → las del temario; con calles, los
+    // modos marcados (y el temario, si lo lleva) o, sin marcar ninguno, todas.
+    const modos = !calles ? ['temario'] : b.modos.size ? [...b.modos].concat(temario ? ['temario'] : []) : [];
     const fila = {
       titulo: b.titulo, mensaje: b.mensaje || null,
-      vias: b.tipo === 'lista' ? b.vias : [], lugares: b.tipo === 'lista' ? b.lugares : [], zona: b.tipo === 'zona' ? b.zona : null,
-      fichas: temario ? b.fichas : [], modos: temario ? ['temario'] : [...b.modos],
+      vias: lista ? b.vias : [], lugares: lista ? b.lugares : [], zona: b.partes.has('zona') ? b.zona : null,
+      fichas: temario ? b.fichas : [], modos,
       rondas: b.rondas, minimo: b.minimo, fecha_limite: b.fecha || null, solo_esto: b.solo_esto
     };
     const boton = el('cjpGuardar');
@@ -575,6 +598,6 @@ const CJP = (function(){
   function reiniciar(){ alumnos = null; alumnosAt = 0; ficha = null; borrador = null; hilo = null; }
 
   return { pintarAlumnos, abrirAlumno, volverALista, cambiarPestana, cambiarZonaFicha, alternarRondas, tareaConFalladas,
-    nuevaTarea, editarTarea, irAlPaso, cambiarTipo, elegirEnMapa, elegirEnTemario, mandarTemario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
+    nuevaTarea, editarTarea, irAlPaso, alternarParte, elegirEnMapa, elegirEnTemario, mandarTemario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
     abrirMensajes, enviarMensaje, cerrarMensajes, reiniciar };
 })();

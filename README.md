@@ -125,8 +125,9 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   páginas (`secciones[].docs` del JSON), y los barrios, recorridos y polígonos, su página (`pg`). El service
   worker guarda las páginas vistas con los datos del usuario (se borran al cerrar sesión).
 
-- La pantalla del Callejero tiene tres pestañas: **Hoy** (las tareas del profesor y un botón grande con lo que
-  más conviene: repasar lo fallado del temario o de las calles, seguir con la última ficha o empezar por la
+- La pantalla del Callejero tiene tres pestañas: **Hoy** (las tareas del profesor, que se abren enteras al
+  pulsarlas; «Todo lo que te ha mandado», que junta todas sus tareas y lo que llevan; y un botón grande con lo
+  que más conviene: repasar lo fallado del temario o de las calles, seguir con la última ficha o empezar por la
   General; y un resumen), **Estudiar** (las fichas del temario y «Calles de Córdoba»: la zona y los modos de
   juego en baldosas) y **Progreso** (el temario ficha a ficha, lo que más falla, las calles y las últimas
   rondas; de dónde salen los datos, plegado).
@@ -136,12 +137,18 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   **Preguntar** (toda la ficha o un apartado: rondas del modo `temario` de hasta 20 preguntas, primero lo
   fallado, que se responden tocando el mapa, eligiendo entre opciones o tocando el plano; y los modos de
   juego con las calles de su distrito o, en la General, de toda Córdoba).
+- Una tarea (y «Todo lo que te ha mandado») se ve con las mismas pestañas: su temario, sus calles y lugares y
+  su zona en la Lista; en Preguntar, las rondas del temario y los modos de juego con sus calles, que cuentan
+  para la tarea.
+- **Mapa libre**: lo que ha mandado el profesor sale en morado; dentro del mapa, arriba, se elige qué tocar
+  (Calles, Lugares —todos como puntos— o Profesor —solo lo suyo, con su lista—). Todos los mapas (también
+  jugando) tienen un botón para ponerlos a pantalla completa.
 - El progreso es por elemento, en la habilidad `temario` (misma regla de dominada).
 - El profesor tiene el temario entero en su pestaña «Temario» y **manda desde él**: en cada ficha, «Mandar la
   ficha», el botón «Mandar» de cada apartado o «Elegir cosas sueltas»; se abre la tarea ya rellena (título y,
   si solo tiene un alumno, el alumno) y al mandarla vuelve a la ficha. También puede elegir desde el formulario
   de la tarea («Elegir en el temario»: el documento, los mapas y las listas, con casillas): fichas enteras, apartados o cosas sueltas (`callejero_tareas.fichas`: `centro`,
-  `centro/plazas` o `centro/plazas/<id>`). Al alumno le sale como «Estúdiate esto», con solo eso en la lista,
+  `centro/plazas` o `centro/plazas/<id>`). Al alumno le sale como tarea, con solo eso en la lista,
   el mapa y las rondas, que cuentan para la tarea.
 - El archivo lleva `?v=` con su huella (la pone `scripts/versionar.mjs` en el js que lo pide): el service
   worker lo guarda al usarlo y, cuando cambia, borra el anterior.
@@ -161,10 +168,12 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   cada tarea); «Mandar tarea» está siempre a mano.
 - Le manda **tareas** (`callejero_tareas`) en dos pasos. 1) Qué: fichas, apartados o cosas sueltas del temario;
   calles y lugares elegidos uno a uno en el mapa (tocándolos, buscándolos o añadiendo un barrio o distrito
-  entero); o una zona entera. 2) Para quién, título y mensaje; plegado en «Más opciones»: cuántas rondas y con
-  qué mínimo de aciertos, fecha límite, qué modos cuentan y «solo esto». Se puede mandar a varios alumnos a la
-  vez y crear una directamente con lo que el alumno más falla.
-- Al alumno le salen en «Hoy» y cada tarea es una zona más: en sus rondas solo salen sus calles y lugares.
+  entero); una zona entera; o varias de las tres cosas juntas en la misma tarea. 2) Para quién, título y
+  mensaje; plegado en «Más opciones»: cuántas rondas y con qué mínimo de aciertos, fecha límite, qué modos
+  cuentan con las calles (las preguntas del temario cuentan siempre) y «solo esto». Se puede mandar a varios
+  alumnos a la vez y crear una directamente con lo que el alumno más falla (temario y calles, juntos).
+- Al alumno le salen en «Hoy» y lo de calles de cada tarea es una zona más: en sus rondas solo salen sus calles
+  y lugares (y los de su zona, si la lleva).
   Con **«solo esto»**, mientras la tarea esté activa el alumno solo puede elegir las tareas del profesor.
 - Cada tarea tiene su conversación (`callejero_mensajes`). Tareas nuevas y mensajes se avisan con una
   notificación (`push-reminders`, a quien tenga activado el recordatorio) y con un número en la pestaña.
