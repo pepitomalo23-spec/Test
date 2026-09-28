@@ -405,3 +405,8 @@
   .cjt-el-toda{ display:flex !important; align-items:center; gap:10px; margin:0 !important; font-size:15px !important; }
   .cjt-el-item label{ flex:1; min-width:0; display:flex; align-items:flex-start; gap:10px; cursor:pointer; }
   .cjt-el-item .cjt-check{ margin-top:2px; }
+
+  /* ---------- profesor: mandar desde el temario ---------- */
+  .cjt-mandar{ border-color: rgba(78,155,247,.45); }
+  .cjt-btn-mandar{ display:inline-flex; align-items:center; gap:6px; }
+  .cjt-btn-mandar svg{ width:15px; height:15px; flex-shrink:0; }
