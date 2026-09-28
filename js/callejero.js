@@ -137,8 +137,8 @@ const CJ = (function(){
   let rondasServidor = [];   // últimas rondas (callejero_rondas)
   let rondasLocales = [];    // rondas hechas aquí que el servidor aún no devuelve
   let verTodasRondas = false;
-  let vistaProfesor = 'alumnos';   // lo que ve un profesor arriba: 'alumnos' o 'propio'
-  try{ if(localStorage.getItem('cj_vista_profesor') === 'propio') vistaProfesor = 'propio'; }catch(e){}
+  let vistaProfesor = 'alumnos';   // lo que ve un profesor: 'alumnos', 'temario' o 'propio' (su callejero)
+  try{ const v = localStorage.getItem('cj_vista_profesor'); if(v === 'propio' || v === 'temario') vistaProfesor = v; }catch(e){}
   let pestana = 'hoy';       // pestaña de la pantalla principal: 'hoy', 'estudiar' o 'progreso'
   let enCalles = false;      // en «Estudiar», dentro de las calles (zona y modos de juego)
   let seleccion = null;      // modo selección: { vias: Set, lugares: Set, cambios, resolver }
@@ -791,7 +791,7 @@ const CJ = (function(){
     empezar(t.modos[0] || 'localiza');
   }
   function cambiarVistaProfesor(v){
-    vistaProfesor = v === 'propio' ? 'propio' : 'alumnos';
+    vistaProfesor = v === 'propio' || v === 'temario' ? v : 'alumnos';
     try{ localStorage.setItem('cj_vista_profesor', vistaProfesor); }catch(e){}
     pintarInicio();
     arriba();
@@ -807,7 +807,8 @@ const CJ = (function(){
   function cerrarCalles(){ enCalles = false; pintarInicio(); arriba(); }
 
   /* ---------- pestañas de la pantalla principal ---------- */
-  // Profesor: «Mis alumnos» (js/callejero-profesor.js) o su propio callejero.
+  // Profesor: dos pestañas, «Alumnos» (js/callejero-profesor.js) y «Temario»,
+  // y el enlace a su propio callejero.
   // Alumno (y profesor en «Mi callejero»): tres pestañas.
   //   Hoy:      las tareas y lo que más conviene hacer ahora.
   //   Estudiar: las fichas del temario y las calles de Córdoba (zona y modos).
@@ -816,13 +817,14 @@ const CJ = (function(){
     const root = el('cjInicio');
     if(!root) return;
     const profe = typeof currentUserIsProfesor !== 'undefined' && currentUserIsProfesor;
-    if(profe && vistaProfesor === 'alumnos' && typeof CJP !== 'undefined'){
-      // Debajo de sus alumnos, el temario: lo ve entero y desde él les manda lo que quiera.
-      root.innerHTML = '<div class="cj-segmento">' +
-          '<button type="button" class="activo" onclick="CJ.cambiarVistaProfesor(\'alumnos\')">Mis alumnos</button>' +
-          '<button type="button" onclick="CJ.cambiarVistaProfesor(\'propio\')">Mi callejero</button>' +
-        '</div><div id="cjpAlumnos"></div>' + (typeof CJT !== 'undefined' ? CJT.tarjetaInicio(true) : '');
-      CJP.pintarAlumnos(el('cjpAlumnos'));
+    if(profe && vistaProfesor !== 'propio' && typeof CJP !== 'undefined'){
+      // El temario lo ve entero y desde él les manda lo que quiera.
+      const b = (v, texto) => '<button type="button" role="tab" aria-selected="' + (vistaProfesor === v) + '"' + (vistaProfesor === v ? ' class="activo"' : '') +
+        ' onclick="CJ.cambiarVistaProfesor(\'' + v + '\')">' + texto + '</button>';
+      root.innerHTML = '<div class="cjp-arriba"><button type="button" class="cj-volver-link" onclick="CJ.cambiarVistaProfesor(\'propio\')">Mi callejero ›</button></div>' +
+        '<div class="cj-segmento cj-pestanas" role="tablist">' + b('alumnos', 'Alumnos') + b('temario', 'Temario') + '</div>' +
+        (vistaProfesor === 'temario' ? (typeof CJT !== 'undefined' ? CJT.tarjetaInicio() : '') : '<div id="cjpAlumnos"></div>');
+      if(vistaProfesor === 'alumnos') CJP.pintarAlumnos(el('cjpAlumnos'));
       return;
     }
     const volverProfe = profe ? '<button type="button" class="cj-volver-link" onclick="CJ.cambiarVistaProfesor(\'alumnos\')">‹ Volver a mis alumnos</button>' : '';

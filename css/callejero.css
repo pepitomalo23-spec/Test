@@ -502,3 +502,56 @@
   .cjt-pag{ scroll-margin-top:120px; }
   .cjt-barra-el{ top:56px; }
   @media (max-width:640px){ .cjt-pestanas, .cjt-barra-el{ top:60px; } }
+
+  /* ---------- profesor: Alumnos · Temario, página del alumno y tarea en dos pasos ---------- */
+  .cjp-arriba{ display:flex; justify-content:flex-end; margin-top:-6px; }
+  .cjp-arriba .cj-volver-link{ margin-bottom:6px; }
+  .cjp-luz{ width:10px; height:10px; border-radius:50%; flex-shrink:0; display:inline-block; background: var(--muted-2); }
+  .cjp-luz.verde{ background: var(--green); }
+  .cjp-luz.ambar{ background: var(--amber); }
+  .cjp-luz.rojo{ background: var(--coral); }
+  .cjp-leyenda{ margin:-4px 2px 14px; }
+  .cjp-leyenda .cjp-luz{ width:8px; height:8px; }
+  .cjp-flecha{ display:flex; color: var(--muted-2); flex-shrink:0; }
+  .cjp-flecha svg{ width:17px; height:17px; }
+  .cjp-alumno .cjt-accion-txt b{ overflow-wrap:anywhere; }
+  .cjp-estado{ display:flex; align-items:center; gap:8px; margin:-6px 0 14px 48px; font-size:13px; color: var(--muted); }
+  .cjp-nota{ margin:0 2px 10px; }
+  /* «Mandar tarea», siempre a mano (encima de la barra de abajo en el móvil) */
+  .cjp-fijo{ position:sticky; bottom:16px; z-index:6; display:flex; justify-content:flex-end; margin-top:6px; pointer-events:none; }
+  .cjp-fijo .btn{ pointer-events:auto; display:inline-flex; align-items:center; gap:7px; padding:12px 18px; border-radius:99px; box-shadow: 0 8px 22px rgba(0,0,0,.4); }
+  .cjp-fijo svg{ width:17px; height:17px; }
+  @media (max-width:640px){ .cjp-fijo{ bottom:96px; } }
+  .cjp-mas{ position:relative; }
+  .cjp-mas summary{ list-style:none; cursor:pointer; padding:9px 13px; font-size:13px; letter-spacing:.1em; }
+  .cjp-mas summary::-webkit-details-marker{ display:none; }
+  .cjp-mas-menu{ position:absolute; right:0; bottom:calc(100% + 6px); z-index:8; min-width:230px; background: var(--bg); border:1px solid var(--line);
+    border-radius:12px; overflow:hidden; box-shadow: 0 10px 28px rgba(0,0,0,.35); }
+  .cjp-mas-menu button{ display:block; width:100%; text-align:left; padding:11px 14px; border:none; border-bottom:1px solid var(--line-soft);
+    background:none; color: var(--text); font: inherit; font-size:14px; cursor:pointer; }
+  .cjp-mas-menu button:last-child{ border-bottom:none; }
+  .cjp-pasos{ display:flex; align-items:center; gap:8px; margin:-4px 0 14px; font-size:13px; color: var(--muted-2); }
+  .cjp-pasos span{ display:inline-flex; align-items:center; gap:6px; }
+  .cjp-pasos b{ width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:12px; border:1px solid var(--line); }
+  .cjp-pasos .activo{ color: var(--text); font-weight:600; }
+  .cjp-pasos .activo b{ background: var(--coral); border-color: var(--coral); color:#fff; }
+  .cjp-pasos .hecho b{ border-color: var(--green); color: var(--green); }
+  .cjp-pasos i{ flex:0 0 22px; height:1px; background: var(--line); }
+  .cjp-tipo{ gap:12px; }
+  .cjp-radio{ width:20px; height:20px; border-radius:50%; border:2px solid var(--muted-2); flex-shrink:0; box-sizing:border-box; }
+  .cjp-tipo.activo .cjp-radio{ border-color: var(--coral); background: radial-gradient(circle, var(--coral) 45%, transparent 50%); }
+  .cjp-tipo.activo .cjt-accion-txt b{ color: var(--text); }
+  .cjp-form.cj-card .cj-hab-det{ margin-top:10px; }
+  .cjp-que{ display:flex; align-items:center; gap:12px; padding:14px 16px; }
+  .cjp-que-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .cjp-que-txt small{ font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color: var(--muted-2); }
+  .cjp-que-txt b{ font-size:14px; line-height:1.4; font-weight:600; }
+  .cjp-que .btn{ padding:8px 12px; font-size:13px; flex-shrink:0; }
+  .cjp-opciones{ margin-top:16px; border:1px solid var(--line); border-radius:12px; padding:0 14px; }
+  .cjp-opciones summary{ cursor:pointer; padding:12px 0; font-size:14px; font-weight:600; }
+  .cjp-opciones summary small{ font-weight:500; color: var(--muted); margin-left:6px; }
+  .cjp-opciones[open]{ padding-bottom:12px; }
+  .cjt-prog-ficha{ padding:10px 0 4px; border-top:1px solid var(--line-soft); }
+  .cjt-prog-ficha .cj-hab-cab{ font-size:14px; margin-bottom:5px; }
+  .cjt-prog-ficha .cj-hab-cab b{ font-size:17px; }
+  .cjt-prog-ficha .cj-bar{ height:5px; }

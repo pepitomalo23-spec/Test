@@ -1188,12 +1188,11 @@ const CJT = (function(){
   }
   function fuente(){ return T ? T.fuente + (T.faltan && T.faltan.length ? ' Faltan las fichas de ' + T.faltan.join(', ') + '.' : '') : ''; }
 
-  // Para el profesor, en «Mis alumnos»: todo el temario, para verlo y mandarlo.
+  // Para el profesor, en su pestaña «Temario»: todo el temario, para verlo y mandarlo.
   function tarjetaInicio(){
-    if(!asegurar()) return '<div class="cj-seccion">Temario</div>' + cargandoHtml();
-    return '<div class="cj-seccion">Temario de la academia</div>' +
+    if(!asegurar()) return cargandoHtml();
+    return '<div class="cj-hab-det cjt-intro">Abre una ficha para verla (lista, documento y mapa) y mandar a tus alumnos la ficha, un apartado o cosas sueltas.</div>' +
       '<div class="cj-card cjt-inicio">' +
-        '<div class="cj-hab-det cjt-intro">Todo el temario, ficha a ficha, con el documento original y sus mapas. Desde cada ficha puedes mandar a tus alumnos la ficha, un apartado o cosas sueltas.</div>' +
         T.fichas.map(f => {
           const n = f.secciones.reduce((a, s) => a + s.items.length, 0);
           return '<button type="button" class="cjt-ficha" onclick="CJT.abrir(\'' + escapeHtml(f.id) + '\')">' +
@@ -1209,11 +1208,14 @@ const CJT = (function(){
   // Progreso de un alumno por ficha.
   function tarjetaProgresoAlumno(prog){
     if(!T) return '';
-    return '<div class="cj-card"><div class="cj-card-title">Temario de la academia</div>' +
+    const total = cuenta(prog, T.fichas.flatMap(itemsDeFicha));
+    return '<div class="cj-card">' +
+      '<div class="cj-hab"><div class="cj-hab-cab"><span>Todo el temario</span><b>' + pct(total) + '%</b></div>' + barra(total) +
+        '<div class="cj-hab-det">' + total.dominada + ' dominadas · ' + total.progreso + ' en progreso · ' + total.fallada + ' por repasar · ' + total.nueva + ' sin ver</div></div>' +
       T.fichas.map(f => {
-        const r = cuenta(prog, f.secciones.flatMap(s => s.items));
-        return '<div class="cj-hab"><div class="cj-hab-cab"><span>' + escapeHtml(f.titulo) + '</span><b>' + pct(r) + '%</b></div>' + barra(r) +
-          '<div class="cj-hab-det">' + r.dominada + ' dominadas · ' + r.progreso + ' en progreso · ' + r.fallada + ' por repasar · ' + r.nueva + ' sin ver</div></div>';
+        const r = cuenta(prog, itemsDeFicha(f));
+        return '<div class="cjt-prog-ficha"><div class="cj-hab-cab"><span>' + escapeHtml(f.titulo) + ' <small>' + r.dominada + ' de ' + r.total +
+          (r.fallada ? ' · ' + r.fallada + ' por repasar' : '') + '</small></span><b>' + pct(r) + '%</b></div>' + barra(r) + '</div>';
       }).join('') + '</div>';
   }
   // Cuántas cosas entran en unas claves (para el formulario de la tarea).
