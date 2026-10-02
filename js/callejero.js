@@ -554,12 +554,14 @@ const CJ = (function(){
   function crearMapa(){
     const el = document.getElementById('cjMapa');
     if(mapa){ mapa.invalidateSize(); return; }
-    mapa = L.map(el, { zoomControl: false, attributionControl: true, preferCanvas: true, minZoom: 11, maxZoom: 19, zoomSnap: 0.5 });
+    // Un solo lienzo para todas las líneas (las calles y todo lo resaltado
+    // encima), con mucho margen: al alejar de golpe ya están pintadas
+    // alrededor. Sin fundido de la foto: cada trozo sale en cuanto está.
+    const renderer = L.canvas({ padding: margenLienzo(), tolerance: 4 });
+    mapa = L.map(el, { zoomControl: false, attributionControl: true, renderer, fadeAnimation: false, minZoom: 11, maxZoom: 19, zoomSnap: 0.5 });
     mapa.attributionControl.setPrefix(false);
     mapa.attributionControl.addAttribution(ATRIBUCION);
     capaFoto = crearCapaFoto();
-    // Con medio mapa de margen a cada lado: al alejar, las calles de alrededor ya están pintadas.
-    const renderer = L.canvas({ padding: 0.5, tolerance: 4 });
     const linea = lineas => L.polyline(lineas, { renderer, interactive: false, lineCap: 'round', lineJoin: 'round' });
     if(datos.rio.length) capaRio = linea(datos.rio);
     const princ = datos.vias.filter(v => TIPOS_PRINCIPALES.has(v.tipo)).flatMap(v => v.lineas);
@@ -591,6 +593,16 @@ const CJ = (function(){
       else if(modo === 'seleccion') tocarSeleccion(e.latlng);
       else responder(e.latlng);
     });
+  }
+
+  // El margen del lienzo, en pantallas a cada lado: cuanto más, más se puede
+  // alejar de golpe sin que falten líneas por los bordes (1 = hasta ~1,5
+  // niveles), pero el lienzo crece mucho y en el iPhone y el iPad no puede
+  // pasar de ~16 megapíxeles. El mayor que quepa en 14, entre 0,3 y 1.
+  function margenLienzo(){
+    const m = window.devicePixelRatio > 1 ? 2 : 1;   // Leaflet pinta como mucho al doble
+    const px = Math.max(1, window.innerWidth * window.innerHeight * m * m);
+    return Math.max(0.3, Math.min(1, (Math.sqrt(14e6 / px) - 1) / 2));
   }
 
   /* ---------- grosor según el zoom ---------- */
@@ -652,8 +664,9 @@ const CJ = (function(){
     const capa = new Foto(PNOA_RECIENTE, {
       layers: 'OrtoimagenRapida', format: 'image/jpeg', version: '1.3.0', tileSize: 512, detectRetina: true,
       maxZoom: 19, attribution: ATRIBUCION_PNOA,
-      // Carga mientras se arrastra, pero no los niveles intermedios al pellizcar.
-      updateWhenIdle: false, updateWhenZooming: false, keepBuffer: 3,
+      // Carga mientras se arrastra y en cada nivel al pellizcar (sale de lo
+      // guardado en el móvil, así que al soltar ya está).
+      updateWhenIdle: false, updateWhenZooming: true, keepBuffer: 3,
       // Con CORS: así el service worker puede guardarlos (ver arriba).
       crossOrigin: true
     });
@@ -695,49 +708,86 @@ const CJ = (function(){
     const c = mapa.project(mapa.getCenter(), z).unscaleBy(capaFoto.getTileSize());
     return trozos.sort((p, q) => p.add([0.5, 0.5]).distanceTo(c) - q.add([0.5, 0.5]).distanceTo(c));
   }
-  function pedir(url, tipo){
-    const ctl = new AbortController();
+  // Los del zoom de al lado, además, descodificados en memoria (los últimos
+  // MEMORIA, ~4 MB cada uno): al ampliar o alejar se pintan en el mismo
+  // instante, sin ir ni a lo guardado.
+  const MEMORIA = 12;
+  const enMemoria = new Map();
+  function pedir(url, tipo, decodificar){
+    const ctl = { cancelado: false, abort(){} };
     pidiendo.set(url, { ctl, tipo });
-    fetch(url, { mode: 'cors', priority: 'low', signal: ctl.signal })
-      .then(r => { if(!r.ok) throw new Error(String(r.status)); return r.blob(); })
-      .then(() => { pedidas.add(url); fallosSeguidos = 0; return true; },
-            e => { if(e.name !== 'AbortError') fallosSeguidos++; return false; })
+    let hecho;
+    if(decodificar){
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.decoding = 'async';
+      ctl.abort = () => { ctl.cancelado = true; img.src = ''; };
+      img.src = url;
+      hecho = (img.decode ? img.decode() : new Promise((si, no) => { img.onload = si; img.onerror = no; })).then(() => {
+        enMemoria.delete(url);
+        enMemoria.set(url, img);
+        if(enMemoria.size > MEMORIA) enMemoria.delete(enMemoria.keys().next().value);
+      });
+    } else {
+      const ac = new AbortController();
+      ctl.abort = () => { ctl.cancelado = true; ac.abort(); };
+      hecho = fetch(url, { mode: 'cors', priority: 'low', signal: ac.signal })
+        .then(r => { if(!r.ok) throw new Error(String(r.status)); return r.blob(); });
+    }
+    hecho.then(() => { pedidas.add(url); fallosSeguidos = 0; return true; },
+               () => { if(!ctl.cancelado) fallosSeguidos++; return false; })
       .then(ok => {
         // (Si se canceló y se volvió a pedir, la nueva petición no es esta.)
         if(pidiendo.has(url) && pidiendo.get(url).ctl === ctl) pidiendo.delete(url);
-        if(tipo === 'guardar' && guardar){ if(ok) guardar.hechos++; else guardar.fallos++; ponerNotaSatelite(); }
+        if(tipo === 'guardar' && guardar){ if(ok) guardar.hechos++; else guardar.fallos++; }
+        if(tipo === 'extra' && extra) extra.hechos++;
+        if(tipo !== 'cerca') ponerNotaSatelite();
         siguientePedido();
       });
   }
-  // Lo de cerca, hasta 3 a la vez; lo de guardar, 2, y solo cuando lo que se
-  // ve ya ha cargado y no queda nada de cerca.
+  // Primero lo de cerca (hasta 3 a la vez); luego, 2 a la vez y solo cuando
+  // lo que se ve ya ha cargado y no queda nada de cerca, lo de guardar y,
+  // cuando termina, lo de cerca de lo que se estudia (planificarExtra).
   function siguientePedido(){
     if(!mapa || !capaFoto || !mapa.hasLayer(capaFoto)) return;
     while(colaCerca.length && enCurso('cerca') < 3){
-      const u = colaCerca.shift();
-      if(!pedidas.has(u) && !pidiendo.has(u)) pedir(u, 'cerca');
+      const x = colaCerca.shift();
+      const ya = x.decodificar ? enMemoria.has(x.url) : pedidas.has(x.url);
+      if(!ya && !pidiendo.has(x.url)) pedir(x.url, 'cerca', x.decodificar);
     }
-    if(!colaGuardar) return;
-    // Sin conexión (o el servicio caído): se deja para la próxima vez.
-    if(fallosSeguidos >= 5){ if(!enCurso('guardar')){ colaGuardar = null; ponerNotaSatelite(); } return; }
-    if(colaGuardar.length && !capaFoto.isLoading() && !colaCerca.length && !enCurso('cerca')){
-      while(colaGuardar.length && enCurso('guardar') < 2){
-        const u = colaGuardar.shift();
-        if(pedidas.has(u) || pidiendo.has(u)){ guardar.hechos++; continue; }
-        pedir(u, 'guardar');
+    const libre = !capaFoto.isLoading() && !colaCerca.length && !enCurso('cerca');
+    if(colaGuardar){
+      // Sin conexión (o el servicio caído): se deja para la próxima vez.
+      if(fallosSeguidos >= 5){ if(!enCurso('guardar')){ colaGuardar = null; ponerNotaSatelite(); } return; }
+      if(colaGuardar.length && libre){
+        while(colaGuardar.length && enCurso('guardar') < 2){
+          const u = colaGuardar.shift();
+          if(pedidas.has(u) || pidiendo.has(u)){ guardar.hechos++; continue; }
+          pedir(u, 'guardar');
+        }
+      }
+      if(!colaGuardar.length && !enCurso('guardar')) terminarGuardado();
+      return;
+    }
+    if(colaExtra && colaExtra.length && libre && fallosSeguidos < 5){
+      while(colaExtra.length && enCurso('extra') < 2){
+        const u = colaExtra.shift();
+        if(!pedidas.has(u) && !pidiendo.has(u)) pedir(u, 'extra');
       }
     }
-    if(!colaGuardar.length && !enCurso('guardar')) terminarGuardado();
   }
   function precargarCerca(){
     if(!mapa || !mapa.hasLayer(capaFoto) || ahorroDatos()) return;
     const z = Math.round(mapa.getZoom()), b = mapa.getBounds(), lista = [];
     const zMas = Math.round(mapa.getZoom() + 1);
-    if(zMas <= mapa.getMaxZoom()) lista.push(...porCercania(trozosEn(b.pad(-0.25), zMas), zMas).slice(0, 6));
-    if(z - 1 >= mapa.getMinZoom()) lista.push(...porCercania(trozosEn(b.pad(0.5), z - 1), z - 1).slice(0, 4));
+    const cerca = (trozos, decodificar) => trozos.forEach(p => lista.push({ url: capaFoto.getTileUrl(p), decodificar }));
+    // Al ampliar y al alejar: el zoom de al lado, en memoria.
+    if(zMas <= mapa.getMaxZoom()) cerca(porCercania(trozosEn(b.pad(-0.25), zMas), zMas).slice(0, 6), true);
+    if(z - 1 >= mapa.getMinZoom()) cerca(porCercania(trozosEn(b.pad(0.5), z - 1), z - 1).slice(0, 6), true);
+    // Al moverse: los de alrededor, en este zoom.
     const dentro = new Set(trozosEn(b, z).map(p => p.x + ':' + p.y));
-    lista.push(...porCercania(trozosEn(b.pad(0.5), z), z).filter(p => !dentro.has(p.x + ':' + p.y)).slice(0, 8));
-    colaCerca = lista.map(p => capaFoto.getTileUrl(p)).filter(u => !pedidas.has(u) && !pidiendo.has(u));
+    cerca(porCercania(trozosEn(b.pad(0.5), z), z).filter(p => !dentro.has(p.x + ':' + p.y)).slice(0, 8), false);
+    colaCerca = lista;
     siguientePedido();
   }
   // Al arrastrar, lo de cerca que se estaba pidiendo ya no sirve: fuera, para
@@ -746,6 +796,56 @@ const CJ = (function(){
     colaCerca = [];
     if(!todo) return;
     pidiendo.forEach((x, u) => { if(x.tipo === 'cerca'){ x.ctl.abort(); pidiendo.delete(u); } });
+  }
+  // De cerca (zoom 18) lo que se estudia: las calles y los lugares del
+  // profesor (los trozos por los que pasan y los de al lado) y, del barrio o
+  // distrito marcado, los trozos con calles. Como mucho EXTRA_MAX (~65 MB);
+  // no con datos móviles ni con el ahorro de datos. No se apunta: lo que ya
+  // está guardado sale del móvil al momento.
+  const EXTRA_MAX = 300;
+  let colaExtra = null, extra = null;
+  function enDatosMoviles(){ return !!(navigator.connection && navigator.connection.type === 'cellular'); }
+  function trozosExtra(){
+    const z = 18, ts = capaFoto.getTileSize().x, vistos = new Set(), out = [];
+    const poner = (x, y) => { const k = x + ':' + y; if(vistos.has(k)) return; vistos.add(k); const p = L.point(x, y); p.z = z; out.push(p); };
+    const conVecinos = (x, y) => { for(let i = -1; i <= 1; i++) for(let j = -1; j <= 1; j++) poner(x + i, y + j); };
+    // Los trozos por los que pasa una línea (mirando cada cuarto de trozo).
+    const recorrer = (linea, alPasar) => {
+      let antes = null;
+      linea.forEach(ll => {
+        const p = mapa.project(ll, z);
+        const pasos = antes ? Math.max(1, Math.ceil(antes.distanceTo(p) / (ts / 4))) : 0;
+        for(let k = antes ? 1 : 0; k <= pasos; k++){
+          const q = antes ? antes.add(p.subtract(antes).multiplyBy(k / pasos)) : p;
+          alPasar(Math.floor(q.x / ts), Math.floor(q.y / ts));
+        }
+        antes = p;
+      });
+    };
+    if(delProfesor){
+      delProfesor.vias.forEach(v => v.lineas.forEach(l => recorrer(l, conVecinos)));
+      delProfesor.lugares.forEach(l => { const p = mapa.project([l.lat, l.lng], z); conVecinos(Math.floor(p.x / ts), Math.floor(p.y / ts)); });
+    }
+    const m = marcadoValido();
+    if(m){
+      const caja = L.latLngBounds(barriosDeMarcado(m).flatMap(b => b.anillos.flat()));
+      const a = mapa.project(caja.getNorthWest(), z).divideBy(ts).floor(), b = mapa.project(caja.getSouthEast(), z).divideBy(ts).floor();
+      const dentro = (x, y) => { if(x >= a.x && x <= b.x && y >= a.y && y <= b.y) poner(x, y); };
+      datos.vias.forEach(v => {
+        const c = v.caja;
+        if(c.n < caja.getSouth() || c.s > caja.getNorth() || c.e < caja.getWest() || c.o > caja.getEast()) return;
+        v.lineas.forEach(l => recorrer(l, dentro));
+      });
+    }
+    return out;
+  }
+  function planificarExtra(){
+    if(!mapa || !capaFoto || !mapa.hasLayer(capaFoto) || ahorroDatos() || enDatosMoviles()) return;
+    if(!navigator.serviceWorker || !navigator.serviceWorker.controller) return;
+    colaExtra = trozosExtra().slice(0, EXTRA_MAX).map(p => capaFoto.getTileUrl(p)).filter(u => !pedidas.has(u));
+    extra = { total: colaExtra.length, hechos: 0 };
+    ponerNotaSatelite();
+    siguientePedido();
   }
   // La caja de la ciudad: la de todos sus barrios.
   function cajaCiudad(){
@@ -758,8 +858,7 @@ const CJ = (function(){
     // vez por sesión y sin el ahorro de datos.
     if(guardar || !mapa.hasLayer(capaFoto) || !('caches' in window) || !navigator.serviceWorker || !navigator.serviceWorker.controller) return;
     if(ahorroDatos()){ ponerNotaSatelite(); return; }
-    const movil = !!(navigator.connection && navigator.connection.type === 'cellular');
-    const hasta = movil ? 16 : 17;
+    const hasta = enDatosMoviles() ? 16 : 17;
     const todo = limitesDe(datos.vias), ciudad = cajaCiudad(), trozos = [];
     for(let z = 11; z <= 13; z++) trozos.push(...trozosEn(todo, z));
     for(let z = 14; z <= hasta; z++) trozos.push(...porCercania(trozosEn(ciudad, z), z));
@@ -768,11 +867,12 @@ const CJ = (function(){
     const antes = leerGuardado();
     // Ya se guardó: se comprueba que sigue ahí (el navegador puede borrarlo).
     if(antes && antes.firma === FIRMA_FOTO && antes.hasta >= hasta && await siguenGuardados(urls)){
-      guardar.hechos = guardar.total; guardar.listo = true; ponerNotaSatelite(); return;
+      guardar.hechos = guardar.total; guardar.listo = true; ponerNotaSatelite(); planificarExtra(); return;
     }
     try{ if(navigator.storage && navigator.storage.persist && !(await navigator.storage.persisted())) navigator.storage.persist(); }catch(e){}
     colaGuardar = urls.slice();
     ponerNotaSatelite();
+    planificarExtra();
     siguientePedido();
   }
   // El primero, el del medio y el último, en la caché del service worker (si
@@ -797,6 +897,7 @@ const CJ = (function(){
       try{ localStorage.setItem(GUARDADO_KEY, JSON.stringify({ firma: FIRMA_FOTO, hasta: guardar.hasta })); }catch(e){}
     }
     ponerNotaSatelite();
+    siguientePedido();
   }
   // Cómo va, en el menú de estilos (debajo de «Satélite»).
   function ponerNotaSatelite(){
@@ -805,7 +906,13 @@ const CJ = (function(){
     let t = '';
     if(estilo === 'satelite'){
       if(ahorroDatos() && !(guardar && guardar.listo)) t = 'Con el ahorro de datos puesto no se guarda en el móvil.';
-      else if(guardar && guardar.listo) t = 'Guardado en el móvil: sale al momento.';
+      else if(guardar && guardar.listo){
+        // Y, después, de cerca lo que se estudia (lo del profesor y lo marcado).
+        const quedan = extra && extra.total && extra.hechos < extra.total;
+        t = 'Guardado en el móvil: sale al momento.' +
+          (quedan ? ' Ahora, de cerca lo que estudias: ' + Math.floor(100 * extra.hechos / extra.total) + ' %' :
+           extra && extra.total ? ' También de cerca lo que estudias.' : '');
+      }
       else if(guardar && colaGuardar) t = 'Guardándolo en el móvil para que salga al momento: ' + Math.floor(100 * guardar.hechos / guardar.total) + ' %';
       else if(guardar) t = 'Guardado en parte (' + Math.floor(100 * guardar.hechos / guardar.total) + ' %); sigue la próxima vez.';
     }
@@ -1009,6 +1116,7 @@ const CJ = (function(){
     pintarMarcado();
     cerrarMenus();
     if(marcado) irAMarcado();
+    planificarExtra();
   }
   // El botón y su menú: arriba lo marcado (Ir · Quitar), un buscador y la
   // lista de distritos y barrios.
@@ -2220,6 +2328,7 @@ const CJ = (function(){
     pintarProfesor();
     ponerChips();
     ponerBotonLista();
+    planificarExtra();
     if(hayDelProfesor()){
       el('cjPista').innerHTML = coloresProfe ? '<i class="cj-pista-morado cj-pista-colores"></i>En colores, lo que te ha mandado tu profesor'
         : '<i class="cj-pista-morado"></i>En morado, lo que te ha mandado tu profesor';
