@@ -115,6 +115,14 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   ciudad (la caja de sus barrios) hasta el 17: unos 570 trozos, ~125 MB, una sola vez (con datos
   móviles, si el móvil lo dice, hasta el 16: ~50 MB; nada con el ahorro de datos). Si se cierra antes,
   sigue la siguiente vez; al terminar se apunta en el dispositivo. El menú de estilos dice cómo va.
+  Después, también de cerca (zoom 18) lo que se estudia: los trozos por los que pasan las calles y los
+  lugares del profesor (y los de al lado) y, del barrio o distrito marcado, los que tienen calles (como
+  mucho 300; no con datos móviles). Los del zoom de al lado del que se ve se tienen además descodificados
+  en memoria (los últimos 12), y la foto no tiene fundido y carga en cada nivel al pellizcar: al ampliar y
+  alejar está toda en unos 30 ms.
+- Todas las líneas (las calles y todo lo resaltado encima) van en un solo lienzo con el mayor margen que
+  admite el dispositivo (hasta una pantalla a cada lado, sin pasar de ~14 megapíxeles, el límite del
+  iPhone y el iPad es ~16): al alejar de golpe ya están pintadas alrededor.
 - Las calles (y lo resaltado encima) se ensanchan al acercarse, como en un plano de verdad: cada línea
   tiene su grosor de lejos y su anchura en metros, y se pinta con el mayor de los dos. Al alejarse del
   zoom 16 adelgazan (las calles, hasta el 40 %; lo resaltado, hasta el 60 %), para que de lejos se vean
