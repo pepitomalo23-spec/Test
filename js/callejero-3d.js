@@ -14,7 +14,7 @@
    y «Atrás» la mueven por la calle (su tramo más largo). Al responder
    sube y se ve la calle en verde (la elegida, si se ha fallado, en rojo)
    y, en azul, dónde se estaba.
-   Con la clave de Google (CLAVE_GOOGLE), lo primero es Street View: la
+   Con la clave de Google, lo primero es Street View: la
    imagen de 360° del coche de Google, por la que se mira arrastrando y se
    avanza con las flechas, sin nombres de calles ni dirección. Se busca la
    imagen del coche más cercana a la calle (si no hay, esa pregunta va en
@@ -30,9 +30,6 @@ const CJ3D = (function(){
   const ML_CSS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css';
   const ML_CSS_SRI = 'sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK';
   const EDIFICIOS = 'https://tiles.openfreemap.org/planet';
-  // Clave de navegador de Google Maps (solo Maps JavaScript API y solo desde
-  // la web de la app: no es secreta, va en la página). Vacía: solo el 3D.
-  const CLAVE_GOOGLE = '';
   const GOOGLE_JS = 'https://maps.googleapis.com/maps/api/js';
   const PNOA_RECIENTE = 'https://wms-pnoa.idee.es/pnoa-provisionales';
   const PNOA_WMS = 'https://www.ign.es/wms-inspire/pnoa-ma';
@@ -54,6 +51,10 @@ const CJ3D = (function(){
   let promesaGoogle = null;   // carga de Street View en curso
   let SV = null;              // la librería de Street View de Google, ya cargada
   let googleMal = false;      // la clave no vale aquí (Google lo avisa): todo en 3D
+  // La clave de navegador de Google Maps está en la base de datos y no en el
+  // código, porque el repositorio es público (callejero_clave_google(), solo
+  // con sesión). null: aún sin pedir; '': no hay (o no se ha podido pedir).
+  let claveGoogle = null;
   let servicio = null, panorama = null;
   let enCalle = false;        // la pregunta de ahora va en Street View
   let turnoVer = 0;           // para no enseñar una calle que llega tarde
@@ -73,10 +74,20 @@ const CJ3D = (function(){
   const usaGoogle = () => !!SV && !googleMal;
   // Lo que hace falta para empezar: Street View (con clave y conexión) o, si no, el 3D.
   async function cargar(){
-    if(CLAVE_GOOGLE && !googleMal && navigator.onLine !== false){
+    if(!googleMal && navigator.onLine !== false && await pedirClave()){
       try{ await cargarGoogle(); return; }catch(e){ /* sin Google: el 3D */ }
     }
+    if(!webgl()) throw new Error('Este navegador no puede mostrar las calles en 3D.');
     await cargarMapLibre();
+  }
+  async function pedirClave(){
+    if(claveGoogle !== null) return claveGoogle;
+    try{
+      const { data, error } = await sb.rpc('callejero_clave_google');
+      if(error) return '';   // (sin conexión: se vuelve a pedir la próxima vez)
+      claveGoogle = typeof data === 'string' && /^AIza[\w-]{30,}$/.test(data) ? data : '';
+    }catch(e){ return ''; }
+    return claveGoogle;
   }
   function cargarGoogle(){
     if(SV) return Promise.resolve();
@@ -94,7 +105,7 @@ const CJ3D = (function(){
       // Google llama a esto si la clave no vale (o no vale desde esta web).
       window.gm_authFailure = () => { googleMal = true; if(enCalle && cam && !revelado) pasarA3d(turnoVer); };
       const js = document.createElement('script');
-      js.src = GOOGLE_JS + '?key=' + encodeURIComponent(CLAVE_GOOGLE) + '&v=weekly&language=es&region=ES&loading=async&callback=' + listo;
+      js.src = GOOGLE_JS + '?key=' + encodeURIComponent(claveGoogle) + '&v=weekly&language=es&region=ES&loading=async&callback=' + listo;
       js.async = true;
       js.onerror = () => { js.remove(); fallo(new Error('Sin Street View')); };
       document.head.appendChild(js);
@@ -117,8 +128,8 @@ const CJ3D = (function(){
     });
     return promesa;
   }
-  // ¿Se puede jugar? Con Street View, siempre; si no, hace falta WebGL.
-  function puede(){ return (!!CLAVE_GOOGLE && !googleMal) || webgl(); }
+  // ¿Se puede jugar? Con WebGL, siempre (el 3D); sin él, solo si puede haber Street View.
+  function puede(){ return webgl() || (claveGoogle !== '' && !googleMal); }
   function webgl(){
     try{
       const gl = document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl');
