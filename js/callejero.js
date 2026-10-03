@@ -122,13 +122,15 @@ const CJ = (function(){
     barrios: { titulo: 'Barrios y distritos', respuesta: 'variable' },
     enbarrio: { titulo: '¿En qué barrio está?', respuesta: 'opciones' },
     // Nombra las calles de una zona: no son preguntas, se dicen o se escriben.
-    nombrar: { titulo: 'Nombra las calles', respuesta: 'nombrar' }
+    nombrar: { titulo: 'Nombra las calles', respuesta: 'nombrar' },
+    // En 3D, como si se estuviera en la calle (js/callejero-3d.js): elegir su nombre.
+    calle3d: { titulo: 'A pie de calle', respuesta: 'opciones' }
   };
   const PENDIENTES_KEY = 'cj_intentos_pendientes';
   // Habilidad que entrena cada modo: el progreso se cuenta por habilidad
   // («escribe» es un modo antiguo que ya no existe, pero tiene respuestas).
   const HABILIDAD = { localiza: 'localiza', opciones: 'nombre', voz: 'nombre', escribe: 'nombre', cruces: 'cruces', lugares: 'lugares', parque: 'parque', temario: 'temario',
-    barrios: 'barrios', enbarrio: 'barrios', nombrar: 'memoria' };
+    barrios: 'barrios', enbarrio: 'barrios', nombrar: 'memoria', calle3d: 'calle3d' };
   const HABILIDADES = [
     { k: 'nombre', titulo: 'Nombres', desc: '¿Cómo se llama? y Di el nombre' },
     { k: 'localiza', titulo: 'Situar calles', desc: 'Localiza la calle' },
@@ -136,7 +138,8 @@ const CJ = (function(){
     { k: 'lugares', titulo: 'Lugares importantes', desc: '' },
     { k: 'parque', titulo: 'Parque que acude', desc: '' },
     { k: 'barrios', titulo: 'Barrios y distritos', desc: 'Y en qué barrio está cada calle' },
-    { k: 'memoria', titulo: 'De memoria', desc: 'Nombra las calles' }
+    { k: 'memoria', titulo: 'De memoria', desc: 'Nombra las calles' },
+    { k: 'calle3d', titulo: 'A pie de calle', desc: 'Reconocerla en 3D' }
   ];
 
   let datos = null;          // { version, vias: [...], porNombre: Map, jugables: [...] }
@@ -1515,7 +1518,7 @@ const CJ = (function(){
         const bs = [...new Set(datos.jugables.filter(f.via).flatMap(v => v.barrios))];
         return bs.map(idBarrio).concat([...new Set(bs.map(b => b.distrito))].map(idDistrito));
       })(),
-      memoria: vias
+      memoria: vias, calle3d: vias
     };
     const filas = HABILIDADES.filter(h => universo[h.k].length).map(h => {
       const r = contar(prog, h.k, universo[h.k]);
@@ -1724,7 +1727,7 @@ const CJ = (function(){
       '</button>';
   }
   // Calles y lugares por repasar (la última vez mal) de la zona elegida, y el modo que más lo necesita.
-  const MODO_DE_HAB = { nombre: 'opciones', localiza: 'localiza', cruces: 'cruces', lugares: 'lugares', parque: 'parque' };
+  const MODO_DE_HAB = { nombre: 'opciones', localiza: 'localiza', cruces: 'cruces', lugares: 'lugares', parque: 'parque', calle3d: 'calle3d' };
   const ID_TEMARIO = 5000000000000;
   function callePorId(id){
     const x = id > 0 ? datos.viaPorId.get(id) : datos.lugarPorId.get(-id);
@@ -1757,7 +1760,7 @@ const CJ = (function(){
       '<div class="cj-card cjt-inicio"><button type="button" class="cjt-ficha" onclick="CJ.abrirCalles()">' +
         '<span class="cj-fila-icono">' + svgIcono(ICONOS.mapa) + '</span>' +
         '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">Calles de Córdoba</span>' +
-          '<span class="cjt-ficha-d">' + escapeHtml(nombreZona()) + ' · ' + n.toLocaleString('es-ES') + ' calles · mapa libre y 6 modos de juego</span></span>' +
+          '<span class="cjt-ficha-d">' + escapeHtml(nombreZona()) + ' · ' + n.toLocaleString('es-ES') + ' calles · mapa libre y ' + (BALDOSAS.length - 1) + ' modos de juego</span></span>' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>' +
       '</button></div>';
   }
@@ -1791,7 +1794,8 @@ const CJ = (function(){
     parque: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z',
     barrios: 'M4 4h7v7H4z|M13 4h7v4h-7z|M13 10h7v10h-7z|M4 13h7v7H4z',
     enbarrio: 'M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3z|M9 4v13|M15 7v13',
-    nombrar: 'M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z|M19 10v2a7 7 0 0 1-14 0v-2|M4 21h16'
+    nombrar: 'M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z|M19 10v2a7 7 0 0 1-14 0v-2|M4 21h16',
+    calle3d: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z|M3.27 6.96 12 12.01l8.73-5.05|M12 22.08V12'
   };
   function svgIcono(icono){
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
@@ -1811,7 +1815,8 @@ const CJ = (function(){
     ['parque', '¿Qué parque acude?', 'Central o Granadal'],
     ['barrios', 'Barrios y distritos', 'Tócalos y di de qué distrito son'],
     ['enbarrio', '¿En qué barrio está?', 'Te marco una calle y eliges'],
-    ['nombrar', 'Nombra las calles', 'Di o escribe todas las que sepas']
+    ['nombrar', 'Nombra las calles', 'Di o escribe todas las que sepas'],
+    ['calle3d', 'A pie de calle', 'En 3D, como si estuvieras allí']
   ];
   // Los modos de juego en baldosas: sin z, en la zona elegida; con z (desde
   // una ficha del temario), en esa zona. `sinEstudio`: sin «Mapa libre»;
@@ -1827,7 +1832,7 @@ const CJ = (function(){
       parque: !!datos.lineaParques && (datos.jugables.some(v => v.parque && f.via(v)) || datos.lugares.some(l => l.parque && f.lugar(l))),
       barrios: datos.barrios.length > 0,
       enbarrio: datos.jugables.some(v => v.barrios.length && f.via(v)),
-      nombrar: hayVias
+      nombrar: hayVias, calle3d: hayVias
     };
     const zq = JSON.stringify(z || '');
     const accion = m => m === 'estudio'
@@ -1872,7 +1877,7 @@ const CJ = (function(){
   }
   // Lo que más falla (la última vez mal, o fallado y aún sin dominar): el
   // temario entero y las calles y lugares de la zona elegida.
-  const HAB_TXT = { nombre: 'Nombre', localiza: 'Situarla', cruces: 'Cruces', lugares: 'Situarlo', parque: 'Parque que acude' };
+  const HAB_TXT = { nombre: 'Nombre', localiza: 'Situarla', cruces: 'Cruces', lugares: 'Situarlo', parque: 'Parque que acude', calle3d: 'A pie de calle' };
   function falladasHtml(conTemario){
     const filas = [];
     progreso.forEach((p, k) => {
@@ -1931,6 +1936,7 @@ const CJ = (function(){
     document.getElementById('screen-callejero').classList.toggle('cj-jugando', v === 'juego');
     if(v !== 'juego') pantallaCompleta(false);
     else if(completaRecordada() && !estaCompleta()) pantallaCompleta(true);
+    if(v !== 'juego' && typeof CJ3D !== 'undefined') CJ3D.cerrar();
   }
 
   /* ---------- cruces y paralelas (calculados con el trazado) ---------- */
@@ -1995,7 +2001,7 @@ const CJ = (function(){
     cacheCruces.set(v.id, out);
     return out;
   }
-  // Rumbo, longitud y rectitud del tramo más largo de una vía.
+  // Rumbo, longitud y rectitud del tramo más largo de una vía (y el tramo).
   function forma(v){
     if(v._forma) return v._forma;
     const kx = 111320 * Math.cos(37.88 * Math.PI / 180), ky = 110540;
@@ -2007,7 +2013,7 @@ const CJ = (function(){
     });
     const a = mejor.l[0], b = mejor.l[mejor.l.length - 1];
     const dx = (b[1] - a[1]) * kx, dy = (b[0] - a[0]) * ky, cuerda = Math.hypot(dx, dy);
-    v._forma = { a, b, largo: mejor.largo, recta: mejor.largo ? cuerda / mejor.largo : 0, ux: cuerda ? dx / cuerda : 0, uy: cuerda ? dy / cuerda : 0, kx, ky };
+    v._forma = { linea: mejor.l, a, b, largo: mejor.largo, recta: mejor.largo ? cuerda / mejor.largo : 0, ux: cuerda ? dx / cuerda : 0, uy: cuerda ? dy / cuerda : 0, kx, ky };
     return v._forma;
   }
   function anguloEntre(f, g){ return Math.acos(Math.min(1, Math.abs(f.ux * g.ux + f.uy * g.uy))) * 180 / Math.PI; }
@@ -2165,6 +2171,30 @@ const CJ = (function(){
     return q;
   }
 
+  // «A pie de calle»: la calle en 3D (js/callejero-3d.js), desde un punto
+  // de su tramo más largo, y cuatro nombres (los de las calles de al lado).
+  // Al responder se ve desde arriba: en verde la calle y, si se ha fallado,
+  // en rojo la elegida (sus trozos de por allí, alrededor del más cercano:
+  // hay nombres repetidos en otras barriadas).
+  function preguntaCalle3d(v){
+    const otras = [...new Set(viasCercanasA(v, 12).map(w => w.nombre))].slice(0, 3);
+    if(otras.length < 3) return null;
+    const centro = w => [(w.caja.s + w.caja.n) / 2, (w.caja.o + w.caja.e) / 2];
+    const lineasDe = nombre => {
+      const ws = datos.porNombre.get(nombre.toLowerCase()) || [];
+      if(!ws.length) return [];
+      const mas = ws.reduce((a, b) => lejania(centro(a), centro(v)) <= lejania(centro(b), centro(v)) ? a : b);
+      return ws.filter(w => lejania(centro(w), centro(mas)) < 4).flatMap(w => w.lineas);   // (km², a menos de 2 km)
+    };
+    const q = Object.assign({ via: v, id: v.id, etiqueta: '¿En qué calle estás?', texto: '', nombre: v.nombre, resumen: 'Es ' + v.nombre + '.',
+      antes: () => { CJ3D.ver(forma(v).linea); } }, opcionesCon(v.nombre, otras));
+    q.despues = (api, i) => {
+      const elegida = q.opciones[i];
+      CJ3D.revelar(lineasDe(v.nombre), elegida === v.nombre ? [] : lineasDe(elegida));
+    };
+    return q;
+  }
+
   function crearPreguntas(m){
     const n = PREGUNTAS_POR_RONDA;
     const vias = datos.jugables.filter(enZona);
@@ -2239,6 +2269,11 @@ const CJ = (function(){
       const pool = datos.jugables.filter(v => v.barrios.length && v.barrios.length <= 2 && vale(v));
       return sinRepetirNombre(ordenarPorRepaso(pool, v => v.id, m), n, preguntaEnBarrio);
     }
+    if(m === 'calle3d'){
+      // Las de menos de 40 m apenas se ven: solo si no hay otras.
+      const largas = vias.filter(v => forma(v).largo >= 40);
+      return sinRepetirNombre(ordenarPorRepaso(largas.length >= 4 ? largas : vias, v => v.id, m), n, preguntaCalle3d);
+    }
     if(m === 'lugares'){
       const lugares = datos.lugares.filter(enZonaLugar);
       return sinRepetirNombre(ordenarPorRepaso(lugares, l => -l.id, m), n, l => ({ lugar: l, id: -l.id, etiqueta: 'Localiza · ' + l.categoria, texto: l.nombre, nombre: l.nombre }));
@@ -2256,8 +2291,9 @@ const CJ = (function(){
 
   async function empezar(m){
     m = MODOS[m] ? m : 'localiza';
+    if(m === 'calle3d' && !CJ3D.puede()){ uiToast('Este navegador no puede mostrar las calles en 3D.', 'info'); return; }
     try{
-      await Promise.all([cargarLeaflet(), cargarDatos()]);
+      await Promise.all([cargarLeaflet(), cargarDatos(), m === 'calle3d' ? CJ3D.cargar() : null]);
     }catch(e){
       uiToast(e.message, 'error');
       return;
@@ -2278,6 +2314,7 @@ const CJ = (function(){
     crearMapa();
     pintarZona();
     irAZona(false);
+    if(m === 'calle3d' && !CJ3D.abrir()){ uiToast('Este navegador no puede mostrar las calles en 3D.', 'info'); salir(); return; }
     siguientePregunta(true);
   }
 
@@ -2350,6 +2387,10 @@ const CJ = (function(){
     el('cjPreguntaWrap').classList.toggle('hidden', libre || nombrando);
     el('cjNombrar').classList.toggle('hidden', !nombrando);
     pantalla.classList.toggle('cj-nombrando', nombrando);
+    // «A pie de calle»: la vista en 3D tapa el mapa.
+    el('cj3d').classList.toggle('hidden', modo !== 'calle3d');
+    pantalla.classList.toggle('cj-en3d', modo === 'calle3d');
+    if(modo !== 'calle3d' && typeof CJ3D !== 'undefined') CJ3D.cerrar();
     el('cjBuscarWrap').classList.toggle('hidden', !libre);
     el('cjSel').classList.toggle('hidden', modo !== 'seleccion');
     el('cjPista').textContent = modo === 'seleccion' ? 'Toca una calle o un punto morado para elegirlo o quitarlo'
@@ -3366,6 +3407,7 @@ const CJ = (function(){
   }
 
   return { abrir, empezar, estudio, buscar, elegir, salir, cambiarZona, alternarLista, elegirDeLista, confirmarSalir,
+    alternarCompleta: () => pantallaCompleta(undefined, true),
     responderOpcion, verRespuesta, autoevaluar, siguiente: () => siguientePregunta(false), refrescarTema,
     // pantalla completa y sus recuadros; colores de lo del profesor
     pantallaCompleta, plegarCabeza, alternarColores,
