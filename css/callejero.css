@@ -72,7 +72,6 @@
   .cj-mode-icon-barrios{ color: var(--purple, #A855F7); }
   .cj-mode-icon-enbarrio{ color: var(--green); }
   .cj-mode-icon-nombrar{ color: var(--coral); }
-  .cj-mode-icon-calle3d{ color: var(--blue); }
   .cj-opciones{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:10px; }
   .cj-opciones.cj-opciones-dos{ grid-template-columns: 1fr 1fr; }
   .cj-opcion{ padding:11px 12px; border-radius:12px; border:1px solid var(--line); background: var(--card); color: var(--text);
@@ -762,41 +761,3 @@
   #screen-callejero.cj-completa .cj-cabeza .cj-nombrar-fila input{ padding:9px 12px; border-radius:11px; }
   #screen-callejero.cj-completa .cj-cabeza .cj-nombrar-voz{ width:40px; height:40px; border-radius:11px; }
   #screen-callejero.cj-completa .cj-cabeza.plegada .cj-nombrar .cj-zona-select{ display:none; }
-
-  /* ---------- «A pie de calle»: la calle en 3D tapa el mapa ---------- */
-  .cj-3d{ position:absolute; inset:0; z-index:900; border-radius:16px; overflow:hidden; background:#c9c3b6; }
-  .cj-3d.hidden{ display:none; }
-  /* (más concreto que el .maplibregl-map de MapLibre, que lo pone en relative) */
-  .cj-3d > .cj-3d-lienzo{ position:absolute; inset:0; touch-action:none; cursor:grab; }
-  /* Los botones del mapa de debajo (zoom, estilo…) no se ven ni se tocan */
-  #screen-callejero.cj-en3d .cj-mapa .leaflet-control-container{ display:none; }
-  .cj-3d-lienzo:active{ cursor:grabbing; }
-  .cj-3d.revelado .cj-3d-lienzo{ cursor:default; }
-  .cj-3d-cargando{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(20,22,26,.5);
-    color:#fff; font-weight:600; font-size:14px; pointer-events:none; }
-  .cj-3d-cargando.hidden, .cj-3d-pista.hidden{ display:none; }
-  .cj-3d-pista{ position:absolute; top:12px; left:50%; transform:translateX(-50%); max-width:calc(100% - 140px); padding:7px 12px; border-radius:999px;
-    background: rgba(0,0,0,.62); color:#fff; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }
-  /* A la derecha: pantalla completa y la altura (a pie, balcón, dron) */
-  .cj-3d-lado{ position:absolute; top:10px; right:10px; display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
-  .cj-3d-alturas{ display:flex; flex-direction:column; border-radius:12px; overflow:hidden; border:1px solid var(--line); background: var(--bg); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
-  .cj-3d-alturas button{ display:flex; flex-direction:column; align-items:center; gap:2px; width:46px; padding:7px 0 5px; border:none; background:none;
-    color: var(--text); font: inherit; font-size:10.5px; font-weight:600; cursor:pointer; }
-  .cj-3d-alturas button + button{ border-top:1px solid var(--line); }
-  .cj-3d-alturas button svg{ width:18px; height:18px; }
-  .cj-3d-alturas button[aria-pressed="true"]{ background: var(--coral); color:#fff; }
-  /* Abajo: andar por la calle */
-  .cj-3d-andar{ position:absolute; left:50%; bottom:26px; transform:translateX(-50%); display:flex; gap:8px; }
-  .cj-3d-andar button{ display:flex; align-items:center; justify-content:center; gap:6px; min-width:46px; height:46px; padding:0 12px; border-radius:23px;
-    border:1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size:14px; font-weight:600; box-shadow: 0 2px 10px rgba(0,0,0,.35); cursor:pointer; }
-  .cj-3d-andar button svg{ width:20px; height:20px; }
-  .cj-3d-andar .cj-3d-avanzar{ padding:0 16px; background: var(--coral); border-color: var(--coral); color:#fff; }
-  .cj-3d.revelado :is(.cj-3d-andar, .cj-3d-alturas){ display:none; }
-  .cj-3d-creditos{ position:absolute; left:8px; bottom:5px; font-size:9.5px; color: rgba(255,255,255,.92); text-shadow: 0 1px 2px rgba(0,0,0,.85); }
-  .cj-3d-creditos a{ color:inherit; }
-  /* A pantalla completa, de borde a borde */
-  #screen-callejero.cj-completa .cj-3d{ border-radius:0; }
-  #screen-callejero.cj-completa .cj-3d-lado{ top: calc(8px + env(safe-area-inset-top, 0px)); right:8px; }
-  #screen-callejero.cj-completa .cj-3d-andar{ bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
-  #screen-callejero.cj-completa .cj-3d-creditos{ bottom: calc(2px + env(safe-area-inset-bottom, 0px)); }
-  #screen-callejero.cj-completa .cj-3d-pista{ top:auto; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
