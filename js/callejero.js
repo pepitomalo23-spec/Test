@@ -117,18 +117,26 @@ const CJ = (function(){
     lugares: { titulo: 'Lugares importantes', respuesta: 'toque' },
     parque: { titulo: '¿Qué parque acude?', respuesta: 'opciones' },
     // Temario de la academia: cada pregunta trae su forma de responder.
-    temario: { titulo: 'Temario', respuesta: 'variable' }
+    temario: { titulo: 'Temario', respuesta: 'variable' },
+    // Barrios y distritos: tocarlos, qué barrio es el marcado y de qué distrito es.
+    barrios: { titulo: 'Barrios y distritos', respuesta: 'variable' },
+    enbarrio: { titulo: '¿En qué barrio está?', respuesta: 'opciones' },
+    // Nombra las calles de una zona: no son preguntas, se dicen o se escriben.
+    nombrar: { titulo: 'Nombra las calles', respuesta: 'nombrar' }
   };
   const PENDIENTES_KEY = 'cj_intentos_pendientes';
   // Habilidad que entrena cada modo: el progreso se cuenta por habilidad
   // («escribe» es un modo antiguo que ya no existe, pero tiene respuestas).
-  const HABILIDAD = { localiza: 'localiza', opciones: 'nombre', voz: 'nombre', escribe: 'nombre', cruces: 'cruces', lugares: 'lugares', parque: 'parque', temario: 'temario' };
+  const HABILIDAD = { localiza: 'localiza', opciones: 'nombre', voz: 'nombre', escribe: 'nombre', cruces: 'cruces', lugares: 'lugares', parque: 'parque', temario: 'temario',
+    barrios: 'barrios', enbarrio: 'barrios', nombrar: 'memoria' };
   const HABILIDADES = [
     { k: 'nombre', titulo: 'Nombres', desc: '¿Cómo se llama? y Di el nombre' },
     { k: 'localiza', titulo: 'Situar calles', desc: 'Localiza la calle' },
     { k: 'cruces', titulo: 'Cruces y paralelas', desc: '' },
     { k: 'lugares', titulo: 'Lugares importantes', desc: '' },
-    { k: 'parque', titulo: 'Parque que acude', desc: '' }
+    { k: 'parque', titulo: 'Parque que acude', desc: '' },
+    { k: 'barrios', titulo: 'Barrios y distritos', desc: 'Y en qué barrio está cada calle' },
+    { k: 'memoria', titulo: 'De memoria', desc: 'Nombra las calles' }
   ];
 
   let datos = null;          // { version, vias: [...], porNombre: Map, jugables: [...] }
@@ -591,6 +599,7 @@ const CJ = (function(){
       if(cerrarMenus()) return;
       if(modo === 'estudio') tocarEstudio(e.latlng);
       else if(modo === 'seleccion') tocarSeleccion(e.latlng);
+      else if(modo === 'nombrar') tocarNombrar(e.latlng);
       else responder(e.latlng);
     });
   }
@@ -1500,7 +1509,13 @@ const CJ = (function(){
     const universo = {
       nombre: vias, localiza: vias, cruces: vias,
       lugares: lugares.map(l => -l.id),
-      parque: datos.lineaParques ? datos.jugables.filter(v => v.parque && f.via(v)).map(v => v.id).concat(lugares.filter(l => l.parque).map(l => -l.id)) : []
+      parque: datos.lineaParques ? datos.jugables.filter(v => v.parque && f.via(v)).map(v => v.id).concat(lugares.filter(l => l.parque).map(l => -l.id)) : [],
+      // Los barrios de sus calles y sus distritos.
+      barrios: (() => {
+        const bs = [...new Set(datos.jugables.filter(f.via).flatMap(v => v.barrios))];
+        return bs.map(idBarrio).concat([...new Set(bs.map(b => b.distrito))].map(idDistrito));
+      })(),
+      memoria: vias
     };
     const filas = HABILIDADES.filter(h => universo[h.k].length).map(h => {
       const r = contar(prog, h.k, universo[h.k]);
@@ -1773,7 +1788,10 @@ const CJ = (function(){
     voz: 'M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z|M19 10v2a7 7 0 0 1-14 0v-2|M12 19v3',
     cruces: 'M12 3v18|M3 12h18|M8 3v4|M16 17v4',
     lugares: 'M3 21h18|M5 21V7l8-4v18|M19 21V11l-6-4|M9 9v.01|M9 12v.01|M9 15v.01|M9 18v.01',
-    parque: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z'
+    parque: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z',
+    barrios: 'M4 4h7v7H4z|M13 4h7v4h-7z|M13 10h7v10h-7z|M4 13h7v7H4z',
+    enbarrio: 'M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3z|M9 4v13|M15 7v13',
+    nombrar: 'M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z|M19 10v2a7 7 0 0 1-14 0v-2|M4 21h16'
   };
   function svgIcono(icono){
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
@@ -1790,7 +1808,10 @@ const CJ = (function(){
     ['voz', 'Di el nombre', 'Lo dices y lo compruebas'],
     ['cruces', 'Cruces y paralelas', '¿Cuál cruza con esta?'],
     ['lugares', 'Lugares importantes', 'Hospitales, colegios…'],
-    ['parque', '¿Qué parque acude?', 'Central o Granadal']
+    ['parque', '¿Qué parque acude?', 'Central o Granadal'],
+    ['barrios', 'Barrios y distritos', 'Tócalos y di de qué distrito son'],
+    ['enbarrio', '¿En qué barrio está?', 'Te marco una calle y eliges'],
+    ['nombrar', 'Nombra las calles', 'Di o escribe todas las que sepas']
   ];
   // Los modos de juego en baldosas: sin z, en la zona elegida; con z (desde
   // una ficha del temario), en esa zona. `sinEstudio`: sin «Mapa libre»;
@@ -1803,7 +1824,10 @@ const CJ = (function(){
     const hay = {
       estudio: !sinEstudio, localiza: hayVias, opciones: hayVias, voz: hayVias, cruces: hayVias,
       lugares: datos.lugares.some(f.lugar),
-      parque: !!datos.lineaParques && (datos.jugables.some(v => v.parque && f.via(v)) || datos.lugares.some(l => l.parque && f.lugar(l)))
+      parque: !!datos.lineaParques && (datos.jugables.some(v => v.parque && f.via(v)) || datos.lugares.some(l => l.parque && f.lugar(l))),
+      barrios: datos.barrios.length > 0,
+      enbarrio: datos.jugables.some(v => v.barrios.length && f.via(v)),
+      nombrar: hayVias
     };
     const zq = JSON.stringify(z || '');
     const accion = m => m === 'estudio'
@@ -2047,6 +2071,100 @@ const CJ = (function(){
     const lista = barajar([correcta].concat(otras.slice(0, 3)));
     return { opciones: lista, correcta: lista.indexOf(correcta) };
   }
+  /* ---------- barrios y distritos ---------- */
+  // Ids fijos para sus respuestas (en callejero_intentos, como las calles):
+  // barrios desde 6·10^12 y distritos desde 6,1·10^12, más un resumen
+  // (FNV-1a) de su nombre.
+  const ID_BARRIO = 6000000000000, ID_DISTRITO = 6100000000000;
+  function resumen32(t){
+    let h = 0x811c9dc5;
+    for(const c of normalizar(t)){ h ^= c.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h;
+  }
+  function idBarrio(b){ return ID_BARRIO + resumen32(b.nombre); }
+  function idDistrito(d){ return ID_DISTRITO + resumen32(d); }
+  function centroBarrio(b){
+    if(!b._centro){ const c = cajaDe(b.anillos); b._centro = [(c.s + c.n) / 2, (c.o + c.e) / 2]; }
+    return b._centro;
+  }
+  function centroDistrito(d){
+    const cs = datos.barrios.filter(b => b.distrito === d).map(centroBarrio);
+    return [cs.reduce((a, c) => a + c[0], 0) / cs.length, cs.reduce((a, c) => a + c[1], 0) / cs.length];
+  }
+  function lejania(a, b){ return ((a[0] - b[0]) * 111) ** 2 + ((a[1] - b[1]) * 88) ** 2; }
+  // Los más cercanos a un punto (para las opciones falsas: las que confunden).
+  function barriosCerca(punto, n, fuera){
+    return datos.barrios.filter(b => !fuera.has(b.nombre)).sort((a, b) => lejania(centroBarrio(a), punto) - lejania(centroBarrio(b), punto)).slice(0, n);
+  }
+  // Los barrios de la zona (los de sus calles); si son pocos (una zona de un
+  // barrio), los de su distrito; y si no, todos.
+  function barriosDelJuego(){
+    const nombres = new Set();
+    datos.vias.filter(enZona).forEach(v => v.barrios.forEach(b => nombres.add(b.nombre)));
+    let lista = datos.barrios.filter(b => nombres.has(b.nombre));
+    if(lista.length < 4){
+      const ds = new Set(lista.map(b => b.distrito));
+      lista = datos.barrios.filter(b => ds.has(b.distrito));
+    }
+    return lista.length >= 4 ? lista : datos.barrios.slice();
+  }
+  function cajaBarrios(bs){ return L.latLngBounds(bs.flatMap(b => b.anillos.flat())); }
+  function poligonos(bs, color, relleno, discontinuo){
+    bs.forEach(b => L.polygon(b.anillos, { color, weight: discontinuo ? 2.5 : 3, dashArray: discontinuo ? '6 6' : null, fillColor: color, fillOpacity: relleno, interactive: false }).addTo(capaMarcas));
+  }
+  // Una pregunta de un barrio: tocarlo, qué barrio es el marcado o de qué distrito es.
+  function preguntaBarrio(b, tipo){
+    const id = idBarrio(b), detalle = 'Distrito ' + b.distrito;
+    if(tipo === 'toca') return { barrio: b, id, etiqueta: 'Toca el barrio', texto: b.nombre, nombre: b.nombre, respuesta: 'toque', detalle };
+    if(tipo === 'cual'){
+      const otras = barriosCerca(centroBarrio(b), 3, new Set([b.nombre])).map(x => x.nombre);
+      const q = Object.assign({ id, etiqueta: '¿Qué barrio es este?', texto: '', nombre: b.nombre, respuesta: 'opciones', resumen: b.nombre, detalle,
+        antes: () => { poligonos([b], '#F2665C', 0.12); mapa.flyToBounds(cajaBarrios([b]), { padding: [60, 60], maxZoom: 15, duration: 0.6 }); } },
+        opcionesCon(b.nombre, otras));
+      // Al responder: en verde el barrio y, si se ha fallado, el elegido.
+      q.despues = (api, i) => {
+        capaMarcas.clearLayers();
+        poligonos([b], '#34D399', 0.2);
+        const elegido = datos.barrios.find(x => x.nombre === q.opciones[i]);
+        if(elegido && elegido !== b) poligonos([elegido], '#F2665C', 0.08, true);
+        mapa.flyToBounds(cajaBarrios(elegido && elegido !== b ? [b, elegido] : [b]), { padding: [50, 50], maxZoom: 15, duration: 0.6 });
+      };
+      return q;
+    }
+    // De qué distrito es: las opciones falsas, los distritos más cercanos.
+    const otros = datos.distritos.filter(d => d !== b.distrito).sort((x, y) => lejania(centroDistrito(x), centroBarrio(b)) - lejania(centroDistrito(y), centroBarrio(b))).slice(0, 3);
+    return Object.assign({ id, etiqueta: '¿De qué distrito es el barrio…?', texto: b.nombre, nombre: b.nombre, respuesta: 'opciones', resumen: 'Distrito ' + b.distrito,
+      despues: () => {
+        capaMarcas.clearLayers();
+        const delDistrito = datos.barrios.filter(x => x.distrito === b.distrito);
+        L.polyline(contornoDistrito(b.distrito), { color: '#34D399', weight: 3, opacity: 0.95, interactive: false }).addTo(capaMarcas);
+        poligonos([b], '#34D399', 0.25);
+        mapa.flyToBounds(cajaBarrios(delDistrito), { padding: [40, 40], maxZoom: 15, duration: 0.6 });
+      } }, opcionesCon(b.distrito, otros));
+  }
+  function preguntaDistrito(d){
+    return { barrios: datos.barrios.filter(b => b.distrito === d), distrito: d, id: idDistrito(d), etiqueta: 'Toca el distrito', texto: d, nombre: 'Distrito ' + d, respuesta: 'toque' };
+  }
+  // «¿En qué barrio está?»: una calle marcada y cuatro barrios (los de al lado).
+  function preguntaEnBarrio(v){
+    const correcta = v.barrios[0];
+    const c = [(v.caja.s + v.caja.n) / 2, (v.caja.o + v.caja.e) / 2];
+    const otras = barriosCerca(c, 3, new Set(v.barrios.map(b => b.nombre))).map(b => b.nombre);
+    const y = v.barrios.length > 1 ? ' (también pasa por ' + v.barrios.slice(1).map(b => b.nombre).join(' y ') + ')' : '';
+    const q = Object.assign({ via: v, id: v.id, etiqueta: '¿En qué barrio está…?', texto: v.nombre, nombre: v.nombre,
+      resumen: 'Está en ' + correcta.nombre + y + '.', detalle: 'Distrito ' + correcta.distrito,
+      antes: () => { resaltar(v, '#F2665C', true); verVias([v]); } }, opcionesCon(correcta.nombre, otras));
+    // Al responder: en verde su barrio y, si se ha fallado, el elegido.
+    q.despues = (api, i) => {
+      poligonos(v.barrios, '#34D399', 0.15);
+      const elegido = datos.barrios.find(x => x.nombre === q.opciones[i]);
+      const mal = elegido && !v.barrios.includes(elegido) ? [elegido] : [];
+      poligonos(mal, '#F2665C', 0.06, true);
+      mapa.flyToBounds(cajaBarrios(v.barrios.concat(mal)).extend(limitesDe([v])), { padding: [40, 40], maxZoom: 16, duration: 0.6 });
+    };
+    return q;
+  }
+
   function crearPreguntas(m){
     const n = PREGUNTAS_POR_RONDA;
     const vias = datos.jugables.filter(enZona);
@@ -2098,6 +2216,29 @@ const CJ = (function(){
           opcionesCon(sol.nombre, barajar(otras.slice(0, 8))));
       });
     }
+    if(m === 'barrios'){
+      // Cada barrio, con un tipo de pregunta (y si son pocos, otra vuelta con
+      // otro tipo); si la zona tiene varios distritos, también de qué
+      // distrito es cada barrio y tocar unos distritos.
+      const lista = barriosDelJuego();
+      const ds = [...new Set(lista.map(b => b.distrito))];
+      const tipos = ds.length > 1 ? ['toca', 'cual', 'distrito'] : ['toca', 'cual'];
+      const orden = ordenarPorRepaso(lista, idBarrio, m), qs = [];
+      const nDistritos = ds.length > 1 ? Math.min(3, ds.length) : 0;
+      for(let vuelta = 0; vuelta < tipos.length && qs.length < n - nDistritos; vuelta++){
+        orden.forEach((b, i) => { if(qs.length < n - nDistritos) qs.push(preguntaBarrio(b, tipos[(i + vuelta) % tipos.length])); });
+      }
+      ordenarPorRepaso(ds, idDistrito, m).slice(0, nDistritos).forEach(d => qs.push(preguntaDistrito(d)));
+      return barajar(qs);
+    }
+    if(m === 'enbarrio'){
+      // Calles de un barrio (o dos); en una zona de un solo barrio, las de su
+      // distrito, para que no sea siempre el mismo.
+      const nombres = new Set(barriosDelJuego().map(b => b.nombre));
+      const vale = zona.startsWith('b:') ? (v => v.barrios.some(b => nombres.has(b.nombre))) : enZona;
+      const pool = datos.jugables.filter(v => v.barrios.length && v.barrios.length <= 2 && vale(v));
+      return sinRepetirNombre(ordenarPorRepaso(pool, v => v.id, m), n, preguntaEnBarrio);
+    }
     if(m === 'lugares'){
       const lugares = datos.lugares.filter(enZonaLugar);
       return sinRepetirNombre(ordenarPorRepaso(lugares, l => -l.id, m), n, l => ({ lugar: l, id: -l.id, etiqueta: 'Localiza · ' + l.categoria, texto: l.nombre, nombre: l.nombre }));
@@ -2124,6 +2265,7 @@ const CJ = (function(){
     if(m === 'lugares' && !datos.lugares.length){ uiToast('Todavía no hay lugares importantes publicados.', 'info'); return; }
     if(m === 'parque' && !datos.lineaParques){ uiToast('Todavía no está publicada la zona de cada parque.', 'info'); return; }
     actualizarFiltro();
+    if(m === 'nombrar'){ desdeTemario = vistaActual === 'temario'; await empezarNombrar(); return; }
     const preguntas = crearPreguntas(m);
     if(!preguntas.length){ uiToast('No hay preguntas de este tipo en esta zona.', 'info'); return; }
     const t = tareaDeZona();
@@ -2141,7 +2283,7 @@ const CJ = (function(){
 
   /* ---------- temario (las preguntas las hace js/callejero-temario.js) ---------- */
   // Cómo se responde la pregunta: la del modo o, en el temario, la de cada pregunta.
-  function respuestaDe(q){ return modo === 'temario' ? q.respuesta : MODOS[modo].respuesta; }
+  function respuestaDe(q){ return q.respuesta || MODOS[modo].respuesta; }
   // Lo que puede dibujar el temario en el mapa (antes y después de responder).
   function mapaApi(){ return { mapa, capa: capaMarcas, resaltar, verVias, limitesDe }; }
   let ultimaTemario = null;   // para «Otra ronda»
@@ -2195,16 +2337,19 @@ const CJ = (function(){
   // Lo que se ve encima y dentro del mapa depende del modo.
   function ponerInterfaz(){
     const libre = modo === 'estudio' || modo === 'seleccion';
-    const respuesta = libre || modo === 'temario' ? null : MODOS[modo].respuesta;
+    const respuesta = libre || MODOS[modo].respuesta === 'variable' ? null : MODOS[modo].respuesta;
     ponerRespuesta(respuesta, false);
     el('cjOpciones').innerHTML = '';
     const pantalla = document.getElementById('screen-callejero');
     pantalla.classList.toggle('cj-seleccionando', modo === 'seleccion');
+    const nombrando = modo === 'nombrar';
     el('cjContador').classList.toggle('hidden', libre);
-    el('cjAciertos').classList.toggle('hidden', libre);
-    el('cjBarraTitulo').classList.toggle('hidden', !libre);
-    el('cjBarraTitulo').textContent = modo === 'seleccion' ? 'Elegir calles y lugares' : verTemario ? verTemario.titulo : 'Modo estudio';
-    el('cjPreguntaWrap').classList.toggle('hidden', libre);
+    el('cjAciertos').classList.toggle('hidden', libre || nombrando);
+    el('cjBarraTitulo').classList.toggle('hidden', !libre && !nombrando);
+    el('cjBarraTitulo').textContent = modo === 'seleccion' ? 'Elegir calles y lugares' : nombrando ? 'Nombra las calles' : verTemario ? verTemario.titulo : 'Modo estudio';
+    el('cjPreguntaWrap').classList.toggle('hidden', libre || nombrando);
+    el('cjNombrar').classList.toggle('hidden', !nombrando);
+    pantalla.classList.toggle('cj-nombrando', nombrando);
     el('cjBuscarWrap').classList.toggle('hidden', !libre);
     el('cjSel').classList.toggle('hidden', modo !== 'seleccion');
     el('cjPista').textContent = modo === 'seleccion' ? 'Toca una calle o un punto morado para elegirlo o quitarlo'
@@ -2752,7 +2897,7 @@ const CJ = (function(){
     const q = ronda.preguntas[ronda.i];
     // Opciones, botones de voz o plano
     const tipo = respuestaDe(q);
-    if(modo === 'temario') ponerRespuesta(tipo, !!q.plano);
+    if(MODOS[modo].respuesta === 'variable') ponerRespuesta(tipo, !!q.plano);
     const caja = el('cjOpciones');
     if(tipo === 'opciones'){
       caja.innerHTML = q.opciones.map((o, i) => '<button type="button" class="cj-opcion" onclick="CJ.responderOpcion(' + i + ')">' + escapeHtml(o) + '</button>').join('');
@@ -2762,9 +2907,9 @@ const CJ = (function(){
     if(q.plano) CJT.pintarPlano(q);
     mapa.invalidateSize();
     // Lo que se ve en el mapa antes de responder
-    if(modo === 'temario'){
-      if(q.antes) q.antes(mapaApi());
-      else if(!q.plano) irAEncuadre();
+    if(q.antes) q.antes(mapaApi());
+    else if(modo === 'temario'){
+      if(!q.plano) irAEncuadre();
     }else if(q.via && (modo === 'opciones' || modo === 'voz')){
       resaltar(q.via, '#F2665C', true);
       verVias([q.via]);
@@ -2796,13 +2941,16 @@ const CJ = (function(){
     if(respuestaDe(q) !== 'toque') return;
     const pxEnMetros = mapa.distance(mapa.containerPointToLatLng([0, 0]), mapa.containerPointToLatLng([TOLERANCIA_PX, 0]));
     const detalle = q.detalle ? ' <span class="cj-dir">' + escapeHtml(q.detalle) + '</span>' : '';
-    if(q.barrio){
-      const b = q.barrio;
-      const dist = dentroDeBarrio(latlng.lat, latlng.lng, b) ? 0 : distanciaAVia(latlng.lat, latlng.lng, { lineas: b.anillos });
+    if(q.barrio || q.barrios){
+      // Un barrio o un distrito (sus barrios): vale tocar dentro o muy cerca del borde.
+      const bs = q.barrios || [q.barrio];
+      const dist = bs.some(b => dentroDeBarrio(latlng.lat, latlng.lng, b)) ? 0
+        : Math.min(...bs.map(b => distanciaAVia(latlng.lat, latlng.lng, { lineas: b.anillos })));
       const acierto = dist <= Math.max(TOLERANCIA_M, pxEnMetros);
-      L.polygon(b.anillos, { color: '#34D399', weight: 3, fillColor: '#34D399', fillOpacity: 0.2, interactive: false }).addTo(capaMarcas);
+      bs.forEach(b => L.polygon(b.anillos, { color: '#34D399', weight: q.distrito ? 0 : 3, fillColor: '#34D399', fillOpacity: 0.2, interactive: false }).addTo(capaMarcas));
+      if(q.distrito) L.polyline(contornoDistrito(q.distrito), { color: '#34D399', weight: 3, opacity: 0.95, interactive: false }).addTo(capaMarcas);
       L.circleMarker(latlng, { radius: 7, color: '#fff', weight: 2, fillColor: acierto ? '#34D399' : '#F2665C', fillOpacity: 1, interactive: false }).addTo(capaMarcas);
-      if(!acierto) mapa.flyToBounds(L.latLngBounds(b.anillos.flat()).extend(latlng), { paddingTopLeft: [60, 60], paddingBottomRight: [60, 130], maxZoom: 16, duration: 0.7 });
+      if(!acierto) mapa.flyToBounds(cajaBarrios(bs).extend(latlng), { paddingTopLeft: [60, 60], paddingBottomRight: [60, 130], maxZoom: 16, duration: 0.7 });
       marcarRespondida(acierto, acierto
         ? '<b>¡Correcto!</b> ' + escapeHtml(q.nombre) + '.' + detalle
         : '<b>Fallo.</b> Te has quedado a ' + formatearDistancia(dist) + '. En verde, dónde está.' + detalle, dist);
@@ -2860,9 +3008,9 @@ const CJ = (function(){
       else if(k === i) b.classList.add('incorrecta');
     });
     let texto;
-    if(modo === 'temario'){
+    if(modo === 'temario' || q.despues){
       if(q.plano) CJT.marcarPlano(q, null);
-      if(q.despues) q.despues(mapaApi());
+      if(q.despues) q.despues(mapaApi(), i);
       texto = (acierto ? '<b>¡Correcto!</b> ' : '<b>Fallo.</b> ') + escapeHtml(q.resumen || q.opciones[q.correcta]) +
         (q.detalle ? ' <span class="cj-dir">' + escapeHtml(q.detalle) + '</span>' : '');
     }else if(modo === 'opciones'){
@@ -2902,6 +3050,198 @@ const CJ = (function(){
       texto = (acierto ? '<b>¡Correcto!</b> ' : '<b>Fallo.</b> ') + 'Acude el ' + PARQUES[q.parque] + ': está ' + lado + ' de la línea (en morado).';
     }
     marcarRespondida(acierto, texto, null);
+  }
+
+  /* ---------- modo «Nombra las calles» ---------- */
+  // De una zona (un barrio, un distrito…) se escriben o se dicen (con el
+  // micrófono, si el navegador sabe) nombres de calles, y cada una que está
+  // se pone en verde. Vale sin «Calle», sin tildes y con alguna letra mal; y
+  // una parte («Pío Baroja») si ninguna otra calle de la zona la tiene. Al
+  // terminar, las que faltan salen en rojo y cuentan como no sabidas, en su
+  // propia habilidad («De memoria», que no llena «Lo que más fallas»).
+  const PALABRAS_TIPO = new Set(['calle', 'c', 'avenida', 'av', 'avda', 'plaza', 'pza', 'paseo', 'ronda', 'glorieta', 'carretera', 'ctra',
+    'camino', 'pasaje', 'callejon', 'cuesta', 'travesia', 'barriada', 'urbanizacion', 'puente', 'autovia', 'bulevar', 'via', 'rotonda',
+    'costanilla', 'plazuela', 'compas', 'senda', 'vereda', 'canada', 'ribera', 'campo', 'patio', 'calleja', 'poligono', 'parque',
+    'jardines', 'jardin', 'enlace', 'acceso', 'carril', 'arroyo', 'pago', 'parcelacion', 'barrio']);
+  const PALABRAS_VACIAS = new Set(['de', 'del', 'la', 'las', 'los', 'el', 'y', 'e']);
+  let nombrar = null;   // { grupos: [{ nombre, nucleo, tipo, vias, hallado }], hallados, terminado, escucha }
+  function palabras(t){ return normalizar(t).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w && !PALABRAS_VACIAS.has(w)); }
+  function nucleoDe(nombre, tipo){
+    const w = palabras(nombre);
+    if(w.length > 1 && (w[0] === normalizar(tipo || '') || PALABRAS_TIPO.has(w[0]))) w.shift();
+    return w.join(' ');
+  }
+  function levenshtein(a, b){
+    let fila = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for(let i = 1; i <= a.length; i++){
+      const nueva = [i];
+      for(let j = 1; j <= b.length; j++) nueva[j] = Math.min(fila[j] + 1, nueva[j - 1] + 1, fila[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      fila = nueva;
+    }
+    return fila[b.length];
+  }
+  function casiIgual(a, b){
+    const n = Math.max(a.length, b.length), max = n >= 12 ? 2 : n >= 6 ? 1 : 0;
+    return max > 0 && Math.abs(a.length - b.length) <= max && levenshtein(a, b) <= max;
+  }
+  // Las calles de la zona que corresponden a lo dicho (vacío si ninguna).
+  function callesDichas(texto){
+    const w = palabras(texto);
+    if(!w.length) return [];
+    const conTipo = PALABRAS_TIPO.has(w[0]) && w.length > 1;
+    const formas = [...new Set([conTipo ? w.slice(1).join(' ') : null, w.join(' ')].filter(Boolean))];
+    const g = nombrar.grupos;
+    let r = g.filter(x => formas.includes(x.nucleo));
+    // Si hay varias con ese nombre («Calle San Agustín», «Plaza San Agustín»),
+    // la del tipo dicho y, si no se ha dicho, la calle.
+    if(r.length > 1){
+      const tipo = conTipo ? w[0] : 'calle';
+      const mismo = r.filter(x => normalizar(x.tipo) === tipo);
+      if(mismo.length) r = mismo;
+    }
+    if(!r.length) r = g.filter(x => formas.some(f => casiIgual(f, x.nucleo)));
+    if(!r.length && formas[0].length >= 6){
+      const parte = ' ' + formas[0] + ' ';
+      const con = g.filter(x => (' ' + x.nucleo + ' ').includes(parte));
+      if(new Set(con.map(x => x.nucleo)).size === 1) r = con;
+    }
+    return r;
+  }
+  async function empezarNombrar(){
+    pararEscucha();
+    const grupos = new Map();
+    datos.vias.filter(enZona).forEach(v => {
+      if(!grupos.has(v.clave)) grupos.set(v.clave, { nombre: v.nombre, tipo: v.tipo, nucleo: nucleoDe(v.nombre, v.tipo), vias: [], hallado: false });
+      grupos.get(v.clave).vias.push(v);
+    });
+    if(!grupos.size){ uiToast('No hay calles en esta zona.', 'info'); return; }
+    const t = tareaDeZona();
+    nombrar = { grupos: [...grupos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')), hallados: 0, terminado: false, escucha: null };
+    ronda = { id: nuevoUid(), preguntas: new Array(nombrar.grupos.length), i: 0, aciertos: 0, respondidas: 0, fallos: [], respondida: false, zona, tareaId: t ? t.id : null };
+    modo = 'nombrar';
+    mostrarVista('juego');
+    ponerInterfaz();
+    crearMapa();
+    capaMarcas.clearLayers();
+    pintarZona();
+    irAZona(false);
+    el('cjNombrarZona').innerHTML = opcionesZona(zona && !zona.startsWith('t:') && zona !== 'p' ? zona : '');
+    el('cjNombrarZona').classList.toggle('hidden', zona.startsWith('t:') || zona === 'p');
+    el('cjNombrarVoz').classList.toggle('hidden', !(window.SpeechRecognition || window.webkitSpeechRecognition));
+    el('cjNombrarTexto').value = '';
+    el('cjNombrarTexto').disabled = false;
+    el('cjNombrarFin').textContent = 'Terminar';
+    avisoNombrar('Escribe o di nombres de calles de ' + (zona ? nombreZona() : 'Córdoba') + '.', '');
+    contarNombrar();
+  }
+  function contarNombrar(){
+    el('cjContador').textContent = nombrar.hallados + ' / ' + nombrar.grupos.length;
+  }
+  function avisoNombrar(texto, clase){
+    const a = el('cjNombrarAviso');
+    a.textContent = texto;
+    a.className = 'cj-nombrar-aviso' + (clase ? ' ' + clase : '');
+  }
+  // Lo escrito o lo oído (el micrófono da varias versiones: vale la primera
+  // que coincida; y si en una frase van varias calles, se prueba por trozos).
+  function decirCalle(dicho){
+    if(!nombrar || nombrar.terminado) return;
+    const versiones = (Array.isArray(dicho) ? dicho : [dicho]).map(x => String(x || '').trim()).filter(Boolean);
+    if(!versiones.length) return;
+    let r = [];
+    for(const v of versiones){ r = callesDichas(v); if(r.length) break; }
+    if(!r.length){
+      for(const v of versiones){
+        const trozos = v.split(/,| y | e /i).map(x => x.trim()).filter(x => x.length > 2);
+        if(trozos.length > 1){ r = [...new Set(trozos.flatMap(callesDichas))]; if(r.length) break; }
+      }
+    }
+    if(!r.length){ avisoNombrar('«' + versiones[0] + '»: no hay ninguna calle así aquí.', 'ko'); return; }
+    const nuevas = r.filter(x => !x.hallado);
+    if(!nuevas.length){ avisoNombrar('Ya la tenías: ' + r.map(x => x.nombre).join(', ') + '.', ''); return; }
+    nuevas.forEach(x => {
+      x.hallado = true;
+      nombrar.hallados++;
+      ronda.respondidas++;
+      ronda.aciertos++;
+      anotarIntento(x.vias[0].id, 'nombrar', true, null);
+      x.vias.forEach(v => resaltar(v, '#34D399'));
+    });
+    avisoNombrar('✓ ' + nuevas.map(x => x.nombre).join(', '), 'ok');
+    contarNombrar();
+    if(nombrar.hallados === nombrar.grupos.length) terminarNombrar(true);
+  }
+  // Terminar: las que faltan, en rojo (y cuentan como no sabidas).
+  function terminarNombrar(todas){
+    if(!nombrar) return;
+    if(nombrar.terminado){ empezarNombrar(); return; }   // «Otra vez»
+    pararEscucha();
+    nombrar.terminado = true;
+    const faltan = nombrar.grupos.filter(x => !x.hallado);
+    faltan.forEach(x => {
+      ronda.respondidas++;
+      anotarIntento(x.vias[0].id, 'nombrar', false, null);
+      x.vias.forEach(v => resaltar(v, '#F2665C'));
+    });
+    el('cjNombrarTexto').disabled = true;
+    el('cjNombrarFin').textContent = 'Otra vez';
+    avisoNombrar(todas ? '¡Todas! ' + nombrar.grupos.length + ' de ' + nombrar.grupos.length + '.'
+      : 'Has dicho ' + nombrar.hallados + ' de ' + nombrar.grupos.length + '. En rojo, las que faltaban: toca una para ver cómo se llama.', todas ? 'ok' : '');
+    guardarRondaLocal();
+  }
+  // Ya terminado, tocar una calle (de las de la zona) dice cuál es.
+  function tocarNombrar(latlng){
+    if(!nombrar || !nombrar.terminado) return;
+    const cerca = viasCercanas(latlng).filter(c => enZona(c.v));
+    if(!cerca.length) return;
+    const v = cerca[0].v, x = nombrar.grupos.find(g => g.vias.includes(v));
+    el('cjInfo').innerHTML = '<div class="cj-info-tipo">' + escapeHtml(x && x.hallado ? 'La has dicho' : 'Te faltaba') + '</div>' +
+      '<div class="cj-info-nombre">' + escapeHtml(v.nombre) + '</div>';
+    el('cjInfo').classList.remove('hidden');
+  }
+  function cambiarZonaNombrar(z){
+    if(!zonaValida(z) && z !== '') return;
+    guardarZona(z);
+    actualizarFiltro();
+    empezarNombrar();
+  }
+  // El micrófono: reconocimiento de voz del navegador, en español, seguido
+  // (se vuelve a encender solo si el navegador lo corta por silencio).
+  function alternarEscucha(){
+    if(!nombrar || nombrar.terminado) return;
+    if(nombrar.escucha){ pararEscucha(); return; }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR) return;
+    const r = new SR();
+    r.lang = 'es-ES';
+    r.continuous = true;
+    r.interimResults = false;
+    r.maxAlternatives = 3;
+    r.onresult = e => {
+      for(let i = e.resultIndex; i < e.results.length; i++){
+        if(e.results[i].isFinal) decirCalle([...e.results[i]].map(a => a.transcript));
+      }
+    };
+    r.onerror = e => {
+      if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+        pararEscucha();
+        avisoNombrar('No se puede usar el micrófono: dale permiso en el navegador, o escríbelas.', 'ko');
+      }
+    };
+    r.onend = () => { if(nombrar && nombrar.escucha === r){ try{ r.start(); }catch(err){ pararEscucha(); } } };
+    nombrar.escucha = r;
+    try{ r.start(); }catch(e){ nombrar.escucha = null; return; }
+    el('cjNombrarVoz').classList.add('activo');
+    el('cjNombrarVoz').setAttribute('aria-pressed', 'true');
+    avisoNombrar('Te escucho: di nombres de calles.', '');
+  }
+  function pararEscucha(){
+    if(!nombrar || !nombrar.escucha) return;
+    const r = nombrar.escucha;
+    nombrar.escucha = null;
+    try{ r.stop(); }catch(e){}
+    el('cjNombrarVoz').classList.remove('activo');
+    el('cjNombrarVoz').setAttribute('aria-pressed', 'false');
   }
 
   /* ---------- modo «Di el nombre» ---------- */
@@ -2996,7 +3336,10 @@ const CJ = (function(){
   }
 
   function salir(){
-    if(ronda && modo !== 'estudio'){ guardarRondaLocal(); refrescarTrasRonda(); }
+    pararEscucha();
+    if(ronda && modo !== 'estudio' && !(modo === 'nombrar' && nombrar && nombrar.terminado)) guardarRondaLocal();
+    if(ronda && modo !== 'estudio') refrescarTrasRonda();
+    nombrar = null;
     ronda = null;
     modo = null;
     verTemario = null;
@@ -3012,7 +3355,7 @@ const CJ = (function(){
   }
   async function confirmarSalir(){
     if(modo === 'seleccion'){ cancelarSeleccion(); return; }
-    if(modo !== 'estudio' && ronda && ronda.i > 0 && !(await uiConfirm('¿Salir de la ronda? Lo que ya has respondido queda guardado.'))) return;
+    if(modo !== 'estudio' && modo !== 'nombrar' && ronda && ronda.i > 0 && !(await uiConfirm('¿Salir de la ronda? Lo que ya has respondido queda guardado.'))) return;
     salir();
   }
   // Para el profesor: volver a la pantalla principal o recargar las tareas.
@@ -3026,6 +3369,8 @@ const CJ = (function(){
     responderOpcion, verRespuesta, autoevaluar, siguiente: () => siguientePregunta(false), refrescarTema,
     // pantalla completa y sus recuadros; colores de lo del profesor
     pantallaCompleta, plegarCabeza, alternarColores,
+    // «Nombra las calles»
+    decirCalle, terminarNombrar: () => terminarNombrar(false), alternarEscucha, cambiarZonaNombrar,
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal

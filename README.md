@@ -93,12 +93,27 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   más corto por las calles entre una y la siguiente).
   Las vías a menos de 150 m de la línea no se preguntan, porque no está claro a cuál le toca.
 - Modos de juego: Localiza la calle, ¿Cómo se llama? (4 opciones), Di el nombre (se marca una calle, uno
-  dice su nombre para sí, pulsa «Resolver» y se pone él mismo bien o mal), Cruces y paralelas (se calculan en la app con el trazado de las vías), Lugares importantes y
-  ¿Qué parque acude?. Además, el Modo estudio.
+  dice su nombre para sí, pulsa «Resolver» y se pone él mismo bien o mal), Cruces y paralelas (se calculan en la app con el trazado de las vías), Lugares importantes,
+  ¿Qué parque acude?, y además:
+  - **Barrios y distritos**: tocar el barrio o el distrito pedido, qué barrio es el marcado y de qué
+    distrito es un barrio (las opciones falsas, los más cercanos). En una zona de un barrio, los de su
+    distrito.
+  - **¿En qué barrio está?**: se marca una calle y se elige su barrio entre 4 (los de al lado; si pasa por
+    dos, vale el primero y el otro no sale).
+  - **Nombra las calles**: de la zona (se puede cambiar arriba), se escriben o se dicen con el micrófono
+    (reconocimiento de voz del navegador, en español) nombres de calles y cada una que está se pone en
+    verde, con la cuenta. Vale sin «Calle», sin tildes, con alguna letra mal y una parte del nombre si
+    ninguna otra calle de la zona la tiene; si hay varias que se llaman igual, la del tipo dicho y, si no,
+    la calle. Al terminar, las que faltan salen en rojo (y tocándolas, su nombre).
+  Además, el Modo estudio.
+  Las respuestas de «Barrios y distritos» y «¿En qué barrio está?» entrenan la habilidad `barrios`
+  (los barrios y distritos tienen ids fijos desde 6·10¹² y 6,1·10¹²); las de «Nombra las calles», la
+  habilidad `memoria` (migración `20261003_callejero_barrios.sql`).
 - Pantalla, de arriba abajo: tareas del profesor, qué estudiar (zona), progreso, Aprender (modo estudio),
   Practicar (¿Cómo se llama?, Di el nombre, Localiza la calle), Relacionar (cruces y paralelas), Servicio
   (lugares y parque) y las últimas rondas.
-- Progreso por habilidad (nombres, situar calles, cruces, lugares y parque), con la regla de los tests:
+- Progreso por habilidad (nombres, situar calles, cruces, lugares, parque, barrios y distritos, y de
+  memoria), con la regla de los tests:
   dominada si nunca se ha fallado o si lleva 3 aciertos seguidos. Cada ronda empieza por lo fallado.
 - Cada respuesta lleva un `uid` que pone la app: la cola sin conexión se sube sin duplicar ni perder nada.
 - La app descarga un único archivo compacto (almacén público `callejero`, unos 900 KB) solo al
