@@ -116,6 +116,14 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
     (1,7 m), desde un balcón (12 m) o desde un dron (45 m) (se recuerda). Al responder sube y se ve la
     calle en verde, la elegida en rojo si se ha fallado y dónde se estaba. Sin WebGL o sin conexión,
     avisa y no empieza.
+    Con la clave de Google (`CLAVE_GOOGLE` en `js/callejero-3d.js`: de navegador, limitada a la web y a
+    la Maps JavaScript API), en vez del 3D se ve **Street View**: la imagen de 360° del coche de Google,
+    por la que se mira arrastrando y se avanza con sus flechas, sin nombres de calles ni dirección. Se
+    busca la imagen del coche más cercana a un punto de la calle (y, si no, a su mitad) que esté a menos
+    de 15 m de su trazado; si no hay, esa pregunta va en 3D. Se usa un solo panorama, que se cambia de
+    sitio en cada pregunta y se guarda para la ronda siguiente, porque Google cobra cada panorama que se
+    crea (los 5.000 primeros del mes, gratis). Al responder, Street View se quita y la respuesta se ve en
+    el mapa. Si Google dice que la clave no vale (`gm_authFailure`) o no carga, todo en 3D.
   Además, el Modo estudio.
   Las respuestas de «Barrios y distritos» y «¿En qué barrio está?» entrenan la habilidad `barrios`
   (los barrios y distritos tienen ids fijos desde 6·10¹² y 6,1·10¹²); las de «Nombra las calles», la

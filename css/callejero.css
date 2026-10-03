@@ -768,15 +768,22 @@
   .cj-3d.hidden{ display:none; }
   /* (más concreto que el .maplibregl-map de MapLibre, que lo pone en relative) */
   .cj-3d > .cj-3d-lienzo{ position:absolute; inset:0; touch-action:none; cursor:grab; }
-  /* Los botones del mapa de debajo (zoom, estilo…) no se ven ni se tocan */
+  /* Los botones del mapa de debajo (zoom, estilo…) no se ven ni se tocan… */
   #screen-callejero.cj-en3d .cj-mapa .leaflet-control-container{ display:none; }
+  /* …salvo al responder con Street View: entonces la respuesta se ve en el mapa */
+  .cj-3d.oculto{ visibility:hidden; pointer-events:none; }
+  #screen-callejero.cj-en3d:has(.cj-3d.oculto) .cj-mapa .leaflet-control-container{ display:block; }
+  /* Street View (de Google) o el 3D: uno de los dos */
+  .cj-3d > .cj-3d-calle{ position:absolute; inset:0; }
+  .cj-3d:not(.en-calle) > .cj-3d-calle, .cj-3d.en-calle > .cj-3d-lienzo{ visibility:hidden; }
+  .cj-3d.en-calle :is(.cj-3d-alturas, .cj-3d-andar, .cj-3d-creditos){ display:none; }
   .cj-3d-lienzo:active{ cursor:grabbing; }
   .cj-3d.revelado .cj-3d-lienzo{ cursor:default; }
   .cj-3d-cargando{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(20,22,26,.5);
     color:#fff; font-weight:600; font-size:14px; pointer-events:none; }
   .cj-3d-cargando.hidden, .cj-3d-pista.hidden{ display:none; }
-  .cj-3d-pista{ position:absolute; top:12px; left:50%; transform:translateX(-50%); max-width:calc(100% - 140px); padding:7px 12px; border-radius:999px;
-    background: rgba(0,0,0,.62); color:#fff; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }
+  .cj-3d-pista{ position:absolute; top:12px; left:50%; transform:translateX(-50%); width:max-content; max-width:calc(100% - 130px); padding:7px 12px; border-radius:14px;
+    background: rgba(0,0,0,.62); color:#fff; font-size:13px; line-height:1.35; text-align:center; pointer-events:none; }
   /* A la derecha: pantalla completa y la altura (a pie, balcón, dron) */
   .cj-3d-lado{ position:absolute; top:10px; right:10px; display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
   .cj-3d-alturas{ display:flex; flex-direction:column; border-radius:12px; overflow:hidden; border:1px solid var(--line); background: var(--bg); box-shadow: 0 2px 8px rgba(0,0,0,.3); }

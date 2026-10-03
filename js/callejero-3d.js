@@ -14,6 +14,14 @@
    y «Atrás» la mueven por la calle (su tramo más largo). Al responder
    sube y se ve la calle en verde (la elegida, si se ha fallado, en rojo)
    y, en azul, dónde se estaba.
+   Con la clave de Google (CLAVE_GOOGLE), lo primero es Street View: la
+   imagen de 360° del coche de Google, por la que se mira arrastrando y se
+   avanza con las flechas, sin nombres de calles ni dirección. Se busca la
+   imagen del coche más cercana a la calle (si no hay, esa pregunta va en
+   3D) y se usa un solo panorama, que se cambia de sitio en cada pregunta
+   (Google cobra cada panorama que se crea; los 5.000 primeros del mes son
+   gratis). Al responder se ve en el mapa (js/callejero.js). Si la clave no
+   vale o no hay conexión con Google, todo en 3D.
    Lo usa js/callejero.js (modo «calle3d»); aquí no se guarda nada.
    ===================================================================== */
 const CJ3D = (function(){
@@ -22,6 +30,10 @@ const CJ3D = (function(){
   const ML_CSS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css';
   const ML_CSS_SRI = 'sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK';
   const EDIFICIOS = 'https://tiles.openfreemap.org/planet';
+  // Clave de navegador de Google Maps (solo Maps JavaScript API y solo desde
+  // la web de la app: no es secreta, va en la página). Vacía: solo el 3D.
+  const CLAVE_GOOGLE = '';
+  const GOOGLE_JS = 'https://maps.googleapis.com/maps/api/js';
   const PNOA_RECIENTE = 'https://wms-pnoa.idee.es/pnoa-provisionales';
   const PNOA_WMS = 'https://www.ign.es/wms-inspire/pnoa-ma';
   // Altura de los ojos (m), cuánto se mira hacia abajo al llegar y hasta
@@ -39,6 +51,13 @@ const CJ3D = (function(){
   const VACIO = { type: 'FeatureCollection', features: [] };
 
   let promesa = null;         // carga de MapLibre en curso
+  let promesaGoogle = null;   // carga de Street View en curso
+  let SV = null;              // la librería de Street View de Google, ya cargada
+  let googleMal = false;      // la clave no vale aquí (Google lo avisa): todo en 3D
+  let servicio = null, panorama = null;
+  let enCalle = false;        // la pregunta de ahora va en Street View
+  let turnoVer = 0;           // para no enseñar una calle que llega tarde
+  let escuchandoCalle = false;
   let mapa = null;
   let cam = null;             // { camino, s, lat, lng, rumbo, abajo }
   let revelado = false;       // ya respondida: la cámara está arriba
@@ -50,8 +69,40 @@ const CJ3D = (function(){
   try{ if(ALTURAS[localStorage.getItem(ALTURA_KEY)]) altura = localStorage.getItem(ALTURA_KEY); }catch(e){}
   const el = id => document.getElementById(id);
 
-  /* ---------- carga perezosa de MapLibre ---------- */
-  function cargar(){
+  /* ---------- carga perezosa de Street View y de MapLibre ---------- */
+  const usaGoogle = () => !!SV && !googleMal;
+  // Lo que hace falta para empezar: Street View (con clave y conexión) o, si no, el 3D.
+  async function cargar(){
+    if(CLAVE_GOOGLE && !googleMal && navigator.onLine !== false){
+      try{ await cargarGoogle(); return; }catch(e){ /* sin Google: el 3D */ }
+    }
+    await cargarMapLibre();
+  }
+  function cargarGoogle(){
+    if(SV) return Promise.resolve();
+    if(promesaGoogle) return promesaGoogle;
+    promesaGoogle = new Promise((resolve, reject) => {
+      const listo = '__cjGoogleListo';
+      const fallo = e => { promesaGoogle = null; reject(e); };
+      window[listo] = async () => {
+        try{
+          SV = await google.maps.importLibrary('streetView');
+          servicio = new SV.StreetViewService();
+          resolve();
+        }catch(e){ fallo(e); }
+      };
+      // Google llama a esto si la clave no vale (o no vale desde esta web).
+      window.gm_authFailure = () => { googleMal = true; if(enCalle && cam && !revelado) pasarA3d(turnoVer); };
+      const js = document.createElement('script');
+      js.src = GOOGLE_JS + '?key=' + encodeURIComponent(CLAVE_GOOGLE) + '&v=weekly&language=es&region=ES&loading=async&callback=' + listo;
+      js.async = true;
+      js.onerror = () => { js.remove(); fallo(new Error('Sin Street View')); };
+      document.head.appendChild(js);
+      setTimeout(() => { if(!SV) fallo(new Error('Street View tarda demasiado')); }, 15000);
+    });
+    return promesaGoogle;
+  }
+  function cargarMapLibre(){
     if(window.maplibregl) return Promise.resolve();
     if(promesa) return promesa;
     promesa = new Promise((resolve, reject) => {
@@ -66,8 +117,9 @@ const CJ3D = (function(){
     });
     return promesa;
   }
-  // ¿Puede el navegador dibujar en 3D (WebGL)?
-  function puede(){
+  // ¿Se puede jugar? Con Street View, siempre; si no, hace falta WebGL.
+  function puede(){ return (!!CLAVE_GOOGLE && !googleMal) || webgl(); }
+  function webgl(){
     try{
       const gl = document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl');
       if(!gl) return false;
@@ -125,8 +177,10 @@ const CJ3D = (function(){
       ]
     };
   }
-  // Crea el mapa (una vez por ronda). false si este navegador no puede.
-  function abrir(){
+  // Lista para enseñar calles: con Street View, sí; si no, crea el mapa 3D
+  // (una vez por ronda). false si este navegador no puede.
+  function abrir(){ return usaGoogle() || abrir3d(); }
+  function abrir3d(){
     if(mapa) return true;
     if(!window.maplibregl) return false;
     const caja = el('cj3dLienzo');
@@ -144,8 +198,10 @@ const CJ3D = (function(){
     return true;
   }
   function cerrar(){
-    arrastre = null; cam = null; revelado = false; marcas = VACIO;
-    velo++;
+    arrastre = null; cam = null; revelado = false; marcas = VACIO; enCalle = false;
+    velo++; turnoVer++;
+    // El panorama de Google se guarda para la próxima ronda (cada uno nuevo cuenta).
+    if(panorama) panorama.setVisible(false);
     if(mapa){ try{ mapa.remove(); }catch(e){} mapa = null; }
   }
   function ponerMarcas(datos){
@@ -190,19 +246,102 @@ const CJ3D = (function(){
   // Una calle nueva: en un punto de su tramo más largo, mirando a lo largo,
   // hacia donde queda más calle. linea: [[lat, lng], ...]
   function ver(linea){
-    if(!abrir()) return false;
+    const turno = ++turnoVer;
     revelado = false;
     const c = camino(linea);
     const s = c.largo * (0.3 + Math.random() * 0.4);
     const p = puntoEn(c, s);
-    cam = { camino: c, s, lat: p.lat, lng: p.lng, rumbo: (p.rumbo + (c.largo - s >= s ? 0 : 180)) % 360, abajo: ALTURAS[altura].abajo };
+    cam = { camino: c, s, lat: p.lat, lng: p.lng, rumbo: rumboHacia(c, s, p.rumbo), abajo: ALTURAS[altura].abajo };
+    el('cj3d').classList.remove('revelado', 'oculto');
+    if(usaGoogle()){ verCalle(turno); return true; }
+    return ver3d();
+  }
+  // Mirando a lo largo de la calle, hacia donde queda más.
+  function rumboHacia(c, s, rumbo){ return (rumbo + (c.largo - s >= s ? 0 : 180)) % 360; }
+  function vista(calle){
+    enCalle = calle;
+    el('cj3d').classList.toggle('en-calle', calle);
+    if(panorama) panorama.setVisible(calle);
+  }
+  function ver3d(){
+    vista(false);
+    if(!abrir3d()) return false;
     ponerMarcas(VACIO);
-    el('cj3d').classList.remove('revelado');
     pintarAlturas();
     colocar(false);
     cargando();
     if(!pistaVista) aviso('Arrastra para mirar alrededor', 6000);
     return true;
+  }
+  // Sin Street View en esta calle (o sin Google): esta pregunta en 3D.
+  async function pasarA3d(turno){
+    try{ await cargarMapLibre(); }catch(e){
+      if(turno === turnoVer){ el('cj3dCargando').classList.add('hidden'); aviso('No se ha podido cargar esta calle. Responde lo que creas.', 0); }
+      return;
+    }
+    if(turno !== turnoVer || revelado) return;
+    if(!ver3d()){ el('cj3dCargando').classList.add('hidden'); aviso('No se ha podido cargar esta calle. Responde lo que creas.', 0); }
+  }
+
+  /* ---------- Street View ---------- */
+  async function verCalle(turno){
+    vista(true);
+    const v = el('cj3dCargando');
+    v.classList.remove('hidden');
+    const pano = await buscarPano();
+    if(turno !== turnoVer) return;
+    if(!pano || googleMal){ pasarA3d(turno); return; }
+    Object.assign(cam, { lat: pano.lat, lng: pano.lng, s: pano.s, rumbo: pano.rumbo });
+    if(!escuchandoCalle){
+      escuchandoCalle = true;
+      el('cj3dCalle').addEventListener('pointerdown', () => { if(!pistaVista){ pistaVista = true; aviso('', 0); } }, true);
+    }
+    if(!panorama){
+      panorama = new SV.StreetViewPanorama(el('cj3dCalle'), {
+        disableDefaultUI: true, linksControl: true, clickToGo: true, scrollwheel: true,
+        // Sin nada que diga dónde se está: ni la dirección ni los nombres de las calles.
+        addressControl: false, showRoadLabels: false,
+        fullscreenControl: false, enableCloseButton: false, motionTracking: false, motionTrackingControl: false
+      });
+    }
+    panorama.setPano(pano.id);
+    panorama.setPov({ heading: pano.rumbo, pitch: 0 });
+    panorama.setZoom(0);
+    panorama.setVisible(true);
+    setTimeout(() => { if(turno === turnoVer) v.classList.add('hidden'); }, 900);
+    if(!pistaVista) aviso('Arrastra para mirar y toca las flechas para avanzar', 6000);
+  }
+  // La imagen del coche de Google más cercana a la calle: en el punto
+  // elegido y, si no hay, en la mitad. Vale si está en la calle (a menos de
+  // 15 m de su trazado), no en una de al lado.
+  async function buscarPano(){
+    const c = cam.camino;
+    for(const s0 of [cam.s, c.largo / 2]){
+      const p = puntoEn(c, s0);
+      let r;
+      try{
+        r = await servicio.getPanorama({ location: { lat: p.lat, lng: p.lng }, radius: 40,
+          preference: SV.StreetViewPreference.NEAREST, sources: [SV.StreetViewSource.GOOGLE] });
+      }catch(e){ continue; }   // (sin imagen por aquí)
+      const loc = r && r.data && r.data.location;
+      if(!loc || !loc.pano || !loc.latLng) continue;
+      const lat = loc.latLng.lat(), lng = loc.latLng.lng();
+      const cerca = masCercano(c, lat, lng);
+      if(cerca.d > 15) continue;
+      return { id: loc.pano, lat, lng, s: cerca.s, rumbo: rumboHacia(c, cerca.s, puntoEn(c, cerca.s).rumbo) };
+    }
+    return null;
+  }
+  // Punto del camino más cercano a (lat, lng): a qué distancia (m) y en qué s.
+  function masCercano(c, lat, lng){
+    let mejor = { d: Infinity, s: 0 };
+    for(let i = 1; i < c.pts.length; i++){
+      const ax = (c.pts[i - 1][1] - lng) * KX, ay = (c.pts[i - 1][0] - lat) * KY, bx = (c.pts[i][1] - lng) * KX, by = (c.pts[i][0] - lat) * KY;
+      const dx = bx - ax, dy = by - ay, t = Math.max(0, Math.min(1, -(ax * dx + ay * dy) / ((dx * dx + dy * dy) || 1)));
+      const d = Math.hypot(ax + t * dx, ay + t * dy);
+      if(d < mejor.d) mejor = { d, s: c.acum[i - 1] + t * (c.acum[i] - c.acum[i - 1]) };
+    }
+    return mejor;
   }
   // «Cargando la calle…» hasta que estén los trozos (como mucho 3 s).
   function cargando(){
@@ -276,9 +415,19 @@ const CJ3D = (function(){
 
   /* ---------- al responder ---------- */
   // La calle en verde (verdes) y la elegida, si se ha fallado, en rojo
-  // (rojas), vistas desde arriba; en azul, dónde se estaba.
+  // (rojas), vistas desde arriba; en azul, dónde se estaba. Con Street View
+  // se quita la vista y devuelve false: lo enseña el mapa de debajo.
   function revelar(verdes, rojas){
-    if(!mapa || !cam) return;
+    if(!cam) return true;
+    turnoVer++;   // (una calle que aún estaba cargando ya no se pone)
+    if(enCalle || !mapa){
+      revelado = true;
+      aviso('', 0);
+      el('cj3dCargando').classList.add('hidden');
+      el('cj3d').classList.add('revelado', 'oculto');
+      if(panorama) panorama.setVisible(false);
+      return false;
+    }
     revelado = true;
     arrastre = null;
     aviso('', 0);
@@ -294,9 +443,11 @@ const CJ3D = (function(){
     const tapa = cabeza ? Math.max(0, cabeza.getBoundingClientRect().bottom - lienzo.top) : 0;
     const arriba = Math.min(lienzo.height * 0.45, tapa + 30), abajo = Math.min(lienzo.height * 0.3, 110);
     const o = mapa.cameraForBounds(caja, { padding: { top: arriba, bottom: abajo, left: 40, right: 40 }, bearing: cam.rumbo });
-    if(!o) return;
-    mapa.flyTo({ center: o.center, zoom: Math.min(o.zoom, 18), bearing: cam.rumbo, pitch: 35, duration: 1400 });
+    if(o) mapa.flyTo({ center: o.center, zoom: Math.min(o.zoom, 18), bearing: cam.rumbo, pitch: 35, duration: 1400 });
+    return true;
   }
+  // Dónde se estaba (para marcarlo en el mapa).
+  function donde(){ return cam ? { lat: cam.lat, lng: cam.lng } : null; }
 
-  return { cargar, puede, abrir, cerrar, ver, revelar, andar, darVuelta, altura: ponerAltura };
+  return { cargar, puede, abrir, cerrar, ver, revelar, donde, andar, darVuelta, altura: ponerAltura };
 })();

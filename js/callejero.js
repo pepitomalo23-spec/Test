@@ -2173,9 +2173,10 @@ const CJ = (function(){
 
   // «A pie de calle»: la calle en 3D (js/callejero-3d.js), desde un punto
   // de su tramo más largo, y cuatro nombres (los de las calles de al lado).
-  // Al responder se ve desde arriba: en verde la calle y, si se ha fallado,
-  // en rojo la elegida (sus trozos de por allí, alrededor del más cercano:
-  // hay nombres repetidos en otras barriadas).
+  // Al responder se ve desde arriba (en 3D o, con Street View, en el mapa):
+  // en verde la calle y, si se ha fallado, en rojo la elegida (sus trozos de
+  // por allí, alrededor del más cercano: hay nombres repetidos en otras
+  // barriadas).
   function preguntaCalle3d(v){
     const otras = [...new Set(viasCercanasA(v, 12).map(w => w.nombre))].slice(0, 3);
     if(otras.length < 3) return null;
@@ -2190,7 +2191,19 @@ const CJ = (function(){
       antes: () => { CJ3D.ver(forma(v).linea); } }, opcionesCon(v.nombre, otras));
     q.despues = (api, i) => {
       const elegida = q.opciones[i];
-      CJ3D.revelar(lineasDe(v.nombre), elegida === v.nombre ? [] : lineasDe(elegida));
+      const verdes = lineasDe(v.nombre), rojas = elegida === v.nombre ? [] : lineasDe(elegida);
+      if(CJ3D.revelar(verdes, rojas)) return;
+      // Con Street View, en el mapa de debajo (lo mismo, en 2D).
+      const yo = CJ3D.donde();
+      rojas.forEach(l => L.polyline(l, { color: '#F2665C', weight: 5, opacity: 0.9, interactive: false }).addTo(capaMarcas));
+      verdes.forEach(l => L.polyline(l, { color: '#34D399', weight: 6, opacity: 0.95, interactive: false }).addTo(capaMarcas));
+      const puntos = verdes.flat().concat(rojas.flat());
+      if(yo){
+        L.circleMarker([yo.lat, yo.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#4E9BF7', fillOpacity: 1, interactive: false }).addTo(capaMarcas);
+        puntos.push([yo.lat, yo.lng]);
+      }
+      mapa.invalidateSize();
+      mapa.fitBounds(L.latLngBounds(puntos), { paddingTopLeft: [40, 40], paddingBottomRight: [40, 120], maxZoom: 17 });
     };
     return q;
   }
