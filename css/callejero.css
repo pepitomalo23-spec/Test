@@ -69,6 +69,9 @@
   .cj-mode-icon-cruces{ color: var(--blue); }
   .cj-mode-icon-lugares{ color: var(--teal); }
   .cj-mode-icon-parque{ color: var(--orange); }
+  .cj-mode-icon-barrios{ color: var(--purple, #A855F7); }
+  .cj-mode-icon-enbarrio{ color: var(--green); }
+  .cj-mode-icon-nombrar{ color: var(--coral); }
   .cj-opciones{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:10px; }
   .cj-opciones.cj-opciones-dos{ grid-template-columns: 1fr 1fr; }
   .cj-opcion{ padding:11px 12px; border-radius:12px; border:1px solid var(--line); background: var(--card); color: var(--text);
@@ -730,3 +733,31 @@
   .cjp-tipo.activo .cjp-casilla::after{ content:''; position:absolute; left:5px; top:1px; width:5px; height:10px; border:solid #fff; border-width:0 2.5px 2.5px 0; transform: rotate(45deg); }
   .cjp-parte-el{ padding:0 0 14px 32px; }
   .cjp-parte-el .cjp-nombres{ margin-top:8px; }
+
+  /* ---------- «Nombra las calles» ---------- */
+  .cj-nombrar{ display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+  .cj-nombrar.hidden{ display:none; }
+  .cj-nombrar-fila{ display:flex; gap:8px; align-items:center; }
+  .cj-nombrar-fila input{ flex:1; min-width:0; box-sizing:border-box; padding:11px 14px; border-radius:12px; border:1px solid var(--line);
+    background: var(--card); color: var(--text); font: inherit; font-size:16px; outline:none; }
+  .cj-nombrar-fila input:focus{ border-color: var(--w22); }
+  .cj-nombrar-fila input:disabled{ opacity:.5; }
+  .cj-nombrar-voz{ flex-shrink:0; width:44px; height:44px; border-radius:12px; border:1px solid var(--line); background: var(--card); color: var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+  .cj-nombrar-voz.hidden{ display:none; }
+  .cj-nombrar-voz svg{ width:20px; height:20px; }
+  .cj-nombrar-voz.activo{ background: var(--coral); border-color: var(--coral); color:#fff; animation: cj-escucha 1.4s ease-in-out infinite; }
+  @keyframes cj-escucha{ 0%, 100%{ box-shadow: 0 0 0 0 rgba(242,102,92,.5); } 50%{ box-shadow: 0 0 0 8px rgba(242,102,92,0); } }
+  .cj-nombrar-fin{ flex-shrink:0; width:auto; margin:0; padding:10px 12px; }
+  .cj-nombrar-aviso{ font-size:13.5px; line-height:1.4; color: var(--muted); min-height:1.4em; }
+  .cj-nombrar-aviso.ok{ color: var(--green); font-weight:600; }
+  .cj-nombrar-aviso.ko{ color: var(--coral); }
+  /* En la barra: el título y, a la derecha, cuántas van */
+  #screen-callejero.cj-nombrando .cj-barra-titulo{ order:1; }
+  #screen-callejero.cj-nombrando .cj-contador{ order:2; margin-left:auto; }
+  #screen-callejero.cj-nombrando .cj-plegar{ order:3; margin-left:0; }
+  /* A pantalla completa, más compacto; plegado, solo el campo y el aviso */
+  #screen-callejero.cj-completa .cj-cabeza .cj-nombrar{ margin:6px 0 0; gap:6px; }
+  #screen-callejero.cj-completa .cj-cabeza .cj-nombrar-fila input{ padding:9px 12px; border-radius:11px; }
+  #screen-callejero.cj-completa .cj-cabeza .cj-nombrar-voz{ width:40px; height:40px; border-radius:11px; }
+  #screen-callejero.cj-completa .cj-cabeza.plegada .cj-nombrar .cj-zona-select{ display:none; }

@@ -59,7 +59,7 @@
 <link rel="stylesheet" href="css/pantallas.css?v=3f6c67404a">
 <link rel="stylesheet" href="css/test.css?v=06abd3d71a">
 <link rel="stylesheet" href="css/normativas.css?v=647d1c0791">
-<link rel="stylesheet" href="css/callejero.css?v=bac189c3f1">
+<link rel="stylesheet" href="css/callejero.css?v=014e0331ea">
 </head>
 <body>
 <div id="appSplash">
@@ -443,6 +443,18 @@
             <button type="button" class="cj-voz-ver" id="cjVozVer" onclick="CJ.verRespuesta()">Resolver</button>
             <button type="button" class="cj-voz-si hidden" id="cjVozSi" onclick="CJ.autoevaluar(true)">✓ Bien</button>
             <button type="button" class="cj-voz-no hidden" id="cjVozNo" onclick="CJ.autoevaluar(false)">✗ Mal</button>
+          </div>
+          <div class="cj-nombrar hidden" id="cjNombrar">
+            <select class="cj-zona-select" id="cjNombrarZona" onchange="CJ.cambiarZonaNombrar(this.value)" aria-label="Calles de"></select>
+            <div class="cj-nombrar-fila">
+              <input type="search" id="cjNombrarTexto" placeholder="Escribe una calle…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send"
+                onkeydown="if(event.key==='Enter'){CJ.decirCalle(this.value);this.value=''}">
+              <button type="button" class="cj-nombrar-voz hidden" id="cjNombrarVoz" onclick="CJ.alternarEscucha()" aria-pressed="false" aria-label="Decirlas con el micrófono" title="Decirlas con el micrófono">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
+              </button>
+              <button type="button" class="btn btn-ghost cj-nombrar-fin" id="cjNombrarFin" onclick="CJ.terminarNombrar()">Terminar</button>
+            </div>
+            <div class="cj-nombrar-aviso" id="cjNombrarAviso" aria-live="polite"></div>
           </div>
         </div>
         <div class="cj-mapa-wrap">
@@ -1077,7 +1089,7 @@
 <script src="js/admin/importar-ia.js?v=fc5e42e6f8"></script>
 <script src="js/admin/callejero.js?v=5d85c58ac1"></script>
 <script src="js/normativas.js?v=7426a7cc1d"></script>
-<script src="js/callejero.js?v=02a3022185"></script>
+<script src="js/callejero.js?v=6ba0c688c7"></script>
 <script src="js/callejero-temario.js?v=67f996a5e2"></script>
 <script src="js/callejero-profesor.js?v=55890007ea"></script>
 <script src="js/arranque.js?v=736412f343"></script>
