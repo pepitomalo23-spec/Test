@@ -77,7 +77,8 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   partió la ciudad en manzanas (los huecos entre los ejes de las calles) y cada manzana es del barrio
   del color que le da el plano; donde el plano está en blanco (calles, parques, urbanizaciones
   posteriores al plano como Santa Isabel Este o lo nuevo de El Naranjo) vale DERA. Así los bordes van
-  por el eje de las calles. Los polígonos industriales que nombra el temario (Chinales, Pedroches,
+  por el eje de las calles, y la calle que hace de linde entre dos barrios es de los dos (cuenta lo que
+  pasa a menos de 8 m del borde). Los polígonos industriales que nombra el temario (Chinales, Pedroches,
   Torrecillas, Amargacena y El Granadal) van como barrios de su distrito. Si cambian los planos hay
   que volver a generar `barrios.ts`.
 - El CDAU se cruzó con el **Callejero del Censo Electoral del INE** (julio de 2026, 3.711 vías) y con

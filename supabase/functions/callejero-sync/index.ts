@@ -69,6 +69,10 @@ const LIMITES_WFS = "https://www.ideandalucia.es/services/DERA_g13_limites_admin
 // Una vía está en un barrio si al menos esta parte de su trazado cae dentro.
 const BARRIO_MIN_FRACCION = 0.2;
 const MUESTREO_M = 25;
+// Los bordes de los barrios van por el eje de las calles: la calle que hace
+// de linde es de los dos barrios. Cuenta lo que pasa a menos de LINDE_M del
+// borde (al menos 2 puntos, para que no cuente el cruce del final de una calle).
+const LINDE_M = 8;
 
 // Lugares importantes (DERA g12 Servicios, IECA, CC BY 4.0): capa →
 // categoría y, si hace falta, qué registros valen y cómo se llaman.
@@ -684,6 +688,22 @@ function dentroDeBarrio([x, y]: number[], b: Barrio) {
   return dentro;
 }
 
+// ¿Pasa el punto a menos de m metros del barrio (dentro o junto a su borde)?
+function junto([x, y]: number[], b: Barrio, m: number) {
+  const mx = m / KX, my = m / KY;
+  if (x < b.caja[0] - mx || x > b.caja[2] + mx || y < b.caja[1] - my || y > b.caja[3] + my) return false;
+  if (dentroDeBarrio([x, y], b)) return true;
+  for (const r of b.anillos) {
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      const ax = (r[j][0] - x) * KX, ay = (r[j][1] - y) * KY, bx = (r[i][0] - x) * KX, by = (r[i][1] - y) * KY;
+      const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+      const t = L ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L)) : 0;
+      if (Math.hypot(ax + t * dx, ay + t * dy) < m) return true;
+    }
+  }
+  return false;
+}
+
 // Puntos cada MUESTREO_M metros a lo largo del trazado de una vía.
 function muestrear(lineas: number[][][]) {
   const kx = 111320 * Math.cos((37.88 * Math.PI) / 180), ky = 110540;
@@ -699,18 +719,21 @@ function muestrear(lineas: number[][][]) {
   return pts;
 }
 
-// Índices (en `barrios`) de los barrios por los que pasa la vía.
+// Índices (en `barrios`) de los barrios por los que pasa la vía (o de los
+// que hace de linde).
 function barriosDeVia(lineas: number[][][], barrios: Barrio[]) {
   const pts = muestrear(lineas);
-  const cuenta = new Map<number, number>();
+  const cuenta = new Map<number, number>(), linde = new Map<number, number>();
   for (const p of pts) {
     for (let i = 0; i < barrios.length; i++) {
       if (dentroDeBarrio(p, barrios[i])) { cuenta.set(i, (cuenta.get(i) || 0) + 1); break; }
     }
+    for (let i = 0; i < barrios.length; i++) if (junto(p, barrios[i], LINDE_M)) linde.set(i, (linde.get(i) || 0) + 1);
   }
-  const out = [...cuenta].filter(([, n]) => n / pts.length >= BARRIO_MIN_FRACCION).map(([i]) => i);
-  if (!out.length && cuenta.size) out.push([...cuenta].sort((a, b) => b[1] - a[1])[0][0]);
-  return out.sort((a, b) => a - b);
+  const out = new Set([...cuenta].filter(([, n]) => n / pts.length >= BARRIO_MIN_FRACCION).map(([i]) => i));
+  for (const [i, n] of linde) if (n >= 2 && n / pts.length >= BARRIO_MIN_FRACCION) out.add(i);
+  if (!out.size && cuenta.size) out.add([...cuenta].sort((a, b) => b[1] - a[1])[0][0]);
+  return [...out].sort((a, b) => a - b);
 }
 
 // ---------------------------------------------------------------------
