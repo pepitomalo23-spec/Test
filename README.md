@@ -41,7 +41,6 @@ js/                  código, en orden de carga (ver el final de index.html)
                      copias, errores, boe, temario, importar-ia, callejero)
   normativas.js      Normativas (fichas estilo Quizlet)
   callejero.js       Callejero: mapa, modos de juego, modo estudio, tareas y modo selección
-  callejero-3d.js    Callejero: la calle en 3D del modo «A pie de calle» (MapLibre)
   callejero-temario.js   Callejero: temario de la academia (fichas, en el mapa, preguntas y planos)
   callejero-profesor.js  Callejero: los alumnos del profesor, tareas y mensajes
   arranque.js        escucha la sesión y arranca la app (siempre el último)
@@ -106,38 +105,17 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
     verde, con la cuenta. Vale sin «Calle», sin tildes, con alguna letra mal y una parte del nombre si
     ninguna otra calle de la zona la tiene; si hay varias que se llaman igual, la del tipo dicho y, si no,
     la calle. Al terminar, las que faltan salen en rojo (y tocándolas, su nombre).
-  - **A pie de calle** (`js/callejero-3d.js`): la calle en 3D, como si se estuviera en ella, y se elige su
-    nombre entre 4 (los de las calles de al lado). Gratis y sin claves: el suelo es la ortofoto del PNOA
-    (como el satélite, y la guarda igual el service worker) y los edificios, en relieve con su altura,
-    los de OpenStreetMap (en Córdoba, del Catastro) en los trozos de **OpenFreeMap**; los dibuja
-    **MapLibre GL** (WebGL), que se carga de cdn.jsdelivr.net con SRI solo al empezar el modo. La cámara
-    está en un punto del tramo más largo de la calle (de las de 40 m o más), mirando a lo largo; se
-    arrastra para mirar alrededor, «Avanzar» y «Atrás» la mueven por la calle y se puede ver a pie
-    (1,7 m), desde un balcón (12 m) o desde un dron (45 m) (se recuerda). Al responder sube y se ve la
-    calle en verde, la elegida en rojo si se ha fallado y dónde se estaba. Sin WebGL o sin conexión,
-    avisa y no empieza.
-    Con la clave de Google (de navegador, para la Maps JavaScript API), en vez del 3D se ve **Street
-    View**. La clave no está en el código, porque el repositorio es público: está en la tabla
-    `ajustes_privados` (sin acceso directo) y la app la pide con `callejero_clave_google()`, que solo la
-    da a un usuario aprobado (migración `20261003_ajustes_clave_google.sql`). Street View es la imagen
-    de 360° del coche de Google, por la que se mira arrastrando y se avanza con sus flechas, sin nombres
-    de calles ni dirección. Se
-    busca la imagen del coche más cercana a un punto de la calle (y, si no, a su mitad) que esté a menos
-    de 15 m de su trazado; si no hay, esa pregunta va en 3D. Se usa un solo panorama, que se cambia de
-    sitio en cada pregunta y se guarda para la ronda siguiente, porque Google cobra cada panorama que se
-    crea (los 5.000 primeros del mes, gratis). Al responder, Street View se quita y la respuesta se ve en
-    el mapa. Si Google dice que la clave no vale (`gm_authFailure`) o no carga, todo en 3D.
   Además, el Modo estudio.
   Las respuestas de «Barrios y distritos» y «¿En qué barrio está?» entrenan la habilidad `barrios`
   (los barrios y distritos tienen ids fijos desde 6·10¹² y 6,1·10¹²); las de «Nombra las calles», la
-  habilidad `memoria` (migración `20261003_callejero_barrios.sql`); las de «A pie de calle», la
-  habilidad `calle3d` (migración `20261003_callejero_calle3d.sql`, que también deja guardar estos
-  modos nuevos en las tareas del profesor).
+  habilidad `memoria` (migración `20261003_callejero_barrios.sql`). La migración
+  `20261003_callejero_calle3d.sql` deja guardar estos modos en las tareas del profesor (antes no se
+  podían); también nombra `calle3d`, de un modo en 3D que se probó y se quitó, y que ya no se usa.
 - Pantalla, de arriba abajo: tareas del profesor, qué estudiar (zona), progreso, Aprender (modo estudio),
   Practicar (¿Cómo se llama?, Di el nombre, Localiza la calle), Relacionar (cruces y paralelas), Servicio
   (lugares y parque) y las últimas rondas.
-- Progreso por habilidad (nombres, situar calles, cruces, lugares, parque, barrios y distritos, de
-  memoria y a pie de calle), con la regla de los tests:
+- Progreso por habilidad (nombres, situar calles, cruces, lugares, parque, barrios y distritos, y de
+  memoria), con la regla de los tests:
   dominada si nunca se ha fallado o si lleva 3 aciertos seguidos. Cada ronda empieza por lo fallado.
 - Cada respuesta lleva un `uid` que pone la app: la cola sin conexión se sube sin duplicar ni perder nada.
 - La app descarga un único archivo compacto (almacén público `callejero`, unos 900 KB) solo al

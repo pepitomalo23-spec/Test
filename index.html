@@ -59,7 +59,7 @@
 <link rel="stylesheet" href="css/pantallas.css?v=3f6c67404a">
 <link rel="stylesheet" href="css/test.css?v=06abd3d71a">
 <link rel="stylesheet" href="css/normativas.css?v=647d1c0791">
-<link rel="stylesheet" href="css/callejero.css?v=0feecea3de">
+<link rel="stylesheet" href="css/callejero.css?v=014e0331ea">
 </head>
 <body>
 <div id="appSplash">
@@ -459,38 +459,6 @@
         </div>
         <div class="cj-mapa-wrap">
           <div class="cj-mapa" id="cjMapa"></div>
-          <div class="cj-3d hidden" id="cj3d">
-            <div class="cj-3d-lienzo" id="cj3dLienzo"></div>
-            <div class="cj-3d-calle" id="cj3dCalle"></div>
-            <div class="cj-3d-cargando hidden" id="cj3dCargando">Cargando la calle…</div>
-            <div class="cj-3d-pista hidden" id="cj3dPista" aria-live="polite"></div>
-            <div class="cj-3d-lado">
-              <button type="button" class="cj-completa-boton cj-3d-completa" onclick="CJ.alternarCompleta()" aria-label="Pantalla completa" title="Pantalla completa">
-                <span class="cj-ico-abrir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></span>
-                <span class="cj-ico-cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/></svg></span>
-              </button>
-              <div class="cj-3d-alturas" role="group" aria-label="Altura de la vista">
-                <button type="button" data-altura="pie" onclick="CJ3D.altura('pie')" aria-pressed="true" title="A pie">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2"/><path d="M12 8v6"/><path d="m8 22 4-8 4 8"/><path d="M7 11h10"/></svg>
-                  <span>A pie</span></button>
-                <button type="button" data-altura="balcon" onclick="CJ3D.altura('balcon')" aria-pressed="false" title="Desde un balcón">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V3h12v19"/><path d="M3 22h18"/><path d="M10 7h4"/><path d="M10 11h4"/><path d="M4 15h16v3H4z"/></svg>
-                  <span>Balcón</span></button>
-                <button type="button" data-altura="dron" onclick="CJ3D.altura('dron')" aria-pressed="false" title="Desde un dron">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="6" height="6" rx="1"/><path d="m9 9-3-3"/><path d="m15 9 3-3"/><path d="m9 15-3 3"/><path d="m15 15 3 3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/></svg>
-                  <span>Dron</span></button>
-              </div>
-            </div>
-            <div class="cj-3d-andar">
-              <button type="button" onclick="CJ3D.andar(-1)" aria-label="Atrás" title="Atrás">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg></button>
-              <button type="button" class="cj-3d-avanzar" onclick="CJ3D.andar(1)" aria-label="Avanzar" title="Avanzar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg><span>Avanzar</span></button>
-              <button type="button" onclick="CJ3D.darVuelta()" aria-label="Dar la vuelta" title="Dar la vuelta">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
-            </div>
-            <div class="cj-3d-creditos">Edificios: <a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · Ortofoto: PNOA © IGN</div>
-          </div>
           <div class="cj-chips hidden" id="cjChips" role="tablist" aria-label="Qué ver en el mapa"></div>
           <button type="button" class="cj-lista-boton hidden" id="cjListaBoton" onclick="CJ.alternarLista()"></button>
           <div class="cj-pista hidden" id="cjPista">Toca una calle para ver cómo se llama</div>
@@ -1121,8 +1089,7 @@
 <script src="js/admin/importar-ia.js?v=fc5e42e6f8"></script>
 <script src="js/admin/callejero.js?v=5d85c58ac1"></script>
 <script src="js/normativas.js?v=7426a7cc1d"></script>
-<script src="js/callejero.js?v=2ee52d37e8"></script>
-<script src="js/callejero-3d.js?v=71ac490fea"></script>
+<script src="js/callejero.js?v=0ca3e75b82"></script>
 <script src="js/callejero-temario.js?v=67f996a5e2"></script>
 <script src="js/callejero-profesor.js?v=55890007ea"></script>
 <script src="js/arranque.js?v=736412f343"></script>
