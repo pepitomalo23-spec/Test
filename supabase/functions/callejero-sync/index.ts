@@ -688,20 +688,42 @@ function dentroDeBarrio([x, y]: number[], b: Barrio) {
   return dentro;
 }
 
-// ¿Pasa el punto a menos de m metros del barrio (dentro o junto a su borde)?
-function junto([x, y]: number[], b: Barrio, m: number) {
-  const mx = m / KX, my = m / KY;
-  if (x < b.caja[0] - mx || x > b.caja[2] + mx || y < b.caja[1] - my || y > b.caja[3] + my) return false;
-  if (dentroDeBarrio([x, y], b)) return true;
-  for (const r of b.anillos) {
-    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
-      const ax = (r[j][0] - x) * KX, ay = (r[j][1] - y) * KY, bx = (r[i][0] - x) * KX, by = (r[i][1] - y) * KY;
-      const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
-      const t = L ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L)) : 0;
-      if (Math.hypot(ax + t * dx, ay + t * dy) < m) return true;
+// Cuadrícula (celdas de ~50 m) con los lados de los barrios que pasan a
+// menos de LINDE_M de cada celda: para saber qué bordes tiene cerca un punto
+// solo hay que mirar los de su celda (mirarlos todos no cabe en el tiempo de
+// CPU de la función).
+type Lado = [number, number, number, number, number]; // [barrio, x0, y0, x1, y1]
+const CELDA_LINDE = 0.0005;
+function rejillaDeLados(barrios: Barrio[]) {
+  const rejilla = new Map<string, Lado[]>();
+  const mx = LINDE_M / KX, my = LINDE_M / KY;
+  barrios.forEach((b, i) => {
+    for (const r of b.anillos) {
+      for (let k = 0, j = r.length - 1; k < r.length; j = k++) {
+        const [x0, y0] = r[j], [x1, y1] = r[k];
+        const cx0 = Math.floor((Math.min(x0, x1) - mx) / CELDA_LINDE), cx1 = Math.floor((Math.max(x0, x1) + mx) / CELDA_LINDE);
+        const cy0 = Math.floor((Math.min(y0, y1) - my) / CELDA_LINDE), cy1 = Math.floor((Math.max(y0, y1) + my) / CELDA_LINDE);
+        for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++) {
+          const c = `${cx}|${cy}`;
+          if (!rejilla.has(c)) rejilla.set(c, []);
+          rejilla.get(c)!.push([i, x0, y0, x1, y1]);
+        }
+      }
     }
+  });
+  return rejilla;
+}
+// Barrios con el borde a menos de m metros del punto.
+function bordesCerca([x, y]: number[], rejilla: Map<string, Lado[]>, m: number) {
+  const out = new Set<number>();
+  for (const [i, x0, y0, x1, y1] of rejilla.get(`${Math.floor(x / CELDA_LINDE)}|${Math.floor(y / CELDA_LINDE)}`) || []) {
+    if (out.has(i)) continue;
+    const ax = (x0 - x) * KX, ay = (y0 - y) * KY, bx = (x1 - x) * KX, by = (y1 - y) * KY;
+    const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+    const t = L ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L)) : 0;
+    if (Math.hypot(ax + t * dx, ay + t * dy) < m) out.add(i);
   }
-  return false;
+  return out;
 }
 
 // Puntos cada MUESTREO_M metros a lo largo del trazado de una vía.
@@ -721,14 +743,15 @@ function muestrear(lineas: number[][][]) {
 
 // Índices (en `barrios`) de los barrios por los que pasa la vía (o de los
 // que hace de linde).
-function barriosDeVia(lineas: number[][][], barrios: Barrio[]) {
+function barriosDeVia(lineas: number[][][], barrios: Barrio[], rejilla: Map<string, Lado[]>) {
   const pts = muestrear(lineas);
   const cuenta = new Map<number, number>(), linde = new Map<number, number>();
   for (const p of pts) {
+    const cerca = bordesCerca(p, rejilla, LINDE_M);
     for (let i = 0; i < barrios.length; i++) {
-      if (dentroDeBarrio(p, barrios[i])) { cuenta.set(i, (cuenta.get(i) || 0) + 1); break; }
+      if (dentroDeBarrio(p, barrios[i])) { cuenta.set(i, (cuenta.get(i) || 0) + 1); cerca.add(i); break; }
     }
-    for (let i = 0; i < barrios.length; i++) if (junto(p, barrios[i], LINDE_M)) linde.set(i, (linde.get(i) || 0) + 1);
+    for (const i of cerca) linde.set(i, (linde.get(i) || 0) + 1);
   }
   const out = new Set([...cuenta].filter(([, n]) => n / pts.length >= BARRIO_MIN_FRACCION).map(([i]) => i));
   for (const [i, n] of linde) if (n >= 2 && n / pts.length >= BARRIO_MIN_FRACCION) out.add(i);
@@ -1126,6 +1149,7 @@ async function publicar(sb: SupabaseClient, forzar = false) {
     });
   const { data: actual } = await sb.from("callejero_publicado").select("version, archivo").eq("id", 1).maybeSingle();
   const barrios = leerBarrios();
+  const rejilla = rejillaDeLados(barrios);
   let previo: any = null;
   // Vías oficiales que el CDAU aún no tiene (si ya tiene una con ese nombre, manda la suya).
   const nombresCdau = new Set(vias.map((v) => claveNombre(v.nombre)));
@@ -1134,7 +1158,7 @@ async function publicar(sb: SupabaseClient, forzar = false) {
   // [id_vial, nombre, tipo, jugable (1/0), líneas codificadas, barrios]
   const filas = vias.map((v) => {
     const jugable = v.jugable && !esNombreProvisional(v.nombre);
-    const fila: unknown[] = [Number(v.id_vial), v.nombre, v.tipo, jugable ? 1 : 0, codificar(v.geom), barriosDeVia(v.geom, barrios)];
+    const fila: unknown[] = [Number(v.id_vial), v.nombre, v.tipo, jugable ? 1 : 0, codificar(v.geom), barriosDeVia(v.geom, barrios, rejilla)];
     return fila;
   }).filter((f) => (f[4] as number[][]).length);
   const cargarPrevio = async () => {
