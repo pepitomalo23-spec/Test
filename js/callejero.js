@@ -33,11 +33,11 @@
    cualquier vía con ese mismo nombre (hay nombres repetidos en
    distintas pedanías). Cada respuesta se guarda en callejero_intentos.
 
-   Zona de estudio: toda Córdoba, un distrito, un barrio (barrios urbanos
-   de DERA, con su distrito) o las afueras y pedanías (vías que no están en
-   ningún barrio). Filtra las preguntas, el progreso y la lista de calles
-   del modo estudio, y se dibuja su contorno en el mapa. Se recuerda en el
-   dispositivo.
+   Zona de estudio: toda Córdoba, un distrito, un barrio (los de los
+   planos de distrito del Ayuntamiento) o las afueras y pedanías (vías
+   que no están en ningún barrio). Filtra las preguntas, el progreso y la
+   lista de calles del modo estudio, y se dibuja su contorno en el mapa.
+   Se recuerda en el dispositivo.
 
    Modos de juego (todos con rondas de hasta 20 preguntas de la zona
    elegida; primero las que se fallaron):

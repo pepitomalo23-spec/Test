@@ -32,7 +32,7 @@
    «Todo lo que te ha mandado» (CJT.abrirProfesor) junta todas las tareas.
    ============================================================ */
 const CJT = (function(){
-  const ARCHIVO = 'datos/callejero-temario.json?v=96e7519e05';
+  const ARCHIVO = 'datos/callejero-temario.json?v=1d879c227e';
   const PARQUE_NOMBRE = { central: 'Parque Central', granadal: 'Parque del Granadal' };
   // Los dos parques de bomberos en los lugares del mapa (salida de los recorridos).
   const PARQUE_LUGAR = { central: 11215900007629, granadal: 11215900007679 };

@@ -18,7 +18,8 @@
 // Después de cualquier cambio se publica en el almacén público
 // «callejero» un archivo compacto con las vías activas, y su ruta se
 // guarda en callejero_publicado. El archivo lleva también:
-//   - los barrios urbanos (DERA) y, para cada vía, en qué barrios está;
+//   - los barrios (los de los planos de distrito del Ayuntamiento, en
+//     barrios.ts) y, para cada vía, en qué barrios está;
 //   - los lugares importantes (DERA y, para lo que DERA no tiene,
 //     OpenStreetMap: hospitales, colegios, museos, monumentos...);
 //   - unas pocas vías que el INE o el Ayuntamiento dan por oficiales y el
@@ -35,6 +36,7 @@
 
 // Versión fijada: la última publicada en JSR no se puede empaquetar.
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2.117.1";
+import { BARRIOS } from "./barrios.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -57,25 +59,16 @@ const TIPOS_NO_JUGABLES = new Set(["CORTIJO", "EXTRARRADIO"]);
 // Tolerancia para simplificar el trazado del archivo publicado (metros).
 const SIMPLIFICAR_M = 1.5;
 const ATRIBUCION =
-  "Callejero: Callejero Digital de Andalucía Unificado (CDAU) · Río, barrios y lugares: DERA — Instituto de Estadística y Cartografía de Andalucía, Junta de Andalucía (CC BY 4.0) · Otros lugares y el trazado de las vías que faltan en el CDAU: © colaboradores de OpenStreetMap (ODbL) · Nombres oficiales: Callejero del Censo Electoral (INE) y Callejero Fiscal del Ayuntamiento de Córdoba · Parques de bomberos: S.E.I.S., Ayuntamiento de Córdoba.";
+  "Callejero: Callejero Digital de Andalucía Unificado (CDAU) · Río y lugares: DERA — Instituto de Estadística y Cartografía de Andalucía, Junta de Andalucía (CC BY 4.0) · Barrios: planos de los distritos del Ayuntamiento de Córdoba, ajustados al eje de las calles del CDAU · Otros lugares y el trazado de las vías que faltan en el CDAU: © colaboradores de OpenStreetMap (ODbL) · Nombres oficiales: Callejero del Censo Electoral (INE) y Callejero Fiscal del Ayuntamiento de Córdoba · Parques de bomberos: S.E.I.S., Ayuntamiento de Córdoba.";
 // El Guadalquivir, solo para orientarse en el mapa (DERA, IECA, CC BY 4.0).
 const RIO_WFS = "https://www.ideandalucia.es/services/DERA_g3_hidrografia/wfs";
 const RIO_NOMBRE = "Río Guadalquivir";
 const RIO_CAJA = { minLon: -5.12, maxLon: -4.33, minLat: 37.65, maxLat: 38.15 };
-// Barrios urbanos de Córdoba, con su distrito (DERA g13_24, IECA, CC BY 4.0).
-const BARRIOS_WFS = "https://www.ideandalucia.es/services/DERA_g13_limites_administrativos/wfs";
+// Límites administrativos (DERA g13, IECA, CC BY 4.0): el término municipal.
+const LIMITES_WFS = "https://www.ideandalucia.es/services/DERA_g13_limites_administrativos/wfs";
 // Una vía está en un barrio si al menos esta parte de su trazado cae dentro.
 const BARRIO_MIN_FRACCION = 0.2;
 const MUESTREO_M = 25;
-// Los distritos de DERA no siempre coinciden con los del Ayuntamiento, que
-// son los que valen en el examen. Correcciones comprobadas con las fichas
-// de cada distrito en participa.cordoba.es (septiembre de 2026):
-//   - DERA llama «Norte Centro» al distrito que el Ayuntamiento llama
-//     «Noroeste» (mismos barrios).
-//   - San Rafael de la Albaida es del distrito Poniente Norte, no del
-//     Noroeste.
-const DISTRITO_AYUNTAMIENTO: Record<string, string> = { "Norte Centro": "Noroeste" };
-const BARRIO_DISTRITO_AYUNTAMIENTO: Record<string, string> = { "San Rafael de la Albaida": "Poniente Norte" };
 
 // Lugares importantes (DERA g12 Servicios, IECA, CC BY 4.0): capa →
 // categoría y, si hace falta, qué registros valen y cómo se llaman.
@@ -659,31 +652,23 @@ async function descargarRio(): Promise<number[][][]> {
 // ---------------------------------------------------------------------
 type Barrio = { nombre: string; distrito: string; anillos: number[][][]; caja: number[] };
 
-async function descargarBarrios(): Promise<Barrio[]> {
-  const url = `${BARRIOS_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeNames=DERA_g13_limites_administrativos:g13_24_BarrioUrbano` +
-    `&outputFormat=application/json&srsName=${encodeURIComponent("urn:ogc:def:crs:EPSG::4326")}` +
-    `&CQL_FILTER=${encodeURIComponent(`cod_mun='${INE_MUNICIPIO}'`)}`;
-  const data = await pedirJson(url);
-  const barrios: Barrio[] = [];
-  for (const f of data.features || []) {
-    const p = f.properties || {};
-    const g = f.geometry;
-    const poligonos: number[][][][] = g?.type === "MultiPolygon" ? g.coordinates : g?.type === "Polygon" ? [g.coordinates] : [];
-    const anillos = poligonos.flat().filter((r) => r.length >= 4);
-    if (!p.nombre || !anillos.length) continue;
-    const pts = anillos.flat();
-    const nombre = String(p.nombre).trim();
-    const distritoDera = String(p.distrito || "").trim();
-    barrios.push({
-      nombre,
-      distrito: BARRIO_DISTRITO_AYUNTAMIENTO[nombre] || DISTRITO_AYUNTAMIENTO[distritoDera] || distritoDera,
-      anillos,
-      caja: [Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1])), Math.max(...pts.map((q) => q[0])), Math.max(...pts.map((q) => q[1]))],
+// Los barrios de los planos de distrito del Ayuntamiento (barrios.ts). Los
+// de DERA (g13_24) no valen: son más bastos, a alguno le faltan manzanas
+// (Huerta de la Reina) y tienen barrios que el Ayuntamiento no tiene.
+function leerBarrios(): Barrio[] {
+  return BARRIOS.map(([nombre, distrito, cod]) => {
+    const anillos = cod.map((c) => {
+      const r: number[][] = [];
+      let x = 0, y = 0;
+      for (let k = 0; k < c.length; k += 2) { x += c[k]; y += c[k + 1]; r.push([x / 1e5, y / 1e5]); }
+      return r;
     });
-  }
-  // Por debajo de esto, la respuesta está incompleta: no se usa.
-  if (barrios.length < 50) throw new Error(`DERA solo ha devuelto ${barrios.length} barrios`);
-  return barrios.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+    const pts = anillos.flat();
+    return {
+      nombre, distrito, anillos,
+      caja: [Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1])), Math.max(...pts.map((q) => q[0])), Math.max(...pts.map((q) => q[1]))],
+    };
+  }).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
 // Punto dentro de un barrio (regla par-impar: los huecos quedan fuera).
@@ -861,7 +846,7 @@ function sinNombresRepetidos(lugares: Lugar[]) {
 let terminoCache: number[][][][] | null = null;
 async function terminoMunicipal() {
   if (terminoCache) return terminoCache;
-  const url = `${BARRIOS_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeNames=DERA_g13_limites_administrativos:g13_01_TerminoMunicipal` +
+  const url = `${LIMITES_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeNames=DERA_g13_limites_administrativos:g13_01_TerminoMunicipal` +
     `&outputFormat=application/json&srsName=${encodeURIComponent("urn:ogc:def:crs:EPSG::4326")}` +
     `&CQL_FILTER=${encodeURIComponent(`cod_mun='${INE_MUNICIPIO}'`)}`;
   try {
@@ -1117,19 +1102,8 @@ async function publicar(sb: SupabaseClient, forzar = false) {
       return c ? { ...v, tipo: c.tipo, nombre: c.nombre, jugable: true } : v;
     });
   const { data: actual } = await sb.from("callejero_publicado").select("version, archivo").eq("id", 1).maybeSingle();
-  // Barrios: de DERA; si no responde, los del archivo ya publicado (así
-  // una caída de DERA nunca deja la app sin barrios).
-  let barrios: Barrio[] | null = null;
+  const barrios = leerBarrios();
   let previo: any = null;
-  try {
-    barrios = await descargarBarrios();
-  } catch (e) {
-    if (actual?.archivo) {
-      const { data: blob } = await sb.storage.from(BUCKET).download(actual.archivo);
-      if (blob) previo = JSON.parse(await blob.text());
-    }
-    if (!previo?.zonas) console.warn("Sin barrios:", (e as Error).message);
-  }
   // Vías oficiales que el CDAU aún no tiene (si ya tiene una con ese nombre, manda la suya).
   const nombresCdau = new Set(vias.map((v) => claveNombre(v.nombre)));
   vias.push(...COMPLEMENTOS.filter((c) => !nombresCdau.has(claveNombre(c.nombre)))
@@ -1137,8 +1111,7 @@ async function publicar(sb: SupabaseClient, forzar = false) {
   // [id_vial, nombre, tipo, jugable (1/0), líneas codificadas, barrios]
   const filas = vias.map((v) => {
     const jugable = v.jugable && !esNombreProvisional(v.nombre);
-    const fila: unknown[] = [Number(v.id_vial), v.nombre, v.tipo, jugable ? 1 : 0, codificar(v.geom)];
-    if (barrios) fila.push(barriosDeVia(v.geom, barrios));
+    const fila: unknown[] = [Number(v.id_vial), v.nombre, v.tipo, jugable ? 1 : 0, codificar(v.geom), barriosDeVia(v.geom, barrios)];
     return fila;
   }).filter((f) => (f[4] as number[][]).length);
   const cargarPrevio = async () => {
@@ -1146,12 +1119,6 @@ async function publicar(sb: SupabaseClient, forzar = false) {
     const { data: blob } = await sb.storage.from(BUCKET).download(actual.archivo);
     if (blob) previo = JSON.parse(await blob.text());
   };
-  if (!barrios) {
-    await cargarPrevio();
-    // Se conserva la asignación del archivo anterior para las vías que ya estaban.
-    const asignado = new Map<number, number[]>((previo?.vias || []).map((f: any[]) => [f[0], f[5] || []]));
-    filas.forEach((f) => f.push(asignado.get(f[0] as number) || []));
-  }
   // Parque de bomberos de cada vía (7.º campo).
   const linea = lineaParques(vias as any);
   const divisoria = linea ? prepararDivisoria(linea) : null;
@@ -1185,7 +1152,7 @@ async function publicar(sb: SupabaseClient, forzar = false) {
     }
     lugares = sinNombresRepetidos([...dera, ...osm]).map((l) => [
       l.id, l.nombre, l.categoria, l.direccion, Math.round(l.x * 1e5), Math.round(l.y * 1e5),
-      barrios ? barrios.map((b, i) => (dentroDeBarrio([l.x, l.y], b) ? i : -1)).filter((i) => i >= 0) : [],
+      barrios.map((b, i) => (dentroDeBarrio([l.x, l.y], b) ? i : -1)).filter((i) => i >= 0),
       divisoria ? parqueDe([[[l.x, l.y]]], divisoria) : 0,
       l.radio, l.fuente,
     ]);
@@ -1195,9 +1162,7 @@ async function publicar(sb: SupabaseClient, forzar = false) {
     console.warn("Lugares del archivo anterior:", (e as Error).message);
   }
   const parques = linea ? { linea: codificar([linea], 5)[0] } : previo?.parques || null;
-  const zonas = barrios
-    ? { barrios: barrios.map((b) => [b.nombre, b.distrito, codificar(b.anillos, 5)]) }
-    : previo?.zonas || null;
+  const zonas = { barrios: barrios.map((b) => [b.nombre, b.distrito, codificar(b.anillos, 5)]) };
   const rio = codificar(await descargarRio(), 5);
   // El nombre del archivo depende de su contenido: nunca se sobrescribe
   // uno ya publicado (los móviles lo guardan para siempre).

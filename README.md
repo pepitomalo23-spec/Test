@@ -68,9 +68,18 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
 - Tablas: `callejero_vias`, `callejero_cambios`, `callejero_sync_log`, `callejero_publicado` y
   `callejero_intentos` (respuestas de cada alumno, con su ronda, zona y tarea). Ver
   `supabase/migrations/20260925_callejero.sql` y `20260927_callejero_profesor.sql`.
-- El archivo publicado lleva también los 70 barrios urbanos de Córdoba con su distrito (DERA g13_24)
-  y en qué barrios está cada vía; con eso la app deja elegir qué estudiar: toda Córdoba, un
-  distrito, un barrio o las afueras y pedanías.
+- El archivo publicado lleva también los 68 barrios de Córdoba con su distrito y en qué barrios está
+  cada vía; con eso la app deja elegir qué estudiar: toda Córdoba, un distrito, un barrio o las
+  afueras y pedanías. Los barrios (`supabase/functions/callejero-sync/barrios.ts`) son los de los
+  **planos de distrito del Ayuntamiento** que trae el temario, no los de DERA (g13_24), que son más
+  bastos, dejan fuera manzanas (a Huerta de la Reina le faltaba un triángulo) y tienen barrios que el
+  Ayuntamiento no tiene. Se sacaron así: se georreferenció cada plano sobre las calles del CDAU, se
+  partió la ciudad en manzanas (los huecos entre los ejes de las calles) y cada manzana es del barrio
+  del color que le da el plano; donde el plano está en blanco (calles, parques, urbanizaciones
+  posteriores al plano como Santa Isabel Este o lo nuevo de El Naranjo) vale DERA. Así los bordes van
+  por el eje de las calles. Los polígonos industriales que nombra el temario (Chinales, Pedroches,
+  Torrecillas, Amargacena y El Granadal) van como barrios de su distrito. Si cambian los planos hay
+  que volver a generar `barrios.ts`.
 - El CDAU se cruzó con el **Callejero del Censo Electoral del INE** (julio de 2026, 3.711 vías) y con
   OpenStreetMap: el CDAU tiene todas las vías oficiales salvo 9 recientes, que la función añade con el
   trazado de OpenStreetMap (`COMPLEMENTOS`) hasta que el CDAU las dibuje. Los nombres provisionales del
