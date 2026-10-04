@@ -185,10 +185,14 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   worker guarda las páginas vistas con los datos del usuario (se borran al cerrar sesión).
 
 - La pantalla del Callejero son solo tres botones grandes, y cada uno abre su pantalla (con «‹» para volver):
-  **Lo que te ha mandado** (las tareas sin terminar y las hechas), **Repasar lo estudiado** (cada modo y el
-  temario, con lo que toca hoy) y **Aprender** (calles nuevas por modo, con la zona; las fichas del temario; y
+  **Lo que te ha mandado** (las tareas sin terminar y las hechas), **Repasar lo estudiado** (arriba: «Preguntas
+  del temario» sin mapa —de lo que ha mandado el profesor o, si no hay, de todo el temario—, «Distritos en el
+  mapa» y «Barrios en el mapa»; debajo, cada modo y el temario con lo que toca hoy) y **Aprender** (calles nuevas por modo, con la zona; las fichas del temario; y
   «Mapa libre y todos los modos»). Si el profesor ha mandado algo nuevo, al entrar sale una ventanita
   («Estudiar esto» abre solo esa tarea; una vez por sesión).
+- «Distritos en el mapa» y «Barrios en el mapa» (modos `mapadistritos` y `mapabarrios`): todos a la vez, cada
+  uno de un color y sin nombres (los barrios de al lado, de colores distintos), y se toca el que se pide. Sus
+  respuestas se guardan con el modo `barrios` (misma habilidad e ids), así que no hace falta tocar la base de datos.
 - En las rondas del temario, las preguntas de opciones que no dibujan nada antes de responder (datos,
   distritos, carreteras, parque…) salen sin mapa (clase `cj-sin-mapa`): solo la pregunta y las opciones.
 - Cada ficha se ve en cuatro pestañas: **Lista** (los apartados; al abrir uno, sus botones, los mapas del

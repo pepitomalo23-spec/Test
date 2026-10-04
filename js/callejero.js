@@ -121,6 +121,10 @@ const CJ = (function(){
     // Barrios y distritos: tocarlos, qué barrio es el marcado y de qué distrito es.
     barrios: { titulo: 'Barrios y distritos', respuesta: 'variable' },
     enbarrio: { titulo: '¿En qué barrio está?', respuesta: 'opciones' },
+    // Todos los distritos (o barrios) a la vez, cada uno de un color: «toca el…».
+    // Sus respuestas se guardan como las de «Barrios y distritos».
+    mapadistritos: { titulo: 'Distritos en el mapa', respuesta: 'toque', registra: 'barrios' },
+    mapabarrios: { titulo: 'Barrios en el mapa', respuesta: 'toque', registra: 'barrios' },
     // Nombra las calles de una zona: no son preguntas, se dicen o se escriben.
     nombrar: { titulo: 'Nombra las calles', respuesta: 'nombrar' }
   };
@@ -128,7 +132,7 @@ const CJ = (function(){
   // Habilidad que entrena cada modo: el progreso se cuenta por habilidad
   // («escribe» es un modo antiguo que ya no existe, pero tiene respuestas).
   const HABILIDAD = { localiza: 'localiza', opciones: 'nombre', voz: 'nombre', escribe: 'nombre', cruces: 'cruces', lugares: 'lugares', parque: 'parque', temario: 'temario',
-    barrios: 'barrios', enbarrio: 'barrios', nombrar: 'memoria' };
+    barrios: 'barrios', enbarrio: 'barrios', mapadistritos: 'barrios', mapabarrios: 'barrios', nombrar: 'memoria' };
   const HABILIDADES = [
     { k: 'nombre', titulo: 'Nombres', desc: '¿Cómo se llama? y Di el nombre' },
     { k: 'localiza', titulo: 'Situar calles', desc: 'Localiza la calle' },
@@ -1838,7 +1842,14 @@ const CJ = (function(){
     const aviso = r.total || delTemario ? 'Elige cómo quieres repasar.'
       : diaProx ? 'Nada para repasar hoy. Lo siguiente vuelve ' + (diaProx === 1 ? 'mañana' : 'en ' + diaProx + ' días') + '.'
       : 'Aquí se irá juntando todo lo que estudies, para repasarlo cuando toque.';
-    return '<div class="cj-card cj-repaso"><div class="cj-repaso-vacio">' + aviso + '</div><div class="cj-niveles cj-modos">' + filas + '</div></div>';
+    const mandado = tem && tareasActivas().some(t => (t.fichas || []).length);
+    const practicar = (tem ? filaModo('CJT.preguntarSinMapa()', 'Preguntas del temario', (mandado ? 'Lo que te ha mandado' : 'Todo el temario') + ' · sin mapa', ICONOS.estudio, true) : '') +
+      (datos.barrios.length
+        ? filaModo('CJ.empezar(\'mapadistritos\')', 'Distritos en el mapa', 'Todos de colores; toca el que te pido', ICONOS.barrios, true) +
+          filaModo('CJ.empezar(\'mapabarrios\')', 'Barrios en el mapa', 'Todos de colores; toca el que te pido', ICONOS.enbarrio, true)
+        : '');
+    return (practicar ? '<div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' + practicar + '</div></div><div class="cj-seccion">Lo que toca repasar hoy</div>' : '') +
+      '<div class="cj-card cj-repaso"><div class="cj-repaso-vacio">' + aviso + '</div><div class="cj-niveles cj-modos">' + filas + '</div></div>';
   }
   // Aprender: calles nuevas (de la más fácil a la más difícil) en el modo que
   // elija, el temario y, al final, todas las calles con el mapa libre.
@@ -2220,6 +2231,31 @@ const CJ = (function(){
   function poligonos(bs, color, relleno, discontinuo){
     bs.forEach(b => L.polygon(b.anillos, { color, weight: discontinuo ? 2.5 : 3, dashArray: discontinuo ? '6 6' : null, fillColor: color, fillOpacity: relleno, interactive: false }).addTo(capaMarcas));
   }
+  // Todos los distritos (o todos los barrios) a la vez, cada uno de un color
+  // y sin nombres; los barrios de al lado, de colores distintos. Se encuadra
+  // la ciudad solo en la primera pregunta (luego se respeta el zoom).
+  const COLORES = ['#F2665C', '#4E9BF7', '#F5C043', '#A78BFA', '#F472B6', '#FB923C', '#E5E7EB', '#84CC16', '#94A3B8', '#B45309'];
+  function colores(tipo){
+    const color = new Map();
+    if(tipo === 'distritos') datos.distritos.forEach((d, i) => color.set(d, COLORES[i % COLORES.length]));
+    else{
+      const cajas = datos.barrios.map(b => { const c = cajaDe(b.anillos), m = 0.0004; return { s: c.s - m, n: c.n + m, o: c.o - m, e: c.e + m }; });
+      const toca = (a, b) => a.s <= b.n && b.s <= a.n && a.o <= b.e && b.o <= a.e;
+      datos.barrios.forEach((b, i) => {
+        const usados = new Set(datos.barrios.filter((x, j) => color.has(x.nombre) && toca(cajas[i], cajas[j])).map(x => color.get(x.nombre)));
+        color.set(b.nombre, COLORES.find(c => !usados.has(c)) || COLORES[i % COLORES.length]);
+      });
+    }
+    return () => {
+      if(tipo === 'distritos'){
+        datos.distritos.forEach(d => {
+          datos.barrios.filter(b => b.distrito === d).forEach(b => L.polygon(b.anillos, { weight: 0, fillColor: color.get(d), fillOpacity: 0.4, interactive: false }).addTo(capaMarcas));
+          L.polyline(contornoDistrito(d), { color: color.get(d), weight: 2.5, opacity: 1, interactive: false }).addTo(capaMarcas);
+        });
+      }else datos.barrios.forEach(b => L.polygon(b.anillos, { color: '#0b0b0b', weight: 1, fillColor: color.get(b.nombre), fillOpacity: 0.45, interactive: false }).addTo(capaMarcas));
+      if(ronda && ronda.i === 0) mapa.fitBounds(cajaCiudad(), { padding: [20, 20] });
+    };
+  }
   // Una pregunta de un barrio: tocarlo, qué barrio es el marcado o de qué distrito es.
   function preguntaBarrio(b, tipo){
     const id = idBarrio(b), detalle = 'Distrito ' + b.distrito;
@@ -2341,6 +2377,14 @@ const CJ = (function(){
       }
       ordenarPorRepaso(ds, idDistrito, m).slice(0, nDistritos).forEach(d => qs.push(preguntaDistrito(d)));
       return barajar(qs);
+    }
+    if(m === 'mapadistritos'){
+      const pintar = colores('distritos');
+      return barajar(datos.distritos.slice()).map(d => Object.assign(preguntaDistrito(d), { antes: pintar }));
+    }
+    if(m === 'mapabarrios'){
+      const pintar = colores('barrios');
+      return barajar(ordenarPorRepaso(barriosDelJuego(), idBarrio, m).slice(0, n)).map(b => Object.assign(preguntaBarrio(b, 'toca'), { antes: pintar }));
     }
     if(m === 'enbarrio'){
       // Calles de un barrio (o dos); en una zona de un solo barrio, las de su
@@ -3045,7 +3089,7 @@ const CJ = (function(){
     ronda.respondidas++;
     const q = ronda.preguntas[ronda.i];
     if(acierto) ronda.aciertos++; else ronda.fallos.push(q);
-    anotarIntento(q.id, modoIntento || modo, acierto, distancia);
+    anotarIntento(q.id, modoIntento || MODOS[modo].registra || modo, acierto, distancia);
     el('cjResultado').className = 'cj-resultado ' + (acierto ? 'ok' : 'ko');
     el('cjResultadoTexto').innerHTML = textoHtml;
     el('cjAciertos').textContent = textoAciertos();
