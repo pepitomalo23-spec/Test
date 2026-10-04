@@ -562,14 +562,16 @@ const CJT = (function(){
   }
 
   // Preguntas de una ronda: primero lo fallado; de cada elemento, un tipo de pregunta al azar.
-  function crearPreguntas(items){
+  // Las que se responden sin mirar el mapa: de opciones y sin nada dibujado antes.
+  function sinMapa(q){ return q.respuesta === 'opciones' && !q.antes && !q.plano; }
+  function crearPreguntas(items, soloSinMapa){
     const candidatos = CJ.ordenarPorRepaso(items.filter(preguntable), x => x.id, 'temario');
     const out = [];
     for(const x of candidatos){
       if(out.length >= CJ.PREGUNTAS_POR_RONDA) break;
       for(const g of barajar(generadores(x))){
         const q = g(x);
-        if(q){ out.push(q); break; }
+        if(q && (!soloSinMapa || sinMapa(q))){ out.push(q); break; }
       }
     }
     return barajar(out);
@@ -577,12 +579,12 @@ const CJT = (function(){
 
   /* ---------- rondas ---------- */
   // `zona`: la de las respuestas (por defecto, la tarea o la primera clave).
-  async function preguntar(claves, tareaId, titulo, zona){
+  async function preguntar(claves, tareaId, titulo, zona, soloSinMapa){
     try{ await cargar(); }catch(e){ uiToast(e.message, 'error'); return; }
     const items = itemsDe(claves);
     if(!items.length){ uiToast('No se encuentra esta parte del temario. Actualiza la app.', 'info'); return; }
     await CJ.empezarTemario({
-      crear: () => crearPreguntas(items),
+      crear: () => crearPreguntas(items, soloSinMapa),
       distritos: distritosDe(claves),
       zona: zona || (tareaId ? 't:' + tareaId : 'f:' + claves[0]),
       tareaId: tareaId || null,
@@ -603,6 +605,15 @@ const CJT = (function(){
   // Distritos de las fichas (su contorno se ve en el mapa, para orientarse).
   function distritosDe(claves){
     return [...new Set(seccionesDe(claves).map(s => s._f).filter(f => f.grupo === 'distrito').map(f => f.titulo))];
+  }
+  // Repasar: las preguntas sin mapa de lo que ha mandado el profesor (si no
+  // ha mandado temario, de todo el temario).
+  function temarioMandado(){ return [...new Set(CJ.tareas().flatMap(t => t.fichas || []))]; }
+  function preguntarSinMapa(){
+    if(!T){ asegurar(); uiToast('Cargando el temario…', 'info'); return; }
+    const ts = CJ.tareas().filter(t => (t.fichas || []).length);
+    const claves = ts.length ? temarioMandado() : T.fichas.map(f => f.id);
+    preguntar(claves, ts.length === 1 ? ts[0].id : null, ts.length ? 'Lo que te ha mandado · sin mapa' : 'Temario · sin mapa', ts.length === 1 ? null : 'f:sinmapa', true);
   }
   function preguntarTarea(id){
     const t = CJ.tareas().find(x => x.id === id);
@@ -1510,7 +1521,7 @@ const CJT = (function(){
 
   return {
     cargar, listo, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
-    filasFichas, tarjetaProgresoFichas, resumen, repasar, fuente, reintentar, geoClaves,
+    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
     clicPlano, pintarPlano, marcarPlano, verEnPlano
