@@ -13,6 +13,7 @@ css/                 estilos, en orden de carga
   test.css           test en curso, notas, IA, corrección, vista lista
   normativas.css     Normativas (fichas estilo Quizlet)
   callejero.css      Callejero (mapa y juego)
+  plan.css, plan-examen.css, plan-progreso.css   Plan de estudio
 js/                  código, en orden de carga (ver el final de index.html)
   nucleo.js          avisos, esqueletos de carga, cliente de Supabase, resultados pendientes
   pwa.js             service worker, aviso de versión nueva, notificaciones, enlaces
@@ -43,11 +44,17 @@ js/                  código, en orden de carga (ver el final de index.html)
   callejero.js       Callejero: mapa, modos de juego, modo estudio, tareas y modo selección
   callejero-temario.js   Callejero: temario de la academia (fichas, en el mapa, preguntas y planos)
   callejero-profesor.js  Callejero: los alumnos del profesor, tareas y mensajes
+  plan-logica.js     Plan de estudio: lógica pura (fechas, reglas, estadísticas), probada en Node
+  plan.js            Plan de estudio: datos, cola sin conexión, Hoy, Plan, Tests y Ajustes
+  plan-examen.js     Plan de estudio: exámenes combinados y preguntas propias
+  plan-progreso.js   Plan de estudio: Progreso (estadísticas)
   arranque.js        escucha la sesión y arranca la app (siempre el último)
 datos/               datos que la app descarga cuando hacen falta (callejero-temario.json)
 sw.js                service worker: app sin conexión y actualizaciones
 scripts/versionar.mjs  pone el ?v= de cada css/js en index.html
 supabase/            migraciones de la base de datos y funciones (Edge Functions)
+tests/plan/          pruebas del Plan de estudio: lógica (Node), base de datos (RLS) y de extremo a extremo
+docs/plan-estudio.md investigación sobre Tutor Bombero, diseño y limitaciones del Plan
 assets/              iconos, logo y vídeo
 ```
 
@@ -236,6 +243,44 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   Con **«solo esto»**, mientras la tarea esté activa el alumno solo puede elegir las tareas del profesor.
 - Cada tarea tiene su conversación (`callejero_mensajes`). Tareas nuevas y mensajes se avisan con una
   notificación (`push-reminders`, a quien tenga activado el recordatorio) y con un número en la pestaña.
+
+## Plan de estudio
+
+Pantalla **Plan** (el primer acceso del menú): el centro de control del estudio. Qué test toca cada día y en qué
+orden, de qué plataforma (Tutor Bombero, los tests del banco de pj.fire u otra), qué se ha abierto, qué se ha
+terminado y con qué resultado. Investigación, diseño y limitaciones: `docs/plan-estudio.md`.
+
+- **Privado y opt-in**: permiso `plan` (Administración → Usuarios). A diferencia de los demás, está **apagado**
+  salvo que se encienda (`FEATURES_OPT_IN` en `permisos.js`; el admin siempre lo tiene). En la base de datos,
+  `plan_permitido()`: admin, o `feature_flags.plan = true` con la cuenta aprobada y sin bloquear. Cada usuario solo
+  ve sus filas (ni el admin ve las de otros).
+- **Tablas** (`supabase/migrations/20261003c_plan_estudio.sql`): `plan_ajustes` (límite diario, días de estudio,
+  reglas), `plan_temas` (con los temas del banco que les corresponden, `topic_ids`), `plan_tests` (catálogo; uno
+  por plataforma e identificador), `plan_tareas` (un test un día: pendiente → en curso → completado, o aplazado;
+  uno por test y día), `plan_resultados` (manuales, de pj.fire o de exámenes, con detalle por pregunta),
+  `plan_eventos` (abierto, completado, aplazado, avisos y excepciones) y `plan_preguntas` (preguntas propias). Los
+  ids los pone la app (uuid) y la cola sin conexión (`plan_cola_v1_<uid>`) sube los cambios en orden: reintentar no
+  duplica. Las referencias llevan el `user_id` (claves foráneas compuestas).
+- **Tutor Bombero** no tiene API, ni exportación, ni enlaces a cada test, y su acceso es «personal e
+  intransferible»: la app no se conecta a la cuenta ni guarda credenciales ni contenido. «Abrir» abre su página de
+  entrada (o el enlace guardado) en otra pestaña y deja la tarea **en curso** (abrir no es terminar); al volver a
+  la app (≥20 s) pregunta «¿Has terminado…?» y se apunta el resultado a mano o pegándolo (`PLANL.parsearResultado`,
+  también vale el texto copiado de una captura con Texto en vivo). Solo controla lo que se abre desde aquí.
+- **Tests de pj.fire** desde el plan: `startQuiz(…, ctx = {plan:{tarea_id, test_id}})`; al terminar,
+  `finishQuizInner` llama a `PLAN.alTerminarTest` y se apunta solo (con su `session_id`).
+- **Reglas** (Ajustes): avisar al abrir algo que no toca hoy (con «Ver mis tareas de hoy»), no pasar del límite
+  diario sin autorizar una excepción, avisar antes de repetir, mostrar las atrasadas, priorizar lo aplazado y
+  proponer repasos de los temas por debajo del umbral. «Planificar automáticamente» reparte lo pendiente
+  (`PLANL.proponerPlan`).
+- **Exámenes combinados**: banco + preguntas propias, sin repetidas, cada una con su fuente. Se guardan en
+  `plan_resultados` y la parte del banco también en `test_sessions`/`session_answers` (`guardarSesionBanco`, en
+  `examen-revision.js`), para que cuente en Fallos y Estadísticas.
+- **Progreso**: solo datos registrados o confirmados; el tiempo medido (tests de pj.fire y exámenes) va aparte del
+  apuntado a mano (el de Tutor Bombero no se puede medir).
+- **Pruebas**: `node --test tests/plan/*.test.mjs` (lógica; también en GitHub Actions), `bash tests/plan/db/run.sh`
+  (82 pruebas de RLS y restricciones en un PostgreSQL local) y `tests/plan/e2e` (la app en Chromium con tamaño de
+  iPad contra PostgreSQL + PostgREST locales; ver su README).
+- Las tablas `plan_*` están en la copia diaria (`backup-db`) y se pueden exportar e importar en JSON desde Ajustes.
 
 ## Al cambiar un css/ o js/
 
