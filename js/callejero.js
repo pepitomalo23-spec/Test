@@ -166,7 +166,6 @@ const CJ = (function(){
   let verTodasRondas = false;
   let vistaProfesor = 'alumnos';   // lo que ve un profesor: 'alumnos', 'temario' o 'propio' (su callejero)
   try{ const v = localStorage.getItem('cj_vista_profesor'); if(v === 'propio' || v === 'temario') vistaProfesor = v; }catch(e){}
-  let pestana = 'hoy';       // pestaña de la pantalla principal: 'hoy', 'estudiar' o 'progreso'
   let enCalles = false;      // en «Estudiar», dentro de las calles (zona y modos de juego)
   let seleccion = null;      // modo selección: { vias: Set, lugares: Set, cambios, resolver }
   let verTemario = null;     // modo estudio del temario: { titulo, items: [{ nombre, tipo, detalle, vias, lugar, barrio, ruta, salida }], foco }
@@ -1638,9 +1637,8 @@ const CJ = (function(){
     arriba();
   }
   // Pestañas del alumno. Volver a tocar «Estudiar» estando en ella lleva a su principio.
-  function cambiarPestana(p){
-    if(p === 'estudiar' && pestana === 'estudiar') enCalles = false;
-    pestana = ['hoy', 'estudiar', 'progreso'].includes(p) ? p : 'hoy';
+  function cambiarPestana(){
+    enCalles = false;
     pintarInicio();
     arriba();
   }
@@ -1671,59 +1669,34 @@ const CJ = (function(){
     const volverProfe = profe ? '<button type="button" class="cj-volver-link" onclick="CJ.cambiarVistaProfesor(\'alumnos\')">‹ Volver a mis alumnos</button>' : '';
     if(!datos){ root.innerHTML = volverProfe + '<div class="cj-card">' + skelList(3) + '</div>'; return; }
     actualizarFiltro();
+    avisarNuevas();
     marcarVistas();
-    root.innerHTML = volverProfe + pestanasHtml() +
-      (pestana === 'estudiar' ? estudiarHtml() : pestana === 'progreso' ? progresoHtml() : hoyHtml());
+    // Una sola pantalla: lo que ha mandado el profesor, repasar lo visto,
+    // aprender por niveles y, debajo, el temario y las calles.
+    root.innerHTML = volverProfe + (enCalles ? callesHtml(true) : inicioHtml());
   }
-  function pestanasHtml(){
-    const porHacer = tareasActivas().filter(t => !tareaHecha(t)).length;
-    const b = (p, texto, n) => '<button type="button" role="tab" aria-selected="' + (pestana === p) + '"' + (pestana === p ? ' class="activo"' : '') +
-      ' onclick="CJ.cambiarPestana(\'' + p + '\')">' + texto + (n ? ' <span class="cj-num">' + n + '</span>' : '') + '</button>';
-    return '<div class="cj-segmento cj-pestanas" role="tablist">' +
-      b('hoy', 'Hoy', pestana !== 'hoy' ? porHacer : 0) + b('estudiar', 'Estudiar') + b('progreso', 'Progreso') + '</div>';
+  function inicioHtml(){
+    const porHacer = tareasActivas().filter(x => !tareaHecha(x));
+    const profe = porHacer.length ? '<div class="cj-seccion">Te han mandado</div>' + porHacer.map(tarjetaTarea).join('') : '';
+    if(soloEsto()) return profe + AVISO_SOLO + (tareasZona().length ? callesHtml(false) : '');
+    return profe + tarjetasAprender() + estudiarHtml();
+  }
+  // La ventanita al entrar: lo que acaba de mandar el profesor (sin ver aún).
+  const avisadas = new Set();
+  function avisarNuevas(){
+    const nuevas = tareasActivas().filter(t => !t.vista_at && !tareaHecha(t) && !avisadas.has(t.id));
+    if(!nuevas.length || document.querySelector('.ui-confirm-bg')) return;
+    nuevas.forEach(t => avisadas.add(t.id));
+    const t = nuevas[0];
+    const texto = nuevas.length === 1
+      ? '«' + t.titulo + '»\n\n' + describirTarea(t).que + (t.mensaje ? '\n\n' + t.mensaje : '')
+      : nuevas.map(x => '· ' + x.titulo).join('\n');
+    uiConfirm(texto, { title: nuevas.length === 1 ? '📍 Tu profesor te ha mandado algo para estudiar' : '📍 Tu profesor te ha mandado ' + nuevas.length + ' cosas para estudiar',
+      ok: nuevas.length === 1 ? 'Estudiar esto' : 'Ver', cancel: 'Luego', danger: false })
+      .then(ok => { if(ok) setTimeout(() => CJT.abrirTarea(t.id), 0); });
   }
   const AVISO_SOLO = '<div class="cj-card"><div class="cj-zona-aviso">Tu profesor ha pedido que, de momento, estudies solo sus tareas.</div></div>';
 
-  // ---- Hoy ----
-  // Las tareas por hacer (cada una se abre con todo lo que lleva) y, debajo,
-  // todo lo que ha mandado el profesor junto (también lo ya hecho).
-  function hoyHtml(){
-    const activas = tareasActivas();
-    const porHacer = activas.filter(x => !tareaHecha(x));
-    return (activas.length ? '<div class="cj-seccion">De tu profesor</div>' + porHacer.map(tarjetaTarea).join('') + tarjetaAcumulado() : '') +
-      (soloEsto() ? AVISO_SOLO : tarjetasAprender());
-  }
-  // Lo que más conviene hacer ahora: repasar lo fallado (temario o calles),
-  // seguir con la última ficha o empezar por la General. Y un resumen.
-  function tarjetaHoy(conTareas){
-    if(typeof CJT === 'undefined') return '';
-    const r = CJT.resumen();
-    if(!r) return '<div class="cj-card">' + skelList(2) + '</div>';
-    const calles = callesPorRepasar();
-    const boton = (accion, titulo, sub) => '<button type="button" class="cj-hoy-btn" onclick="' + escapeHtml(accion) + '">' +
-      '<span class="cj-hoy-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg></span>' +
-      '<span class="cj-hoy-txt"><b>' + escapeHtml(titulo) + '</b><small>' + escapeHtml(sub) + '</small></span></button>';
-    const seguir = r.ultima ? ['CJT.abrir(' + JSON.stringify(r.ultima.id) + ')', 'Seguir con ' + r.ultima.titulo, r.ultima.pct + '% dominado'] : null;
-    let principal, otro = null;
-    if(r.falladas){
-      principal = boton('CJT.repasar()', 'Repasar lo que fallas', r.falladas + (r.falladas === 1 ? ' cosa' : ' cosas') + ' del temario por repasar');
-      otro = seguir;
-    }else if(calles.total){
-      principal = boton('CJ.repasarCalles()', 'Repasar calles', calles.total + ' por repasar · ' + nombreZona());
-      otro = seguir;
-    }else if(seguir) principal = boton(seguir[0], seguir[1], seguir[2]);
-    else principal = boton("CJT.abrir('general')", 'Empezar por la ficha General', 'Datos, carreteras, puentes, planos…');
-    const hace7 = Date.now() - 7 * 864e5;
-    const semana = todasLasRondas().filter(x => new Date(x.fin).getTime() >= hace7).length;
-    return (conTareas ? '<div class="cj-seccion">Para hoy</div>' : '') +
-      '<div class="cj-card cj-hoy">' + principal +
-        (otro ? '<button type="button" class="cj-hoy-otro" onclick="' + escapeHtml(otro[0]) + '">' + escapeHtml(otro[1]) + ' ›</button>' : '') +
-      '</div>' +
-      '<button type="button" class="cj-resumen" onclick="CJ.cambiarPestana(\'progreso\')">' +
-        '<span class="cj-resumen-txt"><span><b>' + r.pct + '%</b> del temario dominado</span><span><b>' + semana + '</b> ' + (semana === 1 ? 'ronda' : 'rondas') + ' esta semana</span></span>' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>' +
-      '</button>';
-  }
   /* ---------- Aprender por niveles y Repaso ---------- */
   // Cada calle sube por cuatro niveles, de más fácil a más difícil: 1 ¿Cómo
   // se llama? (4 opciones), 2 Localiza la calle, 3 Cruces y paralelas y
@@ -1867,10 +1840,15 @@ const CJ = (function(){
     const toca = nivelQueToca(niveles);
     const n = k => k.toLocaleString('es-ES');
     const diaProx = r.proxima ? Math.max(1, Math.ceil((r.proxima - Date.now()) / 864e5)) : null;
-    const repaso = '<div class="cj-seccion">Repaso</div><div class="cj-card cj-repaso">' +
-      (r.total
-        ? '<button type="button" class="cj-hoy-btn" onclick="CJ.repasar()"><span class="cj-hoy-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg></span>' +
-          '<span class="cj-hoy-txt"><b>Repasar ' + n(r.total) + '</b><small>Lo que ya has estudiado y hoy toca recordar</small></span></button>'
+    const tem = typeof CJT !== 'undefined' ? CJT.resumen() : null;
+    const delTemario = tem ? tem.falladas || 0 : 0;
+    const total = r.total + delTemario;
+    const partes = [r.total ? n(r.total) + (r.total === 1 ? ' de calles' : ' de calles') : '', delTemario ? n(delTemario) + ' del temario' : ''].filter(Boolean).join(' · ');
+    const repaso = '<div class="cj-seccion">Todo lo que llevas visto</div><div class="cj-card cj-repaso">' +
+      (total
+        ? '<button type="button" class="cj-hoy-btn" onclick="' + (r.total ? 'CJ.repasar()' : 'CJT.repasar()') + '"><span class="cj-hoy-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg></span>' +
+          '<span class="cj-hoy-txt"><b>Repasar ' + n(total) + '</b><small>' + escapeHtml(partes) + ' · lo estudiado que hoy toca recordar</small></span></button>' +
+          (r.total && delTemario ? '<button type="button" class="cj-hoy-otro" onclick="CJT.repasar()">Repasar solo el temario (' + n(delTemario) + ') ›</button>' : '')
         : '<div class="cj-repaso-vacio">' + (diaProx ? 'Nada para repasar hoy. Lo siguiente vuelve ' + (diaProx === 1 ? 'mañana' : 'en ' + diaProx + ' días') + '.' : 'Aquí se irá juntando todo lo que estudies, para repasarlo cuando toque.') + '</div>') +
       '</div>';
     const filas = niveles.map(x => {
@@ -1884,7 +1862,7 @@ const CJ = (function(){
           '<span class="cj-nivel-barra"><span style="width:' + pct + '%"></span></span></span></button>';
     }).join('');
     return repaso +
-      '<div class="cj-seccion">Aprender</div><div class="cj-card cj-aprender">' +
+      '<div class="cj-seccion">Aprender calles nuevas</div><div class="cj-card cj-aprender">' +
         '<button type="button" class="cj-hoy-btn" onclick="CJ.aprender()"><span class="cj-hoy-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg></span>' +
           '<span class="cj-hoy-txt"><b>Seguir aprendiendo</b><small>Nivel ' + (toca + 1) + ' · ' + escapeHtml(NIVELES[toca].titulo) + ' · de lo más fácil a lo más difícil</small></span></button>' +
         '<div class="cj-niveles">' + filas + '</div>' +
@@ -1922,7 +1900,7 @@ const CJ = (function(){
     if(enCalles) return callesHtml(true);
     const n = new Set(datos.jugables.filter(enZona).map(v => v.nombre)).size;
     return (typeof CJT !== 'undefined' ? '<div class="cj-seccion">Temario de la academia</div>' + CJT.filasFichas() : '') +
-      '<div class="cj-seccion">Callejero</div>' +
+      '<div class="cj-seccion">Todas las calles y modos de juego</div>' +
       '<div class="cj-card cjt-inicio"><button type="button" class="cjt-ficha" onclick="CJ.abrirCalles()">' +
         '<span class="cj-fila-icono">' + svgIcono(ICONOS.mapa) + '</span>' +
         '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">Calles de Córdoba</span>' +
@@ -2023,22 +2001,6 @@ const CJ = (function(){
     if(v) mostrarVia(v, true); else if(l) mostrarLugar(l, true);
   }
 
-  // ---- Progreso ----
-  function progresoHtml(){
-    const temario = typeof CJT !== 'undefined' && !soloEsto();
-    return (temario ? '<div class="cj-seccion">Temario</div>' + CJT.tarjetaProgresoFichas() : '') +
-      '<div class="cj-seccion">Lo que más fallas</div>' + falladasHtml(temario) +
-      '<div class="cj-seccion">Calles</div>' + tarjetaProgreso(progreso, filtro, nombreZona()) +
-      ultimasRondas(todasLasRondas()) +
-      '<details class="cj-info-det"><summary>' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>' +
-        'De dónde salen los datos</summary>' +
-        '<div class="cj-fuente">' + datos.jugables.length.toLocaleString('es-ES') + ' vías de Córdoba del callejero oficial de la Junta de Andalucía (CDAU), revisado cada semana y cruzado con el callejero del INE. ' +
-          'Rondas de hasta ' + PREGUNTAS_POR_RONDA + ' preguntas; primero salen las que fallaste. Una cosa está dominada si nunca la has fallado o si llevas 3 aciertos seguidos.' +
-          (datos.lineaParques ? ' Zonas de los parques según el documento oficial del S.E.I.S.; lo que está pegado a la línea no se pregunta.' : '') +
-          (typeof CJT !== 'undefined' && CJT.fuente() ? ' ' + escapeHtml(CJT.fuente()) : '') + '</div>' +
-      '</details>';
-  }
   // Lo que más falla (la última vez mal, o fallado y aún sin dominar): el
   // temario entero y las calles y lugares de la zona elegida.
   const HAB_TXT = { nombre: 'Nombre', localiza: 'Situarla', cruces: 'Cruces', lugares: 'Situarlo', parque: 'Parque que acude' };
