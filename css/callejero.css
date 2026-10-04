@@ -844,3 +844,9 @@
   .cjt-ed-op{ display:flex; align-items:center; gap:8px; }
   .cjt-ed-op input[type=radio]{ width:20px; height:20px; flex-shrink:0; accent-color: var(--green); }
   .cj-ventana{ max-height:calc(100dvh - 36px); overflow-y:auto; }
+  .cj-info-nota{ display:flex; flex-direction:column; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
+  .cj-info-nota img{ max-width:100%; max-height:140px; object-fit:cover; border-radius:10px; cursor:zoom-in; align-self:flex-start; }
+  .cj-info-nota-txt{ font-size:13.5px; line-height:1.4; white-space:pre-line; }
+  .cj-info-nota-btn{ align-self:flex-start; padding:6px 12px; border-radius:99px; border:1px solid var(--line); background: var(--card-hi, var(--card)); color: var(--text);
+    font: inherit; font-size:13px; font-weight:700; cursor:pointer; }
+  .cj-nota-fila img{ width:44px; height:44px; object-fit:cover; border-radius:10px; flex-shrink:0; }
