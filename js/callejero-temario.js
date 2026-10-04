@@ -15,7 +15,7 @@
    y de cada apartado se puede:
      - Ver: la lista, y «En el mapa» (modo estudio con lo del apartado
        marcado: calles, lugares, barrios y recorridos numerados).
-     - Preguntar: rondas del modo «temario» (hasta 20 preguntas, primero
+     - Preguntar: rondas del modo «temario» (todas las preguntas, primero
        lo fallado). Según lo que sea, se pregunta tocando el mapa, eligiendo
        entre opciones o tocando un plano (Mezquita, Alcázar, Feria: planos
        dibujados aquí, esquemáticos).
@@ -50,7 +50,7 @@ const CJT = (function(){
     if(cargando) return cargando;
     cargando = fetch(ARCHIVO)
       .then(r => { if(!r.ok) throw new Error('No se pudo descargar el temario (' + r.status + ')'); return r.json(); })
-      .then(doc => { T = indexar(doc); return T; })
+      .then(doc => { T = indexar(doc); return cargarCambios().then(() => T); })
       .finally(() => { cargando = null; });
     return cargando;
   }
@@ -562,18 +562,49 @@ const CJT = (function(){
   }
 
   // Preguntas de una ronda: primero lo fallado; de cada elemento, un tipo de pregunta al azar.
+  /* ---------- preguntas cambiadas a mano (iguales para todos) ----------
+     callejero_temario_preguntas: el admin y los profesores pueden quitar
+     una pregunta generada (se oculta ese generador para ese elemento),
+     cambiarla (se oculta y se escribe una propia en su lugar) o añadir
+     preguntas propias a un elemento o a un apartado entero. */
+  const ID_PROPIA = 5900000000000;   // las propias de un apartado cuentan con este id + el suyo
+  let ocultas = new Set(), propias = [];
+  async function cargarCambios(){
+    try{
+      const { data, error } = await sb.from('callejero_temario_preguntas').select('*').order('id');
+      if(error) return;
+      ocultas = new Set(data.filter(r => r.tipo === 'oculta').map(r => r.item_id + '|' + r.generador));
+      propias = data.filter(r => r.tipo === 'propia');
+    }catch(e){}
+  }
+  function puedeEditar(){ try{ return !!(currentUserIsAdmin || currentUserIsProfesor); }catch(e){ return false; } }
+  function propiasDe(x){ return propias.filter(p => p.item_id === x.id); }
+  function qPropia(p, x, sec){
+    const lista = barajar(p.opciones.map((t, i) => ({ t, i })));
+    return { id: x ? x.id : ID_PROPIA + p.id, item: x || null, nombre: x ? textoItem(x) : p.pregunta.slice(0, 80),
+      etiqueta: x ? x._s.titulo : sec ? sec.titulo : 'Temario', texto: p.pregunta, respuesta: 'opciones',
+      opciones: lista.map(o => o.t), correcta: lista.findIndex(o => o.i === p.correcta),
+      resumen: p.opciones[p.correcta] + '.', detalle: p.explicacion || '', propia: p.id };
+  }
   // Las que se responden sin mirar el mapa: de opciones y sin nada dibujado antes.
   function sinMapa(q){ return q.respuesta === 'opciones' && !q.antes && !q.plano; }
   function crearPreguntas(items, soloSinMapa){
-    const candidatos = CJ.ordenarPorRepaso(items.filter(preguntable), x => x.id, 'temario');
+    const candidatos = CJ.ordenarPorRepaso(items.filter(x => preguntable(x) || propiasDe(x).length), x => x.id, 'temario');
     const out = [];
     for(const x of candidatos){
       if(out.length >= CJ.PREGUNTAS_POR_RONDA) break;
-      for(const g of barajar(generadores(x))){
-        const q = g(x);
+      // Las generadas que no se han quitado y las escritas a mano para este elemento.
+      const formas = generadores(x).filter(g => !ocultas.has(x.id + '|' + g.name))
+        .map(g => () => { const q = g(x); if(q) q.gen = g.name; return q; })
+        .concat(propiasDe(x).map(p => () => qPropia(p, x)));
+      for(const f of barajar(formas)){
+        const q = f();
         if(q && (!soloSinMapa || sinMapa(q))){ out.push(q); break; }
       }
     }
+    // Las escritas a mano para un apartado entero de los que entran.
+    const secs = new Map(items.map(x => [claveDe(x._s), x._s]));
+    propias.filter(p => !p.item_id && secs.has(p.seccion)).forEach(p => out.push(qPropia(p, null, secs.get(p.seccion))));
     return barajar(out);
   }
 
@@ -1066,6 +1097,115 @@ const CJT = (function(){
       (filas ? '<div class="cj-seccion">Por apartados</div><div class="cj-card cjt-filas">' + filas + '</div>' : '');
   }
 
+  // ---- Editar preguntas (admin y profesores) ----
+  // Editor de una pregunta: la de una ronda (q) o una nueva de un apartado.
+  async function editorPregunta(inicial, opts){
+    const ops = inicial.opciones.length ? inicial.opciones.slice() : ['', '', '', ''];
+    const filaOp = (t, i) => '<label class="cjt-ed-op"><input type="radio" name="cjtCorrecta" value="' + i + '"' + (i === inicial.correcta ? ' checked' : '') + '>' +
+      '<input type="text" maxlength="300" value="' + escapeHtml(t) + '" placeholder="Respuesta ' + (i + 1) + '"></label>';
+    const html = (opts.secciones ? '<select class="cjt-ed-sec">' + opts.secciones.map(sx => '<option value="' + escapeHtml(claveDe(sx)) + '">' +
+        escapeHtml((opts.varias ? sx._f.titulo + ' · ' : '') + sx.titulo) + '</option>').join('') + '</select>' : '') +
+      '<textarea class="cjt-ed-preg" rows="3" maxlength="1000" placeholder="La pregunta">' + escapeHtml(inicial.pregunta) + '</textarea>' +
+      '<div class="cj-hab-det">Marca la respuesta correcta:</div><div class="cjt-ed-ops">' + ops.map(filaOp).join('') + '</div>' +
+      '<button type="button" class="btn btn-ghost cjt-ed-mas">+ Otra respuesta</button>' +
+      '<textarea class="cjt-ed-expl" rows="2" maxlength="2000" placeholder="Explicación (opcional): sale al responder">' + escapeHtml(inicial.explicacion || '') + '</textarea>' +
+      '<div class="cj-hab-det">Los cambios son para todos los alumnos.</div>';
+    const botones = [{ k: null, texto: 'Cancelar' }].concat(opts.borrar ? [{ k: 'borrar', texto: 'Eliminar', clase: 'ui-confirm-ok danger' }] : [], [{ k: 'guardar', texto: 'Guardar', clase: 'ui-confirm-ok' }]);
+    const r = await CJ.ventana(opts.titulo, html, botones, root => {
+      root.querySelector('.cjt-ed-mas').addEventListener('click', () => {
+        const caja = root.querySelector('.cjt-ed-ops'), n = caja.children.length;
+        if(n >= 8) return;
+        caja.insertAdjacentHTML('beforeend', filaOp('', n));
+      });
+    });
+    if(r.k !== 'guardar') return r.k ? { borrar: true } : null;
+    const filas = [...r.root.querySelectorAll('.cjt-ed-op')];
+    const elegida = filas.findIndex(f => f.querySelector('input[type=radio]').checked);
+    const textos = filas.map(f => f.querySelector('input[type=text]').value.trim());
+    const correcta = textos[elegida];
+    const opciones = textos.filter(Boolean);
+    const pregunta = r.root.querySelector('.cjt-ed-preg').value.trim();
+    if(!pregunta || opciones.length < 2 || elegida < 0 || !correcta){
+      uiToast('Escribe la pregunta, al menos dos respuestas y marca la correcta.', 'error');
+      return null;
+    }
+    return { pregunta, opciones, correcta: opciones.indexOf(correcta), explicacion: r.root.querySelector('.cjt-ed-expl').value.trim() || null,
+      seccion: opts.secciones ? r.root.querySelector('.cjt-ed-sec').value : null };
+  }
+  async function guardarCambio(fn, ok){
+    try{
+      const { error } = await fn();
+      if(error) throw error;
+      await cargarCambios();
+      uiToast(ok, 'success');
+      return true;
+    }catch(e){ uiToast('No se ha podido guardar: ' + (e.message || e), 'error'); return false; }
+  }
+  // (si ya estaba quitada, el índice único da 23505: es lo mismo)
+  const quitarGenerada = async q => {
+    const r = await sb.from('callejero_temario_preguntas').insert({ tipo: 'oculta', item_id: q.item.id, generador: q.gen });
+    return r.error && r.error.code === '23505' ? { error: null } : r;
+  };
+  // Desde una ronda: cambiar o quitar la pregunta que se está viendo.
+  async function editarPregunta(q){
+    if(!puedeEditar() || !q) return;
+    if(q.respuesta !== 'opciones'){
+      const ok = await uiConfirm('Esta pregunta se responde en el mapa o en un plano: no se puede cambiar el texto, solo quitarla para todos.', { title: '¿Quitar esta pregunta?', ok: 'Quitar', danger: true });
+      if(ok && q.gen && q.item) await guardarCambio(() => quitarGenerada(q), 'Pregunta quitada: ya no saldrá');
+      return;
+    }
+    const pregunta = q.propia ? propias.find(p => p.id === q.propia).pregunta : [q.etiqueta, q.texto].filter(Boolean).join(' · ');
+    const res = await editorPregunta({ pregunta, opciones: q.opciones, correcta: q.correcta, explicacion: q.propia ? propias.find(p => p.id === q.propia).explicacion : q.detalle },
+      { titulo: 'Editar la pregunta', borrar: true });
+    if(!res) return;
+    if(res.borrar){
+      if(q.propia) await guardarCambio(() => sb.from('callejero_temario_preguntas').delete().eq('id', q.propia), 'Pregunta eliminada');
+      else if(q.gen && q.item) await guardarCambio(() => quitarGenerada(q), 'Pregunta quitada: ya no saldrá');
+      return;
+    }
+    const datos = { pregunta: res.pregunta, opciones: res.opciones, correcta: res.correcta, explicacion: res.explicacion, updated_at: new Date().toISOString() };
+    if(q.propia) await guardarCambio(() => sb.from('callejero_temario_preguntas').update(datos).eq('id', q.propia), 'Pregunta guardada');
+    else if(q.gen && q.item){
+      await guardarCambio(async () => {
+        const a = await quitarGenerada(q);
+        if(a.error) return a;
+        return sb.from('callejero_temario_preguntas').insert(Object.assign({ tipo: 'propia', item_id: q.item.id }, datos));
+      }, 'Pregunta cambiada para todos');
+    }
+  }
+  // Desde la pestaña «Preguntar» de una ficha: añadir una pregunta a un apartado.
+  async function anadirPregunta(){
+    if(!puedeEditar() || !vista) return;
+    const secciones = seccionesDe(vista.claves);
+    if(!secciones.length) return;
+    const res = await editorPregunta({ pregunta: '', opciones: [], correcta: 0, explicacion: '' },
+      { titulo: 'Añadir una pregunta', secciones, varias: new Set(secciones.map(sx => sx._f)).size > 1 });
+    if(!res || res.borrar) return;
+    if(await guardarCambio(() => sb.from('callejero_temario_preguntas').insert({ tipo: 'propia', seccion: res.seccion, pregunta: res.pregunta,
+        opciones: res.opciones, correcta: res.correcta, explicacion: res.explicacion }), 'Pregunta añadida')) repintar();
+  }
+  async function editarPropia(id){
+    const p = propias.find(x => x.id === id);
+    if(!p || !puedeEditar()) return;
+    const res = await editorPregunta({ pregunta: p.pregunta, opciones: p.opciones, correcta: p.correcta, explicacion: p.explicacion }, { titulo: 'Editar la pregunta', borrar: true });
+    if(!res) return;
+    if(res.borrar){ if(await guardarCambio(() => sb.from('callejero_temario_preguntas').delete().eq('id', id), 'Pregunta eliminada')) repintar(); return; }
+    if(await guardarCambio(() => sb.from('callejero_temario_preguntas').update({ pregunta: res.pregunta, opciones: res.opciones, correcta: res.correcta,
+        explicacion: res.explicacion, updated_at: new Date().toISOString() }).eq('id', id), 'Pregunta guardada')) repintar();
+  }
+  // Lo añadido a mano en los apartados de la vista (para el editor).
+  function htmlPropias(secciones){
+    if(!puedeEditar()) return '';
+    const claves = new Set(secciones.map(claveDe));
+    const items = new Set(secciones.flatMap(sx => sx.items.map(x => x.id)));
+    const lista = propias.filter(p => (p.seccion && claves.has(p.seccion)) || (p.item_id && items.has(p.item_id)));
+    return '<div class="cj-seccion">Preguntas escritas a mano' + (lista.length ? ' (' + lista.length + ')' : '') + '</div><div class="cj-card cjt-filas">' +
+      lista.map(p => '<button type="button" class="cjt-ficha" onclick="CJT.editarPropia(' + p.id + ')"><span class="cjt-ficha-txt"><span class="cjt-ficha-n">' + escapeHtml(p.pregunta) + '</span>' +
+        '<span class="cjt-ficha-d">' + escapeHtml(p.opciones[p.correcta]) + '</span></span>' + FLECHA + '</button>').join('') +
+      '<button type="button" class="btn btn-ghost cjt-btn-ancho" onclick="CJT.anadirPregunta()">+ Añadir una pregunta</button>' +
+      '<div class="cj-hab-det">Para cambiar o quitar una pregunta de las que salen solas, pulsa «Editar» arriba mientras te la pregunta. Los cambios son para todos.</div></div>';
+  }
+
   // ---- Preguntar ----
   function htmlPreguntar(fichas, secciones, prog){
     const t = vista.tarea;
@@ -1085,7 +1225,7 @@ const CJT = (function(){
     return (hayTemario
         ? '<div class="cj-card">' +
             '<button type="button" class="btn btn-primary btn-light cjt-btn-ancho" onclick="' + accion + '">' + ICONO_PLAY + texto + '</button>' +
-            '<div class="cj-hab-det">Rondas de hasta ' + CJ.PREGUNTAS_POR_RONDA + ' preguntas; primero sale lo que fallaste.' +
+            '<div class="cj-hab-det">Salen todas las preguntas; primero lo que fallaste.' +
               (vista.acumulado ? ' No cuentan para ninguna tarea: para eso, entra en cada una.' : '') + '</div>' +
           '</div>'
         : '') +
@@ -1094,7 +1234,8 @@ const CJT = (function(){
           (modos.length ? '<div class="cj-hab-det cjp-nota">Cuentan: ' + escapeHtml(modos.join(', ')) + '.</div>' : '') +
           CJ.mosaicoModos(z, true, true)
         : '') +
-      (hayTemario ? '<div class="cj-seccion">Por apartados</div><div class="cj-card cjt-filas">' + filas + '</div>' : '');
+      (hayTemario ? '<div class="cj-seccion">Por apartados</div><div class="cj-card cjt-filas">' + filas + '</div>' : '') +
+      htmlPropias(secciones);
   }
 
   // Lo que se ve de cada elemento en la lista (y en la ficha del mapa).
@@ -1533,7 +1674,7 @@ const CJT = (function(){
 
   return {
     cargar, listo, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
-    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, fuente, reintentar, geoClaves,
+    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
     clicPlano, pintarPlano, marcarPlano, verEnPlano

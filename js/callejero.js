@@ -39,7 +39,7 @@
    lista de calles del modo estudio, y se dibuja su contorno en el mapa.
    Se recuerda en el dispositivo.
 
-   Modos de juego (todos con rondas de hasta 20 preguntas de la zona
+   Modos de juego (todos con rondas con todas las preguntas de la zona
    elegida; primero las que se fallaron):
      - localiza: se da el nombre de una vía y hay que tocarla en el mapa.
      - opciones: se marca una vía y se elige su nombre entre 4 cercanas.
@@ -103,7 +103,9 @@ const CJ = (function(){
   // En el estilo Plano estas vías se pintan como las principales (amarillas).
   const TIPOS_PRINCIPALES = new Set(['AVENIDA', 'CARRETERA', 'AUTOVIA', 'RONDA', 'PASEO', 'BULEVAR', 'VIA', 'ENLACE']);
   const CENTRO = [37.8845, -4.7796];
-  const PREGUNTAS_POR_RONDA = 20;
+  // Sin tope: cada ronda trae todo lo que haya (todas las calles de la zona,
+  // todo lo que toca repasar, todo el temario elegido…).
+  const PREGUNTAS_POR_RONDA = Infinity;
   const TOLERANCIA_M = 35;
   const TOLERANCIA_PX = 22;
   const TOLERANCIA_LUGAR_M = 60;
@@ -394,10 +396,128 @@ const CJ = (function(){
   }
   async function cargarProgreso(){
     await subirPendientes();   // lo que estaba en la cola ya cuenta en el servidor
+    cargarNotas();
     const { data, error } = await sb.rpc('callejero_progreso');
     if(error) return;
     progreso = progresoDesdeFilas(data);
     misPendientes().forEach(p => sumar(progreso, HABILIDAD[p.modo] || 'nombre', p.id_vial, p.acierto));
+  }
+
+  /* ---------- notas propias de cada calle o lugar ----------
+     En una ronda, arriba, «Nota»: texto y una foto de esa calle (o lugar).
+     Al responder, sale en pequeño en una esquina del mapa (antes no, que
+     podría dar la respuesta). Son de cada alumno (callejero_notas); la
+     foto va en el almacén «question-notes», como las de las preguntas. */
+  let notas = new Map();   // clave → { texto, imagen }
+  async function cargarNotas(){
+    if(!currentUser) return;
+    const { data, error } = await sb.from('callejero_notas').select('clave, texto, imagen');
+    if(!error) notas = new Map((data || []).map(r => [r.clave, { texto: r.texto || '', imagen: r.imagen || '' }]));
+  }
+  // De qué es la nota de una pregunta: la calle (todos sus tramos, por nombre) o el lugar.
+  function claveNota(q){
+    if(!q || modo === 'temario') return null;
+    if(q.via) return 'v:' + q.via.clave;
+    if(q.lugar) return 'l:' + q.lugar.id;
+    return null;
+  }
+  function ponerBotonNota(){
+    let b = el('cjNotaBtn');
+    if(!b){
+      b = document.createElement('button');
+      b.type = 'button'; b.id = 'cjNotaBtn'; b.className = 'cj-nota-btn';
+      el('cjPlegar').before(b);
+    }
+    const q = ronda && ronda.preguntas[ronda.i];
+    const k = claveNota(q);
+    // En el temario, el admin y los profesores: «Editar» (cambiar o quitar la pregunta para todos).
+    const editar = !k && q && modo === 'temario' && typeof CJT !== 'undefined' && CJT.puedeEditar();
+    b.classList.toggle('hidden', !k && !editar);
+    b.onclick = () => editar ? CJT.editarPregunta(q) : editarNota();
+    if(k || editar) b.innerHTML = svgIcono('M12 20h9|M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z') + '<span>' + (editar ? 'Editar' : notas.has(k) ? 'Tu nota' : 'Nota') + '</span>';
+  }
+  function tarjetaNota(mostrar){
+    let c = el('cjNota');
+    if(!c){
+      c = document.createElement('div');
+      c.id = 'cjNota'; c.className = 'cj-nota hidden';
+      c.onclick = () => c.classList.toggle('grande');
+      el('cjResultado').before(c);
+    }
+    const q = ronda && ronda.preguntas[ronda.i];
+    const n = mostrar && notas.get(claveNota(q));
+    c.classList.remove('grande');
+    c.classList.toggle('hidden', !n);
+    if(!n) return;
+    c.innerHTML = (n.imagen ? '<img src="' + escapeHtml(n.imagen) + '" alt="">' : '') + (n.texto ? '<div class="cj-nota-txt">' + escapeHtml(n.texto) + '</div>' : '');
+  }
+  // Ventana con campos (para las notas y las preguntas del temario): botones
+  // { k, texto, clase }; devuelve { k, root } y se cierra sola.
+  function ventana(titulo, html, botones, alAbrir){
+    return new Promise(resolve => {
+      const bg = document.createElement('div');
+      bg.className = 'ui-confirm-bg';
+      bg.innerHTML = '<div class="ui-confirm cj-ventana" role="dialog" aria-modal="true"><h3></h3><div class="cj-ventana-cuerpo">' + html + '</div>' +
+        '<div class="ui-confirm-actions">' + botones.map(b => '<button type="button" data-k="' + b.k + '" class="' + (b.clase || 'ui-confirm-cancel') + '">' + escapeHtml(b.texto) + '</button>').join('') + '</div></div>';
+      bg.querySelector('h3').textContent = titulo;
+      const cerrar = k => { document.removeEventListener('keydown', onKey, true); resolve({ k, root: bg }); bg.remove(); };
+      const onKey = e => { if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); cerrar(null); } };
+      bg.querySelectorAll('.ui-confirm-actions button').forEach(b => b.addEventListener('click', () => cerrar(b.dataset.k)));
+      bg.addEventListener('click', e => { if(e.target === bg) cerrar(null); });
+      document.addEventListener('keydown', onKey, true);
+      document.body.appendChild(bg);
+      if(alAbrir) alAbrir(bg);
+    });
+  }
+  async function editarNota(){
+    const q = ronda && ronda.preguntas[ronda.i];
+    const k = claveNota(q);
+    if(!k) return;
+    const n = notas.get(k) || { texto: '', imagen: '' };
+    let foto = null, quitarFoto = false;
+    const html = '<textarea class="cj-nota-texto" rows="4" maxlength="2000" placeholder="Lo que te ayude a recordarla: un comercio, un truco, por dónde pasa…"></textarea>' +
+      '<div class="cj-nota-foto"><img class="cj-nota-prev' + (n.imagen ? '' : ' hidden') + '" alt="">' +
+      '<label class="btn btn-ghost cj-nota-subir">Foto<input type="file" accept="image/*" hidden></label>' +
+      '<button type="button" class="btn btn-ghost cj-nota-quitar' + (n.imagen ? '' : ' hidden') + '">Quitar foto</button></div>' +
+      '<div class="cj-hab-det">Solo la ves tú. Sale al responder, en una esquina del mapa.</div>';
+    const r = await ventana(n.texto || n.imagen ? 'Tu nota de esta calle' : 'Añadir una nota a esta calle', html,
+      [{ k: null, texto: 'Cancelar' }].concat(notas.has(k) ? [{ k: 'borrar', texto: 'Borrar', clase: 'ui-confirm-ok danger' }] : [], [{ k: 'guardar', texto: 'Guardar', clase: 'ui-confirm-ok' }]),
+      root => {
+        const t = root.querySelector('.cj-nota-texto'), prev = root.querySelector('.cj-nota-prev'), quitar = root.querySelector('.cj-nota-quitar');
+        t.value = n.texto;
+        if(n.imagen) prev.src = n.imagen;
+        root.querySelector('input[type=file]').addEventListener('change', e => {
+          foto = e.target.files && e.target.files[0];
+          if(!foto) return;
+          quitarFoto = false;
+          prev.src = URL.createObjectURL(foto); prev.classList.remove('hidden'); quitar.classList.remove('hidden');
+        });
+        quitar.addEventListener('click', () => { foto = null; quitarFoto = true; prev.classList.add('hidden'); quitar.classList.add('hidden'); });
+        setTimeout(() => t.focus(), 50);
+      });
+    if(!r.k) return;
+    const texto = r.root.querySelector('.cj-nota-texto').value.trim();
+    try{
+      if(r.k === 'borrar' || (!texto && !foto && (quitarFoto || !n.imagen))){
+        const { error } = await sb.from('callejero_notas').delete().eq('clave', k).eq('user_id', currentUser.id);
+        if(error) throw error;
+        notas.delete(k);
+        uiToast('Nota borrada', 'success');
+      }else{
+        let imagen = quitarFoto ? '' : n.imagen;
+        if(foto){
+          uiToast('Subiendo la foto…', 'info');
+          imagen = await uploadOwnNoteImage('callejero/' + currentUser.id, foto);
+        }
+        const fila = { user_id: currentUser.id, clave: k, texto: texto || null, imagen: imagen || null, updated_at: new Date().toISOString() };
+        const { error } = await sb.from('callejero_notas').upsert(fila);
+        if(error) throw error;
+        notas.set(k, { texto, imagen: imagen || '' });
+        uiToast('Nota guardada', 'success');
+      }
+    }catch(e){ uiToast('No se ha podido guardar la nota: ' + (e.message || e), 'error'); return; }
+    ponerBotonNota();
+    if(ronda && ronda.respondida) tarjetaNota(true);
   }
 
   /* ---------- intentos (con cola si no hay conexión) ---------- */
@@ -518,7 +638,7 @@ const CJ = (function(){
   // Al cerrar sesión: nada de esta cuenta se queda en memoria.
   function reiniciar(){
     try{ Object.keys(localStorage).filter(k => k.startsWith('cj_tareas_')).forEach(k => localStorage.removeItem(k)); }catch(e){}
-    progreso = new Map(); tareas = []; rondasServidor = []; rondasLocales = [];
+    progreso = new Map(); tareas = []; rondasServidor = []; rondasLocales = []; notas = new Map();
     ronda = null; modo = null; seleccion = null; verTemario = null; desdeTemario = false; ultimosAvisos = 0; delProfesor = null; verEstudio = 'calles';
     if(typeof CJT !== 'undefined') CJT.reiniciar();
     if(el('cjInicio')) mostrarVista('inicio');
@@ -2592,6 +2712,9 @@ const CJ = (function(){
   }
   // Lo que se ve encima y dentro del mapa depende del modo.
   function ponerInterfaz(){
+    // La nota de la calle: solo en las rondas (la pone cada pregunta).
+    if(el('cjNotaBtn')) el('cjNotaBtn').classList.add('hidden');
+    if(el('cjNota')) el('cjNota').classList.add('hidden');
     const libre = modo === 'estudio' || modo === 'seleccion';
     const respuesta = libre || MODOS[modo].respuesta === 'variable' ? null : MODOS[modo].respuesta;
     ponerRespuesta(respuesta, false);
@@ -3173,6 +3296,8 @@ const CJ = (function(){
     if(ronda.i >= ronda.preguntas.length){ terminar(); return; }
     ronda.respondida = false;
     capaMarcas.clearLayers();
+    ponerBotonNota();
+    tarjetaNota(false);
     el('cjResultado').className = 'cj-resultado hidden';
     pintarCabecera();
     const q = ronda.preguntas[ronda.i];
@@ -3218,6 +3343,7 @@ const CJ = (function(){
     el('cjResultadoTexto').innerHTML = textoHtml;
     el('cjAciertos').textContent = textoAciertos();
     el('cjSiguiente').textContent = ronda.i + 1 >= ronda.preguntas.length ? 'Ver resultado' : 'Siguiente';
+    tarjetaNota(true);
   }
 
   // Preguntas en las que se toca el mapa: una vía (localiza), un lugar
@@ -3662,7 +3788,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, ver, repasarTodo, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, ver, repasarTodo, ventana, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)

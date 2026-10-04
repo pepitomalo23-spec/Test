@@ -201,6 +201,14 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
 - «Distritos en el mapa» y «Barrios en el mapa» (modos `mapadistritos` y `mapabarrios`): todos a la vez, cada
   uno de un color y sin nombres (los barrios de al lado, de colores distintos), y se toca el que se pide. Sus
   respuestas se guardan con el modo `barrios` (misma habilidad e ids), así que no hace falta tocar la base de datos.
+- Las rondas no tienen tope: traen todas las preguntas que haya (`PREGUNTAS_POR_RONDA = Infinity`).
+- **Notas de calle**: en una ronda de calles o lugares, arriba, «Nota» (texto y una foto). Al responder sale en
+  pequeño en una esquina del mapa (se toca para verla en grande). Son de cada alumno (`callejero_notas`, clave
+  `v:<nombre normalizado>` o `l:<id>`); la foto va en el almacén `question-notes` (`callejero/<usuario>/…`).
+- **Preguntas del temario editables** (admin y profesores, iguales para todos; `callejero_temario_preguntas`,
+  migración `20261006_callejero_notas_y_preguntas.sql`): en una ronda, «Editar» cambia la pregunta (se oculta
+  la generada y se guarda una escrita a mano en su lugar) o la quita; en la pestaña «Preguntar» de una ficha,
+  «Añadir una pregunta» a un apartado y la lista de las escritas a mano para cambiarlas o eliminarlas.
 - En las rondas del temario, las preguntas de opciones que no dibujan nada antes de responder (datos,
   distritos, carreteras, parque…) salen sin mapa (clase `cj-sin-mapa`): solo la pregunta y las opciones.
 - Cada ficha se ve en cuatro pestañas: **Lista** (los apartados; al abrir uno, sus botones, los mapas del
