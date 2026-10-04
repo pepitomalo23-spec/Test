@@ -22,6 +22,11 @@
 -- Las referencias entre tablas llevan también el user_id (claves
 -- foráneas compuestas): nadie puede colgar una fila suya de un tema, un
 -- test o una tarea de otro usuario aunque conozca su id.
+--
+-- En producción se aplicó por partes (plan_estudio,
+-- plan_estudio_2_politicas y plan_estudio_3_<tabla>), sin los «drop … if
+-- exists», que allí no hacían falta; el esquema resultante es idéntico al
+-- de este archivo (comprobado comparando el catálogo).
 -- =====================================================================
 
 -- ---------- 0) Quién puede usar el Plan ----------
