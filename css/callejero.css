@@ -853,3 +853,5 @@
   /* A pantalla completa, la nota bajo el recuadro de la pregunta (si no, quedaría tapada) */
   #screen-callejero.cj-completa .cj-nota{ top: calc(var(--cj-arriba, 56px) + 8px); left:8px; max-width:min(60%, 260px); }
   #screen-callejero.cj-completa .cj-nota.grande{ max-width:min(calc(100% - 70px), 520px); }
+  .cj-fallado{ border-color: rgba(242,102,92,.45); }
+  .cj-seccion-fallado{ color: var(--coral); }
