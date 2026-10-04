@@ -143,12 +143,29 @@ function mapDbQuestionToQuiz(row){
 async function computeQuestionMastery(questionIds){
   const stats = {};
   if(!currentUser || !questionIds || !questionIds.length) return stats;
-  const { data, error } = await sb
-    .from('session_answers')
-    .select('question_id, is_correct, answer_order, test_sessions!inner(created_at)')
-    .eq('user_id', currentUser.id)
-    .in('question_id', questionIds);
-  if(error){ console.error('Error calculando el dominio de preguntas', error); return stats; }
+  // Se piden todas las respuestas del usuario (por páginas de 1000) y luego
+  // se quedan las de preguntas que existen. Antes se mandaba la lista de
+  // ids de todas las preguntas en la dirección de la consulta: con más de
+  // ~5.000 preguntas la dirección era demasiado larga, Supabase respondía
+  // 400 y las estadísticas salían como si no se hubiera hecho nada.
+  const existe = new Set(questionIds);
+  const PAGE = 1000;
+  let data = [];
+  for(let from = 0; ; from += PAGE){
+    const { data: page, error } = await sb
+      .from('session_answers')
+      .select('id, question_id, is_correct, answer_order, test_sessions!inner(created_at)')
+      .eq('user_id', currentUser.id)
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if(error){
+      console.error('Error calculando el dominio de preguntas', error);
+      try{ reportClientError('estadisticas', 'No se pudieron cargar las respuestas: ' + (error.message || error.code || error)); }catch(e){}
+      return stats;
+    }
+    data = data.concat((page || []).filter(r => existe.has(r.question_id)));
+    if(!page || page.length < PAGE) break;
+  }
 
   const byQuestion = {};
   (data || []).forEach(row => {

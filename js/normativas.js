@@ -47,6 +47,12 @@ const NQ = (function(){
     return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('Tiempo de espera agotado')), ms))]);
   }
   let pendingLoad = false;
+  function pedirTemas(){
+    return withTimeout(Promise.all([
+      sb.from('nq_sets').select('id,title,orden,created_at').order('orden').order('created_at'),
+      sb.from('nq_cards').select('id,set_id,term,definition,trampas,orden,created_at').order('orden').order('created_at')
+    ]), 15000);
+  }
   async function load(){
     if(!client()) return;
     // Si ya hay una carga en marcha (p. ej. la del arranque, antes de
@@ -54,10 +60,15 @@ const NQ = (function(){
     if(loading){ pendingLoad = true; return; }
     loading = true;
     try{
-      const [rs, rc] = await withTimeout(Promise.all([
-        sb.from('nq_sets').select('id,title,orden,created_at').order('orden').order('created_at'),
-        sb.from('nq_cards').select('id,set_id,term,definition,trampas,orden,created_at').order('orden').order('created_at')
-      ]), 15000);
+      let [rs, rc] = await pedirTemas();
+      // «JWT issued at future»: la sesión se acaba de renovar y el servidor
+      // aún no da por buena su hora (un desfase de segundos entre servidores
+      // de Supabase). Pasa solo: se vuelve a intentar al momento.
+      const err = rs.error || rc.error;
+      if(err && /issued at future/i.test(err.message || '')){
+        await new Promise(r => setTimeout(r, 2000));
+        [rs, rc] = await pedirTemas();
+      }
       if(rs.error || rc.error) throw (rs.error || rc.error);
       buildSets(rs.data || [], rc.data || []);
       loaded = true; loadError = false;

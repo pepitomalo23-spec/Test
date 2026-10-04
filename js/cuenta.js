@@ -132,6 +132,7 @@ async function onLoggedIn(user, isFreshSignIn){
   // aprobada por un administrador (sustituye a la confirmación por
   // correo electrónico).
   let { data: profile } = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  pasoArranque('perfil');
   if(!profile){
     const { data: created } = await sb.from('profiles').insert({ id: user.id }).select().maybeSingle();
     profile = created;
@@ -168,6 +169,7 @@ async function onLoggedIn(user, isFreshSignIn){
     });
     deviceCheck = res.data; deviceCheckError = res.error;
   }catch(e){ deviceCheckError = e; }
+  pasoArranque('dispositivo');
 
   const blocked = !!deviceCheckError || !deviceCheck || deviceCheck.allowed === false;
   // No se espera esta llamada: es solo un registro de auditoría y no debe
@@ -275,17 +277,22 @@ async function onLoggedIn(user, isFreshSignIn){
   if(historyListEl) historyListEl.innerHTML = '<div id="historyLoadingPlaceholder">' + skelList(3) + '</div>';
   if(fallosLabelEl) fallosLabelEl.innerHTML = SKEL_INLINE;
   if(smartLabelEl) smartLabelEl.innerHTML = SKEL_INLINE;
+  pasoArranque('entra');
   finishSplash();
   handleDeepLink(location.href);
   if(typeof CJ !== 'undefined') CJ.comprobarAvisos(true);
 
   const globalStatsSessionsPromise = sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
-  let startupDone = false;
+  let startupDone = false, datosHechos = false, historialHecho = false;
   const startupWatch = setTimeout(() => {
-    if(!startupDone) reportClientError('atasco', 'Los datos de Inicio (preguntas/historial) seguían sin cargar 20 s después de entrar.');
+    if(!startupDone) reportarAtasco('Los datos de Inicio (preguntas/historial) seguían sin cargar 20 s después de entrar.',
+      [datosHechos ? '' : 'preguntas', historialHecho ? '' : 'historial'].filter(Boolean).join(' y '));
   }, 20000);
   appDataReady = false;
-  appDataPromise = Promise.all([loadAppData(), loadHistory()]);
+  appDataPromise = Promise.all([
+    loadAppData().finally(() => { datosHechos = true; pasoArranque('datos'); }),
+    loadHistory().finally(() => { historialHecho = true; pasoArranque('historial'); })
+  ]);
   try{ await appDataPromise; }
   finally{ appDataReady = true; }
   startupDone = true;

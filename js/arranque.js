@@ -8,6 +8,7 @@
 let authInitialized = false;
 let loginScheduledFor = null; // usuario cuyo onLoggedIn ya está programado
 sb.auth.onAuthStateChange((event, session) => {
+  pasoArranque('sesión (' + event + ')');
   if(event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED'){
     // El token se ha renovado en segundo plano: solo actualizamos el
     // usuario en memoria, sin tocar la pantalla ni recargar nada.
