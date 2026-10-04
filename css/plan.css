@@ -227,6 +227,14 @@
   .pl-prop-dia ul{ margin:4px 0 0 18px; padding:0; }
   .pl-prop-dia small{ color: var(--muted); }
   .pl-correo{ font-family: var(--mono); font-size:13px; }
+  /* Marcador de Tutor Bombero */
+  .pl-pasos{ margin:0 0 12px 20px; padding:0; font-size:14px; line-height:1.55; color: var(--text); }
+  .pl-pasos li{ margin-bottom:6px; }
+  .pl-tb-grupos{ display:flex; flex-direction:column; gap:6px; margin:4px 0 12px; max-height:46vh; overflow:auto; }
+  .pl-tb-grupo{ display:flex; gap:10px; align-items:flex-start; font-size:14px; line-height:1.45; padding:8px 10px; border:1px solid var(--line); border-radius:10px; cursor:pointer; }
+  .pl-tb-grupo input{ width:18px; height:18px; margin-top:2px; flex:none; accent-color: var(--accent, #e8452c); }
+  .pl-tb-grupo.nada{ opacity:.6; cursor:default; }
+  .pl-tb-card .pl-acciones{ align-items:center; }
 
   /* ---------- hoja (diálogo) ---------- */
   html.pl-hoja-abierta, html.pl-hoja-abierta body{ overflow:hidden; }

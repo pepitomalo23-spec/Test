@@ -33,7 +33,7 @@ exámenes resueltos en PDF). Pago único (Pack Premium 99,95 €).
 | 2 | Integración oficial o pedir acceso al proveedor | **No hay integración** (ni API, webhooks, LTI, SCORM ni iCal). Lo único posible es **pedírselo al titular**: una copia de tus resultados por los arts. 15 y 20 del RGPD (derecho de acceso y portabilidad: plazo de un mes, gratis) o un permiso escrito. Borrador al final. |
 | 3 | Consultar los datos a través de las comunicaciones internas de la web | **No es una vía autorizada.** La zona privada funciona con formularios POST y una cookie de sesión (JSESSIONID). No hay enlaces directos (GET) a cada test ni una API documentada. Usarlas exigiría guardar tu sesión o tus credenciales fuera de Tutor Bombero y depender de algo interno y cambiante. Las condiciones no lo autorizan. |
 | 4 | Automatizar un navegador (Playwright) | **Técnicamente posible, no autorizado.** Ver «Automatización» más abajo. |
-| 5 | Alternativa semiautomática | **Es lo que se ha implementado** (ver Fase 2). |
+| 5 | Alternativa semiautomática | **Es lo que se ha implementado** (ver Fase 2), con el **marcador** de Safari (más abajo). |
 
 ### Condiciones de uso (literal)
 
@@ -75,8 +75,18 @@ de que no cambie su HTML. Recomendación: **no automatizar sin autorización esc
 - **Texto en vivo** (iPadOS 15+) permite copiar el texto de una captura de pantalla; `navigator.clipboard.readText`
   lo lee al pulsar un botón (Safari pide permiso con un menú «Pegar»). Es lo que usa «Pegar resultado».
 - **Atajos** puede ejecutar JavaScript sobre la página de Safari desde la hoja de compartir y enviar el texto a una
-  API propia. Es técnicamente viable, pero no está comprobado con la página de resultados de Tutor Bombero (habría
-  que iniciar sesión) y añadiría un punto de entrada con token. Queda como posible mejora si el titular lo autoriza.
+  API propia. Añadiría un punto de entrada con token; se descartó a favor del marcador, que no envía nada.
+- **Marcador** (favorito de Safari con `javascript:`, implementado): lo toca el usuario estando en Tutor Bombero,
+  con su sesión ya iniciada por él. Carga `marcador/tutor-bombero.js` de pj.fire, que **solo lee la página que
+  tiene delante**: en una lista de tests, los nombres de los tests y su tema; en la pantalla de resultados, solo las
+  líneas con números (aciertos, fallos, en blanco, nota), nunca las preguntas. Enseña lo encontrado y, solo si se
+  pulsa «Copiar», lo copia al portapapeles; en pj.fire, «Pegar de Tutor Bombero» lo añade al catálogo (cada test en
+  su tema, sin duplicados) o guarda el resultado en su tarea. No hace peticiones de red, no lee cookies ni
+  formularios, no pulsa nada y no navega: equivale a copiar y pegar a mano, más rápido. Tutor Bombero no tiene CSP,
+  así que el marcador funciona (comprobado el 4-10-2026). Sus condiciones no hablan de esto (ni lo permiten ni lo
+  prohíben); si algún día lo prohíben, se deja de usar. Como no se puede ver la zona privada sin la sesión del
+  usuario, el marcador **deduce** dónde están los tests y el resultado; si no acierta, ofrece «Copiar diagnóstico»
+  (estructura de la página, sin correos ni números largos) para ajustarlo.
 - Web Share Target no está soportado en Safari, y las extensiones de Safari exigen la cuenta de desarrollador de
   Apple (99 $/año).
 
@@ -169,7 +179,11 @@ suyo de un tema, test o tarea de otro aunque conozca su id. Probado con 82 prueb
 - **Tutor Bombero no se puede bloquear ni leer**: el Plan solo controla lo que se abre desde él. Si entras
   directamente en Tutor Bombero, el Plan no se entera.
 - **No hay enlace a cada test** de Tutor Bombero: se abre su página de entrada y hay que buscar el test.
-- **El resultado de Tutor Bombero lo apuntas tú** (o lo pegas). Si no lo confirmas, el test no cuenta como hecho.
+- **El resultado de Tutor Bombero lo traes tú**: con el marcador (dos toques) o pegándolo/escribiéndolo. Si no lo
+  confirmas, el test no cuenta como hecho. Las preguntas de Tutor Bombero no se copian: el simulacro con sus
+  preguntas se hace allí, y pj.fire lo programa y lo puntúa (nota con penalización, como sus simulacros).
+- **El marcador no está probado contra la web real** (su zona privada exige iniciar sesión): está probado con
+  páginas simuladas de distintas formas. La primera vez puede necesitar un ajuste («Copiar diagnóstico»).
 - **El tiempo de Tutor Bombero no se mide**: solo cuenta el que apuntes. El tiempo «medido» es el de los tests de
   pj.fire y los exámenes del plan. En los tests de pj.fire es el tiempo de reloj (si se deja a medias y se sigue
   otro día, no cuenta como medido).
@@ -187,6 +201,10 @@ suyo de un tema, test o tarea de otro aunque conozca su id. Probado con 82 prueb
 4. Hacer una captura del resultado en Tutor Bombero, copiar su texto con Texto en vivo y usar «Pegar resultado».
 5. Abrir desde Tests uno que no toque hoy (debe avisar).
 6. Hacer un examen combinado y mirar Progreso.
+7. Instalar el marcador (Ajustes › Tutor Bombero › «Instalar el marcador»). En Tutor Bombero, tocarlo en la
+   página de tus tests por temas, «Copiar para pj.fire» y en pj.fire «Pegar de Tutor Bombero».
+8. Hacer un test en Tutor Bombero, tocar el marcador en la pantalla de resultados, «Copiar resultado» y «Pegar de
+   Tutor Bombero» en Hoy: la tarea debe quedar hecha con su nota. Si algo no sale, «Copiar diagnóstico».
 
 ---
 

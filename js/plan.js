@@ -126,6 +126,7 @@ const PLAN = (function(){
   function nombreTema(id){
     const t = temaDe(id);
     if(!t) return 'Sin tema';
+    if(t.numero != null && PLANL.normalizar(t.nombre) === 'tema ' + t.numero) return 'Tema ' + t.numero;
     return (t.numero != null ? 'Tema ' + t.numero + ' · ' : '') + t.nombre;
   }
   function temasOrdenados(conArchivados){
@@ -680,7 +681,8 @@ const PLAN = (function(){
       const cuando = t.abierta_at && Number.isFinite(msDe(t.abierta_at)) ? hace(Date.now() - msDe(t.abierta_at)) : 'hace un rato';
       principal += '<div class="pl-card pl-encurso"><div class="pl-encurso-txt"><b>¿Has terminado «' + esc(test.nombre) + '»?</b>' +
         '<span>Lo abriste ' + esc(cuando) + ' en ' + esc(PLANL.PLATAFORMAS[test.plataforma] || 'otra web') + '. Hasta que lo confirmes, sigue sin hacer.</span></div>' +
-        '<div class="pl-acciones"><button type="button" class="btn btn-primary" onclick="PLAN.apuntarTarea(\'' + idAttr(t.id) + '\')">Apuntar resultado</button>' +
+        '<div class="pl-acciones">' + (test.plataforma === 'tutor_bombero' ? '<button type="button" class="btn btn-primary" onclick="PLANTB.pegar()">Pegar de Tutor Bombero</button>' : '') +
+        '<button type="button" class="btn ' + (test.plataforma === 'tutor_bombero' ? 'btn-ghost' : 'btn-primary') + '" onclick="PLAN.apuntarTarea(\'' + idAttr(t.id) + '\')">Apuntar resultado</button>' +
         '<button type="button" class="btn btn-ghost" onclick="PLAN.abrirTarea(\'' + idAttr(t.id) + '\', true)">Volver a abrir</button></div></div>';
     });
 
@@ -703,6 +705,10 @@ const PLAN = (function(){
         (atr.length > 12 ? '<p class="pl-pie">Y ' + (atr.length - 12) + ' más. «Planificar automáticamente» las recoloca.</p>' : '') + '</section>';
     }
     if(puede.ok) lado += htmlSugerencias(h);
+    lado += '<section class="pl-card pl-tb-card"><h2 class="pl-seccion">Tutor Bombero</h2>' +
+      '<p class="pl-hoja-txt">Al terminar un test allí, toca el marcador en la pantalla de resultados y pulsa aquí: la tarea queda hecha con su nota.</p>' +
+      '<div class="pl-acciones"><button type="button" class="btn btn-ghost" onclick="PLANTB.pegar()">Pegar de Tutor Bombero</button>' +
+      '<button type="button" class="pl-enlace" onclick="PLANTB.instalar()">Instalar el marcador</button></div></section>';
     lado += '<p class="pl-nota-honesta">pj.fire solo controla lo que abres desde aquí: no puede bloquear Tutor Bombero si entras directamente. Abrir un test no cuenta como hecho hasta que lo confirmas.</p>';
 
     el.innerHTML = '<div class="pl-hoy"><div class="pl-col-main">' + principal + '</div><aside class="pl-col-lado">' + lado + '</aside></div>';
@@ -711,9 +717,10 @@ const PLAN = (function(){
   function htmlEmpezar(){
     return '<div class="pl-card pl-empezar"><div class="pl-card-title">Empieza en tres pasos</div><ol>' +
       '<li><b>Crea tus temas</b> de la oposición (puedes pegarlos todos de golpe).</li>' +
-      '<li><b>Añade tus tests</b>: los de Tutor Bombero (nombre e identificador) y, si quieres, tests de tu banco de pj.fire.</li>' +
+      '<li><b>Añade tus tests</b>: los de Tutor Bombero tráelos con el marcador (cada uno en su tema) y, si quieres, añade tests de tu banco de pj.fire.</li>' +
       '<li><b>Planifica</b>: elige tu límite diario y deja que el plan reparta los tests por días.</li></ol>' +
       '<div class="pl-acciones"><button type="button" class="btn btn-primary" onclick="PLAN.crearVariosTemas()">Crear mis temas</button>' +
+      '<button type="button" class="btn btn-ghost" onclick="PLANTB.instalar()">Traer mis tests de Tutor Bombero</button>' +
       '<button type="button" class="btn btn-ghost" onclick="PLAN.irA(\'tests\')">Ir a Tests</button></div></div>';
   }
   function htmlTarea(t, n, h){
@@ -1047,14 +1054,16 @@ const PLAN = (function(){
           aviso.textContent = enc.length ? 'Encontrado: ' + enc.join(', ') + '. Revísalo antes de guardar.' : 'No he encontrado números de resultado en ese texto. Escríbelos a mano.';
           actualizar();
         };
+        // Lo copiado con el marcador de Tutor Bombero trae solo las líneas del resultado.
+        const leer = texto => { const m = PLANL.leerMarcadorTB(texto); return PLANL.parsearResultado(m && m.tipo === 'resultado' ? m.lineas.join('\n') : texto); };
         panel.querySelector('[data-accion="pegar"]').addEventListener('click', async () => {
           let texto = null;
           try{ if(navigator.clipboard && navigator.clipboard.readText) texto = await navigator.clipboard.readText(); }catch(e){}
-          if(texto && texto.trim()){ rellenar(PLANL.parsearResultado(texto)); return; }
+          if(texto && texto.trim()){ rellenar(leer(texto)); return; }
           panel.querySelector('.pl-pegar-manual').classList.remove('hidden');
           const ta = f('pegado');
           ta.focus();
-          ta.addEventListener('input', () => rellenar(PLANL.parsearResultado(ta.value)));
+          ta.addEventListener('input', () => rellenar(leer(ta.value)));
         });
       } });
   }
@@ -1090,23 +1099,31 @@ const PLAN = (function(){
     const cuando = f('cuando');
     const ms = cuando ? Date.parse(cuando) : Date.now();   // datetime-local: hora del dispositivo
     const realizado = Number.isFinite(ms) && ms <= Date.now() + 3600000 ? new Date(ms).toISOString() : ahoraIso();
-    const tareaOk = tarea && tareaDe(tarea.id) ? tarea : null;
+    registrarResultado(tarea, test, { aciertos: a, fallos: fa, blancos: b, total: tot, nota, notas: f('notas') || null,
+      realizado_at: realizado, duracion_seg: minutos != null ? minutos * 60 : null }, r0);
+  }
+  // Guarda un resultado ya comprobado (del formulario o del marcador de
+  // Tutor Bombero) y deja la tarea completada. r0 = el que se corrige.
+  function registrarResultado(tarea, test, v, r0, opts){
+    opts = opts || {};
+    const tareaOk = tarea && tareaDe(tarea.id) ? tareaDe(tarea.id) : null;
     const res = Object.assign({}, r0 || {}, {
       id: r0 ? r0.id : uid(), test_id: testDe(test.id) ? test.id : null, tarea_id: tareaOk ? tareaOk.id : (r0 && tareaDe(r0.tarea_id) ? r0.tarea_id : null),
-      fuente: r0 ? r0.fuente : 'manual', realizado_at: realizado,
-      aciertos: a, fallos: fa, blancos: b, total: tot, nota: nota == null ? null : Math.round(nota * 100) / 100,
-      notas: f('notas') || null
+      fuente: r0 ? r0.fuente : 'manual', realizado_at: v.realizado_at || ahoraIso(),
+      aciertos: v.aciertos, fallos: v.fallos, blancos: v.blancos, total: v.total, nota: v.nota == null ? null : Math.round(v.nota * 100) / 100,
+      notas: v.notas || null
     });
-    if(!r0 || !r0.duracion_medida){ res.duracion_seg = minutos != null ? minutos * 60 : null; res.duracion_medida = false; }
+    if(!r0 || !r0.duracion_medida){ res.duracion_seg = v.duracion_seg != null ? v.duracion_seg : null; res.duracion_medida = false; }
     delete res.user_id;
     guardar('plan_resultados', res);
     if(tareaOk && (tareaOk.estado !== 'completado' || tareaOk.resultado_id !== res.id)){
       cambiar('plan_tareas', tareaOk.id, { estado: 'completado', completada_at: tareaOk.completada_at || ahoraIso(), resultado_id: res.id });
     }
-    if(!r0) evento('completado', { tarea_id: tarea ? tarea.id : null, test_id: test.id, datos: { fuente: 'manual', nota: res.nota } });
+    if(!r0) evento('completado', { tarea_id: tareaOk ? tareaOk.id : null, test_id: test.id, datos: { fuente: opts.evento || 'manual', nota: res.nota } });
     if(yo()) escribirLocal(claveApertura(yo()), null);
-    uiToast(r0 ? 'Resultado corregido.' : 'Guardado: ' + test.nombre + (res.nota != null ? ' (' + formatNota(res.nota) + ')' : '') + '.', 'success');
+    if(!opts.silencioso) uiToast(r0 ? 'Resultado corregido.' : 'Guardado: ' + test.nombre + (res.nota != null ? ' (' + formatNota(res.nota) + ')' : '') + '.', 'success');
     repintar();
+    return res;
   }
   function completarSinNota(tarea, test){
     cambiar('plan_tareas', tarea.id, { estado: 'completado', completada_at: ahoraIso(), resultado_id: null });
@@ -1524,7 +1541,8 @@ const PLAN = (function(){
   function pintarTests(el){
     el.innerHTML = '<div class="pl-barra-tests"><input class="pl-input" type="search" id="plBuscarTests" placeholder="Buscar un test…" value="' + esc(filtroTests) + '" aria-label="Buscar un test" oninput="PLAN.filtrarTests(this.value)" autocomplete="off">' +
       '<button type="button" class="btn btn-primary" onclick="PLAN.editarTest()">+ Nuevo test</button>' +
-      '<button type="button" class="btn btn-ghost" onclick="PLAN.anadirVarios()">Añadir varios</button></div><div id="plListaTests"></div>';
+      '<button type="button" class="btn btn-ghost" onclick="PLAN.anadirVarios()">Añadir varios</button>' +
+      '<button type="button" class="btn btn-ghost" onclick="PLANTB.pegar()">Pegar de Tutor Bombero</button></div><div id="plListaTests"></div>';
     pintarListaTests(document.getElementById('plListaTests'));
   }
   function pintarListaTests(el){
@@ -1537,7 +1555,7 @@ const PLAN = (function(){
     if(!d.temas.length) html += '<div class="pl-aviso-linea">Aún no tienes temas. <button type="button" class="pl-enlace" onclick="PLAN.crearVariosTemas()">Créalos</button> para agrupar tus tests.</div>';
     if(!visibles.length){
       html += '<div class="pl-vacio">' + (d.tests.length ? (verArchivados ? 'No tienes tests archivados.' : 'Ningún test coincide con la búsqueda.') :
-        'Tu catálogo está vacío. Añade los tests de Tutor Bombero que vas a hacer (con su nombre o identificador) y, si quieres, tests de tu banco de pj.fire.') + '</div>';
+        'Tu catálogo está vacío. Trae tus tests de Tutor Bombero con el marcador (<button type="button" class="pl-enlace" onclick="PLANTB.instalar()">cómo</button>), añádelos a mano y, si quieres, añade tests de tu banco de pj.fire.') + '</div>';
     } else {
       const grupos = {};
       visibles.forEach(t => { const k = t.tema_id && temaDe(t.tema_id) ? t.tema_id : ''; (grupos[k] = grupos[k] || []).push(t); });
@@ -1798,9 +1816,12 @@ const PLAN = (function(){
       '<section class="pl-card"><h3 class="pl-seccion">Tus datos</h3><p class="pl-hoja-txt">Tu plan es privado: en la app solo lo ves tú. La copia de seguridad diaria de la base de datos (que solo puede descargar el administrador) también lo incluye. Descárgate tu propia copia cuando quieras.</p>' +
       '<div class="pl-acciones"><button type="button" class="btn btn-ghost" onclick="PLAN.exportar()">Exportar (JSON)</button><button type="button" class="btn btn-ghost" onclick="PLAN.importar()">Importar una copia</button></div></section>' +
       '<section class="pl-card"><h3 class="pl-seccion">Tutor Bombero</h3>' +
-      '<p class="pl-hoja-txt">Tutor Bombero no ofrece API, exportación de resultados ni enlaces directos a cada test, y sus condiciones dicen que el acceso es personal e intransferible. Por eso pj.fire no se conecta a tu cuenta, no guarda tus contraseñas y no copia su contenido:</p>' +
-      '<ul class="pl-lista-txt"><li>«Abrir» abre su web en otra pestaña y apunta que lo abriste (no que lo terminaste).</li><li>Al volver te pregunta si lo terminaste y cuánto sacaste. Puedes copiar el resultado (también de una captura, con Texto en vivo del iPad) y pegarlo.</li>' +
+      '<p class="pl-hoja-txt">Tutor Bombero no ofrece API, exportación de resultados ni enlaces directos a cada test, y sus condiciones dicen que el acceso es personal e intransferible. Por eso pj.fire no se conecta a tu cuenta, no guarda tus contraseñas y no copia sus preguntas:</p>' +
+      '<ul class="pl-lista-txt"><li>«Abrir» abre su web en otra pestaña y apunta que lo abriste (no que lo terminaste).</li>' +
+      '<li>Con el <b>marcador</b> (un favorito de Safari que tocas tú estando en Tutor Bombero) traes tu lista de tests por temas y, al terminar cada test, tu resultado: «Pegar de Tutor Bombero» y la tarea queda hecha con su nota.</li>' +
+      '<li>Sin marcador, al volver te pregunta si lo terminaste y cuánto sacaste; puedes copiar el resultado (también de una captura, con Texto en vivo del iPad) y pegarlo.</li>' +
       '<li>Solo controla lo que abres desde aquí: no puede bloquear Tutor Bombero si entras directamente.</li></ul>' +
+      '<div class="pl-acciones"><button type="button" class="btn btn-primary" onclick="PLANTB.instalar()">Instalar el marcador</button><button type="button" class="btn btn-ghost" onclick="PLANTB.pegar()">Pegar de Tutor Bombero</button></div>' +
       '<p class="pl-hoja-txt">Si quieres tu historial de resultados, la vía legítima es pedírselo al titular (derecho de acceso y portabilidad, arts. 15 y 20 del RGPD):</p>' +
       '<div class="pl-acciones"><button type="button" class="btn btn-ghost" onclick="PLAN.correoRgpd()">Ver borrador del correo</button></div></section>' +
       '</div>';
@@ -2126,6 +2147,8 @@ const PLAN = (function(){
     datos: () => Object.assign({}, d, { cargado, error: errorCarga }),
     hoy, uid, guardar, cambiar, borrar, evento, temaDe, testDe, tareaDe, mapaTopicTema, nombreTema, hoja, repintar, irA,
     apuntarResultado, programar, temasOrdenados, etiquetaPlataforma, textoResultado, reintentarYa,
+    // para PLANTB (marcador de Tutor Bombero)
+    cuentas, registrarResultado,
     // acciones de la interfaz (onclick)
     abrirTarea, abrirTest, apuntarTarea, verTarea, menuTarea, moverTarea, aplazar, anadirTarea, programarHoy, programarRepaso,
     repasoFallos, planificarAuto, vista, navegar, verDia, filtrarTests, alternarArchivados, programarTest, menuTest, editarTest,

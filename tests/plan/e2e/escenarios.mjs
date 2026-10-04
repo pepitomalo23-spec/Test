@@ -469,6 +469,137 @@ try{
     ok('lo no válido se descarta y nada se ejecuta');
   });
 
+  await paso('n. Marcador de Tutor Bombero: trae los tests por tema y el resultado (sin contraseña ni preguntas)', async () => {
+    // Páginas SIMULADAS de Tutor Bombero, servidas en su dominio real dentro del navegador de pruebas.
+    const TB = 'https://tutorbomberos.es/TEST/';
+    const pagTb = n => new URL('./tb/' + n, import.meta.url).pathname;
+    await ctx.route(TB + 'mis-tests.jsp', r => r.fulfill({ path: pagTb('mis-tests.html'), contentType: 'text/html; charset=utf-8' }));
+    await ctx.route(TB + 'resultado.jsp**', r => r.fulfill({ path: pagTb('resultado.html'), contentType: 'text/html; charset=utf-8' }));
+    await ctx.route(TB + 'inicio.jsp', r => r.fulfill({ path: pagTb('vacia.html'), contentType: 'text/html; charset=utf-8' }));
+    // 1) Instalar: el código del favorito carga el marcador de esta misma web
+    await pestana('hoy');
+    await pagina.click('.pl-tb-card >> text=Instalar el marcador');
+    await captura('20-marcador-instalar');
+    await botonHoja('Copiar el código');
+    const codigo = await pagina.evaluate(() => navigator.clipboard.readText());
+    assert.match(codigo, /^javascript:\(function\(\)\{var s=document\.createElement\('script'\);s\.src='http:\/\/127\.0\.0\.1:\d+\/marcador\/tutor-bombero\.js\?t='/);
+    await botonHoja('Cerrar');
+    // En producción pj.fire está en un dominio público (Vercel). Aquí está en 127.0.0.1, y
+    // Chromium no deja que una web pública cargue scripts de la red local: se sirve el
+    // mismo archivo desde un dominio público simulado y solo se cambia eso en el código.
+    await ctx.route('https://pjfire.test/marcador/**', r => r.fulfill({ path: new URL('../../../marcador/tutor-bombero.js', import.meta.url).pathname, contentType: 'text/javascript; charset=utf-8' }));
+    const codigoPublico = codigo.replace(/http:\/\/127\.0\.0\.1:\d+/, 'https://pjfire.test');
+    const enPanel = p => p.evaluate(() => { const h = document.getElementById('pjfire-marcador-tb'); return h ? h.shadowRoot.textContent : ''; });
+    // Tocar el favorito = ejecutar su código en la página de Tutor Bombero
+    const tocarMarcador = async p => {
+      await p.evaluate(c => { (0, eval)(c.replace(/^javascript:/, '')); }, codigoPublico);
+      await p.waitForFunction(() => { const h = document.getElementById('pjfire-marcador-tb'); return h && h.shadowRoot && h.shadowRoot.querySelector('.p'); });
+    };
+    const tb = await ctx.newPage();
+    vigilarErrores(tb, errores);
+    // 2) Lista de tests por tema (tabla, acordeón plegado, botones y desplegables)
+    await tb.goto(TB + 'mis-tests.jsp');
+    await tocarMarcador(tb);
+    let txt = await enPanel(tb);
+    assert.match(txt, /Tests en esta página: 11/, txt);
+    assert.ok(!/Resultado/.test(txt), 'una lista de tests no es un resultado: ' + txt);
+    for(const g of ['Tema 1 · La constitución española de 1978 · 3', 'Tema 2 · Prevención de riesgos laborales · 2', 'Tema 3 · Ley de Emergencias · 2', 'Sin tema · 2', 'Tema 4 · Incendios · 2']) assert.ok(txt.includes(g), 'grupo «' + g + '» en: ' + txt);
+    await tb.screenshot({ path: CAPTURAS + '/21-marcador-lista-tests.png' });
+    await tb.locator('#pjfire-marcador-tb button', { hasText: 'Copiar para pj.fire' }).click();
+    await tb.waitForFunction(() => /Copiado/.test(document.getElementById('pjfire-marcador-tb').shadowRoot.textContent));
+    const lista = await tb.evaluate(() => navigator.clipboard.readText());
+    assert.match(lista, /^pj\.fire · Tutor Bombero \(marcador\)\n\{"pjfire":"tutor_bombero","v":1,"tipo":"tests"/);
+    assert.ok(!/pepito|correo|Hacer test|Repetir|realizado/.test(lista), 'solo nombres de tests: ' + lista);
+    ok('el marcador encuentra 11 tests en 5 grupos y copia solo sus nombres');
+    // En pj.fire: «Pegar de Tutor Bombero» → al catálogo, cada uno en su tema
+    const antes = Number(sql("select count(*) from plan_tests"));
+    await pagina.bringToFront();
+    await pestana('tests');
+    await pagina.click('.pl-barra-tests >> text=Pegar de Tutor Bombero');
+    await pagina.waitForSelector('.pl-hoja >> text=Tests de Tutor Bombero');
+    txt = await hoja().textContent();
+    assert.match(txt, /He recibido 11 tests de 5 temas: 8 nuevos y 3 que ya tenías/, txt);
+    assert.match(txt, /tema nuevo: «Tema 4 · Incendios»/);
+    await pagina.waitForTimeout(400);
+    await captura('22-marcador-importar');
+    await botonHoja('Añadir al catálogo');
+    await pagina.waitForSelector('.pl-hoja >> text=Planificar automáticamente');
+    await botonHoja('Cancelar');
+    await colaVacia();
+    assert.equal(Number(sql("select count(*) from plan_tests")), antes + 8);
+    const donde = sqlJson("select s.referencia, s.nombre, m.numero, m.nombre as tema from plan_tests s left join plan_temas m on m.id = s.tema_id where s.created_at > now() - interval '5 minutes' and s.plataforma = 'tutor_bombero' and s.referencia in ('Tema 1 · Test 7', 'Simulacro 2', 'Tema 4 · Test 1', 'Tema 3 · Test 2') order by s.referencia");
+    assert.deepEqual(donde, [
+      { referencia: 'Simulacro 2', nombre: 'Simulacro 2', numero: null, tema: null },
+      { referencia: 'Tema 1 · Test 7', nombre: 'Test 7', numero: 1, tema: 'Constitución Española' },
+      { referencia: 'Tema 3 · Test 2', nombre: 'Test 2', numero: 3, tema: 'Ley de Emergencias' },
+      { referencia: 'Tema 4 · Test 1', nombre: 'Test 1', numero: 4, tema: 'Incendios' }]);
+    assert.equal(sql("select count(*) from plan_temas where numero = 4"), '1');
+    // Pegar lo mismo otra vez no duplica nada
+    await pagina.click('.pl-barra-tests >> text=Pegar de Tutor Bombero');
+    await pagina.waitForSelector('.pl-hoja >> text=Tests de Tutor Bombero');
+    assert.match(await hoja().textContent(), /0 nuevos y 11 que ya tenías/);
+    await botonHoja('Cerrar');
+    ok('8 tests nuevos en su tema (el tema 4 se crea), 3 repetidos saltados; pegarlo otra vez no duplica');
+    // 3) Resultado: «Tema 1 · Test 7» para hoy, hecho en Tutor Bombero, marcador y pegar
+    const idT7 = sql("select id from plan_tests where referencia = 'Tema 1 · Test 7'");
+    await pestana('hoy');
+    pagina.evaluate(id => { PLAN.programarHoy(id); }, idT7);
+    await pagina.waitForTimeout(400);
+    const excepcion = pagina.locator('.ui-confirm-bg button', { hasText: 'Añadir como excepción' });
+    if(await excepcion.count()) await excepcion.click();
+    await colaVacia();
+    assert.equal(sql("select estado from plan_tareas where test_id = '" + idT7 + "'"), 'pendiente');
+    await tb.bringToFront();
+    await tb.goto(TB + 'resultado.jsp;jsessionid=ABC123?id=7');
+    await tocarMarcador(tb);
+    txt = await enPanel(tb);
+    assert.match(txt, /Resultado: TEMA 1 - TEST 7/);
+    assert.ok(!/Tests en esta página/.test(txt), 'el título del test no cuenta como lista: ' + txt);
+    assert.ok(!/artículo|Tu respuesta/.test(txt), 'no enseña ni copia preguntas: ' + txt);
+    await tb.screenshot({ path: CAPTURAS + '/23-marcador-resultado.png' });
+    await tb.locator('#pjfire-marcador-tb button', { hasText: 'Copiar resultado para pj.fire' }).click();
+    await tb.waitForFunction(() => /Copiado/.test(document.getElementById('pjfire-marcador-tb').shadowRoot.textContent));
+    const res = await tb.evaluate(() => navigator.clipboard.readText());
+    assert.ok(res.includes('"lineas":["Aciertos\\tFallos\\tSin contestar\\tNota","21\\t6\\t3\\t7,00","Tiempo empleado: 24:10"]'), res);
+    assert.ok(res.includes('"pagina":"/TEST/resultado.jsp"') && !/ABC123|artículo/.test(res), 'sin sesión ni preguntas: ' + res);
+    await pagina.bringToFront();
+    await pagina.click('.pl-tb-card >> text=Pegar de Tutor Bombero');
+    await pagina.waitForSelector('.ui-toast >> text=Guardado: Test 7 · nota 6,33');
+    await colaVacia();
+    const r = sqlJson("select r.aciertos, r.fallos, r.blancos, r.total, r.nota::float, r.notas, r.fuente, t.estado from plan_resultados r join plan_tareas t on t.id = r.tarea_id where r.test_id = '" + idT7 + "'");
+    assert.deepEqual(r, [{ aciertos: 21, fallos: 6, blancos: 3, total: 30, nota: 6.33, notas: 'Nota en Tutor Bombero: 7,00', fuente: 'manual', estado: 'completado' }]);
+    assert.equal(sql("select datos->>'fuente' from plan_eventos where tipo = 'completado' and test_id = '" + idT7 + "'"), 'marcador');
+    await captura('24-marcador-guardado');
+    ok('resultado guardado en su tarea (completada) con la nota de pj.fire (6,33; la de Tutor Bombero queda en las notas)');
+    // Un resultado de un test del catálogo que no está en el plan: se guarda igual
+    await pagina.evaluate(() => navigator.clipboard.writeText('pj.fire · Tutor Bombero (marcador)\n{"pjfire":"tutor_bombero","v":1,"tipo":"resultado","titulo":"Simulacro 2","lineas":["Aciertos: 40","Fallos: 10","En blanco: 0"]}'));
+    await pagina.click('.pl-tb-card >> text=Pegar de Tutor Bombero');
+    await pagina.waitForSelector('.ui-toast >> text=(no estaba en tu plan)');
+    await colaVacia();
+    assert.deepEqual(sqlJson("select r.aciertos, r.nota::float, r.tarea_id from plan_resultados r join plan_tests s on s.id = r.test_id where s.referencia = 'Simulacro 2'"), [{ aciertos: 40, nota: 7.33, tarea_id: null }]);
+    ok('un test del catálogo sin tarea: el resultado se guarda en el test');
+    // 4) Página sin tests ni resultado: diagnóstico sin datos personales
+    await tb.bringToFront();
+    await tb.goto(TB + 'inicio.jsp');
+    await tocarMarcador(tb);
+    assert.match(await enPanel(tb), /no encuentro ni tests ni un resultado/);
+    await tb.locator('#pjfire-marcador-tb button', { hasText: 'Copiar diagnóstico' }).click();
+    await tb.waitForFunction(() => /Copiado/.test(document.getElementById('pjfire-marcador-tb').shadowRoot.textContent));
+    const diag = await tb.evaluate(() => navigator.clipboard.readText());
+    assert.match(diag, /^pj\.fire · diagnóstico del marcador/);
+    assert.ok(diag.includes('[correo]') && diag.includes('[número]') && !/pepito|12345678/.test(diag), diag);
+    ok('página sin nada: ofrece un diagnóstico sin correos ni números personales');
+    // 5) Fuera de Tutor Bombero no lee nada
+    await ctx.route('https://otra-web.test/', r => r.fulfill({ status: 200, contentType: 'text/html', body: '<html><body><h1>Otra web</h1><p>Test 1</p></body></html>' }));
+    const otra = await ctx.newPage();
+    await otra.goto('https://otra-web.test/');
+    await tocarMarcador(otra);
+    assert.match(await enPanel(otra), /Este marcador es para la web de Tutor Bombero/);
+    await otra.close();
+    await tb.close();
+    ok('en otra web solo avisa de que es para Tutor Bombero');
+  });
+
   await paso('l. Capturas: iPad vertical y horizontal, móvil, claro y oscuro', async () => {
     for(const [nombre, perfil] of [['ipad-v', IPAD], ['ipad-h', IPAD_H], ['movil', MOVIL]]){
       for(const tema of ['oscuro', 'claro']){

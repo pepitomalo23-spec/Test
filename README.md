@@ -48,6 +48,9 @@ js/                  código, en orden de carga (ver el final de index.html)
   plan.js            Plan de estudio: datos, cola sin conexión, Hoy, Plan, Tests y Ajustes
   plan-examen.js     Plan de estudio: exámenes combinados y preguntas propias
   plan-progreso.js   Plan de estudio: Progreso (estadísticas)
+  plan-tb.js         Plan de estudio: «Pegar de Tutor Bombero» (lo copiado con el marcador) e instalar el marcador
+marcador/
+  tutor-bombero.js   marcador de Safari para Tutor Bombero (se carga desde la web de Tutor Bombero; no va en index.html)
   arranque.js        escucha la sesión y arranca la app (siempre el último)
 datos/               datos que la app descarga cuando hacen falta (callejero-temario.json)
 sw.js                service worker: app sin conexión y actualizaciones
@@ -267,6 +270,12 @@ terminado y con qué resultado. Investigación, diseño y limitaciones: `docs/pl
   entrada (o el enlace guardado) en otra pestaña y deja la tarea **en curso** (abrir no es terminar); al volver a
   la app (≥20 s) pregunta «¿Has terminado…?» y se apunta el resultado a mano o pegándolo (`PLANL.parsearResultado`,
   también vale el texto copiado de una captura con Texto en vivo). Solo controla lo que se abre desde aquí.
+- **Marcador de Tutor Bombero** (`marcador/tutor-bombero.js` + `js/plan-tb.js`): un favorito de Safari que el
+  usuario toca en Tutor Bombero. Lee solo la página que tiene delante (nombres de tests por tema, o las líneas con
+  números del resultado, nunca las preguntas) y lo copia al portapapeles; sin red, cookies ni formularios. En el
+  Plan, «Pegar de Tutor Bombero» importa los tests (cada uno en su tema, sin duplicados: `PLANL.planImportacionTB`)
+  o guarda el resultado en su tarea (`PLANL.elegirTareaTB`), con la nota de pj.fire. El formato lo valida
+  `PLANL.leerMarcadorTB`. Si se cambia el marcador, no hace falta versionarlo: el favorito lo pide con `?t=`.
 - **Tests de pj.fire** desde el plan: `startQuiz(…, ctx = {plan:{tarea_id, test_id}})`; al terminar,
   `finishQuizInner` llama a `PLAN.alTerminarTest` y se apunta solo (con su `session_id`).
 - **Reglas** (Ajustes): avisar al abrir algo que no toca hoy (con «Ver mis tareas de hoy»), no pasar del límite

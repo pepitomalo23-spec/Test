@@ -1287,6 +1287,147 @@ const PLANL = (function(){
     return cmpTexto(a == null ? '' : String(a), b == null ? '' : String(b));
   }
 
+  // ---------- Marcador de Tutor Bombero ----------
+  // Lo que copia marcador/tutor-bombero.js: una línea de cabecera y un JSON
+  // {pjfire:'tutor_bombero', v:1, tipo:'tests'|'resultado', …}. Devuelve el
+  // contenido validado y recortado, o null si el texto no es eso.
+  function leerMarcadorTB(texto){
+    if(typeof texto !== 'string') return null;
+    const s = texto.slice(0, 400000);
+    const i = s.indexOf('{'), j = s.lastIndexOf('}');
+    if(i < 0 || j <= i) return null;
+    let o;
+    try{ o = JSON.parse(s.slice(i, j + 1)); }catch(e){ return null; }
+    if(!o || typeof o !== 'object' || o.pjfire !== 'tutor_bombero' || o.v !== 1) return null;
+    const txt = (v, n) => {
+      if(typeof v !== 'string') return null;
+      const t = v.replace(/\s+/g, ' ').trim();
+      return t ? t.slice(0, n) : null;
+    };
+    const ent = (v, min, max) => Number.isInteger(v) && v >= min && v <= max ? v : null;
+    if(o.tipo === 'resultado'){
+      // Las líneas tal cual (con sus tabuladores: parsearResultado lee tablas).
+      const lineas = (Array.isArray(o.lineas) ? o.lineas : []).filter(l => typeof l === 'string' && l.trim()).slice(0, 60).map(l => l.slice(0, 200));
+      return lineas.length ? { tipo: 'resultado', titulo: txt(o.titulo, 160), lineas } : null;
+    }
+    if(o.tipo === 'tests'){
+      const temas = [];
+      let total = 0;
+      (Array.isArray(o.temas) ? o.temas : []).slice(0, 300).forEach(g => {
+        if(!g || typeof g !== 'object') return;
+        const tests = [];
+        (Array.isArray(g.tests) ? g.tests : []).forEach(t => {
+          if(total >= 2000 || !t || typeof t !== 'object') return;
+          const nombre = txt(t.nombre, 160);
+          if(!nombre) return;
+          tests.push({ nombre, preguntas: ent(t.preguntas, 1, 500) });
+          total++;
+        });
+        if(tests.length) temas.push({ numero: ent(g.numero, 0, 999), nombre: txt(g.nombre, 150), tests });
+      });
+      return temas.length ? { tipo: 'tests', temas, total } : null;
+    }
+    return null;
+  }
+  // La misma clave que impide tener dos veces un test (plan_tests.clave).
+  function claveTest(plataforma, referencia, nombre){
+    const r = String(referencia || '').trim();
+    return plataforma + '|' + (r || String(nombre || '')).trim().toLowerCase();
+  }
+  // ¿Contiene «a» a «b» como palabras enteras? («tema 5 test 10» no contiene «tema 5 test 1»)
+  function contienePalabras(a, b){
+    return !!a && !!b && (' ' + a + ' ').includes(' ' + b + ' ');
+  }
+  // Qué hacer con una lista de tests traída con el marcador: a qué tema tuyo
+  // va cada tema de Tutor Bombero (mismo número; si no, mismo nombre; si no,
+  // uno nuevo) y qué tests son nuevos (los que ya tienes se saltan, aunque
+  // los escribieras con otros signos: «Tema 5 - Test 3» = «Tema 5 · Test 3»).
+  // referencia = lo que hay que buscar en Tutor Bombero («Tema 5 · Test 3»).
+  function planImportacionTB(payload, temas, tests){
+    const mios = (temas || []).filter(t => t && t.id);
+    const deTb = (tests || []).filter(t => t && t.plataforma === 'tutor_bombero');
+    const vistos = new Set(deTb.map(t => normalizar(t.referencia || t.nombre)));
+    const porTemaNombre = new Set(deTb.map(t => (t.tema_id || '') + '|' + normalizar(t.nombre)));
+    const exactas = new Set((tests || []).filter(Boolean).map(t => claveTest(t.plataforma, t.referencia, t.nombre)));
+    const temaPorNombre = new Map();
+    mios.forEach(t => { if(t.nombre) temaPorNombre.set(normalizar(t.nombre), t); });
+    const porCrear = new Map();
+    const grupos = [];
+    let nuevosTotal = 0, repetidosTotal = 0;
+    ((payload && payload.temas) || []).forEach(g => {
+      let tema = null, crear = null;
+      if(g.numero != null){
+        const c = mios.filter(t => Number(t.numero) === g.numero);
+        tema = c.find(t => !t.archivado) || c[0] || null;
+      }
+      if(!tema && g.nombre) tema = temaPorNombre.get(normalizar(g.nombre)) || null;
+      if(!tema && (g.numero != null || g.nombre)){
+        const nombre = String(g.nombre || ('Tema ' + g.numero)).slice(0, 160);
+        tema = temaPorNombre.get(normalizar(nombre)) || null;
+        if(!tema){
+          const k = g.numero != null ? 'n' + g.numero : 'x' + normalizar(nombre);
+          crear = porCrear.get(k) || { numero: g.numero, nombre };
+          porCrear.set(k, crear);
+        }
+      }
+      const etiqueta = g.numero != null ? 'Tema ' + g.numero : (g.nombre || '');
+      const reTema = g.numero != null ? new RegExp('\\btema\\s*0*' + g.numero + '\\b') : null;
+      const nuevos = [];
+      let repetidos = 0;
+      g.tests.forEach(t => {
+        const n = normalizar(t.nombre);
+        const yaLleva = reTema ? reTema.test(n) : (!!g.nombre && contienePalabras(n, normalizar(g.nombre)));
+        const referencia = (!etiqueta || yaLleva ? t.nombre : etiqueta + ' · ' + t.nombre).slice(0, 160);
+        const kn = normalizar(referencia);
+        const exacta = claveTest('tutor_bombero', referencia, t.nombre);
+        if(vistos.has(kn) || exactas.has(exacta) || (tema && porTemaNombre.has(tema.id + '|' + n))){ repetidos++; return; }
+        vistos.add(kn);
+        exactas.add(exacta);
+        nuevos.push({ nombre: t.nombre, referencia, num_preguntas: t.preguntas || null });
+      });
+      nuevosTotal += nuevos.length;
+      repetidosTotal += repetidos;
+      grupos.push({ numero: g.numero, nombre: g.nombre, tema_id: tema ? tema.id : null, crear, nuevos, repetidos });
+    });
+    return { grupos, nuevos: nuevosTotal, repetidos: repetidosTotal, temasNuevos: porCrear.size };
+  }
+  // A qué test y tarea va un resultado traído con el marcador. Primero por el
+  // título (si coincide con un test de Tutor Bombero de tu catálogo); si no,
+  // la tarea de Tutor Bombero que abriste desde el plan (en curso).
+  // seguro = sin dudas (se guarda directamente); si no, candidatas para elegir.
+  function elegirTareaTB(o){
+    o = o || {};
+    const h = o.hoy || hoy();
+    const ahora = o.ahora != null ? o.ahora : Date.now();
+    const tests = (o.tests || []).filter(t => t && t.plataforma === 'tutor_bombero' && !t.archivado);
+    const tareas = (o.tareas || []).filter(t => t && t.test_id);
+    const testDe = id => tests.find(t => t.id === id) || null;
+    const ms = iso => { const v = Date.parse(iso); return Number.isFinite(v) ? v : 0; };
+    const tit = normalizar(o.titulo || '');
+    let porTitulo = [];
+    if(tit.length >= 3){
+      porTitulo = tests.filter(t => normalizar(t.referencia || '') === tit || normalizar(t.nombre) === tit);
+      if(!porTitulo.length) porTitulo = tests.filter(t => { const r = normalizar(t.referencia || ''); return r.length >= 5 && contienePalabras(tit, r); });
+    }
+    const pendienteDe = test => {
+      const l = tareas.filter(t => t.test_id === test.id && t.estado !== 'completado');
+      return l.find(t => t.estado === 'en_curso') || l.find(t => t.fecha === h) ||
+        l.filter(t => t.fecha < h).sort((a, b) => a.fecha < b.fecha ? 1 : -1)[0] || l.sort((a, b) => a.fecha < b.fecha ? -1 : 1)[0] || null;
+    };
+    const abiertas = tareas.filter(t => t.estado === 'en_curso' && testDe(t.test_id)).sort((a, b) => ms(b.abierta_at) - ms(a.abierta_at));
+    if(porTitulo.length === 1) return { test: porTitulo[0], tarea: pendienteDe(porTitulo[0]), seguro: true, candidatas: [] };
+    const entre = porTitulo.length ? abiertas.filter(t => porTitulo.some(x => x.id === t.test_id)) : abiertas;
+    const reciente = t => ahora - ms(t.abierta_at) <= 12 * 3600 * 1000;
+    if(entre.length === 1 && (porTitulo.length || reciente(entre[0]))) return { test: testDe(entre[0].test_id), tarea: entre[0], seguro: true, candidatas: [] };
+    // Con dudas: lo abierto, lo de hoy y lo que coincide con el título.
+    const cand = [];
+    const meter = t => { if(t && !cand.some(x => x.id === t.id)) cand.push(t); };
+    abiertas.forEach(meter);
+    porTitulo.forEach(t => meter(pendienteDe(t)));
+    tareas.filter(t => t.fecha === h && t.estado !== 'completado' && testDe(t.test_id)).forEach(meter);
+    return { test: null, tarea: null, seguro: false, candidatas: cand.slice(0, 12), porTitulo };
+  }
+
   return {
     ZONA: ZONA, REGLAS_DEF: REGLAS_DEF, AJUSTES_DEF: AJUSTES_DEF, TB_URL: TB_URL,
     PLATAFORMAS: PLATAFORMAS, ESTADOS: ESTADOS, PRIORIDADES: PRIORIDADES,
@@ -1303,6 +1444,8 @@ const PLANL = (function(){
     cumplimiento: cumplimiento, serie: serie, tiempo: tiempo, historial: historial,
     // Texto pegado
     parsearResultado: parsearResultado,
+    // Marcador de Tutor Bombero
+    leerMarcadorTB: leerMarcadorTB, planImportacionTB: planImportacionTB, elegirTareaTB: elegirTareaTB, claveTest: claveTest,
     // Preguntas y exámenes
     normalizar: normalizar, generarExamen: generarExamen, corregir: corregir, erroresRecurrentes: erroresRecurrentes,
     ordenNatural: ordenNatural,

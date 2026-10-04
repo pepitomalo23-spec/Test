@@ -18,6 +18,10 @@ Comprueban, en la pantalla **y** en la base de datos:
 - i. exportar e importar sin duplicar;
 - j. sin conexión se guarda en el dispositivo y se sube una sola vez;
 - k. recargar vuelve al Plan;
+- m. importar un archivo manipulado no cuela HTML ni datos raros;
+- n. el marcador de Tutor Bombero en páginas simuladas (`tb/`, servidas en `https://tutorbomberos.es`): trae los
+  tests por tema sin duplicados, guarda el resultado en su tarea con la nota de pj.fire, no copia preguntas ni
+  datos personales, y fuera de Tutor Bombero no lee nada;
 - l. capturas en iPad vertical y horizontal y en móvil, en claro y oscuro (`$TMPDIR/plan-e2e/capturas`).
 
 ## Requisitos
