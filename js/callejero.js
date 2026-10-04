@@ -536,7 +536,7 @@ const CJ = (function(){
       }
     }catch(e){ uiToast('No se ha podido guardar la nota: ' + (e.message || e), 'error'); return; }
     if(modo === 'estudio'){ if(infoActual) infoActual(); }
-    else if(ronda){ ponerBotonNota(); if(ronda.respondida) tarjetaNota(true); }
+    else if(ronda){ ponerBotonNota(); if(ronda.respondida || ronda.vista) tarjetaNota(true); }
     if(vistaActual === 'inicio') pintarInicio();
   }
 
@@ -3354,6 +3354,7 @@ const CJ = (function(){
     if(!primera) ronda.i++;
     if(ronda.i >= ronda.preguntas.length){ terminar(); return; }
     ronda.respondida = false;
+    ronda.vista = false;
     capaMarcas.clearLayers();
     ponerBotonNota();
     tarjetaNota(false);
@@ -3731,6 +3732,9 @@ const CJ = (function(){
     el('cjVozVer').classList.add('hidden');
     el('cjVozSi').classList.remove('hidden');
     el('cjVozNo').classList.remove('hidden');
+    // Ya se ve el nombre: también la nota.
+    ronda.vista = true;
+    tarjetaNota(true);
   }
   function autoevaluar(acierto){
     if(!ronda || ronda.respondida || el('cjVozSi').classList.contains('hidden')) return;
