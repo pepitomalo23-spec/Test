@@ -22,7 +22,7 @@ if('serviceWorker' in navigator && (location.protocol === 'https:' || location.h
 }
 
 // Enlaces que abren las notificaciones: ?repaso=1 → Repaso diario,
-// ?admin=errores → Administración › Errores, ?plan=1 → Plan de estudio.
+// ?admin=errores → Administración › Errores.
 function handleDeepLink(href){
   let url;
   try{ url = new URL(href, location.href); }catch(e){ return; }
@@ -41,9 +41,6 @@ function handleDeepLink(href){
   } else if(url.searchParams.get('callejero') && featureEnabled('callejero')){
     // Aviso de una tarea o un mensaje del callejero (profesor ↔ alumno).
     showScreen('screen-callejero');
-  } else if(url.searchParams.get('plan') && featureEnabled('plan')){
-    // Recordatorio o enlace al Plan de estudio.
-    showScreen('screen-plan');
   }
   if(url.search && url.href === location.href){
     try{ history.replaceState(null, '', location.pathname + location.hash); }catch(e){}

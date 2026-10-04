@@ -278,7 +278,6 @@ async function onLoggedIn(user, isFreshSignIn){
   finishSplash();
   handleDeepLink(location.href);
   if(typeof CJ !== 'undefined') CJ.comprobarAvisos(true);
-  if(typeof PLAN !== 'undefined') PLAN.alEntrar();
 
   const globalStatsSessionsPromise = sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
   let startupDone = false;
@@ -383,7 +382,6 @@ function onLoggedOut(){
   currentUserIsProfesor = false;
   if(typeof CJ !== 'undefined') CJ.reiniciar();
   if(typeof CJP !== 'undefined') CJP.reiniciar();
-  if(typeof PLAN !== 'undefined') PLAN.reiniciar();
   if(adminPollInterval){ clearInterval(adminPollInterval); adminPollInterval = null; }
   const adminBtn = document.getElementById('headerAdminBtn');
   if(adminBtn) adminBtn.classList.add('hidden');
