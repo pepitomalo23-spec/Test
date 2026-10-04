@@ -411,30 +411,51 @@ const CJ = (function(){
   let notas = new Map();   // clave → { texto, imagen }
   async function cargarNotas(){
     if(!currentUser) return;
-    const { data, error } = await sb.from('callejero_notas').select('clave, texto, imagen');
-    if(!error) notas = new Map((data || []).map(r => [r.clave, { texto: r.texto || '', imagen: r.imagen || '' }]));
+    const { data, error } = await sb.from('callejero_notas').select('clave, texto, imagen, updated_at');
+    if(!error) notas = new Map((data || []).map(r => [r.clave, { texto: r.texto || '', imagen: r.imagen || '', fecha: r.updated_at }]));
   }
   // De qué es la nota de una pregunta: la calle (todos sus tramos, por nombre) o el lugar.
   function claveNota(q){
-    if(!q || modo === 'temario') return null;
-    if(q.via) return 'v:' + q.via.clave;
-    if(q.lugar) return 'l:' + q.lugar.id;
+    if(!q) return null;
+    if(q.via) return claveVia(q.via);
+    if(q.lugar && q.lugar.id) return 'l:' + q.lugar.id;
+    if(q.vias && q.vias.length) return claveVia(q.vias[0]);
     return null;
   }
-  function ponerBotonNota(){
-    let b = el('cjNotaBtn');
+  const claveVia = v => 'v:' + v.clave;
+  const claveLugar = l => 'l:' + l.id;
+  // La nota dentro de la ficha de una calle o un lugar (mapa libre, Aprender,
+  // lo del temario): lo apuntado y el botón para añadirla o cambiarla.
+  let infoActual = null;   // para volver a pintar la ficha al guardar la nota
+  function notaInfoHtml(k){
+    const n = notas.get(k);
+    return '<div class="cj-info-nota">' +
+      (n && n.imagen ? '<img src="' + escapeHtml(n.imagen) + '" alt="" onclick="event.stopPropagation(); openImageLightbox(this.src)">' : '') +
+      (n && n.texto ? '<div class="cj-info-nota-txt">' + escapeHtml(n.texto) + '</div>' : '') +
+      '<button type="button" class="cj-info-nota-btn" onclick="CJ.editarNota(' + escapeHtml(JSON.stringify(k)) + ')">' + (n ? 'Cambiar tu nota' : '+ Añadir una nota') + '</button></div>';
+  }
+  function botonBarra(id){
+    let b = el(id);
     if(!b){
       b = document.createElement('button');
-      b.type = 'button'; b.id = 'cjNotaBtn'; b.className = 'cj-nota-btn';
+      b.type = 'button'; b.id = id; b.className = 'cj-nota-btn hidden';
       el('cjPlegar').before(b);
     }
+    return b;
+  }
+  function ponerBotonNota(){
     const q = ronda && ronda.preguntas[ronda.i];
     const k = claveNota(q);
+    const b = botonBarra('cjNotaBtn');
+    b.classList.toggle('hidden', !k);
+    b.onclick = () => editarNota(k);
+    if(k) b.innerHTML = svgIcono('M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5Z|M14 2v6h6|M8 13h8|M8 17h5') + '<span>' + (notas.has(k) ? 'Tu nota' : 'Nota') + '</span>';
     // En el temario, el admin y los profesores: «Editar» (cambiar o quitar la pregunta para todos).
-    const editar = !k && q && modo === 'temario' && typeof CJT !== 'undefined' && CJT.puedeEditar();
-    b.classList.toggle('hidden', !k && !editar);
-    b.onclick = () => editar ? CJT.editarPregunta(q) : editarNota();
-    if(k || editar) b.innerHTML = svgIcono('M12 20h9|M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z') + '<span>' + (editar ? 'Editar' : notas.has(k) ? 'Tu nota' : 'Nota') + '</span>';
+    const editar = !!q && modo === 'temario' && typeof CJT !== 'undefined' && CJT.puedeEditar();
+    const e = botonBarra('cjEditarBtn');
+    e.classList.toggle('hidden', !editar);
+    e.onclick = () => CJT.editarPregunta(q);
+    if(editar) e.innerHTML = svgIcono('M12 20h9|M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z') + '<span>Editar</span>';
   }
   function tarjetaNota(mostrar){
     let c = el('cjNota');
@@ -469,9 +490,7 @@ const CJ = (function(){
       if(alAbrir) alAbrir(bg);
     });
   }
-  async function editarNota(){
-    const q = ronda && ronda.preguntas[ronda.i];
-    const k = claveNota(q);
+  async function editarNota(k){
     if(!k) return;
     const n = notas.get(k) || { texto: '', imagen: '' };
     let foto = null, quitarFoto = false;
@@ -512,12 +531,13 @@ const CJ = (function(){
         const fila = { user_id: currentUser.id, clave: k, texto: texto || null, imagen: imagen || null, updated_at: new Date().toISOString() };
         const { error } = await sb.from('callejero_notas').upsert(fila);
         if(error) throw error;
-        notas.set(k, { texto, imagen: imagen || '' });
+        notas.set(k, { texto, imagen: imagen || '', fecha: fila.updated_at });
         uiToast('Nota guardada', 'success');
       }
     }catch(e){ uiToast('No se ha podido guardar la nota: ' + (e.message || e), 'error'); return; }
-    ponerBotonNota();
-    if(ronda && ronda.respondida) tarjetaNota(true);
+    if(modo === 'estudio'){ if(infoActual) infoActual(); }
+    else if(ronda){ ponerBotonNota(); if(ronda.respondida) tarjetaNota(true); }
+    if(vistaActual === 'inicio') pintarInicio();
   }
 
   /* ---------- intentos (con cola si no hay conexión) ---------- */
@@ -1808,10 +1828,10 @@ const CJ = (function(){
   }
   // La pantalla de cada botón, con su cabecera para volver.
   function subHtml(){
-    const titulos = { tareas: 'Lo que te ha mandado', repasar: 'Repasar lo estudiado', aprender: 'Aprender', temario: 'Temario de la academia', todo: 'Todo lo dado hasta ahora' };
+    const titulos = { tareas: 'Lo que te ha mandado', repasar: 'Repasar lo estudiado', aprender: 'Aprender', temario: 'Temario de la academia', todo: 'Todo lo dado hasta ahora', notas: 'Mis notas' };
     const cuerpo = subInicio === 'tareas' ? tareasHtml() : subInicio === 'repasar' ? repasarHtml() : subInicio === 'todo' ? todoHtml()
-      : subInicio === 'temario' ? temarioHtml() : aprenderHtml();
-    const atras = subInicio === 'todo' ? 'repasar' : subInicio === 'temario' ? 'aprender' : '';
+      : subInicio === 'temario' ? temarioHtml() : subInicio === 'notas' ? notasHtml() : aprenderHtml();
+    const atras = subInicio === 'todo' ? 'repasar' : subInicio === 'temario' || subInicio === 'notas' ? 'aprender' : '';
     return '<div class="cjt-cab"><button type="button" class="cj-salir" onclick="CJ.irA(\'' + atras + '\')" aria-label="Volver">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>' +
         '<div><div class="cjt-cab-etq">Callejero</div><h2>' + titulos[subInicio] + '</h2></div></div>' + cuerpo;
@@ -2001,7 +2021,10 @@ const CJ = (function(){
       filaModo('CJ.ver(\'calles\')', 'Todas las calles', n(nc) + ' calles; toca una y te dice cómo se llama', ICONOS.mapa, true) +
       (np ? filaModo('CJ.ver(\'plazas\')', 'Plazas y glorietas', n(np) + ' plazas y glorietas', ICONOS.localiza, true) : '') +
       GRUPOS_LUGARES.map(g => { const k = lugaresDeGrupo(g).length; return k ? filaModo('CJ.ver(\'' + g.k + '\')', g.titulo, n(k) + (k === 1 ? ' lugar' : ' lugares'), ICONOS.lugares, true) : ''; }).join('');
-    return '<div class="cj-card cj-aprender"><div class="cj-niveles cj-modos cj-modos-arriba">' + filas + '</div></div>' +
+    const nn = notas.size;
+    return '<div class="cj-card cj-aprender"><div class="cj-niveles cj-modos cj-modos-arriba">' +
+        filaModo('CJ.irA(\'notas\')', 'Mis notas', nn ? nn + (nn === 1 ? ' nota' : ' notas') + ' · las últimas, arriba' : 'Lo que apuntes de cada calle o lugar', ICONOS.estudio, true) +
+      '</div></div><div class="cj-card cj-aprender cj-todas"><div class="cj-niveles cj-modos cj-modos-arriba">' + filas + '</div></div>' +
       (typeof CJT !== 'undefined' ? '<div class="cj-card cj-aprender cj-todas"><div class="cj-niveles cj-modos cj-modos-arriba">' +
         filaModo('CJ.irA(\'temario\')', 'Temario de la academia', 'Las fichas, con sus apartados, documentos y mapas', ICONOS.estudio, true) + '</div></div>' : '');
   }
@@ -2034,6 +2057,38 @@ const CJ = (function(){
         .map(l => ({ nombre: l.nombre, tipo: l.categoria, vias: [], lugar: l, detalle: [l.direccion].filter(Boolean) })) };
     }
     await estudio(Object.assign(base, extra));
+  }
+  // Mis notas: las de las calles y lugares, de la última añadida o cambiada a
+  // la más antigua; al tocar una, se abre en el mapa con su ficha (y su nota).
+  function cosaDeNota(k){
+    if(k.startsWith('l:')){ const l = datos.lugarPorId.get(Number(k.slice(2))); return l ? { lugar: l, nombre: l.nombre, tipo: l.categoria } : null; }
+    const c = k.slice(2), v = datos.vias.find(x => x.clave === c);
+    return v ? { via: v, nombre: v.nombre, tipo: tipoBonito(v.tipo) } : null;
+  }
+  function fechaNota(f){
+    if(!f) return '';
+    const d = new Date(f), dias = Math.floor((Date.now() - d) / 864e5);
+    return dias < 1 ? 'hoy' : dias === 1 ? 'ayer' : dias < 7 ? 'hace ' + dias + ' días' : d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  }
+  function notasHtml(){
+    const lista = [...notas].map(([k, n]) => ({ k, n, x: cosaDeNota(k) })).filter(r => r.x)
+      .sort((a, b) => String(b.n.fecha || '').localeCompare(String(a.n.fecha || '')));
+    const cambios = typeof CJT !== 'undefined' && CJT.puedeEditar() ? CJT.ultimasPropias(30) : [];
+    return '<div class="cj-seccion">Tus notas de calles y lugares</div>' +
+      (lista.length ? '<div class="cj-card cjt-inicio">' + lista.map(r =>
+        '<button type="button" class="cjt-ficha cj-nota-fila" onclick="CJ.verNota(' + escapeHtml(JSON.stringify(r.k)) + ')">' +
+          (r.n.imagen ? '<img src="' + escapeHtml(r.n.imagen) + '" alt="">' : '<span class="cj-fila-icono">' + svgIcono(r.x.lugar ? ICONOS.lugares : ICONOS.localiza) + '</span>') +
+          '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">' + escapeHtml(r.x.nombre) + '</span>' +
+            '<span class="cjt-ficha-d">' + escapeHtml([fechaNota(r.n.fecha), r.n.texto].filter(Boolean).join(' · ')) + '</span></span>' + FLECHA_FILA + '</button>').join('') + '</div>'
+        : '<div class="cj-card"><div class="cj-repaso-vacio">Todavía no tienes notas. Añádelas en una ronda («Nota», arriba) o al tocar una calle en el mapa.</div></div>') +
+      (cambios.length ? '<div class="cj-seccion">Preguntas del temario cambiadas o añadidas</div><div class="cj-card cjt-inicio">' + cambios.map(p =>
+        '<button type="button" class="cjt-ficha" onclick="CJT.editarPropia(' + p.id + ')"><span class="cjt-ficha-txt"><span class="cjt-ficha-n">' + escapeHtml(p.pregunta) + '</span>' +
+          '<span class="cjt-ficha-d">' + escapeHtml([fechaNota(p.fecha), p.donde].filter(Boolean).join(' · ')) + '</span></span>' + FLECHA_FILA + '</button>').join('') + '</div>' : '');
+  }
+  async function verNota(k){
+    const x = cosaDeNota(k);
+    if(!x) return;
+    await estudioEn('', x.via ? { via: x.via.id } : { lugar: x.lugar.id });
   }
   function temarioHtml(){
     return typeof CJT !== 'undefined' ? CJT.filasFichas() : '';
@@ -2713,8 +2768,8 @@ const CJ = (function(){
   // Lo que se ve encima y dentro del mapa depende del modo.
   function ponerInterfaz(){
     // La nota de la calle: solo en las rondas (la pone cada pregunta).
-    if(el('cjNotaBtn')) el('cjNotaBtn').classList.add('hidden');
-    if(el('cjNota')) el('cjNota').classList.add('hidden');
+    ['cjNotaBtn', 'cjEditarBtn', 'cjNota'].forEach(id => { if(el(id)) el(id).classList.add('hidden'); });
+    infoActual = null;
     const libre = modo === 'estudio' || modo === 'seleccion';
     const respuesta = libre || MODOS[modo].respuesta === 'variable' ? null : MODOS[modo].respuesta;
     ponerRespuesta(respuesta, false);
@@ -2939,7 +2994,9 @@ const CJ = (function(){
     el('cjInfo').innerHTML =
       '<div class="cj-info-tipo">' + escapeHtml(it.tipo) + '</div>' +
       '<div class="cj-info-nombre">' + escapeHtml(it.nombre) + '</div>' +
-      (it.detalle || []).map(d => '<div class="cj-info-extra">' + escapeHtml(d) + '</div>').join('');
+      (it.detalle || []).map(d => '<div class="cj-info-extra">' + escapeHtml(d) + '</div>').join('') +
+      (it.lugar && it.lugar.id ? notaInfoHtml(claveLugar(it.lugar)) : it.vias.length ? notaInfoHtml(claveVia(it.vias[0])) : '');
+    infoActual = () => mostrarItemTemario(i, false);
     el('cjInfo').classList.remove('hidden');
     el('cjPista').classList.add('hidden');
   }
@@ -3043,7 +3100,8 @@ const CJ = (function(){
       (cruce && cruce.length ? '<div class="cj-info-cruce">En el cruce con ' + cruce.map(escapeHtml).join(' y ') + '</div>' : '') +
       (iguales.length > 1 ? '<div class="cj-info-extra">Hay ' + iguales.length + ' vías con este nombre (todas marcadas en el mapa).</div>' : '') +
       (v.parque && datos.lineaParques ? '<div class="cj-info-extra">Acude el ' + escapeHtml(PARQUES[v.parque]) + '.</div>' : '') +
-      '<div class="cj-info-extra">' + escapeHtml(extra) + '</div>';
+      '<div class="cj-info-extra">' + escapeHtml(extra) + '</div>' + notaInfoHtml(claveVia(v));
+    infoActual = () => mostrarVia(v, false, cruce);
     el('cjInfo').classList.remove('hidden');
     el('cjPista').classList.add('hidden');
   }
@@ -3057,7 +3115,8 @@ const CJ = (function(){
       '<div class="cj-info-nombre">' + escapeHtml(l.nombre) + '</div>' +
       (l.direccion ? '<div class="cj-info-extra">' + escapeHtml(l.direccion) + '</div>' : '') +
       (l.parque && datos.lineaParques ? '<div class="cj-info-extra">Acude el ' + escapeHtml(PARQUES[l.parque]) + '.</div>' : '') +
-      '<div class="cj-info-extra">' + escapeHtml(textoAciertosDe(-l.id, ['lugares', 'parque'])) + '</div>';
+      '<div class="cj-info-extra">' + escapeHtml(textoAciertosDe(-l.id, ['lugares', 'parque'])) + '</div>' + notaInfoHtml(claveLugar(l));
+    infoActual = () => mostrarLugar(l, false);
     el('cjInfo').classList.remove('hidden');
     el('cjPista').classList.add('hidden');
   }
@@ -3788,7 +3847,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, ver, repasarTodo, ventana, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, ver, repasarTodo, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)

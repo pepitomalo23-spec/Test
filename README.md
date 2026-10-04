@@ -205,6 +205,10 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
 - **Notas de calle**: en una ronda de calles o lugares, arriba, «Nota» (texto y una foto). Al responder sale en
   pequeño en una esquina del mapa (se toca para verla en grande). Son de cada alumno (`callejero_notas`, clave
   `v:<nombre normalizado>` o `l:<id>`); la foto va en el almacén `question-notes` (`callejero/<usuario>/…`).
+  La nota sale siempre que aparece esa calle o ese lugar: en las rondas (también las del temario), al responder;
+  y en la ficha al tocarla en el mapa libre, en Aprender y en lo del temario, con «Añadir / Cambiar tu nota».
+  En Aprender, «Mis notas»: todas, de la última añadida o cambiada a la más antigua (al tocar una, se abre en el
+  mapa); al admin y a los profesores, además, las últimas preguntas del temario cambiadas o añadidas.
 - **Preguntas del temario editables** (admin y profesores, iguales para todos; `callejero_temario_preguntas`,
   migración `20261006_callejero_notas_y_preguntas.sql`): en una ronda, «Editar» cambia la pregunta (se oculta
   la generada y se guarda una escrita a mano en su lugar) o la quita; en la pestaña «Preguntar» de una ficha,

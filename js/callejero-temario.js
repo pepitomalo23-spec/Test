@@ -1193,6 +1193,14 @@ const CJT = (function(){
     if(await guardarCambio(() => sb.from('callejero_temario_preguntas').update({ pregunta: res.pregunta, opciones: res.opciones, correcta: res.correcta,
         explicacion: res.explicacion, updated_at: new Date().toISOString() }).eq('id', id), 'Pregunta guardada')) repintar();
   }
+  // Las últimas escritas o cambiadas a mano (para «Mis notas» del editor).
+  function ultimasPropias(n){
+    return propias.slice().sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at))).slice(0, n).map(p => {
+      const x = p.item_id && T ? T.porId.get(p.item_id) : null;
+      const sx = !x && p.seccion && T ? seccionesDe([p.seccion])[0] : null;
+      return { id: p.id, pregunta: p.pregunta, fecha: p.updated_at, donde: x ? x._f.titulo + ' · ' + x._s.titulo : sx ? sx._f.titulo + ' · ' + sx.titulo : '' };
+    });
+  }
   // Lo añadido a mano en los apartados de la vista (para el editor).
   function htmlPropias(secciones){
     if(!puedeEditar()) return '';
@@ -1674,7 +1682,7 @@ const CJT = (function(){
 
   return {
     cargar, listo, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
-    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, fuente, reintentar, geoClaves,
+    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
     clicPlano, pintarPlano, marcarPlano, verEnPlano
