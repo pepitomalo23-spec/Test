@@ -17,7 +17,7 @@
 // suscripciones a notificaciones, errores).
 // =====================================================================
 
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient } from "jsr:@supabase/supabase-js@2.117.1";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",

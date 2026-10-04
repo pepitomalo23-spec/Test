@@ -22,7 +22,7 @@
 // sin dependencias externas.
 // =====================================================================
 
-import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.117.1";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
