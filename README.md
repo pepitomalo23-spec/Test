@@ -193,11 +193,10 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   Córdoba, sin lo del profesor), plazas y glorietas, y los lugares por grupos (colegios, salud, parques,
   monumentos, edificios públicos, ocio, transporte…); y el temario de la academia. Usa el visor del temario
   (`verTemario`), que admite elementos con varios barrios (un distrito), colores y nombres sobre el mapa.
-- **Repasar lo estudiado**: arriba, «Todo lo dado hasta ahora» (las preguntas del temario ya respondidas y las
-  calles ya estudiadas en cualquier modo; para las calles se elige antes cómo preguntarlas: 4 nombres,
-  señalándolas, diciendo el nombre, cruces o parque); después «Preguntas del temario» sin mapa —de lo que ha
-  mandado el profesor o, si no hay, de todo el temario—, «Distritos en el mapa» y «Barrios en el mapa»; y
-  debajo, cada modo y el temario con lo que toca hoy.
+- **Repasar lo estudiado**: todo lo dado hasta ahora, en una sola pantalla: el temario (las preguntas ya
+  respondidas y las preguntas sin mapa —de lo que ha mandado el profesor o, si no hay, de todo el temario—),
+  «Distritos en el mapa» y «Barrios en el mapa», y las calles ya estudiadas en cualquier modo, eligiendo antes
+  cómo preguntarlas (4 nombres, señalándolas, diciendo el nombre, cruces o parque). Ya no hay «lo que toca hoy».
 - «Distritos en el mapa» y «Barrios en el mapa» (modos `mapadistritos` y `mapabarrios`): todos a la vez, cada
   uno de un color y sin nombres (los barrios de al lado, de colores distintos), y se toca el que se pide. Sus
   respuestas se guardan con el modo `barrios` (misma habilidad e ids), así que no hace falta tocar la base de datos.
