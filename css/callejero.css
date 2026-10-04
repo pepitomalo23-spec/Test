@@ -819,3 +819,28 @@
   #screen-callejero.cj-completa.cj-sin-mapa :is(.cj-cabeza, .cj-mapa-wrap){ position:static; max-width:640px; margin:0 auto; }
   .cj-grande.cj-todo{ margin-bottom:14px; }
   .cj-marcado-nombre.cj-nombre-chico span{ font-size:10.5px; font-weight:600; padding:1px 6px; background: rgba(11,18,32,.7); }
+
+  /* ---------- nota propia de una calle (en las rondas) ---------- */
+  .cj-nota-btn{ display:flex; align-items:center; gap:5px; flex-shrink:0; height:32px; padding:0 11px; border-radius:99px;
+    border:1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size:13px; font-weight:700; cursor:pointer; }
+  .cj-nota-btn svg{ width:15px; height:15px; }
+  .cj-nota-btn.hidden{ display:none; }
+  .cj-nota{ position:absolute; top:10px; left:10px; z-index:1001; max-width:min(46%, 220px); padding:6px; border-radius:12px;
+    background: var(--card); border:1px solid var(--line); box-shadow: 0 6px 18px rgba(0,0,0,.4); cursor:pointer; }
+  .cj-nota.hidden{ display:none; }
+  .cj-nota img{ display:block; width:100%; max-height:110px; object-fit:cover; border-radius:8px; }
+  .cj-nota-txt{ font-size:12.5px; line-height:1.35; padding:4px 3px 1px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; white-space:pre-line; }
+  .cj-nota.grande{ max-width:calc(100% - 20px); }
+  .cj-nota.grande img{ max-height:55vh; object-fit:contain; }
+  .cj-nota.grande .cj-nota-txt{ -webkit-line-clamp:unset; }
+  .cj-ventana{ max-width:460px; }
+  .cj-ventana-cuerpo{ display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+  .cj-ventana textarea, .cj-ventana input[type=text], .cj-ventana select{ width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--line);
+    background: var(--bg); color: var(--text); font: inherit; font-size:14.5px; }
+  .cj-nota-foto{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .cj-nota-prev{ width:72px; height:72px; object-fit:cover; border-radius:10px; }
+  .cj-nota-prev.hidden, .cj-nota-quitar.hidden{ display:none; }
+  .cjt-ed-ops{ display:flex; flex-direction:column; gap:6px; }
+  .cjt-ed-op{ display:flex; align-items:center; gap:8px; }
+  .cjt-ed-op input[type=radio]{ width:20px; height:20px; flex-shrink:0; accent-color: var(--green); }
+  .cj-ventana{ max-height:calc(100dvh - 36px); overflow-y:auto; }
