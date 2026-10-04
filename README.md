@@ -121,7 +121,7 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   habilidad `memoria` (migración `20261003_callejero_barrios.sql`). La migración
   `20261003_callejero_calle3d.sql` deja guardar estos modos en las tareas del profesor (antes no se
   podían); también nombra `calle3d`, de un modo en 3D que se probó y se quitó, y que ya no se usa.
-- **Todo lo que llevas visto** (repaso) y **Aprender calles nuevas** (por niveles). Aprender: cada calle sube por cuatro
+- **Repasar lo que llevas visto** (por modo) y **Aprender calles nuevas** (por niveles). Aprender: cada calle sube por cuatro
   niveles de modo de juego, de más fácil a más difícil (1 ¿Cómo se llama?, 2 Localiza la calle, 3 Cruces y
   paralelas, 4 ¿Qué parque acude?; se salta el nivel que no tiene sentido para esa calle) y pasa uno cuando lo
   domina. Las calles nuevas salen de la más fácil a la más difícil: más larga (hasta 2,5 km), de tipo importante
@@ -187,9 +187,12 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
 
 - La pantalla del Callejero es una sola, «Estudiar» (sin pestañas Hoy ni Progreso). Si el profesor ha mandado
   algo nuevo, al entrar sale una ventanita («Estudiar esto» abre solo esa tarea; una vez por sesión). De arriba
-  abajo: «Te han mandado» (las tareas sin terminar), «Todo lo que llevas visto» (un botón que repasa las calles
-  que tocan y, si no hay, lo fallado del temario), «Aprender calles nuevas» (los niveles), las fichas del
-  temario y «Todas las calles y modos de juego» (la zona y los modos en baldosas).
+  abajo: una sola barra «Lo que dominas» (calles que pasan el nivel 1 y temario dominado, juntos), una caja con
+  lo que ha mandado el profesor (una fila por tarea sin terminar y «Ver todo lo que te ha mandado»), «Repasar lo
+  que llevas visto» (el alumno elige el modo: cada nivel y el temario, con lo que le toca), «Aprender calles
+  nuevas» (los niveles), las fichas del temario (sin porcentajes) y «Todas las calles y modos de juego».
+- En las rondas del temario, las preguntas de opciones que no dibujan nada antes de responder (datos,
+  distritos, carreteras, parque…) salen sin mapa (clase `cj-sin-mapa`): solo la pregunta y las opciones.
 - Cada ficha se ve en cuatro pestañas: **Lista** (los apartados; al abrir uno, sus botones, los mapas del
   documento y la lista), **Documento** (las páginas originales), **Mapa** (lo de la ficha o de un apartado
   **en el mapa**: en azul; al tocarlo, su ficha; los recorridos numerados; y el mapa libre de su distrito) y
