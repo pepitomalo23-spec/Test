@@ -18,8 +18,13 @@ const FEATURES = {
   examen: 'Examen',
   notas_ia: 'Notas y explicaciones con IA',
   boe: 'Cambios BOE',
-  callejero: 'Callejero'
+  callejero: 'Callejero',
+  plan: 'Plan de estudio'
 };
+// Funciones que están APAGADAS salvo que el administrador las encienda
+// para ese usuario (al revés que las demás): el Plan de estudio es
+// personal y no aparece a nadie por sorpresa.
+const FEATURES_OPT_IN = ['plan'];
 // Pantallas que dependen de una función: si está desactivada, se va a Inicio.
 const SCREEN_FEATURE = {
   'screen-normativas': 'normativas',
@@ -34,11 +39,14 @@ const SCREEN_FEATURE = {
   'screen-historial-todo': 'historial',
   'screen-fallos': 'fallos',
   'screen-inteligente': 'inteligente',
-  'screen-callejero': 'callejero'
+  'screen-callejero': 'callejero',
+  'screen-plan': 'plan',
+  'screen-plan-examen': 'plan'
 };
 let myFeatureFlags = {};
 function featureEnabled(key){
   if(currentUserIsAdmin) return true;
+  if(FEATURES_OPT_IN.includes(key)) return myFeatureFlags[key] === true;
   return myFeatureFlags[key] !== false;
 }
 function applyFeatureVisibility(){
@@ -60,6 +68,7 @@ function applyFeatureVisibility(){
   const toggleId = (id, key) => { const el = document.getElementById(id); if(el) el.classList.toggle('hidden', !featureEnabled(key)); };
   toggleId('navStats', 'estadisticas');
   toggleId('navCallejero', 'callejero');
+  toggleId('navPlan', 'plan');
   toggleId('modeCardFallos', 'fallos');
   toggleId('modeCardSimulacro', 'simulacro');
   toggleId('modeCardExamen', 'examen');
@@ -106,6 +115,7 @@ async function refreshMyPermissions(){
       myFeatureFlags = next;
       applyFeatureVisibility();
       if(typeof NQ !== 'undefined') NQ.load();
+      if(typeof PLAN !== 'undefined') PLAN.alCambiarPermisos();
     }
   }catch(e){}
 }

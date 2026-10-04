@@ -1,0 +1,35 @@
+/* Plan de estudio: pestaña Progreso (tarjetas, gráficos SVG, temas e historial). */
+
+  .plp-cab{ margin-bottom:14px; }
+  .plp-kpis{ display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:12px; margin-bottom:6px; }
+  .plp-kpi{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; min-width:0; }
+  .plp-kpi-et{ font-size:12.5px; color: var(--muted); margin-bottom:8px; }
+  .plp-kpi-val{ font-family: var(--mono); font-size:30px; font-weight:700; line-height:1.1; }
+  .plp-kpi-sub{ font-size:12px; color: var(--muted); margin-top:8px; line-height:1.4; }
+  .plp-svg{ display:block; width:100%; height:auto; overflow:visible; }
+  .plp-eje{ font-family: var(--mono); font-size:11px; fill: var(--muted-2); }
+  .plp-eje.hoy{ fill: var(--coral); font-weight:700; }
+  .plp-leyenda{ display:flex; flex-wrap:wrap; gap:14px; font-size:12.5px; color: var(--muted); margin-top:4px; }
+  .plp-leyenda span{ display:inline-flex; align-items:center; gap:6px; }
+  .plp-leyenda i{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .plp-temas{ display:flex; flex-direction:column; gap:14px; }
+  .plp-tema-cab{ display:flex; justify-content:space-between; gap:10px; font-size:14px; margin-bottom:6px; }
+  .plp-tema-cab span{ min-width:0; overflow-wrap:anywhere; }
+  .plp-tema-cab b{ font-family: var(--mono); white-space:nowrap; }
+  .plp-pista{ position:relative; height:10px; border-radius:99px; background: var(--line-soft); overflow:visible; }
+  .plp-relleno{ height:100%; border-radius:99px; }
+  .plp-umbral{ position:absolute; top:-4px; bottom:-4px; width:2px; margin-left:-1px; background: var(--text); opacity:.55; border-radius:2px; }
+  .plp-tema-sub{ font-size:12px; color: var(--muted); margin-top:5px; }
+  .plp-sin{ margin-top:12px; }
+  .plp-sin summary{ cursor:pointer; min-height:40px; display:flex; align-items:center; color: var(--muted); font-size:13.5px; font-weight:600; }
+  .plp-hist-cab{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
+  .plp-hist-cab .pl-seccion{ margin:0; }
+  .plp-grupo{ padding:10px 0; border-top:1px solid var(--line-soft); }
+  .plp-grupo:first-of-type{ border-top:none; }
+  .plp-grupo-cab{ display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 12px; }
+  .plp-grupo-cab b{ font-size:14.5px; }
+  .plp-grupo-cab span{ font-size:12.5px; color: var(--muted); }
+  .plp-res{ list-style:none; margin:6px 0 0; padding:0; display:flex; flex-direction:column; gap:4px; }
+  .plp-res li{ display:flex; justify-content:space-between; gap:10px; font-size:13.5px; }
+  .plp-res li span{ min-width:0; overflow-wrap:anywhere; }
+  .plp-res li b{ font-family: var(--mono); }

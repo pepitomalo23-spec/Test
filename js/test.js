@@ -3,7 +3,10 @@
 
 /* ---------- quiz ---------- */
 const QUIZ_LIST_MODES = ['examen', 'simulacro']; // estas modalidades muestran todas las preguntas seguidas, sin corrección inmediata
-function startQuiz(mode, questions, timeMinutes){
+// ctx (opcional): de dónde viene el test, p. ej. {plan:{tarea_id, test_id}}
+// para que el Plan de estudio lo apunte al terminar. Va dentro de
+// quizState, así que sobrevive a cerrar la app a medias.
+function startQuiz(mode, questions, timeMinutes, ctx){
   const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
   ACTIVE_QUESTIONS = shuffleArray(base).map(shuffleQuestionOptions); // el orden de las preguntas Y de sus opciones A/B/C/D es aleatorio en cada intento (salvo preguntas del tipo "A y B son correctas")
   const viewMode = QUIZ_LIST_MODES.includes(mode) ? 'list' : 'card';
@@ -12,7 +15,7 @@ function startQuiz(mode, questions, timeMinutes){
   // si se finaliza el test antes de llegar al final, las preguntas
   // posteriores que nunca se mostraron no deben contar en absoluto (ni
   // como falladas ni como pendientes) en las Estadísticas.
-  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), visited:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes };
+  quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), visited:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes, ctx: ctx || null };
   saveQuizProgress();
   showScreen('screen-quiz');
   document.getElementById('quizCardView').style.display = (viewMode === 'card') ? 'block' : 'none';
@@ -35,6 +38,7 @@ function startQuiz(mode, questions, timeMinutes){
 /* ---------- reanudar un test dejado a medias (desde la tarjeta bloqueada de home) ---------- */
 function resumeQuiz(){
   if(!quizState || !quizState.mode) return;
+  quizState.reanudado = true;   // se dejó a medias: su tiempo de reloj ya no es el de estudio
   showScreen('screen-quiz');
   document.getElementById('quizCardView').style.display = (quizState.viewMode === 'card') ? 'block' : 'none';
   document.getElementById('quizListView').style.display = (quizState.viewMode === 'list') ? 'block' : 'none';

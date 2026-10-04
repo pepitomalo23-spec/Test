@@ -10,6 +10,10 @@
 //       recordatorio suave para estudiar.
 //     - A los administradores: aviso si ha habido errores nuevos en la
 //       app (tabla client_errors) desde el último aviso.
+//     - Plan de estudio, por la noche (a la hora de sus ajustes, 21:00 si
+//       no la ha cambiado): a quien tenga el Plan y algo planificado hoy,
+//       lo que le queda del día o que lo ha completado. Una vez al día
+//       (push_subscriptions.last_plan_sent_on). Se apaga en Ajustes del plan.
 //  2) Desde la app, con la sesión del usuario ({ "test": true }): envía
 //     una notificación de prueba a sus propios dispositivos.
 //  3) Desde la app, callejero ({ "aviso": "tarea" | "mensaje", "id": … }):
@@ -22,7 +26,7 @@
 // sin dependencias externas.
 // =====================================================================
 
-import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.117.1";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -95,7 +99,7 @@ async function encryptPayload(p256dh: string, authSecret: string, plaintext: Uin
   return concat(salt, rs, new Uint8Array([asPublic.length]), asPublic, cipher);
 }
 
-type Sub = { id: number; user_id: string; endpoint: string; p256dh: string; auth: string; remind_hour: number; tz: string; last_sent_on: string | null; last_error_alert_at: string | null };
+type Sub = { id: number; user_id: string; endpoint: string; p256dh: string; auth: string; remind_hour: number; tz: string; last_sent_on: string | null; last_error_alert_at: string | null; last_plan_sent_on?: string | null };
 type Vapid = { jwk: JsonWebKey; pub: string };
 
 // Devuelve el código HTTP del servicio push (201 = entregado).
@@ -142,6 +146,40 @@ function dueCards(progress: Record<string, any> | null, validIds: Set<string>): 
     }
   }
   return n;
+}
+
+// ---- Plan de estudio: el aviso de la noche ----
+// Misma regla que plan_permitido(): admin, o permiso «plan» encendido a mano
+// con la cuenta aprobada y sin bloquear.
+type AvisoPlan = { hora: number; push: Record<string, unknown> | null };
+async function avisoPlan(sb: SupabaseClient, user: string, date: string, tz: string): Promise<AvisoPlan | null> {
+  const { data: pf } = await sb.from("profiles").select("is_admin, approved, blocked, feature_flags").eq("id", user).maybeSingle();
+  const p = pf as any;
+  if (!p || !(p.is_admin || (p.feature_flags?.plan === true && p.approved && !p.blocked))) return null;
+  const { data: aj } = await sb.from("plan_ajustes").select("reglas").eq("user_id", user).maybeSingle();
+  const reglas = ((aj as any)?.reglas || {}) as Record<string, unknown>;
+  if (reglas.aviso_noche === false) return null;
+  const h = Number(reglas.hora_noche);
+  const hora = Number.isFinite(h) ? Math.min(23, Math.max(17, Math.round(h))) : 21;
+  const { data: tareas } = await sb.from("plan_tareas").select("estado").eq("user_id", user).eq("fecha", date);
+  const total = (tareas || []).length;
+  if (!total) return { hora, push: null };   // nada planificado hoy: no se molesta
+  const hechas = (tareas || []).filter((t: any) => t.estado === "completado").length;
+  const quedan = total - hechas;
+  if (quedan > 0) {
+    return { hora, push: {
+      title: `🌙 Te ${quedan === 1 ? "queda 1 test" : `quedan ${quedan} tests`} del plan de hoy`,
+      body: `Llevas ${hechas} de ${total}. Si hiciste alguno en Tutor Bombero, apúntalo con el marcador; si no, déjalo para mañana.`,
+      tag: "pjfire-plan", url: "./?plan=1" } };
+  }
+  const desde = new Date(Date.now() - 36 * 3600_000).toISOString();
+  const { data: res } = await sb.from("plan_resultados").select("nota, realizado_at").eq("user_id", user).gte("realizado_at", desde);
+  const notas = (res || []).filter((r: any) => r.nota != null && localParts(tz, new Date(r.realizado_at)).date === date).map((r: any) => Number(r.nota));
+  const media = notas.length ? (notas.reduce((a: number, b: number) => a + b, 0) / notas.length).toFixed(2).replace(".", ",") : null;
+  return { hora, push: {
+    title: "✅ Plan de hoy completado",
+    body: `${total} de ${total} tests hechos${media ? ` · nota media ${media}` : ""}. ¡Buen trabajo!`,
+    tag: "pjfire-plan", url: "./?plan=1" } };
 }
 
 // ---- Callejero: a quién avisar de una tarea nueva o de un mensaje ----
@@ -230,15 +268,16 @@ Deno.serve(async (req) => {
   // ---- Ejecución horaria (cron) ----
   const { data: subs } = await sb.from("push_subscriptions").select("*");
   const all = (subs || []) as Sub[];
-  if (!all.length) return json({ reminders: 0, errorAlerts: 0 });
+  if (!all.length) return json({ reminders: 0, errorAlerts: 0, planAlerts: 0 });
 
   const { data: cards } = await sb.from("nq_cards").select("id");
   const validIds = new Set((cards || []).map((c: any) => c.id as string));
   const { data: admins } = await sb.from("profiles").select("id").eq("is_admin", true);
   const adminIds = new Set((admins || []).map((a: any) => a.id as string));
 
-  let reminders = 0, errorAlerts = 0;
+  let reminders = 0, errorAlerts = 0, planAlerts = 0;
   const progressCache = new Map<string, number>();
+  const planCache = new Map<string, AvisoPlan | null>();
 
   for (const s of all) {
     // 1) Recordatorio diario
@@ -270,7 +309,25 @@ Deno.serve(async (req) => {
       } catch (_e) { /* sigue con el resto */ }
     }
 
-    // 2) Avisos de errores nuevos a los administradores
+    // 2) Plan de estudio: el aviso de la noche
+    try {
+      const { date: dia, hour: hora } = localParts(s.tz || "Europe/Madrid");
+      if (hora >= 17 && s.last_plan_sent_on !== dia) {
+        const k = s.user_id + "|" + dia;
+        if (!planCache.has(k)) planCache.set(k, await avisoPlan(sb, s.user_id, dia, s.tz || "Europe/Madrid"));
+        const a = planCache.get(k);
+        if (a && a.push && a.hora === hora) {
+          const st = await sendPush(s, vapid, a.push);
+          await dropIfGone(s, st);
+          if (st >= 200 && st < 300) {
+            planAlerts++;
+            await sb.from("push_subscriptions").update({ last_plan_sent_on: dia }).eq("id", s.id);
+          }
+        }
+      }
+    } catch (_e) { /* sigue */ }
+
+    // 3) Avisos de errores nuevos a los administradores
     if (adminIds.has(s.user_id)) {
       try {
         const since = s.last_error_alert_at || new Date(Date.now() - 3600_000).toISOString();
@@ -290,5 +347,5 @@ Deno.serve(async (req) => {
       } catch (_e) { /* sigue */ }
     }
   }
-  return json({ reminders, errorAlerts });
+  return json({ reminders, errorAlerts, planAlerts });
 });
