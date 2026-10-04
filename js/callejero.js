@@ -1775,7 +1775,7 @@ const CJ = (function(){
     arriba();
   }
   function abrirCalles(){ enCalles = true; pintarInicio(); arriba(); }
-  function irA(sub){ subInicio = sub || null; enCalles = false; pintarInicio(); arriba(); }
+  function irA(sub){ subInicio = sub === 'todo' ? 'repasar' : sub || null; enCalles = false; pintarInicio(); arriba(); }
   function cerrarCalles(){ enCalles = false; pintarInicio(); arriba(); }
 
   /* ---------- pestañas de la pantalla principal ---------- */
@@ -1812,9 +1812,6 @@ const CJ = (function(){
   function inicioHtml(){
     if(soloEsto()) return tareasHtml() + AVISO_SOLO + (tareasZona().length ? callesHtml(false) : '');
     const porHacer = tareasActivas().filter(t => !tareaHecha(t)).length;
-    const r = porRepasar();
-    const tem = typeof CJT !== 'undefined' ? CJT.resumen() : null;
-    const repasos = r.total + (tem ? tem.falladas || 0 : 0);
     const boton = (sub, clase, icono, titulo, texto, num) =>
       '<button type="button" class="cj-grande ' + clase + '" onclick="CJ.irA(\'' + sub + '\')">' +
         '<span class="cj-grande-icono">' + svgIcono(icono) + '</span>' +
@@ -1822,7 +1819,7 @@ const CJ = (function(){
         (num ? '<span class="cj-grande-num">' + num + '</span>' : '') + FLECHA_FILA + '</button>';
     return '<div class="cj-grandes">' +
       boton('tareas', 'profe', ICONOS.localiza, 'Lo que te ha mandado', porHacer ? (porHacer === 1 ? '1 sin terminar' : porHacer + ' sin terminar') : 'Nada pendiente', porHacer) +
-      boton('repasar', 'repaso', ICONOS.repasar, 'Repasar lo estudiado', repasos ? 'Lo que hoy toca recordar' : 'Al día', repasos) +
+      boton('repasar', 'repaso', ICONOS.repasar, 'Repasar lo estudiado', 'Todo lo dado hasta ahora', 0) +
       boton('aprender', 'nuevo', ICONOS.aprender, 'Aprender', 'Distritos, barrios, calles, lugares y temario', 0) +
     '</div>';
   }
@@ -1973,29 +1970,8 @@ const CJ = (function(){
       (activo ? FLECHA_FILA : '') + '</button>';
   }
   // Repasar: el alumno elige el modo; cada uno, con lo que le toca hoy.
-  function repasarHtml(){
-    const r = porRepasar();
-    const tem = typeof CJT !== 'undefined' ? CJT.resumen() : null;
-    const delTemario = tem ? tem.falladas || 0 : 0;
-    const n = k => k.toLocaleString('es-ES') + ' para repasar';
-    const filas = NIVELES.map(nv => { const k = (r.porModo[nv.modo] || []).length; return filaModo('CJ.repasar(\'' + nv.modo + '\')', nv.titulo, k ? n(k) : 'Al día', ICONOS[nv.modo], k); })
-      .concat(tem ? [filaModo('CJT.repasar()', 'Temario de la academia', delTemario ? n(delTemario) : 'Al día', ICONOS.estudio, delTemario)] : []).join('');
-    const diaProx = r.proxima ? Math.max(1, Math.ceil((r.proxima - Date.now()) / 864e5)) : null;
-    const aviso = r.total || delTemario ? 'Elige cómo quieres repasar.'
-      : diaProx ? 'Nada para repasar hoy. Lo siguiente vuelve ' + (diaProx === 1 ? 'mañana' : 'en ' + diaProx + ' días') + '.'
-      : 'Aquí se irá juntando todo lo que estudies, para repasarlo cuando toque.';
-    const mandado = tem && tareasActivas().some(t => (t.fichas || []).length);
-    const practicar = (tem ? filaModo('CJT.preguntarSinMapa()', 'Preguntas del temario', (mandado ? 'Lo que te ha mandado' : 'Todo el temario') + ' · sin mapa', ICONOS.estudio, true) : '') +
-      (datos.barrios.length
-        ? filaModo('CJ.empezar(\'mapadistritos\')', 'Distritos en el mapa', 'Todos de colores; toca el que te pido', ICONOS.barrios, true) +
-          filaModo('CJ.empezar(\'mapabarrios\')', 'Barrios en el mapa', 'Todos de colores; toca el que te pido', ICONOS.enbarrio, true)
-        : '');
-    const todo = '<button type="button" class="cj-grande repaso cj-todo" onclick="CJ.irA(\'todo\')">' +
-      '<span class="cj-grande-icono">' + svgIcono(ICONOS.repasar) + '</span>' +
-      '<span class="cj-grande-txt"><b>Todo lo dado hasta ahora</b><small>Preguntas del temario y calles; eliges cómo te pregunto</small></span>' + FLECHA_FILA + '</button>';
-    return todo + (practicar ? '<div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' + practicar + '</div></div><div class="cj-seccion">Lo que toca repasar hoy</div>' : '') +
-      '<div class="cj-card cj-repaso"><div class="cj-repaso-vacio">' + aviso + '</div><div class="cj-niveles cj-modos">' + filas + '</div></div>';
-  }
+  // Repasar: todo lo dado hasta ahora (ver todoHtml).
+  function repasarHtml(){ return todoHtml(); }
   // Aprender: ver en el mapa, con su nombre, los distritos, los barrios,
   // todas las calles (sin lo del profesor), las plazas y los lugares por
   // tipo; y el temario. Se toca cualquier cosa (o se elige de la lista) y
@@ -2129,9 +2105,15 @@ const CJ = (function(){
     const n = k => k.toLocaleString('es-ES');
     const nc = callesVistas().length;
     const nt = typeof CJT !== 'undefined' ? CJT.contarVistas() : null;
-    return '<div class="cj-seccion">Temario</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
+    const mandado = typeof CJT !== 'undefined' && tareasActivas().some(t => (t.fichas || []).length);
+    return (typeof CJT !== 'undefined' ? '<div class="cj-seccion">Temario</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
         filaModo('CJT.preguntarVistas()', 'Preguntas del temario', nt === null ? 'Todo lo que ya has respondido' : nt ? n(nt) + ' que ya has respondido' : 'Todavía no has respondido ninguna', ICONOS.estudio, nt !== 0) +
-      '</div></div>' +
+        filaModo('CJT.preguntarSinMapa()', 'Preguntas del temario sin mapa', mandado ? 'De lo que te ha mandado tu profesor' : 'De todo el temario', ICONOS.estudio, true) +
+      '</div></div>' : '') +
+      (datos.barrios.length ? '<div class="cj-seccion">Distritos y barrios</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
+        filaModo('CJ.empezar(\'mapadistritos\')', 'Distritos en el mapa', 'Todos de colores; toca el que te pido', ICONOS.barrios, true) +
+        filaModo('CJ.empezar(\'mapabarrios\')', 'Barrios en el mapa', 'Todos de colores; toca el que te pido', ICONOS.enbarrio, true) +
+      '</div></div>' : '') +
       '<div class="cj-seccion">Calles · ¿cómo te las pregunto?</div><div class="cj-card cj-repaso">' +
         '<div class="cj-repaso-vacio">' + (nc ? n(nc) + (nc === 1 ? ' calle estudiada' : ' calles estudiadas') + '. Elige cómo quieres que te las pregunte:' : 'Todavía no has estudiado ninguna calle.') + '</div>' +
         '<div class="cj-niveles cj-modos">' + FORMAS_CALLES.map(f => filaModo('CJ.repasarTodo(\'' + f.modo + '\')', f.titulo, f.desc, ICONOS[f.modo], nc > 0)).join('') + '</div>' +
