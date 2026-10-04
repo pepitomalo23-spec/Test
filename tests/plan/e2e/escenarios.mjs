@@ -572,8 +572,13 @@ try{
     assert.equal(sql("select datos->>'fuente' from plan_eventos where tipo = 'completado' and test_id = '" + idT7 + "'"), 'marcador');
     await captura('24-marcador-guardado');
     ok('resultado guardado en su tarea (completada) con la nota de pj.fire (6,33; la de Tutor Bombero queda en las notas)');
-    // Las preguntas de la corrección → «Mis preguntas» (solo las que tienen la correcta)
+    // Las preguntas de la corrección → «Mis preguntas» (solo las que tienen la correcta),
+    // después de desplegar las explicaciones plegadas de la página
     await tb.bringToFront();
+    assert.match(await enPanel(tb), /Hay 1 explicación plegada/);
+    await tb.locator('#pjfire-marcador-tb button', { hasText: 'Desplegarlas y volver a leer' }).click();
+    await tb.waitForFunction(() => !/Hay 1 explicación plegada/.test(document.getElementById('pjfire-marcador-tb').shadowRoot.textContent) && /Preguntas en esta página/.test(document.getElementById('pjfire-marcador-tb').shadowRoot.textContent));
+    assert.equal(await tb.url(), 'https://tutorbomberos.es/TEST/resultado.jsp;jsessionid=ABC123?id=7', 'no cambia de página');
     await tb.locator('#pjfire-marcador-tb button', { hasText: 'Copiar 2 preguntas para pj.fire' }).click();
     await tb.waitForFunction(() => /Copiado/.test(document.getElementById('pjfire-marcador-tb').shadowRoot.textContent));
     await pagina.bringToFront();
@@ -587,7 +592,7 @@ try{
     const pq = sqlJson("select p.enunciado, p.opciones, p.correcta, p.explicacion, p.referencia, m.numero from plan_preguntas p left join plan_temas m on m.id = p.tema_id where p.fuente = 'tutor_bombero' and p.referencia = 'TEMA 1 - TEST 7' order by p.enunciado");
     assert.deepEqual(pq, [
       { enunciado: 'Según la Ley 17/2015, la protección civil es un servicio público.', opciones: ['Verdadero', 'Falso'], correcta: 0, explicacion: 'artículo 1 de la Ley 17/2015.', referencia: 'TEMA 1 - TEST 7', numero: 1 },
-      { enunciado: '¿Qué artículo de la Constitución regula la defensa?', opciones: ['El 8', 'El 30', 'El 15', 'El 2'], correcta: 1, explicacion: null, referencia: 'TEMA 1 - TEST 7', numero: 1 }]);
+      { enunciado: '¿Qué artículo de la Constitución regula la defensa?', opciones: ['El 8', 'El 30', 'El 15', 'El 2'], correcta: 1, explicacion: 'El artículo 30 recoge el derecho y el deber de defender a España.', referencia: 'TEMA 1 - TEST 7', numero: 1 }]);
     const nPreg = sql("select count(*) from plan_preguntas where fuente = 'tutor_bombero' and (created_at at time zone 'Europe/Madrid')::date = (now() at time zone 'Europe/Madrid')::date");
     assert.match(await pagina.textContent('.pl-tb-cifras'), new RegExp(nPreg + '\\s*preguntas guardadas'), 'el resumen del día cuenta las preguntas de hoy');
     // Otra vez lo mismo: nada nuevo

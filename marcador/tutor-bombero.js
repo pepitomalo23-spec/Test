@@ -13,7 +13,8 @@
 
    Lo que NO hace: no envía nada a ningún sitio (ni a pj.fire ni a
    nadie: no hay ninguna petición de red), no lee cookies, contraseñas
-   ni formularios, no pulsa nada en la página y no guarda nada fuera de
+   ni formularios, no cambia de página ni envía nada (solo, si se lo pides,
+   pulsa los «ver explicación» de esta página) y no guarda nada fuera de
    esta pestaña (la lista que juntas de varias páginas va en
    sessionStorage y se borra al cerrarla).
 
@@ -235,10 +236,32 @@
       if(RE_NO_PREG.test(l)) continue;
       if(enExpl){ if(q.expl.join(' ').length < 4000) q.expl.push(l); continue; }
       if(!q.opciones.length) q.enunciado += ' ' + l;                // el enunciado sigue en otra línea
-      else if(q.opciones.length && l.length < 300 && !/^\d/.test(l)) q.opciones[q.opciones.length - 1].t += ' ' + l;   // y la opción también
+      else if(q.opciones.length && /^[a-záéíóúñü(«"]/.test(l) && l.length < 200) q.opciones[q.opciones.length - 1].t += ' ' + l;   // la opción sigue en otra línea (en minúscula)
+      else if(q.opciones.length >= 2 && (l.length >= 25 || /\.$/.test(l))){ enExpl = true; q.expl.push(l); }   // tras las opciones: la explicación desplegada
     }
     cerrar();
     return out;
+  }
+
+  // ¿Es un botón para desplegar algo de ESTA página (explicación, solución,
+  // corrección)? Nunca uno que lleve a otra página o envíe un formulario.
+  const RE_DESPLEGAR = /^\s*(?:[+▸▶►›»⊕]\s*)?(?:ver|mostrar|desplegar|abrir|leer)?\s*(?:la\s+|las\s+|el\s+)?(?:explicaci[oó]n(?:es)?|justificaci[oó]n|soluci[oó]n(?:es)?|correcci[oó]n|respuesta\s+correcta|comentario|m[aá]s\s+info(?:rmaci[oó]n)?)\s*(?:[+▾▼⊕]\s*)?$/i;
+  function esDesplegar(textoBoton, tag, href, tipo){
+    const t = limpiar(textoBoton);
+    if(!t || t.length > 40 || !RE_DESPLEGAR.test(t)) return false;
+    tag = String(tag || '').toUpperCase();
+    if(tag === 'A'){
+      const h = String(href || '').trim();
+      if(/^javascript:/i.test(h)){ if(/submit|location|href|window\.open|navigate/i.test(h)) return false; }   // envía o cambia de página
+      else if(h && !/^#/.test(h)) return false;   // lleva a otra página
+    }
+    if(tag === 'INPUT' || tag === 'BUTTON'){
+      if(/^submit$/i.test(tipo || (tag === 'BUTTON' ? 'submit' : ''))) {
+        // un <button> sin type dentro de un formulario lo enviaría: se descarta (lo decide quien llama con tipo='submit')
+        return false;
+      }
+    }
+    return true;
   }
 
   // ---------- Página (DOM) ----------
@@ -334,6 +357,36 @@
       });
     });
     return marcas;
+  }
+  // Botones para desplegar explicaciones en esta página (y los <details> cerrados).
+  function desplegables(){
+    const out = [];
+    documentos().forEach(doc => {
+      if(!doc.body) return;
+      doc.body.querySelectorAll('details:not([open])').forEach(d => { if(!(d.closest && d.closest('#' + ID_PANEL))) out.push({ tipo: 'details', el: d }); });
+      doc.body.querySelectorAll('a, button, input[type=button], [role=button], [onclick], summary, span, div').forEach(e => {
+        if(out.length > 400 || (e.closest && e.closest('#' + ID_PANEL)) || e.tagName === 'SUMMARY' || e.hasAttribute('data-pjfire-desplegado')) return;
+        if((e.tagName === 'SPAN' || e.tagName === 'DIV') && !e.getAttribute('onclick') && e.getAttribute('role') !== 'button') return;
+        const t = e.tagName === 'INPUT' ? e.value : (e.innerText || e.textContent || '');
+        let tipo = e.tagName === 'BUTTON' ? (e.getAttribute('type') || (e.form ? 'submit' : 'button')) : (e.type || '');
+        if(esDesplegar(t, e.tagName, e.getAttribute('href'), tipo)) out.push({ tipo: 'boton', el: e });
+      });
+    });
+    return out;
+  }
+  async function desplegarTodo(){
+    const l = desplegables();
+    let n = 0;
+    for(const x of l){
+      try{
+        if(x.tipo === 'details') x.el.open = true;
+        else { x.el.setAttribute('data-pjfire-desplegado', ''); x.el.click(); }   // cada uno una sola vez
+        n++;
+      }catch(e){}
+      if(n % 10 === 0) await new Promise(r => setTimeout(r, 60));
+    }
+    await new Promise(r => setTimeout(r, 900));   // por si las cargan de la web
+    return n;
   }
   function textoPagina(){
     return documentos().map(doc => {
@@ -571,6 +624,21 @@
     const preguntas = preguntasDeTexto(sel || pagina, sel ? [] : marcasCorrectas());
     const titulo = tituloResultado(pagina, document.title);
     if(lineas.length) seccionResultado(p, lineas, titulo);
+    const plegadas = sel ? [] : desplegables();
+    if(plegadas.length){
+      const s = el('div', { clase: 's' });
+      const aviso = el('div', { 'aria-live': 'polite' });
+      s.appendChild(el('div', { texto: 'Hay ' + plegadas.length + ' explicaci' + (plegadas.length === 1 ? 'ón plegada' : 'ones plegadas') + ' (o soluciones) en esta página.' }));
+      s.appendChild(el('div', { clase: 'bt' }, [el('button', { clase: 'b pri', type: 'button', texto: 'Desplegarlas y volver a leer', onclick: async ev => {
+        ev.target.disabled = true;
+        aviso.textContent = 'Desplegando…';
+        await desplegarTodo();
+        principal();
+      } })]));
+      s.appendChild(el('div', { clase: 'suave', texto: 'Solo pulsa los botones de «ver explicación» de esta página: no cambia de página ni envía nada.' }));
+      s.appendChild(aviso);
+      p.appendChild(s);
+    }
     if(preguntas.length) seccionPreguntas(p, preguntas, titulo);
     // En la pantalla de resultados, el título del test no es una lista de tests.
     if(items.length > (lineas.length ? 1 : 0)) seccionTests(p, items);
@@ -583,7 +651,7 @@
     p.appendChild(el('p', { clase: 'suave', texto: 'Nada sale de esta página hasta que pulsas «Copiar»: se copia a tu portapapeles, no se envía a ningún sitio.' }));
   }
 
-  const API = { juntarPreguntas, preguntasDeTexto, limpiar, esTema, esTest, nombreTest, lineasResultado, tituloResultado, agrupar, sinSesion, texto, CABECERA, VERSION };
+  const API = { esDesplegar, juntarPreguntas, preguntasDeTexto, limpiar, esTema, esTest, nombreTest, lineasResultado, tituloResultado, agrupar, sinSesion, texto, CABECERA, VERSION };
   if(typeof module !== 'undefined' && module.exports){ module.exports = API; return; }
   try{ principal(); }catch(e){
     try{ alert('pj.fire: el marcador ha fallado en esta página (' + (e && e.message ? e.message : e) + ').'); }catch(x){}

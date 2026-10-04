@@ -184,3 +184,18 @@ test('marcador: juntar preguntas de varias correcciones, cada una con su test', 
   const p = P.planPreguntasTB(m, [], [{ id: 't5', numero: 5 }, { id: 't7', numero: 7 }]);
   assert.deepEqual(p.nuevas.map(q => q.tema_id), ['t5', 't7'], 'cada pregunta a su tema');
 });
+
+test('marcador: desplegar explicaciones solo en esta página', () => {
+  assert.ok(M.esDesplegar('Ver explicación', 'A', '#'));
+  assert.ok(M.esDesplegar('Ver explicación', 'A', 'javascript:verExplicacion(3)'));
+  assert.ok(M.esDesplegar('Mostrar solución', 'BUTTON', null, 'button'));
+  assert.ok(M.esDesplegar('Explicación +', 'SPAN'));
+  assert.ok(!M.esDesplegar('Ver explicación', 'A', '/TEST/otra.jsp'), 'otra página');
+  assert.ok(!M.esDesplegar('Ver explicación', 'A', 'javascript:document.forms[0].submit()'), 'envía un formulario');
+  assert.ok(!M.esDesplegar('Ver corrección', 'INPUT', null, 'submit'));
+  assert.ok(!M.esDesplegar('Siguiente test', 'BUTTON', null, 'button'));
+  // La explicación desplegada, sin «Explicación:», no se pega a la última opción
+  const q = M.preguntasDeTexto('1. ¿Cuál?\na) Uno\nb) Dos\nEl motivo es que la ley lo dice en su artículo 2.', ['dos'])[0];
+  assert.deepEqual(q.opciones, ['Uno', 'Dos']);
+  assert.equal(q.explicacion, 'El motivo es que la ley lo dice en su artículo 2.');
+});

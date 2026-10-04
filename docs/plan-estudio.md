@@ -82,7 +82,7 @@ de que no cambie su HTML. Recomendación: **no automatizar sin autorización esc
   líneas con números (aciertos, fallos, en blanco, nota), nunca las preguntas. Enseña lo encontrado y, solo si se
   pulsa «Copiar», lo copia al portapapeles; en pj.fire, «Pegar de Tutor Bombero» lo añade al catálogo (cada test en
   su tema, sin duplicados) o guarda el resultado en su tarea. No hace peticiones de red, no lee cookies ni
-  formularios, no pulsa nada y no navega: equivale a copiar y pegar a mano, más rápido. Tutor Bombero no tiene CSP,
+  formularios y no navega (solo, si el usuario pulsa «Desplegarlas», abre los «ver explicación» de la misma página): equivale a copiar y pegar a mano, más rápido. Tutor Bombero no tiene CSP,
   así que el marcador funciona (comprobado el 4-10-2026). Sus condiciones no hablan de esto (ni lo permiten ni lo
   prohíben); si algún día lo prohíben, se deja de usar. Como no se puede ver la zona privada sin la sesión del
   usuario, el marcador **deduce** dónde están los tests y el resultado; si no acierta, ofrece «Copiar diagnóstico»
