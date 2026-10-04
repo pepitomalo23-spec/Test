@@ -1580,40 +1580,28 @@ const CJ = (function(){
     return t.rondas + (t.rondas === 1 ? ' ronda' : ' rondas') + (tieneCalles(t) ? ' de ' + describirTarea(t).modos : '') + ' con un ' + t.minimo + '% o más' +
       (sinContar > 0 ? ' · ' + sinContar + (sinContar === 1 ? ' no cuenta' : ' no cuentan') : '');
   }
-  // Una tarea en «Hoy»: se pulsa entera y se abre con todo lo que lleva.
-  function tarjetaTarea(t){
-    const hecha = tareaHecha(t);
-    const pct = Math.min(100, Math.round(t.rondas_validas * 100 / t.rondas));
-    const vencida = t.fecha_limite && !hecha && new Date(t.fecha_limite + 'T23:59:59') < new Date();
-    return '<button type="button" class="cj-card cj-tarea cj-tarea-abrir' + (hecha ? ' hecha' : '') + '" onclick="CJT.abrirTarea(' + t.id + ')">' +
-      '<span class="cj-tarea-cab">' +
-        '<span class="cj-tarea-etq">' + (hecha ? '✓ Hecha' : 'Tarea') + '</span>' +
-        (!hecha && !t.vista_at ? '<span class="cj-tarea-solo">Nueva</span>' : '') +
-        (t.sin_leer ? '<span class="cj-tarea-msgs">' + t.sin_leer + (t.sin_leer === 1 ? ' mensaje' : ' mensajes') + '</span>' : '') +
-        (t.fecha_limite ? '<span class="cj-tarea-fecha' + (vencida ? ' vencida' : '') + '">' + (vencida ? 'Venció el ' : 'Hasta el ') + fechaCorta(t.fecha_limite) + '</span>' : '') +
-      '</span>' +
-      '<span class="cj-tarea-titulo">' + escapeHtml(t.titulo) + '</span>' +
-      '<span class="cj-tarea-que">' + escapeHtml(describirTarea(t).que) + '</span>' +
-      (t.mensaje ? '<span class="cj-tarea-msg">' + escapeHtml(t.mensaje) + '</span>' : '') +
-      '<span class="cj-tarea-barra"><span class="cj-bar"><span class="cj-bar-fill" style="width:' + pct + '%"></span></span>' +
-        '<b>' + Math.min(t.rondas_validas, t.rondas) + '/' + t.rondas + '</b></span>' +
-      '<span class="cj-tarea-pie"><span class="cj-tarea-prog">' + escapeHtml(textoRondas(t)) + '</span><span class="cj-tarea-ir">Abrir ›</span></span>' +
-    '</button>';
+  // Todo lo que ha mandado el profesor, dentro de una sola caja: una fila
+  // por tarea sin terminar (se pulsa y se abre) y, al final, todo junto.
+  const FLECHA_FILA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+  function filaTarea(t){
+    const vencida = t.fecha_limite && new Date(t.fecha_limite + 'T23:59:59') < new Date();
+    const det = [describirTarea(t).que, Math.min(t.rondas_validas, t.rondas) + '/' + t.rondas + (t.rondas === 1 ? ' ronda' : ' rondas'),
+      t.fecha_limite ? (vencida ? 'venció el ' : 'hasta el ') + fechaCorta(t.fecha_limite) : ''].filter(Boolean).join(' · ');
+    return '<button type="button" class="cjt-ficha cj-tarea-fila" onclick="CJT.abrirTarea(' + t.id + ')">' +
+      '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">' + escapeHtml(t.titulo) +
+        (!t.vista_at ? ' <span class="cj-tarea-solo">Nueva</span>' : '') +
+        (t.sin_leer ? ' <span class="cj-tarea-msgs">' + t.sin_leer + (t.sin_leer === 1 ? ' mensaje' : ' mensajes') + '</span>' : '') + '</span>' +
+        '<span class="cjt-ficha-d">' + escapeHtml(det) + '</span></span>' + FLECHA_FILA + '</button>';
   }
-  // Todo lo que ha mandado el profesor (tareas activas, hechas o no), junto.
-  function tarjetaAcumulado(){
+  function cajaTareas(){
     const ts = tareasActivas();
     if(!ts.length) return '';
-    const n = (k, uno, varios) => k + ' ' + (k === 1 ? uno : varios);
-    const cosas = typeof CJT !== 'undefined' ? CJT.contarElegidas(ts.flatMap(t => t.fichas || [])) : 0;
-    const f = filtroDe('p');
-    const calles = tareasZona().length ? new Set(datos.jugables.filter(f.via).map(v => v.nombre)).size + datos.lugares.filter(f.lugar).length : 0;
-    const partes = [n(ts.length, 'tarea', 'tareas'), cosas ? n(cosas, 'cosa del temario', 'cosas del temario') : '', calles ? n(calles, 'calle o lugar', 'calles y lugares') : ''].filter(Boolean);
-    return '<button type="button" class="cj-card cj-acumulado" onclick="CJT.abrirProfesor()">' +
-      '<span class="cj-fila-icono">' + svgIcono('M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2|circle:9,7,4|M22 21v-2a4 4 0 0 0-3-3.87|M16 3.13a4 4 0 0 1 0 7.75') + '</span>' +
-      '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">Todo lo que te ha mandado</span><span class="cjt-ficha-d">' + escapeHtml(partes.join(' · ')) + '</span></span>' +
-      '<svg class="cj-acumulado-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>' +
-    '</button>';
+    const porHacer = ts.filter(t => !tareaHecha(t));
+    return '<div class="cj-seccion">Lo que te ha mandado tu profesor</div><div class="cj-card cjt-inicio cj-caja-tareas">' +
+      (porHacer.length ? porHacer.map(filaTarea).join('') : '<div class="cj-repaso-vacio">Lo tienes todo hecho.</div>') +
+      '<button type="button" class="cjt-ficha cj-tarea-todo" onclick="CJT.abrirProfesor()"><span class="cjt-ficha-txt"><span class="cjt-ficha-n">Ver todo lo que te ha mandado</span>' +
+        '<span class="cjt-ficha-d">' + ts.length + (ts.length === 1 ? ' tarea' : ' tareas') + ', también las hechas</span></span>' + FLECHA_FILA + '</button>' +
+    '</div>';
   }
   const marcandoVista = new Set();
   function marcarVistas(){
@@ -1676,10 +1664,8 @@ const CJ = (function(){
     root.innerHTML = volverProfe + (enCalles ? callesHtml(true) : inicioHtml());
   }
   function inicioHtml(){
-    const porHacer = tareasActivas().filter(x => !tareaHecha(x));
-    const profe = porHacer.length ? '<div class="cj-seccion">Te han mandado</div>' + porHacer.map(tarjetaTarea).join('') : '';
-    if(soloEsto()) return profe + AVISO_SOLO + (tareasZona().length ? callesHtml(false) : '');
-    return profe + tarjetasAprender() + estudiarHtml();
+    if(soloEsto()) return cajaTareas() + AVISO_SOLO + (tareasZona().length ? callesHtml(false) : '');
+    return barraGeneral() + cajaTareas() + tarjetasAprender() + estudiarHtml();
   }
   // La ventanita al entrar: lo que acaba de mandar el profesor (sin ver aún).
   const avisadas = new Set();
@@ -1822,16 +1808,27 @@ const CJ = (function(){
     n = n === undefined || n === null ? nivelQueToca() : Number(n);
     empezarGuiada(NIVELES[n].modo, callesDeNivel(n), { tipo: 'nivel', n });
   }
-  function repasar(){
+  // Repasar lo que toca de un modo (lo elige el alumno).
+  function repasar(modo){
     if(!datos) return;
-    const r = porRepasar();
-    const modos = Object.keys(r.porModo).sort((a, b) => r.porModo[b].length - r.porModo[a].length);
-    if(!modos.length){ uiToast('Hoy no tienes nada para repasar.', 'info'); return; }
-    empezarGuiada(modos[0], r.porModo[modos[0]].slice(0, PREGUNTAS_POR_RONDA + 5).map(x => x.v), { tipo: 'repaso' });
+    const l = porRepasar().porModo[modo] || [];
+    if(!l.length){ uiToast('Ya has repasado todo lo de este modo.', 'info'); return; }
+    empezarGuiada(modo, l.slice(0, PREGUNTAS_POR_RONDA + 5).map(x => x.v), { tipo: 'repaso', modo });
   }
   function seguirGuiada(){
     const g = rondaGuiada;
-    if(g && g.tipo === 'repaso') repasar(); else aprender(null);
+    if(g && g.tipo === 'repaso') repasar(g.modo); else aprender(null);
+  }
+  // Una sola barra con todo lo que domina: calles (el nivel 1) y temario.
+  function barraGeneral(){
+    if(!datos) return '';
+    const calles = callesOrdenadas();
+    const sabidas = calles.filter(v => pasado(0, v)).length;
+    const tem = typeof CJT !== 'undefined' ? CJT.resumen() : null;
+    const dom = sabidas + (tem && tem.total ? tem.dominadas : 0), tot = calles.length + (tem && tem.total ? tem.total : 0);
+    const pct = tot ? Math.round(dom * 100 / tot) : 0;
+    return '<div class="cj-card cj-general"><div class="cj-general-cab"><span>Lo que dominas</span><b>' + pct + '%</b></div>' +
+      '<span class="cj-nivel-barra"><span style="width:' + (dom && !pct ? 1 : pct) + '%"></span></span></div>';
   }
   function tarjetasAprender(){
     if(!datos) return '<div class="cj-card">' + skelList(2) + '</div>';
@@ -1842,24 +1839,24 @@ const CJ = (function(){
     const diaProx = r.proxima ? Math.max(1, Math.ceil((r.proxima - Date.now()) / 864e5)) : null;
     const tem = typeof CJT !== 'undefined' ? CJT.resumen() : null;
     const delTemario = tem ? tem.falladas || 0 : 0;
-    const total = r.total + delTemario;
-    const partes = [r.total ? n(r.total) + (r.total === 1 ? ' de calles' : ' de calles') : '', delTemario ? n(delTemario) + ' del temario' : ''].filter(Boolean).join(' · ');
-    const repaso = '<div class="cj-seccion">Todo lo que llevas visto</div><div class="cj-card cj-repaso">' +
-      (total
-        ? '<button type="button" class="cj-hoy-btn" onclick="' + (r.total ? 'CJ.repasar()' : 'CJT.repasar()') + '"><span class="cj-hoy-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg></span>' +
-          '<span class="cj-hoy-txt"><b>Repasar ' + n(total) + '</b><small>' + escapeHtml(partes) + ' · lo estudiado que hoy toca recordar</small></span></button>' +
-          (r.total && delTemario ? '<button type="button" class="cj-hoy-otro" onclick="CJT.repasar()">Repasar solo el temario (' + n(delTemario) + ') ›</button>' : '')
+    // Repaso: el alumno elige el modo; cada uno, con lo que le toca.
+    const fila = (accion, titulo, k, icono) => '<button type="button" class="cj-nivel"' + (k ? ' onclick="' + accion + '"' : ' disabled') + '>' +
+      '<span class="cj-nivel-n">' + svgIcono(icono) + '</span>' +
+      '<span class="cj-nivel-txt"><b>' + escapeHtml(titulo) + '</b><small>' + (k ? n(k) + ' para repasar' : 'Al día') + '</small></span>' +
+      (k ? FLECHA_FILA : '') + '</button>';
+    const filasRepaso = NIVELES.map(nv => fila('CJ.repasar(\'' + nv.modo + '\')', nv.titulo, (r.porModo[nv.modo] || []).length, ICONOS[nv.modo]))
+      .concat(tem ? [fila('CJT.repasar()', 'Temario de la academia', delTemario, ICONOS.estudio)] : []).join('');
+    const repaso = '<div class="cj-seccion">Repasar lo que llevas visto</div><div class="cj-card cj-repaso">' +
+      (r.total || delTemario
+        ? '<div class="cj-repaso-vacio">Elige cómo quieres repasar:</div><div class="cj-niveles cj-repaso-modos">' + filasRepaso + '</div>'
         : '<div class="cj-repaso-vacio">' + (diaProx ? 'Nada para repasar hoy. Lo siguiente vuelve ' + (diaProx === 1 ? 'mañana' : 'en ' + diaProx + ' días') + '.' : 'Aquí se irá juntando todo lo que estudies, para repasarlo cuando toque.') + '</div>') +
       '</div>';
     const filas = niveles.map(x => {
       const nv = NIVELES[x.n];
-      const pct = x.total ? Math.round(x.dominadas / x.total * 100) : 0;
       const bloqueado = x.n > 0 && !x.llegadas;
       return '<button type="button" class="cj-nivel' + (x.n === toca ? ' toca' : '') + (bloqueado ? ' bloq' : '') + '"' + (bloqueado ? ' disabled' : ' onclick="CJ.aprender(' + x.n + ')"') + '>' +
         '<span class="cj-nivel-n">' + (x.n + 1) + '</span>' +
-        '<span class="cj-nivel-txt"><b>' + escapeHtml(nv.titulo) + '</b><small>' +
-          (bloqueado ? 'Se abre al dominar calles del nivel ' + x.n : n(x.dominadas) + ' de ' + n(x.total) + ' calles' + (x.pendientes ? ' · ' + n(x.pendientes) + ' a medias' : '')) + '</small>' +
-          '<span class="cj-nivel-barra"><span style="width:' + pct + '%"></span></span></span></button>';
+        '<span class="cj-nivel-txt"><b>' + escapeHtml(nv.titulo) + '</b><small>' + (bloqueado ? 'Se abre al aprender calles del nivel ' + x.n : escapeHtml(nv.desc)) + '</small></span></button>';
     }).join('');
     return repaso +
       '<div class="cj-seccion">Aprender calles nuevas</div><div class="cj-card cj-aprender">' +
@@ -2052,8 +2049,10 @@ const CJ = (function(){
     }
   }
 
+  function sinMapaAhora(){ return document.getElementById('screen-callejero').classList.contains('cj-sin-mapa'); }
   function mostrarVista(v){
     vistaActual = v;
+    document.getElementById('screen-callejero').classList.remove('cj-sin-mapa');
     el('cjInicio').classList.toggle('hidden', v !== 'inicio');
     el('cjJuego').classList.toggle('hidden', v !== 'juego');
     el('cjFin').classList.toggle('hidden', v !== 'fin');
@@ -3034,6 +3033,11 @@ const CJ = (function(){
     // Opciones, botones de voz o plano
     const tipo = respuestaDe(q);
     if(MODOS[modo].respuesta === 'variable') ponerRespuesta(tipo, !!q.plano);
+    // Preguntas del temario que no necesitan el mapa (datos, distritos,
+    // carreteras…): sin mapa, solo la pregunta y sus opciones.
+    const sinMapa = modo === 'temario' && tipo === 'opciones' && !q.antes && !q.plano;
+    document.getElementById('screen-callejero').classList.toggle('cj-sin-mapa', sinMapa);
+    if(sinMapa && cabezaPlegada) plegarCabeza(false);
     const caja = el('cjOpciones');
     if(tipo === 'opciones'){
       caja.innerHTML = q.opciones.map((o, i) => '<button type="button" class="cj-opcion" onclick="CJ.responderOpcion(' + i + ')">' + escapeHtml(o) + '</button>').join('');
@@ -3041,6 +3045,7 @@ const CJ = (function(){
     }
     if(tipo === 'voz') prepararVoz();
     if(q.plano) CJT.pintarPlano(q);
+    if(sinMapa) return;
     mapa.invalidateSize();
     // Lo que se ve en el mapa antes de responder
     if(q.antes) q.antes(mapaApi());
@@ -3146,7 +3151,7 @@ const CJ = (function(){
     let texto;
     if(modo === 'temario' || q.despues){
       if(q.plano) CJT.marcarPlano(q, null);
-      if(q.despues) q.despues(mapaApi(), i);
+      if(q.despues && !sinMapaAhora()) q.despues(mapaApi(), i);
       texto = (acierto ? '<b>¡Correcto!</b> ' : '<b>Fallo.</b> ') + escapeHtml(q.resumen || q.opciones[q.correcta]) +
         (q.detalle ? ' <span class="cj-dir">' + escapeHtml(q.detalle) + '</span>' : '');
     }else if(modo === 'opciones'){

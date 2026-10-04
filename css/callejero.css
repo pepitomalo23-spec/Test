@@ -783,3 +783,23 @@
   #screen-callejero.cj-completa .cj-cabeza .cj-nombrar-fila input{ padding:9px 12px; border-radius:11px; }
   #screen-callejero.cj-completa .cj-cabeza .cj-nombrar-voz{ width:40px; height:40px; border-radius:11px; }
   #screen-callejero.cj-completa .cj-cabeza.plegada .cj-nombrar .cj-zona-select{ display:none; }
+
+  /* ---------- pantalla principal: barra general y tareas en una caja ---------- */
+  .cj-general{ padding:14px 16px; }
+  .cj-general-cab{ display:flex; justify-content:space-between; align-items:baseline; font-size:14px; color: var(--muted); margin-bottom:8px; }
+  .cj-general-cab b{ font-size:17px; color: var(--text); }
+  .cj-general .cj-nivel-barra{ height:8px; border-radius:4px; margin:0; }
+  .cj-tarea-fila .cjt-ficha-n{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+  .cj-tarea-todo .cjt-ficha-n{ color: var(--blue, #4E9BF7); }
+  .cj-repaso-modos{ margin-top:8px; }
+  .cj-repaso-modos .cj-nivel-n svg{ width:16px; height:16px; }
+  .cj-repaso-modos .cj-nivel > svg{ width:18px; height:18px; flex-shrink:0; color: var(--muted); }
+  .cj-repaso-modos .cj-nivel:disabled{ opacity:.5; cursor:default; }
+
+  /* ---------- preguntas del temario sin mapa ---------- */
+  #screen-callejero.cj-sin-mapa .cj-mapa, #screen-callejero.cj-sin-mapa .cj-plegar{ display:none; }
+  #screen-callejero.cj-sin-mapa .cj-resultado{ position:static; margin-top:12px; }
+  #screen-callejero.cj-sin-mapa .cj-pregunta{ font-size:20px; }
+  #screen-callejero.cj-sin-mapa .cj-opciones:not(.cj-opciones-dos){ grid-template-columns:1fr; }
+  #screen-callejero.cj-completa.cj-sin-mapa #cjJuego{ overflow-y:auto; padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
+  #screen-callejero.cj-completa.cj-sin-mapa :is(.cj-cabeza, .cj-mapa-wrap){ position:static; max-width:640px; margin:0 auto; }

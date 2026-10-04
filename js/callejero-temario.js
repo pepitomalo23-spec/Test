@@ -1268,7 +1268,7 @@ const CJT = (function(){
           '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">' + escapeHtml(f.titulo) + '</span>' +
             '<span class="cjt-ficha-d">' + (detalle
               ? r.dominada + ' de ' + r.total + ' dominadas' + (r.fallada ? ' · ' + r.fallada + ' por repasar' : '')
-              : f.secciones.length + ' apartados · ' + pct(r) + '% dominado') + '</span>' + barra(r) + '</span>' +
+              : f.secciones.length + ' apartados') + '</span>' + (detalle ? barra(r) : '') + '</span>' +
           (detalle ? '<b class="cjt-ficha-pct">' + pct(r) + '%</b>' : '') + FLECHA +
         '</button>';
       }).join('') +
@@ -1278,7 +1278,7 @@ const CJT = (function(){
   function tarjetaProgresoFichas(){ return filasFichas(true); }
   // Para «Hoy»: cuánto hay dominado, cuánto por repasar y la última ficha abierta (null mientras se descarga).
   function resumen(){
-    if(!asegurar()) return falloCarga ? { pct: 0, falladas: 0, ultima: null } : null;
+    if(!asegurar()) return falloCarga ? { pct: 0, falladas: 0, dominadas: 0, total: 0, ultima: null } : null;
     const prog = CJ.progreso();
     const r = cuenta(prog, T.fichas.flatMap(itemsDeFicha));
     let ultima = null;
@@ -1286,7 +1286,7 @@ const CJT = (function(){
       const f = T.fichaPorId.get(localStorage.getItem(ULTIMA_KEY));
       if(f) ultima = { id: f.id, titulo: f.titulo, pct: pct(cuenta(prog, itemsDeFicha(f))) };
     }catch(e){}
-    return { pct: pct(r), falladas: r.fallada, ultima };
+    return { pct: pct(r), falladas: r.fallada, dominadas: r.dominada, total: r.total, ultima };
   }
   // Ronda con lo que falla de todo el temario (primero lo de la última vez mal, luego lo que está a medias).
   function repasar(){
