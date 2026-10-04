@@ -1310,6 +1310,21 @@ const PLANL = (function(){
       const lineas = (Array.isArray(o.lineas) ? o.lineas : []).filter(l => typeof l === 'string' && l.trim()).slice(0, 60).map(l => l.slice(0, 200));
       return lineas.length ? { tipo: 'resultado', titulo: txt(o.titulo, 160), lineas } : null;
     }
+    if(o.tipo === 'preguntas'){
+      // Como pide plan_preguntas: enunciado 3-2000, 2-4 opciones, la correcta entre ellas.
+      const preguntas = [];
+      let malas = 0;
+      (Array.isArray(o.preguntas) ? o.preguntas : []).slice(0, 300).forEach(q => {
+        if(!q || typeof q !== 'object'){ malas++; return; }
+        const enunciado = txt(q.enunciado, 2001);
+        const opciones = Array.isArray(q.opciones) ? q.opciones.map(x => txt(x, 1001)) : [];
+        const correcta = ent(q.correcta, 0, 3);
+        if(!enunciado || enunciado.length < 3 || enunciado.length > 2000 || opciones.length < 2 || opciones.length > 4 ||
+          opciones.some(x => !x || x.length > 1000) || correcta == null || correcta >= opciones.length){ malas++; return; }
+        preguntas.push({ enunciado, opciones, correcta, explicacion: txt(q.explicacion, 4000) });
+      });
+      return preguntas.length ? { tipo: 'preguntas', titulo: txt(o.titulo, 160), preguntas, malas } : null;
+    }
     if(o.tipo === 'tests'){
       const temas = [];
       let total = 0;
@@ -1391,6 +1406,31 @@ const PLANL = (function(){
     });
     return { grupos, nuevos: nuevosTotal, repetidos: repetidosTotal, temasNuevos: porCrear.size };
   }
+  // La huella de plan_preguntas (md5(lower(regexp_replace(btrim(enunciado), '\s+', ' ', 'g'))))
+  // sin el md5: dos preguntas con la misma son la misma para la base de datos.
+  function huellaPregunta(enunciado){
+    return String(enunciado == null ? '' : enunciado).replace(/^ +| +$/g, '').replace(/\s+/g, ' ').toLowerCase();
+  }
+  // Qué preguntas traídas con el marcador son nuevas: ni la misma huella ni
+  // el mismo enunciado sin signos ni tildes que una que ya tengas (o que otra
+  // de la misma lista). El tema: el «Tema N» del título, si lo tienes.
+  function planPreguntasTB(payload, preguntas, temas){
+    const huellas = new Set();
+    const norm = new Set();
+    (preguntas || []).forEach(p => { if(p && p.enunciado){ huellas.add(huellaPregunta(p.enunciado)); norm.add(normalizar(p.enunciado)); } });
+    const nuevas = [];
+    let repetidas = 0;
+    ((payload && payload.preguntas) || []).forEach(q => {
+      const h = huellaPregunta(q.enunciado), n = normalizar(q.enunciado);
+      if(huellas.has(h) || norm.has(n)){ repetidas++; return; }
+      huellas.add(h); norm.add(n);
+      nuevas.push(q);
+    });
+    const m = /\btema\s*0*(\d{1,3})\b/i.exec(sinTildes((payload && payload.titulo) || ''));
+    const c = m ? (temas || []).filter(t => t && Number(t.numero) === Number(m[1])) : [];
+    const tema = c.find(t => !t.archivado) || c[0] || null;
+    return { nuevas, repetidas, tema_id: tema ? tema.id : null };
+  }
   // A qué test y tarea va un resultado traído con el marcador. Primero por el
   // título (si coincide con un test de Tutor Bombero de tu catálogo); si no,
   // la tarea de Tutor Bombero que abriste desde el plan (en curso).
@@ -1445,7 +1485,7 @@ const PLANL = (function(){
     // Texto pegado
     parsearResultado: parsearResultado,
     // Marcador de Tutor Bombero
-    leerMarcadorTB: leerMarcadorTB, planImportacionTB: planImportacionTB, elegirTareaTB: elegirTareaTB, claveTest: claveTest,
+    leerMarcadorTB: leerMarcadorTB, planImportacionTB: planImportacionTB, planPreguntasTB: planPreguntasTB, huellaPregunta: huellaPregunta, elegirTareaTB: elegirTareaTB, claveTest: claveTest,
     // Preguntas y exámenes
     normalizar: normalizar, generarExamen: generarExamen, corregir: corregir, erroresRecurrentes: erroresRecurrentes,
     ordenNatural: ordenNatural,

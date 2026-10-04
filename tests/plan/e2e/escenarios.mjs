@@ -469,7 +469,7 @@ try{
     ok('lo no válido se descarta y nada se ejecuta');
   });
 
-  await paso('n. Marcador de Tutor Bombero: trae los tests por tema y el resultado (sin contraseña ni preguntas)', async () => {
+  await paso('n. Marcador de Tutor Bombero: tests por tema, resultado y preguntas de la corrección (sin contraseña)', async () => {
     // Páginas SIMULADAS de Tutor Bombero, servidas en su dominio real dentro del navegador de pruebas.
     const TB = 'https://tutorbomberos.es/TEST/';
     const pagTb = n => new URL('./tb/' + n, import.meta.url).pathname;
@@ -555,13 +555,14 @@ try{
     txt = await enPanel(tb);
     assert.match(txt, /Resultado: TEMA 1 - TEST 7/);
     assert.ok(!/Tests en esta página/.test(txt), 'el título del test no cuenta como lista: ' + txt);
-    assert.ok(!/artículo|Tu respuesta/.test(txt), 'no enseña ni copia preguntas: ' + txt);
+    assert.match(txt, /Preguntas en esta página: 3/, txt);
+    assert.match(txt, /2 con su respuesta correcta/, txt);
     await tb.screenshot({ path: CAPTURAS + '/23-marcador-resultado.png' });
     await tb.locator('#pjfire-marcador-tb button', { hasText: 'Copiar resultado para pj.fire' }).click();
     await tb.waitForFunction(() => /Copiado/.test(document.getElementById('pjfire-marcador-tb').shadowRoot.textContent));
     const res = await tb.evaluate(() => navigator.clipboard.readText());
     assert.ok(res.includes('"lineas":["Aciertos\\tFallos\\tSin contestar\\tNota","21\\t6\\t3\\t7,00","Tiempo empleado: 24:10"]'), res);
-    assert.ok(res.includes('"pagina":"/TEST/resultado.jsp"') && !/ABC123|artículo/.test(res), 'sin sesión ni preguntas: ' + res);
+    assert.ok(res.includes('"pagina":"/TEST/resultado.jsp"') && !/ABC123|artículo/.test(res), 'el resultado va sin sesión ni preguntas: ' + res);
     await pagina.bringToFront();
     await pagina.click('.pl-tb-card >> text=Pegar de Tutor Bombero');
     await pagina.waitForSelector('.ui-toast >> text=Guardado: Test 7 · nota 6,33');
@@ -571,6 +572,33 @@ try{
     assert.equal(sql("select datos->>'fuente' from plan_eventos where tipo = 'completado' and test_id = '" + idT7 + "'"), 'marcador');
     await captura('24-marcador-guardado');
     ok('resultado guardado en su tarea (completada) con la nota de pj.fire (6,33; la de Tutor Bombero queda en las notas)');
+    // Las preguntas de la corrección → «Mis preguntas» (solo las que tienen la correcta)
+    await tb.bringToFront();
+    await tb.locator('#pjfire-marcador-tb button', { hasText: 'Copiar 2 preguntas para pj.fire' }).click();
+    await tb.waitForFunction(() => /Copiado/.test(document.getElementById('pjfire-marcador-tb').shadowRoot.textContent));
+    await pagina.bringToFront();
+    await pagina.click('.pl-tb-card >> text=Pegar de Tutor Bombero');
+    await pagina.waitForSelector('.pl-hoja >> text=Preguntas de Tutor Bombero');
+    assert.match(await hoja().textContent(), /2 nuevas/);
+    assert.equal(await pagina.$eval('.pl-hoja [name="tema"]', s => s.options[s.selectedIndex].text), 'Tema 1 · Constitución Española', 'el tema sale del título');
+    await captura('25-marcador-preguntas');
+    await botonHoja('Guardar 2 preguntas');
+    await colaVacia();
+    const pq = sqlJson("select p.enunciado, p.opciones, p.correcta, p.explicacion, p.referencia, m.numero from plan_preguntas p left join plan_temas m on m.id = p.tema_id where p.fuente = 'tutor_bombero' and p.referencia = 'TEMA 1 - TEST 7' order by p.enunciado");
+    assert.deepEqual(pq, [
+      { enunciado: 'Según la Ley 17/2015, la protección civil es un servicio público.', opciones: ['Verdadero', 'Falso'], correcta: 0, explicacion: 'artículo 1 de la Ley 17/2015.', referencia: 'TEMA 1 - TEST 7', numero: 1 },
+      { enunciado: '¿Qué artículo de la Constitución regula la defensa?', opciones: ['El 8', 'El 30', 'El 15', 'El 2'], correcta: 1, explicacion: null, referencia: 'TEMA 1 - TEST 7', numero: 1 }]);
+    const nPreg = sql("select count(*) from plan_preguntas where fuente = 'tutor_bombero' and (created_at at time zone 'Europe/Madrid')::date = (now() at time zone 'Europe/Madrid')::date");
+    assert.match(await pagina.textContent('.pl-tb-cifras'), new RegExp(nPreg + '\\s*preguntas guardadas'), 'el resumen del día cuenta las preguntas de hoy');
+    // Otra vez lo mismo: nada nuevo
+    await tb.bringToFront();
+    await tb.locator('#pjfire-marcador-tb button', { hasText: 'Copiar 2 preguntas para pj.fire' }).click();
+    await pagina.bringToFront();
+    await pagina.click('.pl-tb-card >> text=Pegar de Tutor Bombero');
+    await pagina.waitForSelector('.pl-hoja >> text=Preguntas de Tutor Bombero');
+    assert.match(await hoja().textContent(), /0 nuevas, 2 que ya tenías/);
+    await botonHoja('Cerrar');
+    ok('las preguntas de la corrección (con su correcta, por clase o por «Respuesta correcta») van a «Mis preguntas» de su tema, sin duplicar');
     // Un resultado de un test del catálogo que no está en el plan: se guarda igual
     await pagina.evaluate(() => navigator.clipboard.writeText('pj.fire · Tutor Bombero (marcador)\n{"pjfire":"tutor_bombero","v":1,"tipo":"resultado","titulo":"Simulacro 2","lineas":["Aciertos: 40","Fallos: 10","En blanco: 0"]}'));
     await pagina.click('.pl-tb-card >> text=Pegar de Tutor Bombero');

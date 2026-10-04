@@ -142,3 +142,36 @@ test('elegirTareaTB: por el título, si no por lo abierto; con dudas, pregunta',
   e = P.elegirTareaTB({ titulo: 'Test 3', tareas: [], tests, hoy: h, ahora });
   assert.ok(!e.seguro); assert.equal(e.test, null); assert.deepEqual(e.candidatas, []);
 });
+
+test('marcador: preguntas de la corrección con su respuesta correcta', () => {
+  const t = 'Corrección\n1. ¿Qué artículo regula la defensa?\na) El 8\nb) El 30\nc) El 15 ✓\nd) El 2\nTu respuesta: a\n' +
+    '2. Según la Ley 17/2015, la protección civil es\nun servicio público.\na) Verdadero\nb) Falso\nTu respuesta: b. Correcta: a\nExplicación: art. 1.\n' +
+    'Pregunta 3: ¿Cuántos?\na) Uno\nb) Dos\n4. Sin opciones\n5. Con marca en la página\na) Rojo\nb) Verde';
+  const q = M.preguntasDeTexto(t, ['verde']);
+  assert.deepEqual(q.map(x => [x.enunciado, x.opciones.length, x.correcta, x.explicacion]), [
+    ['¿Qué artículo regula la defensa?', 4, 2, null],
+    ['Según la Ley 17/2015, la protección civil es un servicio público.', 2, 0, 'art. 1.'],
+    ['¿Cuántos?', 2, null, null],
+    ['Con marca en la página', 2, 1, null]]);
+  assert.equal(q[0].opciones[2], 'El 15', 'sin la marca ✓');
+  // «Tu respuesta» no es la correcta; dos opciones marcadas: no se sabe
+  assert.equal(M.preguntasDeTexto('1. Pregunta\na) Uno\nb) Dos\nTu respuesta: b')[0].correcta, null);
+  assert.equal(M.preguntasDeTexto('1. Pregunta\na) Uno\nb) Uno', ['uno'])[0].correcta, null);
+  assert.deepEqual(M.preguntasDeTexto('Aciertos: 20\nFallos: 3'), []);
+});
+
+test('leerMarcadorTB y planPreguntasTB: preguntas válidas, sin duplicados y con su tema', () => {
+  const m = P.leerMarcadorTB(M.texto('preguntas', { titulo: 'TEMA 5 - TEST 2', preguntas: [
+    { enunciado: '  ¿Uno   o dos? ', opciones: ['Uno', 'Dos'], correcta: 1, explicacion: 'Porque sí' },
+    { enunciado: '¿Sin correcta?', opciones: ['a', 'b'], correcta: null },
+    { enunciado: '¿Cinco opciones?', opciones: ['a', 'b', 'c', 'd', 'e'], correcta: 0 },
+    { enunciado: '¿Correcta fuera?', opciones: ['a', 'b'], correcta: 2 },
+    { enunciado: 'Ya la tengo', opciones: ['Sí', 'No'], correcta: 0 },
+    { enunciado: '¿UNO O DOS?', opciones: ['Uno', 'Dos'], correcta: 1 }] }));
+  assert.equal(m.tipo, 'preguntas'); assert.equal(m.malas, 3); assert.equal(m.preguntas.length, 3);
+  assert.equal(m.preguntas[0].enunciado, '¿Uno o dos?');
+  const p = P.planPreguntasTB(m, [{ enunciado: 'Ya  la tengo' }], [{ id: 't5', numero: 5 }, { id: 'v5', numero: 5, archivado: true }]);
+  assert.deepEqual(p.nuevas.map(x => x.enunciado), ['¿Uno o dos?']);
+  assert.equal(p.repetidas, 2); assert.equal(p.tema_id, 't5');
+  assert.equal(P.huellaPregunta('  Hola\n  Mundo '), 'hola mundo');
+});

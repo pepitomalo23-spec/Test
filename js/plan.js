@@ -705,13 +705,33 @@ const PLAN = (function(){
         (atr.length > 12 ? '<p class="pl-pie">Y ' + (atr.length - 12) + ' más. «Planificar automáticamente» las recoloca.</p>' : '') + '</section>';
     }
     if(puede.ok) lado += htmlSugerencias(h);
-    lado += '<section class="pl-card pl-tb-card"><h2 class="pl-seccion">Tutor Bombero</h2>' +
-      '<p class="pl-hoja-txt">Al terminar un test allí, toca el marcador en la pantalla de resultados y pulsa aquí: la tarea queda hecha con su nota.</p>' +
-      '<div class="pl-acciones"><button type="button" class="btn btn-ghost" onclick="PLANTB.pegar()">Pegar de Tutor Bombero</button>' +
-      '<button type="button" class="pl-enlace" onclick="PLANTB.instalar()">Instalar el marcador</button></div></section>';
+    lado += htmlResumenTb(h, deHoy, enCurso);
     lado += '<p class="pl-nota-honesta">pj.fire solo controla lo que abres desde aquí: no puede bloquear Tutor Bombero si entras directamente. Abrir un test no cuenta como hecho hasta que lo confirmas.</p>';
 
     el.innerHTML = '<div class="pl-hoy"><div class="pl-col-main">' + principal + '</div><aside class="pl-col-lado">' + lado + '</aside></div>';
+  }
+  // Hoy en Tutor Bombero: lo apuntado, las preguntas guardadas y lo que falta.
+  // Por la tarde-noche avisa si queda algo abierto o sin hacer.
+  function htmlResumenTb(h, deHoy, enCurso){
+    const esTb = id => (testDe(id) || {}).plataforma === 'tutor_bombero';
+    const hechos = d.resultados.filter(r => esTb(r.test_id) && diaDeIso(r.realizado_at) === h);
+    const notas = hechos.filter(r => r.nota != null).map(r => Number(r.nota)).filter(Number.isFinite);
+    const media = notas.length ? notas.reduce((a, b) => a + b, 0) / notas.length : null;
+    const preguntas = d.preguntas.filter(p => p.fuente === 'tutor_bombero' && (!p.created_at || diaDeIso(p.created_at) === h)).length;
+    const abiertas = enCurso.filter(t => esTb(t.test_id)).length;
+    const faltan = deHoy.filter(t => t.estado !== 'completado' && esTb(t.test_id)).length;
+    let hora = 12;
+    try{ hora = Number(new Intl.DateTimeFormat('en-GB', { timeZone: PLANL.ZONA, hour: '2-digit', hourCycle: 'h23' }).format(new Date())); }catch(e){}
+    const aviso = abiertas ? plural(abiertas, 'test abierto sin apuntar su resultado', 'tests abiertos sin apuntar su resultado') :
+      (hora >= 20 && faltan) ? 'Te ' + (faltan === 1 ? 'queda 1 test' : 'quedan ' + faltan + ' tests') + ' de Tutor Bombero de hoy. ¿Hiciste alguno sin apuntarlo?' : '';
+    return '<section class="pl-card pl-tb-card"><h2 class="pl-seccion">Hoy en Tutor Bombero</h2>' +
+      '<div class="pl-tb-cifras"><div><b>' + hechos.length + '</b><span>test' + (hechos.length === 1 ? '' : 's') + ' apuntado' + (hechos.length === 1 ? '' : 's') + '</span></div>' +
+      '<div><b>' + (media == null ? '—' : esc(formatNota(media))) + '</b><span>nota media</span></div>' +
+      '<div><b>' + preguntas + '</b><span>pregunta' + (preguntas === 1 ? '' : 's') + ' guardada' + (preguntas === 1 ? '' : 's') + '</span></div></div>' +
+      (aviso ? '<p class="pl-tb-aviso' + (hora >= 20 ? ' fuerte' : '') + '">' + esc(aviso) + '</p>' : '') +
+      '<p class="pl-hoja-txt">Al terminar un test allí, toca el marcador en la pantalla de resultados (y en la corrección, para guardar las preguntas) y pulsa aquí.</p>' +
+      '<div class="pl-acciones"><button type="button" class="btn btn-ghost" onclick="PLANTB.pegar()">Pegar de Tutor Bombero</button>' +
+      '<button type="button" class="pl-enlace" onclick="PLANTB.instalar()">Instalar el marcador</button></div></section>';
   }
   function capitalizar(s){ return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
   function htmlEmpezar(){
@@ -1816,9 +1836,10 @@ const PLAN = (function(){
       '<section class="pl-card"><h3 class="pl-seccion">Tus datos</h3><p class="pl-hoja-txt">Tu plan es privado: en la app solo lo ves tú. La copia de seguridad diaria de la base de datos (que solo puede descargar el administrador) también lo incluye. Descárgate tu propia copia cuando quieras.</p>' +
       '<div class="pl-acciones"><button type="button" class="btn btn-ghost" onclick="PLAN.exportar()">Exportar (JSON)</button><button type="button" class="btn btn-ghost" onclick="PLAN.importar()">Importar una copia</button></div></section>' +
       '<section class="pl-card"><h3 class="pl-seccion">Tutor Bombero</h3>' +
-      '<p class="pl-hoja-txt">Tutor Bombero no ofrece API, exportación de resultados ni enlaces directos a cada test, y sus condiciones dicen que el acceso es personal e intransferible. Por eso pj.fire no se conecta a tu cuenta, no guarda tus contraseñas y no copia sus preguntas:</p>' +
+      '<p class="pl-hoja-txt">Tutor Bombero no ofrece API, exportación de resultados ni enlaces directos a cada test, y sus condiciones dicen que el acceso es personal e intransferible. Por eso pj.fire no se conecta a tu cuenta ni guarda tus contraseñas:</p>' +
       '<ul class="pl-lista-txt"><li>«Abrir» abre su web en otra pestaña y apunta que lo abriste (no que lo terminaste).</li>' +
       '<li>Con el <b>marcador</b> (un favorito de Safari que tocas tú estando en Tutor Bombero) traes tu lista de tests por temas y, al terminar cada test, tu resultado: «Pegar de Tutor Bombero» y la tarea queda hecha con su nota.</li>' +
+      '<li>En la corrección de un test, el marcador guarda sus preguntas (las que veas, página a página) en «Mis preguntas», privadas para ti, para tus exámenes combinados. Son para tu repaso: no las compartas.</li>' +
       '<li>Sin marcador, al volver te pregunta si lo terminaste y cuánto sacaste; puedes copiar el resultado (también de una captura, con Texto en vivo del iPad) y pegarlo.</li>' +
       '<li>Solo controla lo que abres desde aquí: no puede bloquear Tutor Bombero si entras directamente.</li></ul>' +
       '<div class="pl-acciones"><button type="button" class="btn btn-primary" onclick="PLANTB.instalar()">Instalar el marcador</button><button type="button" class="btn btn-ghost" onclick="PLANTB.pegar()">Pegar de Tutor Bombero</button></div>' +

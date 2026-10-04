@@ -182,6 +182,13 @@ suyo de un tema, test o tarea de otro aunque conozca su id. Probado con 82 prueb
 - **El resultado de Tutor Bombero lo traes tú**: con el marcador (dos toques) o pegándolo/escribiéndolo. Si no lo
   confirmas, el test no cuenta como hecho. Las preguntas de Tutor Bombero no se copian: el simulacro con sus
   preguntas se hace allí, y pj.fire lo programa y lo puntúa (nota con penalización, como sus simulacros).
+- **Preguntas de la corrección (decisión del usuario, 4-10-2026).** A petición expresa del usuario, informado del
+  riesgo, el marcador también guarda en «Mis preguntas» las preguntas que ve en la corrección de un test (con su
+  respuesta correcta), página a página y solo cuando él lo toca. Quedan privadas en su cuenta (RLS) y no hay forma
+  de compartirlas. Aviso: el banco de Tutor Bombero está protegido como base de datos (arts. 133-135 TRLPI) y la
+  copia privada no cubre las bases de datos electrónicas (art. 31.3.b), así que esto no está amparado del todo;
+  el riesgo práctico es bajo si es estrictamente personal, y sería claramente ilegal compartirlo. Las preguntas
+  sin respuesta correcta visible no se guardan.
 - **El marcador no está probado contra la web real** (su zona privada exige iniciar sesión): está probado con
   páginas simuladas de distintas formas. La primera vez puede necesitar un ajuste («Copiar diagnóstico»).
 - **El tiempo de Tutor Bombero no se mide**: solo cuenta el que apuntes. El tiempo «medido» es el de los tests de
@@ -201,6 +208,8 @@ suyo de un tema, test o tarea de otro aunque conozca su id. Probado con 82 prueb
 4. Hacer una captura del resultado en Tutor Bombero, copiar su texto con Texto en vivo y usar «Pegar resultado».
 5. Abrir desde Tests uno que no toque hoy (debe avisar).
 6. Hacer un examen combinado y mirar Progreso.
+9. En la corrección de un test, tocar el marcador: «Copiar N preguntas» y «Pegar de Tutor Bombero»; deben
+   salir en Exámenes › Mis preguntas, en su tema.
 7. Instalar el marcador (Ajustes › Tutor Bombero › «Instalar el marcador»). En Tutor Bombero, tocarlo en la
    página de tus tests por temas, «Copiar para pj.fire» y en pj.fire «Pegar de Tutor Bombero».
 8. Hacer un test en Tutor Bombero, tocar el marcador en la pantalla de resultados, «Copiar resultado» y «Pegar de

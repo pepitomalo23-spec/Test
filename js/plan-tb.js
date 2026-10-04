@@ -44,6 +44,7 @@ const PLANTB = (function(){
     const m = PLANL.leerMarcadorTB(texto);
     if(m && m.tipo === 'tests'){ importarTests(m); return true; }
     if(m && m.tipo === 'resultado'){ guardarResultado(m); return true; }
+    if(m && m.tipo === 'preguntas'){ importarPreguntas(m); return true; }
     // Texto suelto con números de resultado (p. ej. copiado con Texto en vivo).
     const r = PLANL.parsearResultado(texto || '');
     if(r.aciertos != null || r.nota != null){
@@ -61,7 +62,7 @@ const PLANTB = (function(){
       botones: [{ texto: 'Usar', clase: 'primario', accion: api => {
         const v = api.el.querySelector('[name="pegado"]').value;
         if(v.trim() && PLANL.leerMarcadorTB(v) == null && PLANL.parsearResultado(v).aciertos == null && PLANL.parsearResultado(v).nota == null){
-          api.el.querySelector('.pl-error-form').textContent = 'Esto no parece ni una lista de tests ni un resultado del marcador.';
+          api.el.querySelector('.pl-error-form').textContent = 'Esto no parece ni tests, ni un resultado, ni preguntas del marcador.';
           return false;
         }
         if(!v.trim()){ api.el.querySelector('.pl-error-form').textContent = 'Pega primero lo que copiaste.'; return false; }
@@ -199,6 +200,31 @@ const PLANTB = (function(){
       } }, { texto: 'Cancelar' }] });
   }
 
+  /* ---------- Preguntas de la corrección → «Mis preguntas» ---------- */
+  // Solo para el repaso de quien las trae: plan_preguntas es privada (RLS).
+  function importarPreguntas(m){
+    const D = listo();
+    if(!D) return;
+    const plan = PLANL.planPreguntasTB(m, D.preguntas, D.temas);
+    const temas = PLAN.temasOrdenados(false);
+    const opcionesTema = '<option value="">Sin tema</option>' + temas.map(t => '<option value="' + esc(t.id) + '"' + (t.id === plan.tema_id ? ' selected' : '') + '>' + esc(PLAN.nombreTema(t.id)) + '</option>').join('');
+    const ej = plan.nuevas.slice(0, 4).map(q => '<li><b>' + esc(q.enunciado.length > 110 ? q.enunciado.slice(0, 109) + '…' : q.enunciado) + '</b><br><span class="pl-suave">✓ ' +
+      String.fromCharCode(97 + q.correcta) + ') ' + esc(q.opciones[q.correcta]) + '</span></li>').join('');
+    PLAN.hoja({ titulo: 'Preguntas de Tutor Bombero', ancha: true,
+      html: '<p class="pl-hoja-txt">' + (m.titulo ? 'De «' + esc(m.titulo) + '»: ' : '') + '<b>' + plan.nuevas.length + ' nueva' + (plan.nuevas.length === 1 ? '' : 's') + '</b>' +
+        (plan.repetidas ? ', ' + plan.repetidas + ' que ya tenías' : '') + (m.malas ? ', ' + m.malas + ' sin respuesta clara (no se guardan)' : '') + '.</p>' +
+        (plan.nuevas.length ? '<ul class="pl-lista-txt">' + ej + (plan.nuevas.length > 4 ? '<li class="pl-suave">… y ' + (plan.nuevas.length - 4) + ' más.</li>' : '') + '</ul>' +
+          '<label class="pl-campo"><span>Tema</span><select class="pl-input" name="tema">' + opcionesTema + '</select></label>' +
+          '<p class="pl-pie">Van a «Mis preguntas» (Exámenes), privadas para ti, y salen en tus exámenes combinados mezcladas con las del banco. Son para tu repaso: no las compartas.</p>' : ''),
+      botones: plan.nuevas.length ? [{ texto: 'Guardar ' + plan.nuevas.length + ' pregunta' + (plan.nuevas.length === 1 ? '' : 's'), clase: 'primario', accion: api => {
+        const tema = api.el.querySelector('[name="tema"]').value || null;
+        plan.nuevas.forEach(q => PLAN.guardar('plan_preguntas', { id: PLAN.uid(), tema_id: tema, fuente: 'tutor_bombero', referencia: m.titulo ? m.titulo.slice(0, 160) : null,
+          enunciado: q.enunciado, opciones: q.opciones, correcta: q.correcta, explicacion: q.explicacion || null, archivada: false }));
+        uiToast('Guardadas ' + plan.nuevas.length + ' preguntas en «Mis preguntas».', 'success');
+        PLAN.repintar();
+      } }, { texto: 'Cancelar' }] : [{ texto: 'Cerrar' }] });
+  }
+
   /* ---------- Instalar el marcador ---------- */
   function instalar(){
     const cod = codigo();
@@ -211,8 +237,9 @@ const PLANTB = (function(){
         '<li>Para usarlo: en Tutor Bombero toca la barra de direcciones y elige el favorito <b>pj.fire</b>.</li></ol>' +
         '<p class="pl-hoja-txt"><b>Dónde usarlo:</b></p><ul class="pl-lista-txt">' +
         '<li>En la página donde salen <b>tus tests por temas</b>: los trae a tu catálogo, cada uno en su tema. Si están en varias páginas, usa «Juntar y seguir».</li>' +
-        '<li>En la <b>pantalla de resultados</b> al terminar un test: aquí pulsas «Pegar de Tutor Bombero» y la tarea queda hecha con su nota.</li></ul>' +
-        '<p class="pl-pie">Te enseña lo que ha encontrado y no copia nada hasta que pulsas «Copiar». No envía nada a ningún sitio y no copia las preguntas: solo nombres de tests y tus números.</p>' +
+        '<li>En la <b>pantalla de resultados</b> al terminar un test: aquí pulsas «Pegar de Tutor Bombero» y la tarea queda hecha con su nota.</li>' +
+        '<li>En la <b>corrección</b> (preguntas con su respuesta correcta): las guarda en «Mis preguntas» para tus exámenes combinados, privadas para ti.</li></ul>' +
+        '<p class="pl-pie">Te enseña lo que ha encontrado y no copia nada hasta que pulsas «Copiar», página a página. No envía nada a ningún sitio: va a tu portapapeles y de ahí a tu cuenta.</p>' +
         '<textarea class="pl-input pl-correo" rows="4" readonly aria-label="Código del marcador">' + esc(cod) + '</textarea>',
       botones: [{ texto: 'Copiar el código', clase: 'primario', accion: () => {
         (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(cod) : Promise.reject())

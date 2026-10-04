@@ -271,8 +271,10 @@ terminado y con qué resultado. Investigación, diseño y limitaciones: `docs/pl
   la app (≥20 s) pregunta «¿Has terminado…?» y se apunta el resultado a mano o pegándolo (`PLANL.parsearResultado`,
   también vale el texto copiado de una captura con Texto en vivo). Solo controla lo que se abre desde aquí.
 - **Marcador de Tutor Bombero** (`marcador/tutor-bombero.js` + `js/plan-tb.js`): un favorito de Safari que el
-  usuario toca en Tutor Bombero. Lee solo la página que tiene delante (nombres de tests por tema, o las líneas con
-  números del resultado, nunca las preguntas) y lo copia al portapapeles; sin red, cookies ni formularios. En el
+  usuario toca en Tutor Bombero. Lee solo la página que tiene delante (nombres de tests por tema, las líneas con
+  números del resultado o, en la corrección, las preguntas con su correcta) y lo copia al portapapeles; sin red,
+  cookies ni formularios. Las preguntas van a `plan_preguntas` (fuente `tutor_bombero`, privadas por RLS) para el
+  repaso personal del usuario; no hay ninguna forma de compartirlas. En el
   Plan, «Pegar de Tutor Bombero» importa los tests (cada uno en su tema, sin duplicados: `PLANL.planImportacionTB`)
   o guarda el resultado en su tarea (`PLANL.elegirTareaTB`), con la nota de pj.fire. El formato lo valida
   `PLANL.leerMarcadorTB`. Si se cambia el marcador, no hace falta versionarlo: el favorito lo pide con `?t=`.

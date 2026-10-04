@@ -173,6 +173,72 @@
     return CABECERA + '\n' + JSON.stringify(p);
   }
 
+  // ---------- Preguntas de la corrección (funciones puras) ----------
+  // Lee las preguntas de una pantalla de corrección: «12. Enunciado…»,
+  // «a) opción», y la correcta por «Correcta: c» / «Solución: c», por un ✓
+  // en la opción o porque la página la pinta como correcta (marcas, del DOM).
+  // «Tu respuesta: b» NO es la correcta. Devuelve [{ enunciado, opciones,
+  // correcta (índice o null), explicacion }].
+  const RE_PREG = /^\s*(?:pregunta\s*n?[º°.]?\s*)?(\d{1,3})\s*[.)\-:–]\s*(.{3,})$/i;
+  const RE_OPC = /^\s*\(?([a-eA-E])\s*[).:\-–]\s+(.+)$/;
+  const RE_CORR = /(?:respuesta\s+correcta|correcta|soluci[oó]n|respuesta\s+v[aá]lida)\s*(?:es|era)?\s*:?\s*\(?([a-eA-E])\)?(?![\wáéíóú])/i;
+  const RE_EXPL = /^\s*(?:explicaci[oó]n|justificaci[oó]n|comentario|fundamento|motivo)\s*:?\s*(.*)$/i;
+  const RE_MARCA_OK = /\s*(?:[✓✔☑]|\(\s*correcta\s*\)|\[\s*correcta\s*\]|←\s*correcta)\s*/gi;
+  const RE_NO_PREG = /^\s*(?:tu respuesta|respuesta marcada|has contestado|tu elecci[oó]n|marcaste)\b/i;
+  const claveOpcion = t => sinTildes(limpiar(t)).toLowerCase().replace(/[^a-z0-9ñ]+/g, ' ').trim();
+  function preguntasDeTexto(texto, marcas){
+    const ok = marcas instanceof Set ? marcas : new Set(marcas || []);
+    const lineas = String(texto == null ? '' : texto).replace(/\r\n?/g, '\n').split('\n').map(l => l.replace(/[  -​ 　]/g, ' ').trim()).filter(Boolean);
+    const out = [];
+    let q = null, enExpl = false;
+    const cerrar = () => {
+      if(!q) return;
+      const enunciado = limpiar(q.enunciado).replace(RE_MARCA_OK, ' ').trim();
+      const opciones = q.opciones.map(o => limpiar(o.t));
+      let correcta = q.correcta;
+      if(correcta == null){ const i = q.opciones.findIndex(o => o.ok); if(i >= 0) correcta = i; }
+      if(correcta == null){ const i = q.opciones.findIndex(o => ok.has(claveOpcion(o.t))); if(i >= 0 && q.opciones.filter(o => ok.has(claveOpcion(o.t))).length === 1) correcta = i; }
+      if(enunciado.length >= 3 && enunciado.length <= 2000 && opciones.length >= 2 && opciones.length <= 5 && opciones.every(o => o && o.length <= 1000)){
+        out.push({ enunciado, opciones, correcta: correcta != null && correcta < opciones.length ? correcta : null, explicacion: q.expl.length ? corto(q.expl.join(' '), 4000) : null });
+      }
+      q = null; enExpl = false;
+    };
+    for(const l of lineas){
+      if(out.length >= 300) break;
+      const mo = RE_OPC.exec(l);
+      if(q && mo && !enExpl){
+        const letra = mo[1].toLowerCase().charCodeAt(0) - 97;
+        if(letra === q.opciones.length){
+          let t = mo[2];
+          const marcada = RE_MARCA_OK.test(t);
+          RE_MARCA_OK.lastIndex = 0;
+          t = t.replace(RE_MARCA_OK, ' ');
+          q.opciones.push({ t: limpiar(t), ok: marcada });
+          continue;
+        }
+      }
+      const mp = RE_PREG.exec(l);
+      if(mp && !RE_OPC.test(l) && (!q || q.opciones.length >= 2 || !q.opciones.length)){ cerrar(); q = { enunciado: mp[2], opciones: [], correcta: null, expl: [] }; continue; }
+      if(!q) continue;
+      const mc = RE_CORR.exec(l);
+      if(mc && q.opciones.length >= 2){
+        const i = mc[1].toLowerCase().charCodeAt(0) - 97;
+        if(i < q.opciones.length) q.correcta = i;
+        const resto = RE_EXPL.exec(l.slice(mc.index + mc[0].length).replace(/^[\s.;,]+/, ''));
+        if(resto && resto[1]){ enExpl = true; q.expl.push(resto[1]); }
+        continue;
+      }
+      const me = RE_EXPL.exec(l);
+      if(me && q.opciones.length >= 2){ enExpl = true; if(me[1]) q.expl.push(me[1]); continue; }
+      if(RE_NO_PREG.test(l)) continue;
+      if(enExpl){ if(q.expl.join(' ').length < 4000) q.expl.push(l); continue; }
+      if(!q.opciones.length) q.enunciado += ' ' + l;                // el enunciado sigue en otra línea
+      else if(q.opciones.length && l.length < 300 && !/^\d/.test(l)) q.opciones[q.opciones.length - 1].t += ' ' + l;   // y la opción también
+    }
+    cerrar();
+    return out;
+  }
+
   // ---------- Página (DOM) ----------
   const SALTAR = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'SVG', 'CANVAS', 'IFRAME', 'FRAME', 'OBJECT', 'TEXTAREA']);
   const EN_LINEA = new Set(['B', 'STRONG', 'I', 'EM', 'SPAN', 'SMALL', 'BR', 'SUP', 'SUB', 'IMG', 'FONT', 'U', 'MARK', 'ABBR', 'LABEL', 'WBR']);
@@ -234,6 +300,38 @@
   function temaDeTexto(t){
     const m = /\btema\s*n?[º°ª.]?\s*(\d{1,3})\b/i.exec(t);
     return m ? { numero: Number(m[1]), nombre: null } : null;
+  }
+  // Opciones que la página marca como correctas (clase «correcta», «ok»…
+  // o pintadas en verde). Devuelve sus textos normalizados.
+  const RE_CLASE_OK = /(^|[\s_-])(correct[ao]?|correct|acierto|acertad[ao]|bien|right|ok|success|verde|green|solucion|respuesta-?ok)([\s_-]|$)/i;
+  const RE_CLASE_MAL = /(incorrect|mal|wrong|error|fallo|fallad|red|rojo|danger)/i;
+  function verdoso(color){
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/.exec(color || '');
+    if(!m || (m[4] != null && Number(m[4]) < 0.2)) return false;
+    const r = +m[1], g = +m[2], b = +m[3];
+    return g >= 100 && g > r + 40 && g > b + 15;
+  }
+  function marcasCorrectas(){
+    const marcas = new Set();
+    documentos().forEach(doc => {
+      if(!doc.body) return;
+      doc.body.querySelectorAll('li, td, div, span, p, label, b, strong, font').forEach(e => {
+        if(e.closest && e.closest('#' + ID_PANEL)) return;
+        const t = limpiar(e.innerText || e.textContent || '');
+        const mo = RE_OPC.exec(t);
+        if(!mo || t.length > 600) return;
+        let marcada = false;
+        for(let x = e, n = 0; x && n < 3 && !marcada; x = x.parentElement, n++){
+          const c = typeof x.className === 'string' ? x.className : '';
+          if(c && RE_CLASE_OK.test(c) && !RE_CLASE_MAL.test(c)) marcada = true;
+        }
+        if(!marcada){
+          try{ const cs = doc.defaultView.getComputedStyle(e); marcada = verdoso(cs.color) || verdoso(cs.backgroundColor); }catch(err){}
+        }
+        if(marcada) marcas.add(claveOpcion(mo[2].replace(RE_MARCA_OK, ' ')));
+      });
+    });
+    return marcas;
   }
   function textoPagina(){
     return documentos().map(doc => {
@@ -390,6 +488,24 @@
     p.appendChild(s);
   }
 
+  function seccionPreguntas(p, preguntas, titulo){
+    const conOk = preguntas.filter(q => q.correcta != null);
+    const s = el('div', { clase: 's' });
+    s.appendChild(el('h3', { texto: 'Preguntas en esta página: ' + preguntas.length }));
+    s.appendChild(el('div', { clase: 'suave', texto: conOk.length === preguntas.length ? 'Todas con su respuesta correcta.' :
+      conOk.length + ' con su respuesta correcta; las otras ' + (preguntas.length - conOk.length) + ' no se guardan (no sé cuál es la buena).' }));
+    const ej = el('ul');
+    conOk.slice(0, 3).forEach(q => ej.appendChild(el('li', null, [el('b', { texto: corto(q.enunciado, 90) }), el('br'),
+      el('span', { clase: 'suave', texto: '✓ ' + String.fromCharCode(97 + q.correcta) + ') ' + corto(q.opciones[q.correcta], 80) })])));
+    s.appendChild(ej);
+    const aviso = el('div', { 'aria-live': 'polite' });
+    if(conOk.length) s.appendChild(el('div', { clase: 'bt' }, [el('button', { clase: 'b pri', type: 'button', texto: 'Copiar ' + conOk.length + ' preguntas para pj.fire',
+      onclick: () => copiar(texto('preguntas', { titulo: titulo || null, preguntas: conOk, pagina: sinSesion(location.pathname) }), aviso, s) })]));
+    s.appendChild(el('div', { clase: 'suave', texto: 'Solo para tu repaso: en pj.fire quedan en «Mis preguntas», privadas para ti.' }));
+    s.appendChild(aviso);
+    p.appendChild(s);
+  }
+
   function seccionNada(p){
     const s = el('div', { clase: 's' });
     s.appendChild(el('p', { texto: 'En esta página no encuentro ni tests ni un resultado.' }));
@@ -415,10 +531,13 @@
     let lineas = lineasResultado(sel || pagina);
     if(sel && !lineas.length) lineas = lineasResultado(pagina);
     const items = sel ? [] : buscarTests();
-    if(lineas.length) seccionResultado(p, lineas, tituloResultado(pagina, document.title));
+    const preguntas = preguntasDeTexto(sel || pagina, sel ? [] : marcasCorrectas());
+    const titulo = tituloResultado(pagina, document.title);
+    if(lineas.length) seccionResultado(p, lineas, titulo);
+    if(preguntas.length) seccionPreguntas(p, preguntas, titulo);
     // En la pantalla de resultados, el título del test no es una lista de tests.
     if(items.length > (lineas.length ? 1 : 0)) seccionTests(p, items);
-    if(!lineas.length && !items.length){
+    if(!lineas.length && !items.length && !preguntas.length){
       const previos = agrupar([], leerLista());
       if(previos.total) seccionTests(p, []);
       else seccionNada(p);
@@ -426,7 +545,7 @@
     p.appendChild(el('p', { clase: 'suave', texto: 'Nada sale de esta página hasta que pulsas «Copiar»: se copia a tu portapapeles, no se envía a ningún sitio.' }));
   }
 
-  const API = { limpiar, esTema, esTest, nombreTest, lineasResultado, tituloResultado, agrupar, sinSesion, texto, CABECERA, VERSION };
+  const API = { preguntasDeTexto, limpiar, esTema, esTest, nombreTest, lineasResultado, tituloResultado, agrupar, sinSesion, texto, CABECERA, VERSION };
   if(typeof module !== 'undefined' && module.exports){ module.exports = API; return; }
   try{ principal(); }catch(e){
     try{ alert('pj.fire: el marcador ha fallado en esta página (' + (e && e.message ? e.message : e) + ').'); }catch(x){}
