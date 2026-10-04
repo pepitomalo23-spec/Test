@@ -292,7 +292,6 @@ function restoreQuizProgress(){
     const saved = JSON.parse(raw);
     if(!saved || !saved.quizState || !saved.quizState.mode || !saved.activeQuestions) return;
     quizState = saved.quizState;
-    quizState.reanudado = true;   // viene de una sesión anterior de la app
     ACTIVE_QUESTIONS = saved.activeQuestions;
     quizSecondsLeft = (typeof saved.quizSecondsLeft === 'number') ? saved.quizSecondsLeft : null;
     // Si el test tenía tiempo límite, descontamos el tiempo que ha pasado
