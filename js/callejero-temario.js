@@ -1456,6 +1456,18 @@ const CJT = (function(){
     if(!ids.size){ uiToast('No tienes nada del temario por repasar.', 'info'); return; }
     preguntar(comprimir(ids), null, nombreClave('repaso'), 'f:repaso');
   }
+  // Lo fallado del temario: lo que la última vez se respondió mal.
+  function falladas(){
+    if(!T) return [];
+    const prog = CJ.progreso();
+    return T.fichas.flatMap(itemsDeFicha).filter(x => estado(prog, x) === 'fallada').map(x => ({ id: x.id, nombre: textoItem(x) }));
+  }
+  function repasarFalladas(){
+    if(!T){ asegurar(); uiToast('Cargando el temario…', 'info'); return; }
+    const ids = new Set(falladas().map(x => x.id));
+    if(!ids.size){ uiToast('¡Ya no te queda nada fallado del temario!', 'success'); return; }
+    preguntar(comprimir(ids), null, 'Lo fallado del temario', 'f:repaso');
+  }
   // Repasar todo lo dado del temario: lo que ya ha respondido alguna vez.
   function vistas(){
     const prog = CJ.progreso();
@@ -1682,7 +1694,7 @@ const CJT = (function(){
 
   return {
     cargar, listo, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
-    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, fuente, reintentar, geoClaves,
+    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
     clicPlano, pintarPlano, marcarPlano, verEnPlano

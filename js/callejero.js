@@ -1869,6 +1869,7 @@ const CJ = (function(){
   const PESO_TIPO = { AVENIDA: 3, RONDA: 3, PASEO: 3, BULEVAR: 3, PLAZA: 2.5, GLORIETA: 2, CALLE: 1, PASAJE: 0.5, CALLEJA: 0.5, TRAVESIA: 0.6,
     AUTOVIA: 0.3, CARRETERA: 0.3, URBANIZACION: 0.3, ENLACE: 0.2, CAMINO: 0.2, FINCA: 0.1, DISEMINADO: 0.1, VEREDA: 0.1 };
   let limiteRonda = null;    // calles (en orden) de la próxima ronda guiada
+  let limiteZonas = null;    // barrios o distritos (nombres) de la próxima ronda en el mapa de colores
   let guiaPendiente = null;  // qué ronda guiada se está preparando
   let rondaGuiada = null;    // { tipo: 'nivel', n } | { tipo: 'repaso' } de la ronda en curso
   let cacheCalles = null;    // { clave, calles }
@@ -1960,7 +1961,8 @@ const CJ = (function(){
   }
   function seguirGuiada(){
     const g = rondaGuiada;
-    if(g && g.tipo === 'repaso') repasar(g.modo); else if(g && g.tipo === 'todo') repasarTodo(g.modo); else aprender(g ? g.n : 0);
+    if(g && g.tipo === 'repaso') repasar(g.modo); else if(g && g.tipo === 'todo') repasarTodo(g.modo);
+    else if(g && g.tipo === 'fallado') repasarFallado(g.modo); else aprender(g ? g.n : 0);
   }
   // Una fila grande de modo de juego: icono, nombre y lo que lleva.
   function filaModo(accion, titulo, texto, icono, activo){
@@ -2087,6 +2089,59 @@ const CJ = (function(){
     const l = [...vistas.values()];
     return barajar(l.filter(x => x.fallada)).concat(barajar(l.filter(x => !x.fallada))).map(x => x.v);
   }
+  // Lo fallado: lo que la última vez se respondió mal (calles por modo,
+  // temario, barrios y distritos). Se quita solo en cuanto se acierta.
+  function fallados(){
+    const calles = {}, barrios = new Set(), distritos = new Set();
+    const porIdBarrio = new Map(datos.barrios.map(b => [idBarrio(b), b.nombre]));
+    const porIdDistrito = new Map(datos.distritos.map(d => [idDistrito(d), d]));
+    progreso.forEach((p, k) => {
+      if(estadoDe(p) !== 'fallada') return;
+      const [hab, s] = k.split('|'), id = Number(s);
+      if(HAB_CALLES.includes(hab) && id > 0 && id < ID_TEMARIO){
+        const v = datos.viaPorId.get(id);
+        if(v && v.jugable){ const m = MODO_DE_HAB[hab]; (calles[m] = calles[m] || new Map()).set(v.nombre, v); }
+      }else if(hab === 'barrios'){
+        if(porIdBarrio.has(id)) barrios.add(porIdBarrio.get(id));
+        else if(porIdDistrito.has(id)) distritos.add(porIdDistrito.get(id));
+      }
+    });
+    return { calles, barrios: [...barrios], distritos: [...distritos] };
+  }
+  function repasarFallado(tipo){
+    if(!datos) return;
+    const f = fallados();
+    const nada = () => uiToast('¡Ya no te queda nada fallado de esto!', 'success');
+    if(tipo === 'temario'){ CJT.repasarFalladas(); return; }
+    if(tipo === 'barrios' || tipo === 'distritos'){
+      const lista = f[tipo];
+      if(!lista.length){ nada(); return; }
+      limiteZonas = lista;
+      guiaPendiente = { tipo: 'fallado', modo: tipo };
+      empezar(tipo === 'barrios' ? 'mapabarrios' : 'mapadistritos').finally(() => { limiteZonas = null; guiaPendiente = null; });
+      return;
+    }
+    const vias = f.calles[tipo] ? [...f.calles[tipo].values()] : [];
+    if(!vias.length){ nada(); return; }
+    empezarGuiada(tipo, barajar(vias), { tipo: 'fallado', modo: tipo });
+  }
+  function falladoHtml(){
+    const f = fallados();
+    const nt = typeof CJT !== 'undefined' ? CJT.falladas() : [];
+    const muestra = nombres => nombres.slice(0, 3).join(', ') + (nombres.length > 3 ? '…' : '');
+    const cuenta = (k, uno, varios) => k + ' ' + (k === 1 ? uno : varios);
+    const MODOS_F = [['opciones', '¿Cómo se llama?'], ['localiza', 'Señalarlas en el mapa'], ['cruces', 'Cruces y paralelas'], ['parque', '¿Qué parque acude?']];
+    const filas = MODOS_F.filter(([m]) => f.calles[m] && f.calles[m].size).map(([m, t]) => {
+      const nombres = [...f.calles[m].keys()];
+      return filaModo('CJ.repasarFallado(\'' + m + '\')', t + ' · ' + cuenta(nombres.length, 'calle', 'calles'), muestra(nombres), ICONOS[m], true);
+    }).concat(
+      nt.length ? [filaModo('CJ.repasarFallado(\'temario\')', 'Temario · ' + cuenta(nt.length, 'pregunta', 'preguntas'), muestra(nt.map(x => x.nombre)), ICONOS.estudio, true)] : [],
+      f.distritos.length ? [filaModo('CJ.repasarFallado(\'distritos\')', 'Distritos · ' + f.distritos.length, muestra(f.distritos), ICONOS.barrios, true)] : [],
+      f.barrios.length ? [filaModo('CJ.repasarFallado(\'barrios\')', 'Barrios · ' + f.barrios.length, muestra(f.barrios), ICONOS.enbarrio, true)] : []).join('');
+    return '<div class="cj-seccion cj-seccion-fallado">Lo fallado</div><div class="cj-card cj-repaso cj-fallado">' +
+      (filas ? '<div class="cj-niveles cj-modos cj-modos-arriba">' + filas + '</div>'
+        : '<div class="cj-repaso-vacio">Aquí se irá guardando lo que falles. En cuanto lo aciertes, se quita solo.</div>') + '</div>';
+  }
   const FORMAS_CALLES = [
     { modo: 'opciones', titulo: 'Eligiendo entre 4 nombres', desc: 'Te marco la calle y eliges cómo se llama' },
     { modo: 'localiza', titulo: 'Señalándolas en el mapa', desc: 'Te digo el nombre y la tocas' },
@@ -2106,7 +2161,7 @@ const CJ = (function(){
     const nc = callesVistas().length;
     const nt = typeof CJT !== 'undefined' ? CJT.contarVistas() : null;
     const mandado = typeof CJT !== 'undefined' && tareasActivas().some(t => (t.fichas || []).length);
-    return (typeof CJT !== 'undefined' ? '<div class="cj-seccion">Temario</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
+    return falladoHtml() + (typeof CJT !== 'undefined' ? '<div class="cj-seccion">Temario</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
         filaModo('CJT.preguntarVistas()', 'Preguntas del temario', nt === null ? 'Todo lo que ya has respondido' : nt ? n(nt) + ' que ya has respondido' : 'Todavía no has respondido ninguna', ICONOS.estudio, nt !== 0) +
         filaModo('CJT.preguntarSinMapa()', 'Preguntas del temario sin mapa', mandado ? 'De lo que te ha mandado tu profesor' : 'De todo el temario', ICONOS.estudio, true) +
       '</div></div>' : '') +
@@ -2636,11 +2691,12 @@ const CJ = (function(){
     }
     if(m === 'mapadistritos'){
       const pintar = colores('distritos');
-      return barajar(datos.distritos.slice()).map(d => Object.assign(preguntaDistrito(d), { antes: pintar }));
+      return barajar((limiteZonas || datos.distritos).slice()).map(d => Object.assign(preguntaDistrito(d), { antes: pintar }));
     }
     if(m === 'mapabarrios'){
       const pintar = colores('barrios');
-      return barajar(ordenarPorRepaso(barriosDelJuego(), idBarrio, m).slice(0, n)).map(b => Object.assign(preguntaBarrio(b, 'toca'), { antes: pintar }));
+      const bs = limiteZonas ? datos.barrios.filter(b => limiteZonas.includes(b.nombre)) : ordenarPorRepaso(barriosDelJuego(), idBarrio, m).slice(0, n);
+      return barajar(bs).map(b => Object.assign(preguntaBarrio(b, 'toca'), { antes: pintar }));
     }
     if(m === 'enbarrio'){
       // Calles de un barrio (o dos); en una zona de un solo barrio, las de su
@@ -2678,8 +2734,9 @@ const CJ = (function(){
     actualizarFiltro();
     if(m === 'nombrar'){ desdeTemario = vistaActual === 'temario'; await empezarNombrar(); return; }
     const preguntas = crearPreguntas(m);
-    rondaGuiada = limiteRonda ? guiaPendiente : null;
+    rondaGuiada = limiteRonda || limiteZonas ? guiaPendiente : null;
     limiteRonda = null;
+    limiteZonas = null;
     if(!preguntas.length){ uiToast('No hay preguntas de este tipo en esta zona.', 'info'); return; }
     const t = tareaDeZona();
     // Desde una ficha del temario (sus calles), al acabar se vuelve a ella.
@@ -3833,7 +3890,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, ver, repasarTodo, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, ver, repasarTodo, repasarFallado, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)
