@@ -440,6 +440,28 @@
   .cj-resumen-txt{ flex:1; min-width:0; display:flex; flex-wrap:wrap; gap:4px 16px; }
   .cj-resumen b{ color: var(--text); font-size:15px; }
   .cj-resumen svg{ width:17px; height:17px; margin-left:auto; color: var(--muted-2); flex-shrink:0; }
+  /* Repaso y Aprender por niveles */
+  .cj-repaso, .cj-aprender{ padding:14px; }
+  .cj-repaso .cj-hoy-btn{ border-color: rgba(52,199,89,.45); background: rgba(52,199,89,.1); }
+  .cj-repaso .cj-hoy-btn:hover{ background: rgba(52,199,89,.16); }
+  .cj-repaso .cj-hoy-play{ background:#34c759; }
+  .cj-repaso-vacio{ font-size:14px; color: var(--muted); padding:4px 2px; line-height:1.45; }
+  .cj-niveles{ display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+  .cj-nivel{ display:flex; align-items:center; gap:12px; width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--line);
+    background: transparent; color: var(--text); font: inherit; text-align:left; cursor:pointer; }
+  .cj-nivel:hover{ background: rgba(255,255,255,.04); }
+  .cj-nivel.toca{ border-color: rgba(242,102,92,.55); }
+  .cj-nivel.bloq{ opacity:.5; cursor:default; }
+  .cj-nivel-n{ flex-shrink:0; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;
+    background: var(--line); }
+  .cj-nivel.toca .cj-nivel-n{ background: var(--coral); color:#fff; }
+  .cj-nivel-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+  .cj-nivel-txt b{ font-size:15px; }
+  .cj-nivel-txt small{ font-size:12.5px; color: var(--muted); }
+  .cj-nivel-barra{ display:block; height:5px; border-radius:3px; background: var(--line); overflow:hidden; margin-top:3px; }
+  .cj-nivel-barra span{ display:block; height:100%; background: var(--coral); border-radius:3px; }
+  .cj-aprender-zona{ margin-top:12px; }
+  .cj-aprender-zona .cj-zona-select{ width:100%; }
   /* Modos de juego en baldosas */
   .cj-mosaico{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:14px; }
   .cj-baldosa{ position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:14px; border-radius:14px;
