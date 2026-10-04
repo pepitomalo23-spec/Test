@@ -28,6 +28,8 @@
   const VERSION = 1;
   const CABECERA = 'pj.fire · Tutor Bombero (marcador)';
   const CLAVE_LISTA = 'pjfire_tb_lista_v1';
+  const CLAVE_PREG = 'pjfire_tb_preguntas_v1';
+  const MAX_JUNTADAS = 1000;
   const MAX_TESTS = 2000;
   const MAX_LINEAS = 40;
 
@@ -377,6 +379,26 @@
     try{ if(temas && temas.length) sessionStorage.setItem(CLAVE_LISTA, JSON.stringify({ temas })); else sessionStorage.removeItem(CLAVE_LISTA); }catch(e){}
   }
 
+  // Preguntas juntadas de varias correcciones (cada una con el título de su
+  // test, para saber su tema), sin repetir enunciados.
+  function leerPreguntas(){
+    try{ const v = JSON.parse(sessionStorage.getItem(CLAVE_PREG)); return v && Array.isArray(v.preguntas) ? v.preguntas : []; }catch(e){ return []; }
+  }
+  function juntarPreguntas(previas, nuevas, titulo){
+    const vistos = new Set(previas.map(q => claveOpcion(q.enunciado)));
+    const out = previas.slice();
+    nuevas.forEach(q => {
+      const k = claveOpcion(q.enunciado);
+      if(out.length >= MAX_JUNTADAS || vistos.has(k)) return;
+      vistos.add(k);
+      out.push(Object.assign({}, q, { titulo: q.titulo || titulo || null }));
+    });
+    return out;
+  }
+  function guardarPreguntas(l){
+    try{ if(l && l.length) sessionStorage.setItem(CLAVE_PREG, JSON.stringify({ preguntas: l })); else sessionStorage.removeItem(CLAVE_PREG); }catch(e){}
+  }
+
   // ---------- Panel ----------
   const CSS = ':host{all:initial}' +
     '.p{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);width:min(560px,calc(100vw - 16px));max-height:min(78vh,720px);overflow:auto;' +
@@ -492,15 +514,30 @@
     const conOk = preguntas.filter(q => q.correcta != null);
     const s = el('div', { clase: 's' });
     s.appendChild(el('h3', { texto: 'Preguntas en esta página: ' + preguntas.length }));
-    s.appendChild(el('div', { clase: 'suave', texto: conOk.length === preguntas.length ? 'Todas con su respuesta correcta.' :
+    if(preguntas.length) s.appendChild(el('div', { clase: 'suave', texto: conOk.length === preguntas.length ? 'Todas con su respuesta correcta.' :
       conOk.length + ' con su respuesta correcta; las otras ' + (preguntas.length - conOk.length) + ' no se guardan (no sé cuál es la buena).' }));
     const ej = el('ul');
     conOk.slice(0, 3).forEach(q => ej.appendChild(el('li', null, [el('b', { texto: corto(q.enunciado, 90) }), el('br'),
       el('span', { clase: 'suave', texto: '✓ ' + String.fromCharCode(97 + q.correcta) + ') ' + corto(q.opciones[q.correcta], 80) })])));
     s.appendChild(ej);
     const aviso = el('div', { 'aria-live': 'polite' });
-    if(conOk.length) s.appendChild(el('div', { clase: 'bt' }, [el('button', { clase: 'b pri', type: 'button', texto: 'Copiar ' + conOk.length + ' preguntas para pj.fire',
-      onclick: () => copiar(texto('preguntas', { titulo: titulo || null, preguntas: conOk, pagina: sinSesion(location.pathname) }), aviso, s) })]));
+    const previas = leerPreguntas();
+    if(previas.length) s.appendChild(el('div', { clase: 'suave', texto: 'Ya llevas juntadas ' + previas.length + ' de otras correcciones.' }));
+    const todas = () => juntarPreguntas(previas, conOk, titulo);
+    if(conOk.length || previas.length) s.appendChild(el('div', { clase: 'bt' }, [
+      conOk.length ? el('button', { clase: 'b', type: 'button', texto: 'Juntar y seguir', onclick: () => {
+        const l = todas();
+        guardarPreguntas(l);
+        aviso.className = 'ok';
+        aviso.textContent = 'Juntadas: ' + l.length + '. Sigue con tu siguiente test y toca el marcador en su corrección; al final, «Copiar todo».';
+      } }) : null,
+      el('button', { clase: 'b pri', type: 'button', texto: previas.length ? 'Copiar todo para pj.fire' : 'Copiar ' + conOk.length + ' preguntas para pj.fire',
+        onclick: async () => {
+          const l = todas();
+          if(await copiar(texto('preguntas', { titulo: titulo || null, preguntas: l, pagina: sinSesion(location.pathname) }), aviso, s)) guardarPreguntas(null);
+        } }),
+      previas.length ? el('button', { clase: 'b', type: 'button', texto: 'Vaciar lo juntado', onclick: () => { guardarPreguntas(null); aviso.className = 'ok'; aviso.textContent = 'Vaciado.'; } }) : null
+    ]));
     s.appendChild(el('div', { clase: 'suave', texto: 'Solo para tu repaso: en pj.fire quedan en «Mis preguntas», privadas para ti.' }));
     s.appendChild(aviso);
     p.appendChild(s);
@@ -540,12 +577,13 @@
     if(!lineas.length && !items.length && !preguntas.length){
       const previos = agrupar([], leerLista());
       if(previos.total) seccionTests(p, []);
-      else seccionNada(p);
+      if(leerPreguntas().length) seccionPreguntas(p, [], titulo);
+      if(!previos.total && !leerPreguntas().length) seccionNada(p);
     }
     p.appendChild(el('p', { clase: 'suave', texto: 'Nada sale de esta página hasta que pulsas «Copiar»: se copia a tu portapapeles, no se envía a ningún sitio.' }));
   }
 
-  const API = { preguntasDeTexto, limpiar, esTema, esTest, nombreTest, lineasResultado, tituloResultado, agrupar, sinSesion, texto, CABECERA, VERSION };
+  const API = { juntarPreguntas, preguntasDeTexto, limpiar, esTema, esTest, nombreTest, lineasResultado, tituloResultado, agrupar, sinSesion, texto, CABECERA, VERSION };
   if(typeof module !== 'undefined' && module.exports){ module.exports = API; return; }
   try{ principal(); }catch(e){
     try{ alert('pj.fire: el marcador ha fallado en esta página (' + (e && e.message ? e.message : e) + ').'); }catch(x){}

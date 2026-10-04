@@ -580,7 +580,7 @@ try{
     await pagina.click('.pl-tb-card >> text=Pegar de Tutor Bombero');
     await pagina.waitForSelector('.pl-hoja >> text=Preguntas de Tutor Bombero');
     assert.match(await hoja().textContent(), /2 nuevas/);
-    assert.equal(await pagina.$eval('.pl-hoja [name="tema"]', s => s.options[s.selectedIndex].text), 'Tema 1 · Constitución Española', 'el tema sale del título');
+    assert.match(await hoja().textContent(), /2 van a su tema por el nombre de su test/, 'el tema sale del título');
     await captura('25-marcador-preguntas');
     await botonHoja('Guardar 2 preguntas');
     await colaVacia();

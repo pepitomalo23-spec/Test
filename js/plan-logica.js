@@ -1326,7 +1326,7 @@ const PLANL = (function(){
         const correcta = ent(q.correcta, 0, 3);
         if(!enunciado || enunciado.length < 3 || enunciado.length > 2000 || opciones.length < 2 || opciones.length > 4 ||
           opciones.some(x => !x || x.length > 1000) || correcta == null || correcta >= opciones.length){ malas++; return; }
-        preguntas.push({ enunciado, opciones, correcta, explicacion: txt(q.explicacion, 4000) });
+        preguntas.push({ enunciado, opciones, correcta, explicacion: txt(q.explicacion, 4000), titulo: txt(q.titulo, 160) });
       });
       return preguntas.length ? { tipo: 'preguntas', titulo: txt(o.titulo, 160), preguntas, malas } : null;
     }
@@ -1431,10 +1431,16 @@ const PLANL = (function(){
       huellas.add(h); norm.add(n);
       nuevas.push(q);
     });
-    const m = /\btema\s*0*(\d{1,3})\b/i.exec(sinTildes((payload && payload.titulo) || ''));
-    const c = m ? (temas || []).filter(t => t && Number(t.numero) === Number(m[1])) : [];
-    const tema = c.find(t => !t.archivado) || c[0] || null;
-    return { nuevas, repetidas, tema_id: tema ? tema.id : null };
+    // El tema sale del título del test («Tema 5 - Test 2»): el de cada pregunta
+    // (si se juntaron de varios tests) o el de la página.
+    const temaDe = titulo => {
+      const m = /\btema\s*0*(\d{1,3})\b/i.exec(sinTildes(titulo || ''));
+      const c = m ? (temas || []).filter(t => t && Number(t.numero) === Number(m[1])) : [];
+      const t = c.find(x => !x.archivado) || c[0] || null;
+      return t ? t.id : null;
+    };
+    nuevas.forEach(q => { q.tema_id = temaDe(q.titulo || (payload && payload.titulo)); });
+    return { nuevas, repetidas, tema_id: temaDe(payload && payload.titulo) };
   }
   // A qué test y tarea va un resultado traído con el marcador. Primero por el
   // título (si coincide con un test de Tutor Bombero de tu catálogo); si no,

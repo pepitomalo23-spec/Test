@@ -175,3 +175,12 @@ test('leerMarcadorTB y planPreguntasTB: preguntas válidas, sin duplicados y con
   assert.equal(p.repetidas, 2); assert.equal(p.tema_id, 't5');
   assert.equal(P.huellaPregunta('  Hola\n  Mundo '), 'hola mundo');
 });
+
+test('marcador: juntar preguntas de varias correcciones, cada una con su test', () => {
+  const a = M.juntarPreguntas([], [{ enunciado: '¿Uno?', opciones: ['a', 'b'], correcta: 0 }], 'Tema 5 - Test 1');
+  const b = M.juntarPreguntas(a, [{ enunciado: '¿UNO?', opciones: ['a', 'b'], correcta: 0 }, { enunciado: '¿Dos?', opciones: ['a', 'b'], correcta: 1 }], 'Tema 7 - Test 3');
+  assert.deepEqual(b.map(q => [q.enunciado, q.titulo]), [['¿Uno?', 'Tema 5 - Test 1'], ['¿Dos?', 'Tema 7 - Test 3']]);
+  const m = P.leerMarcadorTB(M.texto('preguntas', { titulo: 'Tema 7 - Test 3', preguntas: b }));
+  const p = P.planPreguntasTB(m, [], [{ id: 't5', numero: 5 }, { id: 't7', numero: 7 }]);
+  assert.deepEqual(p.nuevas.map(q => q.tema_id), ['t5', 't7'], 'cada pregunta a su tema');
+});

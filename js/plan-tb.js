@@ -214,11 +214,13 @@ const PLANTB = (function(){
       html: '<p class="pl-hoja-txt">' + (m.titulo ? 'De «' + esc(m.titulo) + '»: ' : '') + '<b>' + plan.nuevas.length + ' nueva' + (plan.nuevas.length === 1 ? '' : 's') + '</b>' +
         (plan.repetidas ? ', ' + plan.repetidas + ' que ya tenías' : '') + (m.malas ? ', ' + m.malas + ' sin respuesta clara (no se guardan)' : '') + '.</p>' +
         (plan.nuevas.length ? '<ul class="pl-lista-txt">' + ej + (plan.nuevas.length > 4 ? '<li class="pl-suave">… y ' + (plan.nuevas.length - 4) + ' más.</li>' : '') + '</ul>' +
-          '<label class="pl-campo"><span>Tema</span><select class="pl-input" name="tema">' + opcionesTema + '</select></label>' +
+          (plan.nuevas.some(q => q.tema_id) ? '<p class="pl-hoja-txt">' + plan.nuevas.filter(q => q.tema_id).length + ' van a su tema por el nombre de su test.</p>' : '') +
+          (plan.nuevas.some(q => !q.tema_id) ? '<label class="pl-campo"><span>Tema para las ' + plan.nuevas.filter(q => !q.tema_id).length + ' que no lo dicen</span><select class="pl-input" name="tema">' + opcionesTema + '</select></label>' : '') +
           '<p class="pl-pie">Van a «Mis preguntas» (Exámenes), privadas para ti, y salen en tus exámenes combinados mezcladas con las del banco. Son para tu repaso: no las compartas.</p>' : ''),
       botones: plan.nuevas.length ? [{ texto: 'Guardar ' + plan.nuevas.length + ' pregunta' + (plan.nuevas.length === 1 ? '' : 's'), clase: 'primario', accion: api => {
-        const tema = api.el.querySelector('[name="tema"]').value || null;
-        plan.nuevas.forEach(q => PLAN.guardar('plan_preguntas', { id: PLAN.uid(), tema_id: tema, fuente: 'tutor_bombero', referencia: m.titulo ? m.titulo.slice(0, 160) : null,
+        const sel = api.el.querySelector('[name="tema"]');
+        const tema = sel ? sel.value || null : null;
+        plan.nuevas.forEach(q => PLAN.guardar('plan_preguntas', { id: PLAN.uid(), tema_id: q.tema_id || tema, fuente: 'tutor_bombero', referencia: (q.titulo || m.titulo || '').slice(0, 160) || null,
           enunciado: q.enunciado, opciones: q.opciones, correcta: q.correcta, explicacion: q.explicacion || null, archivada: false }));
         uiToast('Guardadas ' + plan.nuevas.length + ' preguntas en «Mis preguntas».', 'success');
         PLAN.repintar();
