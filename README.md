@@ -185,11 +185,19 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   worker guarda las páginas vistas con los datos del usuario (se borran al cerrar sesión).
 
 - La pantalla del Callejero son solo tres botones grandes, y cada uno abre su pantalla (con «‹» para volver):
-  **Lo que te ha mandado** (las tareas sin terminar y las hechas), **Repasar lo estudiado** (arriba: «Preguntas
-  del temario» sin mapa —de lo que ha mandado el profesor o, si no hay, de todo el temario—, «Distritos en el
-  mapa» y «Barrios en el mapa»; debajo, cada modo y el temario con lo que toca hoy) y **Aprender** (calles nuevas por modo, con la zona; las fichas del temario; y
-  «Mapa libre y todos los modos»). Si el profesor ha mandado algo nuevo, al entrar sale una ventanita
-  («Estudiar esto» abre solo esa tarea; una vez por sesión).
+  **Lo que te ha mandado** (las tareas sin terminar y las hechas), **Repasar lo estudiado** y **Aprender**.
+  Si el profesor ha mandado algo nuevo, al entrar sale una ventanita («Estudiar esto» abre solo esa tarea; una
+  vez por sesión).
+- **Aprender**: para ver en el mapa y saber cómo se llama cada cosa (se toca o se elige de la lista): los
+  distritos (de colores, con su nombre), los barrios (con su nombre, de cerca), todas las calles (mapa libre de
+  Córdoba, sin lo del profesor), plazas y glorietas, y los lugares por grupos (colegios, salud, parques,
+  monumentos, edificios públicos, ocio, transporte…); y el temario de la academia. Usa el visor del temario
+  (`verTemario`), que admite elementos con varios barrios (un distrito), colores y nombres sobre el mapa.
+- **Repasar lo estudiado**: arriba, «Todo lo dado hasta ahora» (las preguntas del temario ya respondidas y las
+  calles ya estudiadas en cualquier modo; para las calles se elige antes cómo preguntarlas: 4 nombres,
+  señalándolas, diciendo el nombre, cruces o parque); después «Preguntas del temario» sin mapa —de lo que ha
+  mandado el profesor o, si no hay, de todo el temario—, «Distritos en el mapa» y «Barrios en el mapa»; y
+  debajo, cada modo y el temario con lo que toca hoy.
 - «Distritos en el mapa» y «Barrios en el mapa» (modos `mapadistritos` y `mapabarrios`): todos a la vez, cada
   uno de un color y sin nombres (los barrios de al lado, de colores distintos), y se toca el que se pide. Sus
   respuestas se guardan con el modo `barrios` (misma habilidad e ids), así que no hace falta tocar la base de datos.

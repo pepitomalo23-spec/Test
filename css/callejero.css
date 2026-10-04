@@ -817,3 +817,5 @@
   #screen-callejero.cj-sin-mapa .cj-opciones:not(.cj-opciones-dos){ grid-template-columns:1fr; }
   #screen-callejero.cj-completa.cj-sin-mapa #cjJuego{ overflow-y:auto; padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
   #screen-callejero.cj-completa.cj-sin-mapa :is(.cj-cabeza, .cj-mapa-wrap){ position:static; max-width:640px; margin:0 auto; }
+  .cj-grande.cj-todo{ margin-bottom:14px; }
+  .cj-marcado-nombre.cj-nombre-chico span{ font-size:10.5px; font-weight:600; padding:1px 6px; background: rgba(11,18,32,.7); }

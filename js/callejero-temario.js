@@ -1307,6 +1307,18 @@ const CJT = (function(){
     if(!ids.size){ uiToast('No tienes nada del temario por repasar.', 'info'); return; }
     preguntar(comprimir(ids), null, nombreClave('repaso'), 'f:repaso');
   }
+  // Repasar todo lo dado del temario: lo que ya ha respondido alguna vez.
+  function vistas(){
+    const prog = CJ.progreso();
+    return T.fichas.flatMap(itemsDeFicha).filter(x => preguntable(x) && estado(prog, x) !== 'nueva');
+  }
+  function contarVistas(){ return T ? new Set(vistas().map(x => x.id)).size : null; }
+  function preguntarVistas(){
+    if(!T){ asegurar(); uiToast('Cargando el temario…', 'info'); return; }
+    const ids = new Set(vistas().map(x => x.id));
+    if(!ids.size){ uiToast('Todavía no has respondido preguntas del temario.', 'info'); return; }
+    preguntar(comprimir(ids), null, 'Todo lo dado del temario', 'f:vistas');
+  }
   function fuente(){ return T ? T.fuente + (T.faltan && T.faltan.length ? ' Faltan las fichas de ' + T.faltan.join(', ') + '.' : '') : ''; }
 
   // Para el profesor, en su pestaña «Temario»: todo el temario, para verlo y mandarlo.
@@ -1521,7 +1533,7 @@ const CJT = (function(){
 
   return {
     cargar, listo, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
-    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, fuente, reintentar, geoClaves,
+    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
     clicPlano, pintarPlano, marcarPlano, verEnPlano
