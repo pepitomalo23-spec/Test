@@ -121,6 +121,13 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   habilidad `memoria` (migración `20261003_callejero_barrios.sql`). La migración
   `20261003_callejero_calle3d.sql` deja guardar estos modos en las tareas del profesor (antes no se
   podían); también nombra `calle3d`, de un modo en 3D que se probó y se quitó, y que ya no se usa.
+- **Hoy**: las tareas del profesor, **Repaso** y **Aprender por niveles**. Aprender: cada calle sube por cuatro
+  niveles de modo de juego, de más fácil a más difícil (1 ¿Cómo se llama?, 2 Localiza la calle, 3 Cruces y
+  paralelas, 4 ¿Qué parque acude?; se salta el nivel que no tiene sentido para esa calle) y pasa uno cuando lo
+  domina. Las calles nuevas salen de la más fácil a la más difícil: más larga (hasta 2,5 km), de tipo importante
+  (avenida, ronda, plaza…) y cerca del centro; lo de fuera de los barrios, al final. Repaso: todo lo estudiado
+  vuelve cada vez más espaciado (1, 3, 7, 15 y 30 días según la racha de aciertos; si se falla, enseguida).
+  Todo se calcula con `callejero_progreso` (la fecha de la última respuesta): no guarda nada nuevo.
 - Pantalla, de arriba abajo: tareas del profesor, qué estudiar (zona), progreso, Aprender (modo estudio),
   Practicar (¿Cómo se llama?, Di el nombre, Localiza la calle), Relacionar (cruces y paralelas), Servicio
   (lugares y parque) y las últimas rondas.

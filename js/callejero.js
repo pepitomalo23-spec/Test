@@ -380,6 +380,7 @@ const CJ = (function(){
     const p = prog.get(k) || { intentos: 0, aciertos: 0, racha: 0, fallos: 0 };
     p.intentos++;
     if(acierto){ p.aciertos++; p.racha++; } else { p.fallos++; p.racha = 0; }
+    p.ultima = Math.floor(Date.now() / 1000);
     prog.set(k, p);
   }
   // Filas de callejero_progreso: [id, habilidad, intentos, aciertos, racha, fallos, última vez]
@@ -1690,7 +1691,7 @@ const CJ = (function(){
     const activas = tareasActivas();
     const porHacer = activas.filter(x => !tareaHecha(x));
     return (activas.length ? '<div class="cj-seccion">De tu profesor</div>' + porHacer.map(tarjetaTarea).join('') + tarjetaAcumulado() : '') +
-      (soloEsto() ? AVISO_SOLO : tarjetaHoy(activas.length > 0));
+      (soloEsto() ? AVISO_SOLO : tarjetasAprender());
   }
   // Lo que más conviene hacer ahora: repasar lo fallado (temario o calles),
   // seguir con la última ficha o empezar por la General. Y un resumen.
@@ -1723,6 +1724,174 @@ const CJ = (function(){
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>' +
       '</button>';
   }
+  /* ---------- Aprender por niveles y Repaso ---------- */
+  // Cada calle sube por cuatro niveles, de más fácil a más difícil: 1 ¿Cómo
+  // se llama? (4 opciones), 2 Localiza la calle, 3 Cruces y paralelas y
+  // 4 ¿Qué parque acude? Pasa un nivel cuando lo domina (la regla de siempre:
+  // sin fallos o 3 seguidas bien). Las calles nuevas salen de la más fácil
+  // (rondas, avenidas, las largas de la ciudad) a la más difícil (pasajes,
+  // afueras). Todo lo ya estudiado vuelve en el Repaso cada vez más espaciado
+  // (1, 3, 7, 15 y 30 días; si se falla, enseguida). Todo sale de
+  // callejero_intentos: no hace falta guardar nada más.
+  const NIVELES = [
+    { modo: 'opciones', titulo: '¿Cómo se llama?', desc: 'Eliges entre 4 nombres' },
+    { modo: 'localiza', titulo: 'Localiza la calle', desc: 'Te doy el nombre y la tocas' },
+    { modo: 'cruces', titulo: 'Cruces y paralelas', desc: 'Con qué calles se cruza' },
+    { modo: 'parque', titulo: '¿Qué parque acude?', desc: 'Central o Granadal' }
+  ];
+  const NUEVAS_POR_RONDA = 10;
+  const DIAS_REPASO = [0, 1, 3, 7, 15, 30];
+  const PESO_TIPO = { AVENIDA: 3, RONDA: 3, PASEO: 3, BULEVAR: 3, PLAZA: 2.5, GLORIETA: 2, CALLE: 1, PASAJE: 0.5, CALLEJA: 0.5, TRAVESIA: 0.6,
+    AUTOVIA: 0.3, CARRETERA: 0.3, URBANIZACION: 0.3, ENLACE: 0.2, CAMINO: 0.2, FINCA: 0.1, DISEMINADO: 0.1, VEREDA: 0.1 };
+  let limiteRonda = null;    // calles (en orden) de la próxima ronda guiada
+  let guiaPendiente = null;  // qué ronda guiada se está preparando
+  let rondaGuiada = null;    // { tipo: 'nivel', n } | { tipo: 'repaso' } de la ronda en curso
+  let cacheCalles = null;    // { clave, calles }
+  function largoDe(v){
+    if(v._largo === undefined){
+      let m = 0;
+      v.lineas.forEach(l => { for(let k = 1; k < l.length; k++) m += Math.hypot((l[k][0] - l[k - 1][0]) * 111000, (l[k][1] - l[k - 1][1]) * 88000); });
+      v._largo = m;
+    }
+    return v._largo;
+  }
+  // Las calles de la zona (una por nombre: su tramo más largo), de la más
+  // fácil a la más difícil.
+  function callesOrdenadas(){
+    const clave = datos.version + '|' + zona;
+    if(cacheCalles && cacheCalles.clave === clave) return cacheCalles.calles;
+    const grupos = new Map();
+    datos.jugables.filter(enZona).forEach(v => {
+      const g = grupos.get(v.nombre) || { rep: v, largo: 0 };
+      g.largo += largoDe(v);
+      if(largoDe(v) > largoDe(g.rep)) g.rep = v;
+      grupos.set(v.nombre, g);
+    });
+    // Más fácil: más larga (hasta 2,5 km: una carretera de 30 km no es más
+    // conocida), de un tipo importante (avenida, ronda, plaza) y cerca del
+    // centro; lo de fuera de los barrios, al final.
+    const puntos = g => {
+      const c = g.rep.caja, km = Math.hypot(((c.s + c.n) / 2 - CENTRO[0]) * 111, ((c.o + c.e) / 2 - CENTRO[1]) * 88);
+      return Math.min(g.largo, 2500) * (PESO_TIPO[g.rep.tipo] || 1) * (km < 3.5 ? 1 : km < 6 ? 0.4 : 0.03) * (g.rep.barrios.length ? 1 : 0.05);
+    };
+    const calles = [...grupos.values()].sort((a, b) => puntos(b) - puntos(a)).map(g => g.rep);
+    cacheCalles = { clave, calles };
+    return calles;
+  }
+  function estadoNivel(n, v){ return estadoDe(progreso.get(claveP(HABILIDAD[NIVELES[n].modo], v.id))); }
+  // ¿Tiene sentido este nivel para esta calle? (sin cruces o sin parque, se salta)
+  function aplica(n, v){
+    if(n === 2) return [...crucesDe(v)].some(w => w.jugable);
+    if(n === 3) return !!v.parque;
+    return true;
+  }
+  function pasado(n, v){ return !aplica(n, v) || estadoNivel(n, v) === 'dominada'; }
+  function listaPara(n, v){ for(let k = 0; k < n; k++) if(!pasado(k, v)) return false; return aplica(n, v); }
+  // Por nivel: cuántas calles han llegado, cuántas lo dominan y cuántas esperan.
+  function resumenNiveles(){
+    const calles = callesOrdenadas();
+    return NIVELES.map((nv, n) => {
+      let llegadas = 0, dominadas = 0, pendientes = 0, nuevas = 0;
+      calles.forEach(v => {
+        if(!listaPara(n, v)) return;
+        llegadas++;
+        const e = estadoNivel(n, v);
+        if(e === 'dominada') dominadas++; else if(e === 'nueva') nuevas++; else pendientes++;
+      });
+      return { n, llegadas, dominadas, pendientes, nuevas, total: n === 0 ? calles.length : llegadas };
+    });
+  }
+  // Las calles de una ronda del nivel n: primero lo que se está aprendiendo
+  // (fallado o a medias) y luego las nuevas, de la más fácil a la más difícil.
+  function callesDeNivel(n){
+    const enCurso = [], nuevas = [];
+    callesOrdenadas().forEach(v => {
+      if(!listaPara(n, v)) return;
+      const e = estadoNivel(n, v);
+      if(e === 'fallada' || e === 'progreso') enCurso.push(v);
+      else if(e === 'nueva') nuevas.push(v);
+    });
+    const cupo = Math.max(NUEVAS_POR_RONDA, PREGUNTAS_POR_RONDA - enCurso.length);
+    return enCurso.slice(0, PREGUNTAS_POR_RONDA).concat(nuevas.slice(0, Math.min(cupo, PREGUNTAS_POR_RONDA))).slice(0, PREGUNTAS_POR_RONDA + 5);
+  }
+  // El nivel que toca: el primero con algo a medias o con calles nuevas.
+  function nivelQueToca(r){
+    r = r || resumenNiveles();
+    const a = r.find(x => x.pendientes > 0);
+    if(a) return a.n;
+    const b = r.find(x => x.nuevas > 0);
+    return b ? b.n : 0;
+  }
+  // Repaso: lo estudiado (de los cuatro niveles) a lo que ya le toca volver.
+  function porRepasar(){
+    const ahora = Date.now();
+    const porModo = {};
+    let total = 0, proxima = null;
+    callesOrdenadas().forEach(v => NIVELES.forEach((nv, n) => {
+      const p = progreso.get(claveP(HABILIDAD[nv.modo], v.id));
+      if(!p || !p.intentos || !aplica(n, v)) return;
+      const toca = (Number(p.ultima) || 0) * 1000 + DIAS_REPASO[Math.min(p.racha, DIAS_REPASO.length - 1)] * 864e5;
+      if(toca <= ahora){ (porModo[nv.modo] = porModo[nv.modo] || []).push({ v, toca }); total++; }
+      else if(proxima === null || toca < proxima) proxima = toca;
+    }));
+    Object.values(porModo).forEach(l => l.sort((a, b) => a.toca - b.toca));
+    return { total, porModo, proxima };
+  }
+  async function empezarGuiada(m, vias, guia){
+    if(!vias.length){ uiToast('No hay calles para esto en ' + nombreZona() + '.', 'info'); return; }
+    limiteRonda = vias;
+    guiaPendiente = guia;
+    try{ await empezar(m); }
+    finally{ limiteRonda = null; guiaPendiente = null; }
+  }
+  function aprender(n){
+    if(!datos) return;
+    n = n === undefined || n === null ? nivelQueToca() : Number(n);
+    empezarGuiada(NIVELES[n].modo, callesDeNivel(n), { tipo: 'nivel', n });
+  }
+  function repasar(){
+    if(!datos) return;
+    const r = porRepasar();
+    const modos = Object.keys(r.porModo).sort((a, b) => r.porModo[b].length - r.porModo[a].length);
+    if(!modos.length){ uiToast('Hoy no tienes nada para repasar.', 'info'); return; }
+    empezarGuiada(modos[0], r.porModo[modos[0]].slice(0, PREGUNTAS_POR_RONDA + 5).map(x => x.v), { tipo: 'repaso' });
+  }
+  function seguirGuiada(){
+    const g = rondaGuiada;
+    if(g && g.tipo === 'repaso') repasar(); else aprender(null);
+  }
+  function tarjetasAprender(){
+    if(!datos) return '<div class="cj-card">' + skelList(2) + '</div>';
+    const r = porRepasar();
+    const niveles = resumenNiveles();
+    const toca = nivelQueToca(niveles);
+    const n = k => k.toLocaleString('es-ES');
+    const diaProx = r.proxima ? Math.max(1, Math.ceil((r.proxima - Date.now()) / 864e5)) : null;
+    const repaso = '<div class="cj-seccion">Repaso</div><div class="cj-card cj-repaso">' +
+      (r.total
+        ? '<button type="button" class="cj-hoy-btn" onclick="CJ.repasar()"><span class="cj-hoy-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg></span>' +
+          '<span class="cj-hoy-txt"><b>Repasar ' + n(r.total) + '</b><small>Lo que ya has estudiado y hoy toca recordar</small></span></button>'
+        : '<div class="cj-repaso-vacio">' + (diaProx ? 'Nada para repasar hoy. Lo siguiente vuelve ' + (diaProx === 1 ? 'mañana' : 'en ' + diaProx + ' días') + '.' : 'Aquí se irá juntando todo lo que estudies, para repasarlo cuando toque.') + '</div>') +
+      '</div>';
+    const filas = niveles.map(x => {
+      const nv = NIVELES[x.n];
+      const pct = x.total ? Math.round(x.dominadas / x.total * 100) : 0;
+      const bloqueado = x.n > 0 && !x.llegadas;
+      return '<button type="button" class="cj-nivel' + (x.n === toca ? ' toca' : '') + (bloqueado ? ' bloq' : '') + '"' + (bloqueado ? ' disabled' : ' onclick="CJ.aprender(' + x.n + ')"') + '>' +
+        '<span class="cj-nivel-n">' + (x.n + 1) + '</span>' +
+        '<span class="cj-nivel-txt"><b>' + escapeHtml(nv.titulo) + '</b><small>' +
+          (bloqueado ? 'Se abre al dominar calles del nivel ' + x.n : n(x.dominadas) + ' de ' + n(x.total) + ' calles' + (x.pendientes ? ' · ' + n(x.pendientes) + ' a medias' : '')) + '</small>' +
+          '<span class="cj-nivel-barra"><span style="width:' + pct + '%"></span></span></span></button>';
+    }).join('');
+    return repaso +
+      '<div class="cj-seccion">Aprender</div><div class="cj-card cj-aprender">' +
+        '<button type="button" class="cj-hoy-btn" onclick="CJ.aprender()"><span class="cj-hoy-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg></span>' +
+          '<span class="cj-hoy-txt"><b>Seguir aprendiendo</b><small>Nivel ' + (toca + 1) + ' · ' + escapeHtml(NIVELES[toca].titulo) + ' · de lo más fácil a lo más difícil</small></span></button>' +
+        '<div class="cj-niveles">' + filas + '</div>' +
+        '<div class="cj-aprender-zona">' + selectorZona() + '</div>' +
+      '</div>';
+  }
+
   // Calles y lugares por repasar (la última vez mal) de la zona elegida, y el modo que más lo necesita.
   const MODO_DE_HAB = { nombre: 'opciones', localiza: 'localiza', cruces: 'cruces', lugares: 'lugares', parque: 'parque' };
   const ID_TEMARIO = 5000000000000;
@@ -2047,7 +2216,7 @@ const CJ = (function(){
   // (cada modo mira su habilidad): primero las falladas (hasta el 40 %) y
   // las que están en progreso (hasta el 20 %), luego las que no han salido
   // nunca, luego las dominadas y al final el resto de falladas y en progreso.
-  function ordenarPorRepaso(items, idDe, m){
+  function ordenarPorRepasoBase(items, idDe, m){
     const hab = HABILIDAD[m] || 'nombre';
     const grupos = { fallada: [], progreso: [], nueva: [], dominada: [] };
     items.forEach(x => grupos[estadoDe(progreso.get(claveP(hab, idDe(x))))].push(x));
@@ -2167,7 +2336,10 @@ const CJ = (function(){
 
   function crearPreguntas(m){
     const n = PREGUNTAS_POR_RONDA;
-    const vias = datos.jugables.filter(enZona);
+    // Ronda guiada (Aprender por niveles o Repaso): sus calles, en su orden.
+    const fijo = limiteRonda;
+    const vias = fijo || datos.jugables.filter(enZona);
+    const ordenarPorRepaso = (items, idDe, mm) => fijo ? items : ordenarPorRepasoBase(items, idDe, mm);
     if(m === 'localiza'){
       return sinRepetirNombre(ordenarPorRepaso(vias, v => v.id, m), n, v => ({ via: v, id: v.id, etiqueta: 'Localiza', texto: v.nombre, nombre: v.nombre }));
     }
@@ -2245,7 +2417,7 @@ const CJ = (function(){
     }
     if(m === 'parque'){
       const items = vias.filter(v => v.parque).map(v => ({ via: v, nombre: v.nombre, id: v.id, parque: v.parque }))
-        .concat(datos.lugares.filter(l => l.parque && enZonaLugar(l)).map(l => ({ lugar: l, nombre: l.nombre, id: -l.id, parque: l.parque })));
+        .concat(fijo ? [] : datos.lugares.filter(l => l.parque && enZonaLugar(l)).map(l => ({ lugar: l, nombre: l.nombre, id: -l.id, parque: l.parque })));
       return sinRepetirNombre(ordenarPorRepaso(items, x => x.id, m), n, x => Object.assign({}, x, {
         etiqueta: '¿Qué parque de bomberos acude?', texto: x.nombre + (x.lugar ? ' · ' + x.lugar.categoria : ''),
         opciones: [PARQUES[1], PARQUES[2]], correcta: x.parque - 1
@@ -2267,6 +2439,8 @@ const CJ = (function(){
     actualizarFiltro();
     if(m === 'nombrar'){ desdeTemario = vistaActual === 'temario'; await empezarNombrar(); return; }
     const preguntas = crearPreguntas(m);
+    rondaGuiada = limiteRonda ? guiaPendiente : null;
+    limiteRonda = null;
     if(!preguntas.length){ uiToast('No hay preguntas de este tipo en esta zona.', 'info'); return; }
     const t = tareaDeZona();
     // Desde una ficha del temario (sus calles), al acabar se vuelve a ella.
@@ -3325,7 +3499,8 @@ const CJ = (function(){
               (m === 'temario' && q.resumen && q.respuesta === 'opciones' ? ' <span class="cj-dir">· ' + escapeHtml(q.resumen) + '</span>' : '') + '</li>').join('') + '</ul>'
           : '<div class="cj-fin-sub">¡Todas bien!</div>') +
         '<div class="cj-fin-actions">' +
-          '<button type="button" class="btn btn-primary btn-light" onclick="' + (m === 'temario' ? 'CJ.otraRonda()' : 'CJ.empezar(\'' + m + '\')') + '">Otra ronda</button>' +
+          '<button type="button" class="btn btn-primary btn-light" onclick="' + (m === 'temario' ? 'CJ.otraRonda()' : rondaGuiada ? 'CJ.seguirGuiada()' : 'CJ.empezar(\'' + m + '\')') + '">' +
+            (rondaGuiada && rondaGuiada.tipo === 'repaso' ? 'Seguir repasando' : rondaGuiada ? 'Seguir aprendiendo' : 'Otra ronda') + '</button>' +
           '<button type="button" class="btn btn-ghost" onclick="CJ.salir()">Volver</button>' +
         '</div>' +
       '</div>';
@@ -3374,7 +3549,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, repasarCalles, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)
@@ -3382,6 +3557,7 @@ const CJ = (function(){
     progresoDesdeFilas, tarjetaProgreso, detalleProgreso, rondasHtml, estadoDe, claveP, prepararTareas, describirTarea, textoRondas, tareaHecha, fechaCorta,
     tieneCalles, filtroZona,
     // temario (js/callejero-temario.js)
-    empezarTemario, otraRonda, responderPlano, ordenarPorRepaso, PREGUNTAS_POR_RONDA, esTemario,
+    empezarTemario, otraRonda, responderPlano, PREGUNTAS_POR_RONDA, esTemario,
+    ordenarPorRepaso: ordenarPorRepasoBase,
     progreso: () => progreso, tareas: () => tareasActivas(), repintar: () => { if(vistaActual === 'inicio') pintarInicio(); } };
 })();
