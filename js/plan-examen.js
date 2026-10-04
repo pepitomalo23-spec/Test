@@ -150,7 +150,7 @@ const PLANX = (function(){
     if(hechos.length){
       html += '<section class="pl-card"><h2 class="pl-seccion">Últimos exámenes</h2>' + hechos.map(r =>
         '<button type="button" class="pl-mini" onclick="PLANX.verExamen(\'' + idAttr(r.id) + '\')"><span class="pl-mini-txt"><b>' + esc(r.titulo || 'Examen') + '</b><small>' +
-        esc(PLANL.fechaCorta(PLANL.hoy(new Date(r.realizado_at)))) + ' · nota ' + esc(r.nota == null ? '—' : formatNota(r.nota)) + ' · ' + (r.aciertos || 0) + ' ✓ ' + (r.fallos || 0) + ' ✗</small></span></button>').join('') + '</section>';
+        esc(PLANL.fechaCorta(PLANL.hoy(new Date(Date.parse(r.realizado_at) || Date.now())))) + ' · nota ' + esc(r.nota == null ? '—' : formatNota(r.nota)) + ' · ' + (Number(r.aciertos) || 0) + ' ✓ ' + (Number(r.fallos) || 0) + ' ✗</small></span></button>').join('') + '</section>';
     }
     el.innerHTML = html;
   }
@@ -341,7 +341,7 @@ const PLANX = (function(){
       '<div class="plx-progreso"><b>Corrección</b></div></div>' +
       '<h1 class="plx-titulo">' + esc(corregido.titulo) + '</h1>' +
       '<div class="plx-resumen"><div class="plx-nota"><span>Nota</span><b>' + formatNota(c.nota || 0) + '</b></div>' +
-      '<div class="plx-cuentas"><span class="c-ok">' + c.aciertos + ' aciertos</span><span class="c-bad">' + c.fallos + ' fallos</span><span class="c-pending">' + c.blancos + ' en blanco</span></div></div>' +
+      '<div class="plx-cuentas"><span class="c-ok">' + (Number(c.aciertos) || 0) + ' aciertos</span><span class="c-bad">' + (Number(c.fallos) || 0) + ' fallos</span><span class="c-pending">' + (Number(c.blancos) || 0) + ' en blanco</span></div></div>' +
       '<p class="pl-suave">Guardado en tu plan' + (preguntas.some(p => String(p.k).startsWith('b:')) ? '; las del banco cuentan también en Legislación (Fallos y Estadísticas)' : '') + '.</p>' +
       (fallosK.length ? '<div class="pl-acciones"><button type="button" class="btn btn-primary" onclick="PLANX.repasarFallosCorreccion()">Repasar estos ' + fallosK.length + ' fallos</button></div>' : '') +
       '<div class="plx-lista">' + preguntas.map((p, i) => htmlCorregida(p, respuestas[i], c.detalle[i].ok, i)).join('') + '</div>' +
@@ -393,10 +393,10 @@ const PLANX = (function(){
     det.forEach(x => {
       const p = preguntaDeClave(x.k, mapa);
       if(!p){ perdidas++; return; }
-      preguntas.push(p); respuestas.push(x.s == null ? null : x.s); dets.push({ ok: x.ok });
+      preguntas.push(p); respuestas.push(Number.isInteger(x.s) ? x.s : null); dets.push({ ok: x.ok === true ? true : x.ok === false ? false : null });
     });
-    corregido = { titulo: (r.titulo || 'Examen') + ' · ' + PLANL.fechaCorta(PLANL.hoy(new Date(r.realizado_at))), preguntas, respuestas,
-      c: { aciertos: r.aciertos || 0, fallos: r.fallos || 0, blancos: r.blancos || 0, nota: r.nota, detalle: dets }, resultadoId: r.id };
+    corregido = { titulo: (r.titulo || 'Examen') + ' · ' + PLANL.fechaCorta(PLANL.hoy(new Date(Date.parse(r.realizado_at) || Date.now()))), preguntas, respuestas,
+      c: { aciertos: Number(r.aciertos) || 0, fallos: Number(r.fallos) || 0, blancos: Number(r.blancos) || 0, nota: Number(r.nota) || 0, detalle: dets }, resultadoId: r.id };
     showScreen('screen-plan-examen');
     pintarCorreccion();
     if(perdidas) uiToast(plural(perdidas, 'pregunta ya no existe', 'preguntas ya no existen') + ' y no se muestra' + (perdidas === 1 ? '' : 'n') + '.', 'info');
@@ -408,13 +408,6 @@ const PLANX = (function(){
      ============================================================ */
   function verPreguntas(){ vista = 'preguntas'; PLAN.repintar(); }
   function renderPreguntas(el){
-    const d = D();
-    const q = PLANL.normalizar(filtroP.texto);
-    const lista = d.preguntas.filter(p => !p.archivada || filtroP.fuente === 'archivadas')
-      .filter(p => filtroP.fuente === 'archivadas' ? p.archivada : (!filtroP.fuente || p.fuente === filtroP.fuente))
-      .filter(p => !filtroP.tema || (filtroP.tema === 'sin' ? !p.tema_id : p.tema_id === filtroP.tema))
-      .filter(p => !q || PLANL.normalizar(p.enunciado + ' ' + (p.referencia || '')).includes(q))
-      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
     el.innerHTML = '<button type="button" class="pl-enlace pl-volver" onclick="PLANX.volverInicio()">‹ Volver a Exámenes</button>' +
       '<h2 class="pl-h2">Mis preguntas</h2>' +
       '<div class="pl-barra-tests"><input class="pl-input" type="search" id="plxBuscar" placeholder="Buscar…" value="' + esc(filtroP.texto) + '" aria-label="Buscar en mis preguntas" autocomplete="off">' +
@@ -423,19 +416,24 @@ const PLANX = (function(){
       '<select class="pl-input plx-sel" id="plxFuente" aria-label="Fuente"><option value="">Todas las fuentes</option>' +
       ['propia', 'tutor_bombero', 'otra'].map(f => '<option value="' + f + '"' + (filtroP.fuente === f ? ' selected' : '') + '>' + esc(FUENTES[f]) + '</option>').join('') +
       '<option value="archivadas"' + (filtroP.fuente === 'archivadas' ? ' selected' : '') + '>Archivadas</option></select>' +
-      '<button type="button" class="btn btn-primary" onclick="PLANX.editarPregunta()">+ Nueva pregunta</button></div>' +
-      (lista.length ? lista.map(p => '<div class="pl-fila"><div class="pl-fila-txt"><b class="plx-corta">' + esc(p.enunciado) + '</b><span>' + etiquetaFuente(p.fuente, p.referencia) + ' · ' +
+      '<button type="button" class="btn btn-primary" onclick="PLANX.editarPregunta()">+ Nueva pregunta</button></div><div id="plxListaP"></div>';
+    const lista = el.querySelector('#plxListaP');
+    el.querySelector('#plxBuscar').addEventListener('input', ev => { filtroP.texto = ev.target.value.slice(0, 100); listaPreguntas(lista); });
+    el.querySelector('#plxTema').addEventListener('change', ev => { filtroP.tema = ev.target.value; listaPreguntas(lista); });
+    el.querySelector('#plxFuente').addEventListener('change', ev => { filtroP.fuente = ev.target.value; listaPreguntas(lista); });
+    listaPreguntas(lista);
+  }
+  function listaPreguntas(el){
+    const d = D();
+    const q = PLANL.normalizar(filtroP.texto);
+    const lista = d.preguntas.filter(p => !p.archivada || filtroP.fuente === 'archivadas')
+      .filter(p => filtroP.fuente === 'archivadas' ? p.archivada : (!filtroP.fuente || p.fuente === filtroP.fuente))
+      .filter(p => !filtroP.tema || (filtroP.tema === 'sin' ? !p.tema_id : p.tema_id === filtroP.tema))
+      .filter(p => !q || PLANL.normalizar(p.enunciado + ' ' + (p.referencia || '')).includes(q))
+      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    el.innerHTML = (lista.length ? lista.map(p => '<div class="pl-fila"><div class="pl-fila-txt"><b class="plx-corta">' + esc(p.enunciado) + '</b><span>' + etiquetaFuente(p.fuente, p.referencia) + ' · ' +
         esc(PLAN.nombreTema(p.tema_id)) + '</span></div><button type="button" class="btn btn-ghost" onclick="PLANX.editarPregunta(\'' + idAttr(p.id) + '\')">Editar</button></div>').join('')
         : '<div class="pl-vacio">' + (d.preguntas.length ? 'Ninguna pregunta coincide.' : 'Aún no tienes preguntas propias.') + '</div>');
-    const buscar = el.querySelector('#plxBuscar');
-    buscar.addEventListener('input', () => {
-      filtroP.texto = buscar.value.slice(0, 100);
-      renderPreguntas(el);
-      const b = el.querySelector('#plxBuscar');
-      b.focus(); try{ b.setSelectionRange(b.value.length, b.value.length); }catch(e){}
-    });
-    el.querySelector('#plxTema').addEventListener('change', ev => { filtroP.tema = ev.target.value; renderPreguntas(el); });
-    el.querySelector('#plxFuente').addEventListener('change', ev => { filtroP.fuente = ev.target.value; renderPreguntas(el); });
   }
   function volverInicio(){ vista = 'inicio'; PLAN.repintar(); }
 

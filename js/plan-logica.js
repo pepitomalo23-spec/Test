@@ -335,6 +335,8 @@ const PLANL = (function(){
     if(a == null || a < 0) return null;
     let f = num(r.fallos), b = num(r.blancos);
     const tot = num(r.total);
+    // Sin fallos ni total no se sabe sobre cuántas preguntas: no hay %.
+    if(f == null && tot == null) return null;
     if(tot != null){
       if(f != null && b == null && tot - a - f >= 0) b = tot - a - f;
       else if(b != null && f == null && tot - a - b >= 0) f = tot - a - b;
@@ -378,7 +380,11 @@ const PLANL = (function(){
       }
       return { tipo: 'completado_hoy', tarea: hechaHoy, resultado: res };
     }
-    if(suyos.length && a.reglas.evitar_repetir) return { tipo: 'repetido', resultado: suyos[suyos.length - 1] };
+    // Ya hecho otro día: con resultado o completado sin nota.
+    const hechaAntes = suyas.filter(function(t){ return t.estado === 'completado'; }).sort(cmpFechaPrioridad);
+    if((suyos.length || hechaAntes.length) && a.reglas.evitar_repetir){
+      return { tipo: 'repetido', resultado: suyos[suyos.length - 1] || null, tarea: hechaAntes[hechaAntes.length - 1] || null };
+    }
     if(!a.reglas.avisar_fuera_plan) return { tipo: 'libre' };
     // Fuera del plan de hoy: la próxima abierta de otro día o, si no hay, la atrasada más reciente.
     const futuras = suyas.filter(function(t){ const f = fechaDe(t); return abierta(t) && f && f > h; }).sort(cmpFechaPrioridad);
@@ -1056,12 +1062,10 @@ const PLANL = (function(){
 
     // 3) Lo que quedó suelto.
     porLinea.forEach(function(toks){
-      const hayCuentas = toks.some(function(x){ return x.tipo === 'et' && CUENTAS[x.cat]; });
       toks.forEach(function(n){
         if(n.tipo !== 'num' || n.usado) return;
+        // Un «%» suelto no se toma como nota: puede ser el % de aciertos.
         if(n.comp === '/') compuestosSueltos.push(n);
-        // «64,5 %» suelto es la nota sobre 100, salvo junto a un recuento («Aciertos: 18 (60 %)»).
-        else if(n.pct && !hayCuentas && res.nota == null && n.v <= 100) res.nota = notaDeNumero(n);
       });
     });
     // «18/30»: aciertos/total, si no había otros aciertos; «6,45/10» suelto, la nota.

@@ -250,7 +250,7 @@ async function finishQuizInner(){
   if(quizState.ctx && quizState.ctx.plan && typeof PLAN !== 'undefined'){
     try{
       PLAN.alTerminarTest({
-        ctx: quizState.ctx.plan, sessionId, nota: notaNum, total, ok: quizState.correctCount, bad, blank, elapsedSec,
+        ctx: quizState.ctx.plan, sessionId, nota: notaNum, total, ok: quizState.correctCount, bad, blank, elapsedSec, reanudado: !!quizState.reanudado,
         preguntas: SESSION_QUESTIONS.map((q, j) => ({ id: q.id, topic_id: q.topic_id, ok: (SESSION_ANSWERS[j] === null || SESSION_ANSWERS[j] === undefined) ? null : SESSION_ANSWERS[j] === q.correct }))
       });
     }catch(e){ reportClientError('plan-test', 'No se pudo apuntar en el Plan un test terminado: ' + (e && (e.message || e))); }

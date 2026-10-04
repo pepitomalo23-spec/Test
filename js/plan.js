@@ -93,6 +93,16 @@ const PLAN = (function(){
     const n = Number(String(v).replace(',', '.'));
     return Number.isFinite(n) ? n : NaN;
   }
+  // Para pintar números que vienen de datos (nunca texto libre en el HTML).
+  function n0(x){ const v = Number(x); return Number.isFinite(v) ? String(Math.round(v * 100) / 100) : '?'; }
+  function claseEstado(e){ return Object.prototype.hasOwnProperty.call(PLANL.ESTADOS, e) ? e : 'pendiente'; }
+  // ms de una marca de tiempo de PostgREST (con microsegundos, que algún Safari no lee).
+  function msDe(iso){
+    if(!iso) return NaN;
+    const ms = Date.parse(String(iso).trim().replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1').replace(/([+-]\d{2})$/, '$1:00'));
+    return Number.isFinite(ms) ? ms : Date.parse(iso);
+  }
+  function diaDeIso(iso){ const ms = msDe(iso); return Number.isFinite(ms) ? PLANL.hoy(new Date(ms)) : null; }
   function textoCorto(s, n){ s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
   function plural(n, uno, varios){ return n + ' ' + (n === 1 ? uno : varios); }
   function hace(ms){
@@ -156,10 +166,11 @@ const PLAN = (function(){
     const partes = [];
     if(r.nota != null) partes.push('Nota <b>' + nota2(r.nota) + '</b>');
     if(r.aciertos != null){
-      partes.push('<span class="c-ok">' + r.aciertos + ' ✓</span>');
-      if(r.fallos != null) partes.push('<span class="c-bad">' + r.fallos + ' ✗</span>');
-      if(r.blancos) partes.push('<span class="c-pending">' + r.blancos + ' en blanco</span>');
+      partes.push('<span class="c-ok">' + n0(r.aciertos) + ' ✓</span>');
+      if(r.fallos != null) partes.push('<span class="c-bad">' + n0(r.fallos) + ' ✗</span>');
+      if(Number(r.blancos)) partes.push('<span class="c-pending">' + n0(r.blancos) + ' en blanco</span>');
     }
+    if(r.aciertos != null && r.fallos == null && r.total != null) partes.push('<span class="c-pending">de ' + n0(r.total) + '</span>');
     return partes.join(' · ');
   }
 
@@ -167,7 +178,10 @@ const PLAN = (function(){
   function claveCache(u){ return 'plan_cache_v1_' + u; }
   function claveCola(u){ return 'plan_cola_v1_' + u; }
   function claveApertura(u){ return 'plan_apertura_v1_' + u; }
-  function guardarCache(){
+  // La copia local se guarda con un pequeño retraso (muchos cambios seguidos = una sola escritura).
+  let temporizadorCache = null;
+  function guardarCache(ya){
+    if(!ya){ clearTimeout(temporizadorCache); temporizadorCache = setTimeout(() => guardarCache(true), 800); return; }
     const u = yo();
     if(!u || !cargado) return;
     try{ localStorage.setItem(claveCache(u), JSON.stringify({ at: Date.now(), d })); }catch(e){ /* sin espacio: da igual */ }
@@ -183,14 +197,25 @@ const PLAN = (function(){
     if(!u) return [];
     try{ return JSON.parse(localStorage.getItem(claveCola(u))) || []; }catch(e){ return []; }
   }
+  // La cola no se recorta nunca. Si no cabe, se borra antes la caché (que se
+  // puede volver a descargar) y, si aun así no cabe, se avisa.
+  let avisoSinEspacio = false;
   function guardarCola(lista, u){
     u = u || yo();
-    if(!u) return;
-    try{ localStorage.setItem(claveCola(u), JSON.stringify(lista.slice(-3000))); }catch(e){}
+    if(!u) return true;
+    const txt = JSON.stringify(lista);
+    try{ localStorage.setItem(claveCola(u), txt); return true; }catch(e){}
+    try{ localStorage.removeItem(claveCache(u)); localStorage.setItem(claveCola(u), txt); return true; }catch(e){}
+    if(!avisoSinEspacio){
+      avisoSinEspacio = true;
+      uiToast('No queda espacio en este dispositivo para guardar los cambios sin conexión. Conéctate para que se suban.', 'error');
+    }
+    return false;
   }
 
   // Aplica una operación a los datos en memoria (antes de subirla).
   function aplicarLocal(op){
+    if(op.op === 'lote'){ (op.filas || []).forEach(f => aplicarLocal({ op: 'upsert', tabla: op.tabla, fila: f })); return; }
     if(op.tabla === 'plan_ajustes'){
       if(op.op === 'upsert') d.ajustes = Object.assign({}, op.fila);
       else if(op.op === 'update') d.ajustes = Object.assign({}, d.ajustes || {}, op.cambios);
@@ -231,15 +256,17 @@ const PLAN = (function(){
     if(!u) return;
     op.n = uid();
     aplicarLocal(op);
-    guardarCola(cola(u).concat([op]), u);
+    if(!guardarCola(cola(u).concat([op]), u)) return;
     guardarCache();
     actualizarAviso();
     subir();
   }
-  // ¿El error es por los datos (no se arreglará reintentando)?
-  function errorDeDatos(e){
+  // ¿El error es por los datos (no se arreglará reintentando)? Cualquier 4xx
+  // salvo 401 (sesión), 408 (tiempo) y 429 (demasiadas peticiones).
+  function errorDeDatos(e, estado){
     const c = String((e && e.code) || '');
-    return /^(22|23)/.test(c) || c === '42501' || c === '42703' || /^PGRST1/.test(c);
+    if(estado >= 400 && estado < 500 && ![401, 408, 429].includes(estado)) return true;
+    return /^(22|23)/.test(c) || c === '42501' || c === '42703' || /^PGRST(1|204)/.test(c);
   }
   function tablaFalta(e){
     const c = String((e && e.code) || '');
@@ -262,11 +289,12 @@ const PLAN = (function(){
     else if(op.op === 'update') q = sb.from(op.tabla).update(limpiarFila(op.cambios)).eq('id', op.id).eq('user_id', u);
     else if(op.op === 'delete') q = sb.from(op.tabla).delete().eq('id', op.id).eq('user_id', u);
     else if(op.op === 'evento') q = sb.from('plan_eventos').upsert(limpiarFila(op.fila), { onConflict: 'id', ignoreDuplicates: true });
+    else if(op.op === 'lote') q = sb.from(op.tabla).upsert((op.filas || []).map(limpiarFila), { onConflict: 'id', ignoreDuplicates: op.tabla === 'plan_eventos' });
     else return { ok: true };
-    const r = await conTiempo(q, 20000);
+    const r = await conTiempo(q, 30000);
     if(!r || !r.error) return { ok: true };
     if(tablaFalta(r.error)) return { red: true, error: r.error };   // falta la migración: se guarda para luego
-    if(errorDeDatos(r.error)) return { datos: true, error: r.error };
+    if(errorDeDatos(r.error, r.status)) return { datos: true, error: r.error };
     return { red: true, error: r.error };
   }
   // Sube la cola en orden, de una en una. Sin conexión, se para y reintenta.
@@ -283,20 +311,49 @@ const PLAN = (function(){
           let r;
           try{ r = await ejecutar(op, u); }catch(e){ r = { red: true, error: e }; }
           if(yo() !== u) return;
-          if(r.red){ programarReintento(); return; }
-          if(r.datos){
+          if(r.red){ estancada = true; programarReintento(); actualizarAvisoCola(); return; }
+          let sustituta = null;
+          if(r.datos && String(r.error && r.error.code) === '23503' && op.tabla === 'plan_resultados' && op.op === 'upsert' && (op.fila.test_id || op.fila.tarea_id)){
+            // El test o la tarea ya no existen: el resultado se guarda igualmente, sin ellos.
+            sustituta = Object.assign({}, op, { n: uid(), fila: Object.assign({}, op.fila, { test_id: null, tarea_id: null }) });
+          } else if(r.datos && op.op === 'lote' && (op.filas || []).length > 1){
+            // Un lote rechazado se reparte en operaciones sueltas, para no perder las buenas.
+            sustituta = op.filas.map(f => ({ op: op.tabla === 'plan_eventos' ? 'evento' : 'upsert', tabla: op.tabla, fila: f, n: uid() }));
+          } else if(r.datos){
             uiToast(mensajeError(r.error), 'error');
             reportClientError('plan-guardar', op.op + ' ' + op.tabla + ': ' + (r.error && (r.error.code + ' ' + r.error.message)));
             recargarTrasSubir = true;
           }
-          l = cola(u).filter(x => x.n !== op.n);
+          if(!r.datos) recordarSubida(op);
+          l = cola(u);
+          const i = l.findIndex(x => x.n === op.n);
+          if(i >= 0) l.splice(i, 1, ...(sustituta ? [].concat(sustituta) : []));
           guardarCola(l, u);
+          estancada = false;
         }
       }while(repetirSubida);
       if(recargarTrasSubir){ recargarTrasSubir = false; cargar(); }
-    })().catch(() => {}).finally(() => { subiendo = null; });
+    })().catch(() => {}).finally(() => { subiendo = null; actualizarAvisoCola(); });
     return subiendo;
   }
+  // Lo subido en los últimos minutos se vuelve a aplicar al recargar: una
+  // lectura que salió antes de que llegara (o la copia del service worker
+  // si la red tardó) no debe deshacerlo en pantalla.
+  let recientes = [];
+  function recordarSubida(op){
+    const ahora = Date.now();
+    recientes = recientes.filter(x => ahora - x.at < 180000).concat([{ at: ahora, op }]);
+  }
+  let estancada = false;
+  function actualizarAvisoCola(){
+    if(visible() && pestana !== 'ajustes'){
+      const el = document.getElementById('plAvisoCola');
+      const n = cola().length;
+      if(el) el.classList.toggle('hidden', !(n && (estancada || !navigator.onLine)));
+      if(el && n) el.querySelector('span').textContent = plural(n, 'cambio pendiente', 'cambios pendientes') + ' de subir' + (navigator.onLine ? ': no se ha podido guardar todavía.' : ' (sin conexión).');
+    }
+  }
+  function reintentarYa(){ estancada = false; subir(); }
   function programarReintento(){
     if(reintento) return;
     reintento = setTimeout(() => { reintento = null; if(cola().length) subir(); }, 30000);
@@ -363,10 +420,13 @@ const PLAN = (function(){
         ]);
         if(yo() !== u) return;
         d = { ajustes: aj, temas, tests, tareas, resultados, eventos, preguntas };
-        // Lo que aún no se ha subido sigue viéndose.
+        // Lo subido hace un momento (por si la lectura salió antes) y lo que aún
+        // no se ha subido siguen viéndose.
+        const ahora = Date.now();
+        recientes.filter(x => ahora - x.at < 180000).forEach(x => aplicarLocal(x.op));
         cola(u).forEach(aplicarLocal);
         cargado = true; errorCarga = null; duenio = u;
-        guardarCache();
+        guardarCache(true);
       }catch(e){
         if(yo() !== u) return;
         errorCarga = tablaFalta(e) ? 'sin_tablas' : (String(e && e.code) === '42501' ? 'sin_permiso' : 'red');
@@ -375,11 +435,24 @@ const PLAN = (function(){
         cargando = null;
       }
       actualizarAviso();
-      if(visible()) pintar();
+      if(visible()){
+        if(escribiendo()) repintarAlSalir = true;
+        else pintar();
+      }
       subir();
+      setTimeout(alVolver, 400);   // si la app se reabrió tras abrir un test, preguntar ahora
     })();
     return cargando;
   }
+  // No se repinta mientras se escribe en un campo del plan (se perdería el foco y el teclado).
+  let repintarAlSalir = false;
+  function escribiendo(){
+    const a = document.activeElement;
+    return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest && a.closest('#planRaiz'));
+  }
+  document.addEventListener('focusout', () => setTimeout(() => {
+    if(repintarAlSalir && !escribiendo()){ repintarAlSalir = false; if(visible()) pintar(); }
+  }, 200));
   // Con la copia del dispositivo se pinta al instante, sin esperar a la red.
   function cargarCacheLocal(){
     const u = yo();
@@ -410,7 +483,7 @@ const PLAN = (function(){
   }
   function reiniciar(){
     if(duenio) escribirLocal(claveCache(duenio), null);
-    d = vacio(); cargado = false; errorCarga = null; duenio = null;
+    d = vacio(); cargado = false; errorCarga = null; duenio = null; cargando = null; recientes = [];
     semanaVista = null; mesVista = null; filtroTests = '';
     if(hojaActual) hojaActual.cerrar();
     if(reintento){ clearTimeout(reintento); reintento = null; }
@@ -521,9 +594,9 @@ const PLAN = (function(){
     }
     let html = '';
     if(errorCarga === 'red') html += '<div class="pl-aviso-linea">Sin conexión: ves lo último guardado en este dispositivo. Lo que cambies se subirá solo.</div>';
-    const n = cola().length;
-    if(n && !navigator.onLine) html += '<div class="pl-aviso-linea">' + plural(n, 'cambio pendiente', 'cambios pendientes') + ' de subir.</div>';
+    html += '<div class="pl-aviso-linea hidden" id="plAvisoCola"><span></span> <button type="button" class="pl-enlace" onclick="PLAN.reintentarYa()">Reintentar ahora</button></div>';
     cuerpo.innerHTML = html + '<div id="plContenido"></div>';
+    actualizarAvisoCola();
     const el = document.getElementById('plContenido');
     try{
       if(pestana === 'hoy') pintarHoy(el);
@@ -604,7 +677,7 @@ const PLAN = (function(){
     enCurso.forEach(t => {
       const test = testDe(t.test_id);
       if(!test) return;
-      const cuando = t.abierta_at ? hace(Date.now() - Date.parse(t.abierta_at)) : '';
+      const cuando = t.abierta_at && Number.isFinite(msDe(t.abierta_at)) ? hace(Date.now() - msDe(t.abierta_at)) : 'hace un rato';
       principal += '<div class="pl-card pl-encurso"><div class="pl-encurso-txt"><b>¿Has terminado «' + esc(test.nombre) + '»?</b>' +
         '<span>Lo abriste ' + esc(cuando) + ' en ' + esc(PLANL.PLATAFORMAS[test.plataforma] || 'otra web') + '. Hasta que lo confirmes, sigue sin hacer.</span></div>' +
         '<div class="pl-acciones"><button type="button" class="btn btn-primary" onclick="PLAN.apuntarTarea(\'' + idAttr(t.id) + '\')">Apuntar resultado</button>' +
@@ -655,10 +728,10 @@ const PLAN = (function(){
     const meta = [etiquetaPlataforma(test.plataforma)];
     if(t.prioridad === 1) meta.push('<span class="pl-prio alta">Prioridad alta</span>');
     else if(t.prioridad === 3) meta.push('<span class="pl-prio baja">Prioridad baja</span>');
-    if(estado !== 'pendiente') meta.push('<span class="pl-estado ' + estado + '">' + esc(PLANL.ESTADOS[estado] || estado) + (estado === 'aplazado' && t.veces_aplazada > 1 ? ' ×' + t.veces_aplazada : '') + '</span>');
+    if(estado !== 'pendiente') meta.push('<span class="pl-estado ' + claseEstado(estado) + '">' + esc(PLANL.ESTADOS[estado] || estado) + (estado === 'aplazado' && Number(t.veces_aplazada) > 1 ? ' ×' + n0(t.veces_aplazada) : '') + '</span>');
     if(t.origen === 'excepcion') meta.push('<span class="pl-estado excepcion">Excepción</span>');
     if(t.origen === 'repaso') meta.push('<span class="pl-estado repaso">Repaso</span>');
-    return '<li class="pl-tarea ' + estado + '">' +
+    return '<li class="pl-tarea ' + claseEstado(estado) + '">' +
       '<span class="pl-tarea-num" aria-hidden="true">' + (estado === 'completado' ? ICO.check : n) + '</span>' +
       '<div class="pl-tarea-cuerpo"><div class="pl-tarea-tema">' + esc(nombreTema(test.tema_id)) + '</div>' +
       '<div class="pl-tarea-nombre">' + esc(test.nombre) + '</div>' +
@@ -723,15 +796,23 @@ const PLAN = (function(){
       evento('aviso_fuera_plan', { test_id: test.id, datos: { otra: ev.otra ? ev.otra.fecha : null } });
       const otra = ev.otra ? (ev.otra.fecha > h ? 'Lo tienes programado para el ' + PLANL.fechaLarga(ev.otra.fecha) + '.' : 'Se te quedó pendiente del ' + PLANL.fechaLarga(ev.otra.fecha) + '.') : 'No lo tienes programado ningún día.';
       const botones = [{ texto: 'Ver mis tareas de hoy', clase: 'primario', accion: () => irA('hoy') }];
-      if(ev.puedeAnadirHoy){
-        botones.push({ texto: 'Añadirlo a hoy y abrirlo', accion: () => { const t = crearTareaHoy(test, 'plan'); lanzar(test, t); } });
-      } else {
-        botones.push({ texto: 'Añadirlo a hoy como excepción', accion: () => {
-          const t = crearTareaHoy(test, 'excepcion');
-          evento('excepcion', { tarea_id: t && t.id, test_id: test.id, datos: { motivo: 'limite' } });
-          lanzar(test, t);
-        } });
-      }
+      const otraEsAbierta = ev.otra && PLANL.abierta(ev.otra);
+      const aHoy = excepcion => {
+        let t;
+        if(otraEsAbierta){
+          // Ya estaba programado otro día: se trae a hoy (no se crea otra tarea).
+          const cambios = { fecha: h, orden: siguienteOrden(h), estado: 'aplazado', veces_aplazada: Math.min(999, (Number(ev.otra.veces_aplazada) || 0) + 1), abierta_at: null };
+          if(excepcion) cambios.origen = 'excepcion';
+          cambiar('plan_tareas', ev.otra.id, cambios);
+          evento('aplazado', { tarea_id: ev.otra.id, test_id: test.id, datos: { de: ev.otra.fecha, a: h } });
+          t = tareaDe(ev.otra.id);
+        } else t = crearTareaHoy(test, excepcion ? 'excepcion' : 'plan');
+        if(excepcion) evento('excepcion', { tarea_id: t && t.id, test_id: test.id, datos: { motivo: 'limite' } });
+        lanzar(test, t);
+      };
+      const verbo = otraEsAbierta ? 'Pasarlo a hoy' : 'Añadirlo a hoy';
+      if(ev.puedeAnadirHoy) botones.push({ texto: verbo + ' y abrirlo', accion: () => aHoy(false) });
+      else botones.push({ texto: verbo + ' como excepción', accion: () => aHoy(true) });
       botones.push({ texto: 'Abrirlo sin añadirlo (excepción)', accion: () => {
         evento('excepcion', { test_id: test.id, datos: { motivo: 'fuera_plan' } });
         lanzar(test, null, { excepcion: true });
@@ -745,7 +826,7 @@ const PLAN = (function(){
     // repetido o completado hoy
     evento('aviso_repetido', { test_id: test.id, tarea_id: ev.tarea ? ev.tarea.id : null });
     const r = ev.resultado;
-    const cuando = r && r.realizado_at ? PLANL.fechaLarga(PLANL.hoy(new Date(r.realizado_at))) : (ev.tarea ? PLANL.fechaLarga(ev.tarea.fecha) : '');
+    const cuando = r && r.realizado_at ? PLANL.fechaLarga(diaDeIso(r.realizado_at)) : (ev.tarea ? PLANL.fechaLarga(diaDeIso(ev.tarea.completada_at) || ev.tarea.fecha) : '');
     hoja({ titulo: ev.tipo === 'completado_hoy' ? 'Ya lo has hecho hoy' : 'Ya hiciste este test',
       html: '<p class="pl-hoja-txt"><b>' + esc(test.nombre) + '</b> · ' + esc(nombreTema(test.tema_id)) + '</p>' +
         '<p class="pl-hoja-txt">Lo hiciste el ' + esc(cuando) + (r ? ': ' + textoResultado(r) : '') + '.</p>' +
@@ -835,9 +916,13 @@ const PLAN = (function(){
     }
     const mapa = mapaTopicTema();
     const seg = Math.round(Number(info.elapsedSec) || 0);
-    const dur = seg > 0 && seg <= 3 * 3600 ? seg : null;
+    // Tiempo de reloj del test: solo si no se dejó a medias y se siguió después
+    // (entonces incluiría el rato con la app cerrada).
+    const dur = !info.reanudado && seg > 0 && seg <= 3 * 3600 ? seg : null;
+    // Si la tarea o el test ya no existen (quitados mientras tanto), el resultado se guarda sin ellos.
+    const existe = (id, de) => esUuid(id) && (!cargado || !!de(id));
     const res = {
-      id: uid(), test_id: esUuid(ctx.test_id) ? ctx.test_id : null, tarea_id: esUuid(ctx.tarea_id) ? ctx.tarea_id : null,
+      id: uid(), test_id: existe(ctx.test_id, testDe) ? ctx.test_id : null, tarea_id: existe(ctx.tarea_id, tareaDe) ? ctx.tarea_id : null,
       fuente: 'pjfire', realizado_at: ahoraIso(),
       aciertos: Math.min(1000, Number(info.ok) || 0), fallos: Math.min(1000, Number(info.bad) || 0), blancos: Math.min(1000, Number(info.blank) || 0),
       total: Math.min(1000, total), nota: Math.round(Math.max(0, Math.min(10, Number(info.nota) || 0)) * 100) / 100,
@@ -897,12 +982,17 @@ const PLAN = (function(){
     const r = resultadoDeTarea(t);
     hoja({ titulo: test.nombre,
       html: '<p class="pl-hoja-txt">' + esc(nombreTema(test.tema_id)) + ' · ' + etiquetaPlataforma(test.plataforma) + '</p>' +
-        '<p class="pl-hoja-txt">Hecho' + (t.completada_at ? ' el ' + esc(PLANL.fechaLarga(PLANL.hoy(new Date(t.completada_at)))) : '') + '.</p>' +
-        (r ? '<p class="pl-hoja-txt">' + textoResultado(r) + (r.duracion_seg ? ' · ' + Math.round(r.duracion_seg / 60) + ' min' + (r.duracion_medida ? ' (medido)' : '') : '') + '</p>' : '<p class="pl-hoja-txt pl-suave">Sin nota apuntada.</p>') +
+        '<p class="pl-hoja-txt">Hecho' + (diaDeIso(t.completada_at) ? ' el ' + esc(PLANL.fechaLarga(diaDeIso(t.completada_at))) : '') + '.</p>' +
+        (r ? '<p class="pl-hoja-txt">' + textoResultado(r) + (Number(r.duracion_seg) ? ' · ' + Math.round(Number(r.duracion_seg) / 60) + ' min' + (r.duracion_medida ? ' (medido)' : '') : '') + '</p>' : '<p class="pl-hoja-txt pl-suave">Sin nota apuntada.</p>') +
         (r && r.notas ? '<p class="pl-hoja-txt">' + esc(r.notas) + '</p>' : ''),
       botones: [
         { texto: r ? 'Editar resultado' : 'Apuntar resultado', clase: 'primario', accion: () => { apuntarResultado(t, testDe(t.test_id), { resultado: r }); } },
-        { texto: 'Repetir el test', accion: () => { abrirTarea(t.id, true); } },
+        { texto: 'Repetir el test', accion: () => {
+          const test = testDe(t.test_id);
+          if(!test) return;
+          evento('excepcion', { tarea_id: t.id, test_id: test.id, datos: { motivo: 'repetir' } });
+          lanzar(test, null, { excepcion: true });
+        } },
         { texto: 'Cerrar' }
       ] });
   }
@@ -940,12 +1030,10 @@ const PLAN = (function(){
         const f = n => panel.querySelector('[name="' + n + '"]');
         const calc = panel.querySelector('.pl-nota-calc');
         const actualizar = () => {
-          const a = enteroONull(f('aciertos').value), fa = enteroONull(f('fallos').value), b = enteroONull(f('blancos').value);
-          const tot = enteroONull(f('total').value);
-          if(a == null || Number.isNaN(a)){ calc.textContent = ''; return; }
-          let bb = b;
-          if((bb == null || Number.isNaN(bb)) && tot != null && !Number.isNaN(tot) && fa != null && !Number.isNaN(fa)) bb = Math.max(0, tot - a - fa);
-          const n = PLANL.notaDe(a, Number.isNaN(fa) ? 0 : (fa || 0), Number.isNaN(bb) ? 0 : (bb || 0));
+          const c = cuentas(enteroONull(f('aciertos').value), enteroONull(f('fallos').value), enteroONull(f('blancos').value), enteroONull(f('total').value));
+          if(!c || c.a == null){ calc.textContent = ''; return; }
+          if(c.f == null){ calc.textContent = 'Para calcular la nota hacen falta los fallos (o el total y los en blanco). También puedes escribir la nota.'; return; }
+          const n = PLANL.notaDe(c.a, c.f, c.b || 0);
           calc.textContent = n == null ? '' : 'Nota calculada: ' + formatNota(n) + ' (cada fallo resta ⅓ de acierto). Si la plataforma te da otra, escríbela arriba.';
         };
         panel.querySelectorAll('input').forEach(i => i.addEventListener('input', actualizar));
@@ -970,32 +1058,41 @@ const PLAN = (function(){
         });
       } });
   }
+  // Completa aciertos, fallos, blancos y total con lo que se pueda deducir, sin inventar.
+  function cuentas(a, f, b, t){
+    if([a, f, b, t].some(x => Number.isNaN(x))) return null;
+    if(f == null && t != null && a != null && b != null && t - a - b >= 0) f = t - a - b;
+    if(b == null && t != null && a != null && f != null && t - a - f >= 0) b = t - a - f;
+    if(t == null && a != null && f != null) t = a + f + (b || 0);
+    return { a, f, b, t };
+  }
   function guardarResultadoForm(api, tarea, test, r0){
     const panel = api.el;
     const f = n => panel.querySelector('[name="' + n + '"]').value.trim();
     const err = panel.querySelector('.pl-error-form');
-    const a = enteroONull(f('aciertos')), fa = enteroONull(f('fallos'));
-    let b = enteroONull(f('blancos')), tot = enteroONull(f('total'));
     let nota = numeroONull(f('nota'));
     const minutos = enteroONull(f('minutos'));
-    if([a, fa, b, tot, minutos].some(x => Number.isNaN(x)) || Number.isNaN(nota)){ err.textContent = 'Revisa los números: solo cifras, sin negativos.'; return false; }
+    const c = cuentas(enteroONull(f('aciertos')), enteroONull(f('fallos')), enteroONull(f('blancos')), enteroONull(f('total')));
+    if(!c || Number.isNaN(minutos) || Number.isNaN(nota)){ err.textContent = 'Revisa los números: solo cifras, sin negativos.'; return false; }
+    const { a, f: fa, b, t: tot } = c;
     if(a == null && nota == null){ err.textContent = 'Escribe al menos los aciertos o la nota (o usa «Lo terminé, sin nota»).'; return false; }
+    if(a != null && fa == null && tot == null && nota == null){ err.textContent = 'Con solo los aciertos no se sabe cómo te fue: añade los fallos o el total (o la nota).'; return false; }
     if(nota != null && (nota < 0 || nota > 10)){
       if(nota > 10 && nota <= 100) nota = nota / 10;   // nota sobre 100
       else { err.textContent = 'La nota tiene que estar entre 0 y 10.'; return false; }
     }
-    if(b == null && tot != null && a != null && fa != null) b = Math.max(0, tot - a - fa);
     const suma = (a || 0) + (fa || 0) + (b || 0);
-    if(tot == null && a != null && (fa != null || b != null)) tot = suma;
     if(tot != null && suma > tot){ err.textContent = 'Aciertos + fallos + en blanco no puede pasar del total (' + tot + ').'; return false; }
-    if(tot === 0 || (a != null && suma === 0 && nota == null)){ err.textContent = 'El total tiene que ser al menos 1.'; return false; }
+    if(tot === 0 || (a != null && suma === 0 && tot == null && nota == null)){ err.textContent = 'El total tiene que ser al menos 1.'; return false; }
     if([a, fa, b, tot].some(x => x != null && x > 1000) || (minutos != null && minutos > 1440)){ err.textContent = 'Algún número es demasiado grande.'; return false; }
-    if(nota == null && a != null) nota = PLANL.notaDe(a, fa || 0, b || 0);
+    // La nota solo se calcula si se saben los fallos: si no, se deja sin nota (no se inventa).
+    if(nota == null && a != null && fa != null) nota = PLANL.notaDe(a, fa, b || 0);
     const cuando = f('cuando');
     const ms = cuando ? Date.parse(cuando) : Date.now();   // datetime-local: hora del dispositivo
     const realizado = Number.isFinite(ms) && ms <= Date.now() + 3600000 ? new Date(ms).toISOString() : ahoraIso();
+    const tareaOk = tarea && tareaDe(tarea.id) ? tarea : null;
     const res = Object.assign({}, r0 || {}, {
-      id: r0 ? r0.id : uid(), test_id: test.id, tarea_id: tarea ? tarea.id : (r0 ? r0.tarea_id : null),
+      id: r0 ? r0.id : uid(), test_id: testDe(test.id) ? test.id : null, tarea_id: tareaOk ? tareaOk.id : (r0 && tareaDe(r0.tarea_id) ? r0.tarea_id : null),
       fuente: r0 ? r0.fuente : 'manual', realizado_at: realizado,
       aciertos: a, fallos: fa, blancos: b, total: tot, nota: nota == null ? null : Math.round(nota * 100) / 100,
       notas: f('notas') || null
@@ -1003,8 +1100,8 @@ const PLAN = (function(){
     if(!r0 || !r0.duracion_medida){ res.duracion_seg = minutos != null ? minutos * 60 : null; res.duracion_medida = false; }
     delete res.user_id;
     guardar('plan_resultados', res);
-    if(tarea && (tarea.estado !== 'completado' || tarea.resultado_id !== res.id)){
-      cambiar('plan_tareas', tarea.id, { estado: 'completado', completada_at: tarea.completada_at || ahoraIso(), resultado_id: res.id });
+    if(tareaOk && (tareaOk.estado !== 'completado' || tareaOk.resultado_id !== res.id)){
+      cambiar('plan_tareas', tareaOk.id, { estado: 'completado', completada_at: tareaOk.completada_at || ahoraIso(), resultado_id: res.id });
     }
     if(!r0) evento('completado', { tarea_id: tarea ? tarea.id : null, test_id: test.id, datos: { fuente: 'manual', nota: res.nota } });
     if(yo()) escribirLocal(claveApertura(yo()), null);
@@ -1041,8 +1138,8 @@ const PLAN = (function(){
         '<div class="pl-campo"><span>Prioridad</span><div class="pl-chips" role="radiogroup" aria-label="Prioridad">' +
         [1, 2, 3].map(p => '<button type="button" role="radio" aria-checked="' + (t.prioridad === p) + '" class="pl-chip' + (t.prioridad === p ? ' on' : '') + '" data-prio="' + p + '">' + PLANL.PRIORIDADES[p] + '</button>').join('') + '</div></div>' +
         (delDia.length > 1 && t.estado !== 'completado' ? '<div class="pl-campo"><span>Orden del día</span><div class="pl-acciones">' +
-          '<button type="button" class="btn btn-ghost" data-mover="-1"' + (i <= 0 ? ' disabled' : '') + '>Subir</button>' +
-          '<button type="button" class="btn btn-ghost" data-mover="1"' + (i >= delDia.length - 1 ? ' disabled' : '') + '>Bajar</button></div></div>' : ''),
+          '<button type="button" class="btn btn-ghost" data-mover="-1"' + (simularMover(t.id, -1) ? '' : ' disabled') + '>Subir</button>' +
+          '<button type="button" class="btn btn-ghost" data-mover="1"' + (simularMover(t.id, 1) ? '' : ' disabled') + '>Bajar</button></div></div>' : ''),
       botones: botones.concat([{ texto: 'Quitar del plan', clase: 'peligro', accion: () => { quitarTarea(t.id); } }, { texto: 'Cerrar' }]),
       alAbrir: (panel, api) => {
         panel.querySelectorAll('[data-prio]').forEach(b => b.addEventListener('click', () => {
@@ -1054,23 +1151,45 @@ const PLAN = (function(){
         panel.querySelectorAll('[data-mover]').forEach(b => b.addEventListener('click', () => { moverOrden(t.id, Number(b.dataset.mover)); api.cerrar(); }));
       } });
   }
-  // Cambia el orden de una tarea con su vecina del mismo día (reescribe los órdenes 1..n).
-  function moverOrden(id, paso){
+  // Los cambios que haría moverOrden, o null si no cambiarían la posición
+  // (p. ej. lo aplazado va siempre antes a igual prioridad).
+  function cambiosMover(id, paso){
     const t = tareaDe(id);
-    if(!t) return;
+    if(!t) return null;
     const l = PLANL.ordenarDia(PLANL.tareasDelDia(d.tareas, t.fecha), hoy(), reglas()).filter(x => x.estado !== 'completado');
     const i = l.findIndex(x => x.id === id), j = i + paso;
-    if(i < 0 || j < 0 || j >= l.length) return;
-    // Para que el cambio se vea por encima de la prioridad, la tarea toma la prioridad de su vecina.
-    if(l[j].prioridad !== t.prioridad) cambiar('plan_tareas', id, { prioridad: l[j].prioridad });
-    const x = l[i]; l[i] = l[j]; l[j] = x;
-    l.forEach((tt, k) => { if(Number(tt.orden) !== k + 1) cambiar('plan_tareas', tt.id, { orden: k + 1 }); });
+    if(i < 0 || j < 0 || j >= l.length) return null;
+    const nueva = l.slice();
+    const x = nueva[i]; nueva[i] = nueva[j]; nueva[j] = x;
+    const cambios = {};
+    nueva.forEach((tt, k) => { cambios[tt.id] = { orden: k + 1 }; });
+    if(l[j].prioridad !== t.prioridad) cambios[id].prioridad = l[j].prioridad;
+    const simulada = l.map(tt => Object.assign({}, tt, cambios[tt.id]));
+    const tras = PLANL.ordenarDia(simulada, hoy(), reglas()).map(tt => tt.id);
+    return tras.indexOf(id) === j ? cambios : null;
+  }
+  function simularMover(id, paso){ return !!cambiosMover(id, paso); }
+  // Cambia el orden de una tarea con su vecina del mismo día (reescribe los órdenes 1..n).
+  function moverOrden(id, paso){
+    const cambios = cambiosMover(id, paso);
+    if(!cambios) return;
+    Object.keys(cambios).forEach(k => {
+      const tt = tareaDe(k);
+      if(tt && (Number(tt.orden) !== cambios[k].orden || (cambios[k].prioridad && cambios[k].prioridad !== tt.prioridad))) cambiar('plan_tareas', k, cambios[k]);
+    });
     repintar();
   }
-  function reabrir(id){
+  async function reabrir(id){
     const t = tareaDe(id);
     if(!t) return;
-    cambiar('plan_tareas', id, { estado: 'pendiente', completada_at: null, abierta_at: null });
+    const r = resultadoDeTarea(t);
+    if(r){
+      // El resultado no puede quedarse colgado de una tarea «sin hacer».
+      const borrarlo = await uiConfirm('Si lo hiciste de verdad, consérvalo: seguirá contando en Progreso, pero ya no en esta tarea. Si lo apuntaste por error, bórralo.', { ok: 'Borrar el resultado', cancel: 'Conservarlo', danger: true, title: '¿Qué hago con su resultado?' });
+      if(borrarlo) borrar('plan_resultados', r.id);
+      else cambiar('plan_resultados', r.id, { tarea_id: null });
+    }
+    cambiar('plan_tareas', id, { estado: 'pendiente', completada_at: null, abierta_at: null, resultado_id: null });
     evento('reabierto', { tarea_id: id, test_id: t.test_id });
     repintar();
   }
@@ -1286,7 +1405,7 @@ const PLAN = (function(){
         (ts.length ? '<ul class="pl-dia-lista">' + ts.map(t => {
           const test = testDe(t.test_id) || { nombre: '(test borrado)', plataforma: 'otra' };
           const atrasada = PLANL.abierta(t) && dia < h;
-          return '<li><button type="button" class="pl-mini ' + t.estado + (atrasada ? ' atrasada' : '') + '" onclick="PLAN.menuTarea(\'' + idAttr(t.id) + '\')">' +
+          return '<li><button type="button" class="pl-mini ' + claseEstado(t.estado) + (atrasada ? ' atrasada' : '') + '" onclick="PLAN.menuTarea(\'' + idAttr(t.id) + '\')">' +
             '<span class="pl-mini-estado" aria-hidden="true">' + (t.estado === 'completado' ? ICO.check : '') + '</span>' +
             '<span class="pl-mini-txt"><b>' + esc(test.nombre) + '</b><small>' + esc(nombreTema(test.tema_id)) + ' · ' + esc(PLANL.PLATAFORMAS[test.plataforma] || '') +
             (atrasada ? ' · sin hacer' : t.estado !== 'pendiente' ? ' · ' + esc(PLANL.ESTADOS[t.estado]) : '') + '</small></span></button></li>';
@@ -1325,7 +1444,7 @@ const PLAN = (function(){
       html: (ts.length ? '<ul class="pl-dia-lista">' + ts.map(t => {
         const test = testDe(t.test_id) || { nombre: '(test borrado)', plataforma: 'otra' };
         const r = resultadoDeTarea(t);
-        return '<li><button type="button" class="pl-mini ' + t.estado + '" data-tarea="' + idAttr(t.id) + '"><span class="pl-mini-estado" aria-hidden="true">' + (t.estado === 'completado' ? ICO.check : '') + '</span>' +
+        return '<li><button type="button" class="pl-mini ' + claseEstado(t.estado) + '" data-tarea="' + idAttr(t.id) + '"><span class="pl-mini-estado" aria-hidden="true">' + (t.estado === 'completado' ? ICO.check : '') + '</span>' +
           '<span class="pl-mini-txt"><b>' + esc(test.nombre) + '</b><small>' + esc(nombreTema(test.tema_id)) + ' · ' + esc(PLANL.ESTADOS[t.estado]) + (r && r.nota != null ? ' · nota ' + formatNota(r.nota) : '') + '</small></span></button></li>';
       }).join('') + '</ul>' : '<p class="pl-hoja-txt pl-suave">Sin tests este día.</p>') +
         '<p class="pl-hoja-txt pl-suave">' + ts.length + ' de ' + aj.limite_diario + ' (tu límite diario)' + (PLANL.esDiaDeEstudio(dia, aj) ? '' : ' · día de descanso') + '</p>',
@@ -1403,13 +1522,18 @@ const PLAN = (function(){
      TESTS (catálogo)
      ============================================================ */
   function pintarTests(el){
+    el.innerHTML = '<div class="pl-barra-tests"><input class="pl-input" type="search" id="plBuscarTests" placeholder="Buscar un test…" value="' + esc(filtroTests) + '" aria-label="Buscar un test" oninput="PLAN.filtrarTests(this.value)" autocomplete="off">' +
+      '<button type="button" class="btn btn-primary" onclick="PLAN.editarTest()">+ Nuevo test</button>' +
+      '<button type="button" class="btn btn-ghost" onclick="PLAN.anadirVarios()">Añadir varios</button></div><div id="plListaTests"></div>';
+    pintarListaTests(document.getElementById('plListaTests'));
+  }
+  function pintarListaTests(el){
+    if(!el) return;
     const q = PLANL.normalizar(filtroTests);
     const visibles = d.tests.filter(t => verArchivados ? t.archivado : !t.archivado)
       .filter(t => !q || PLANL.normalizar([t.nombre, t.referencia, nombreTema(t.tema_id), PLANL.PLATAFORMAS[t.plataforma]].join(' ')).includes(q));
     const nArch = d.tests.filter(t => t.archivado).length;
-    let html = '<div class="pl-barra-tests"><input class="pl-input" type="search" id="plBuscarTests" placeholder="Buscar un test…" value="' + esc(filtroTests) + '" aria-label="Buscar un test" oninput="PLAN.filtrarTests(this.value)" autocomplete="off">' +
-      '<button type="button" class="btn btn-primary" onclick="PLAN.editarTest()">+ Nuevo test</button>' +
-      '<button type="button" class="btn btn-ghost" onclick="PLAN.anadirVarios()">Añadir varios</button></div>';
+    let html = '';
     if(!d.temas.length) html += '<div class="pl-aviso-linea">Aún no tienes temas. <button type="button" class="pl-enlace" onclick="PLAN.crearVariosTemas()">Créalos</button> para agrupar tus tests.</div>';
     if(!visibles.length){
       html += '<div class="pl-vacio">' + (d.tests.length ? (verArchivados ? 'No tienes tests archivados.' : 'Ningún test coincide con la búsqueda.') :
@@ -1431,7 +1555,7 @@ const PLAN = (function(){
   function htmlTest(t){
     return '<div class="pl-test"><div class="pl-test-txt"><b>' + esc(t.nombre) + '</b>' +
       '<span>' + etiquetaPlataforma(t.plataforma) + (t.referencia ? ' <span class="pl-ref">«' + esc(t.referencia) + '»</span>' : '') +
-      (t.plataforma === 'pjfire' && t.config ? ' <span class="pl-suave">' + esc(({ estudio: 'Estudio', examen: 'Examen', fallos: 'Fallos' })[t.config.modo] || 'Estudio') + ' · ' + (t.config.n || t.num_preguntas || 20) + ' preguntas</span>' : '') + '</span>' +
+      (t.plataforma === 'pjfire' && t.config ? ' <span class="pl-suave">' + esc(({ estudio: 'Estudio', examen: 'Examen', fallos: 'Fallos' })[t.config.modo] || 'Estudio') + ' · ' + n0(Number(t.config.n) || Number(t.num_preguntas) || 20) + ' preguntas</span>' : '') + '</span>' +
       '<span class="pl-suave">' + esc(capitalizar(estadoTest(t))) + '</span></div>' +
       '<div class="pl-acciones">' + (t.archivado ? '' : '<button type="button" class="btn btn-ghost" onclick="PLAN.abrirTest(\'' + idAttr(t.id) + '\')">Abrir</button>' +
       '<button type="button" class="btn btn-ghost" onclick="PLAN.programarTest(\'' + idAttr(t.id) + '\')">Programar</button>') +
@@ -1439,11 +1563,7 @@ const PLAN = (function(){
   }
   function filtrarTests(v){
     filtroTests = String(v || '').slice(0, 100);
-    const el = document.getElementById('plContenido');
-    if(!el) return;
-    pintarTests(el);
-    const i = document.getElementById('plBuscarTests');
-    if(i){ i.focus(); try{ i.setSelectionRange(i.value.length, i.value.length); }catch(e){} }
+    pintarListaTests(document.getElementById('plListaTests'));
   }
   function alternarArchivados(){ verArchivados = !verArchivados; repintar(); }
   function programarTest(id){
@@ -1675,7 +1795,7 @@ const PLAN = (function(){
         '<button type="button" class="btn btn-ghost" onclick="PLAN.editarTema(\'' + idAttr(t.id) + '\')">Editar</button></div>').join('') : '<p class="pl-suave">Aún no tienes temas.</p>') +
       '<div class="pl-acciones"><button type="button" class="btn btn-primary" onclick="PLAN.editarTema()">+ Nuevo tema</button><button type="button" class="btn btn-ghost" onclick="PLAN.crearVariosTemas()">Crear varios</button></div>' +
       '<p class="pl-pie">Vincular un tema con los temas de tu banco de pj.fire sirve para sus tests de pj.fire, los exámenes combinados y las estadísticas por tema.</p></section>' +
-      '<section class="pl-card"><h3 class="pl-seccion">Tus datos</h3><p class="pl-hoja-txt">Tu plan es privado: solo lo ves tú (ni el administrador puede ver el de otros). Descárgate una copia cuando quieras.</p>' +
+      '<section class="pl-card"><h3 class="pl-seccion">Tus datos</h3><p class="pl-hoja-txt">Tu plan es privado: en la app solo lo ves tú. La copia de seguridad diaria de la base de datos (que solo puede descargar el administrador) también lo incluye. Descárgate tu propia copia cuando quieras.</p>' +
       '<div class="pl-acciones"><button type="button" class="btn btn-ghost" onclick="PLAN.exportar()">Exportar (JSON)</button><button type="button" class="btn btn-ghost" onclick="PLAN.importar()">Importar una copia</button></div></section>' +
       '<section class="pl-card"><h3 class="pl-seccion">Tutor Bombero</h3>' +
       '<p class="pl-hoja-txt">Tutor Bombero no ofrece API, exportación de resultados ni enlaces directos a cada test, y sus condiciones dicen que el acceso es personal e intransferible. Por eso pj.fire no se conecta a tu cuenta, no guarda tus contraseñas y no copia su contenido:</p>' +
@@ -1783,12 +1903,27 @@ const PLAN = (function(){
 
   /* ---------- exportar / importar ---------- */
   const ORDEN_IMPORT = ['plan_ajustes', 'plan_temas', 'plan_tests', 'plan_tareas', 'plan_resultados', 'plan_preguntas', 'plan_eventos'];
-  function exportar(){
+  async function exportar(){
+    let eventos = d.eventos;
+    // En memoria solo están los 1000 últimos eventos: para la copia, todos.
+    if(d.eventos.length >= 1000 && navigator.onLine){
+      const cerrarAviso = uiToast('Preparando la copia…', 'info', { duration: 0 });
+      try{ eventos = await todas('plan_eventos', yo(), q => q.order('at').order('id')); }
+      catch(e){ eventos = d.eventos; uiToast('No se ha podido leer toda la actividad: la copia lleva solo la más reciente.', 'info'); }
+      cerrarAviso();
+      // Ya no hay gesto del usuario: se pide otro toque para descargar.
+      hoja({ titulo: 'Tu copia está lista', html: '<p class="pl-hoja-txt">Pulsa para guardarla.</p>',
+        botones: [{ texto: 'Descargar', clase: 'primario', accion: () => { descargarCopia(eventos); } }, { texto: 'Cancelar' }] });
+      return;
+    }
+    descargarCopia(eventos);
+  }
+  function descargarCopia(eventos){
     const datos = {
-      app: 'pj.fire', tipo: 'plan-de-estudio', version: 1, exportado: ahoraIso(),
+      app: 'pj.fire', tipo: 'plan-de-estudio', version: 1, exportado: ahoraIso(), usuario: yo(),
       tablas: {
         plan_ajustes: d.ajustes ? [d.ajustes] : [], plan_temas: d.temas, plan_tests: d.tests, plan_tareas: d.tareas,
-        plan_resultados: d.resultados, plan_preguntas: d.preguntas, plan_eventos: d.eventos
+        plan_resultados: d.resultados, plan_preguntas: d.preguntas, plan_eventos: eventos
       }
     };
     const nombre = 'plan-de-estudio-' + hoy() + '.json';
@@ -1812,57 +1947,132 @@ const PLAN = (function(){
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'application/json,.json';
+    input.style.display = 'none';   // en el DOM: algunos iOS no avisan del cambio si no lo está
+    document.body.appendChild(input);
     input.addEventListener('change', () => {
       const file = input.files && input.files[0];
+      input.remove();
       if(!file) return;
       if(file.size > 15 * 1024 * 1024){ uiToast('El archivo es demasiado grande.', 'error'); return; }
       const fr = new FileReader();
       fr.onload = () => {
         let datos;
         try{ datos = JSON.parse(fr.result); }catch(e){ uiToast('No es un archivo JSON válido.', 'error'); return; }
-        if(!datos || datos.tipo !== 'plan-de-estudio' || !datos.tablas){ uiToast('Ese archivo no es una copia del Plan de estudio.', 'error'); return; }
-        importarDatos(datos.tablas);
+        if(!datos || datos.tipo !== 'plan-de-estudio' || !datos.tablas || typeof datos.tablas !== 'object'){ uiToast('Ese archivo no es una copia del Plan de estudio.', 'error'); return; }
+        importarDatos(datos.tablas, datos.usuario);
       };
       fr.onerror = () => uiToast('No se ha podido leer el archivo.', 'error');
       fr.readAsText(file);
     });
     input.click();
   }
-  // Importa sin duplicar: lo que ya existe (mismo id o mismo nombre/identificador) se salta,
-  // y las referencias se rehacen hacia lo que ya había.
-  async function importarDatos(t){
+
+  // Validación de una fila importada: solo columnas conocidas, con su tipo y
+  // sus valores permitidos (un archivo manipulado no puede colar HTML ni
+  // datos raros). Devuelve la fila limpia o null.
+  const ES = {
+    txt: (v, max, req) => { if(v == null || v === '') return req ? undefined : null; if(typeof v !== 'string') return undefined; const t = v.slice(0, max); return req && !t.trim() ? undefined : t; },
+    ent: (v, min, max, req) => { if(v == null || v === '') return req ? undefined : null; const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : undefined; },
+    num: (v, min, max) => { if(v == null || v === '') return null; const n = Number(v); return Number.isFinite(n) && n >= min && n <= max ? Math.round(n * 100) / 100 : undefined; },
+    uuid: (v, req) => { if(v == null || v === '') return req ? undefined : null; return esUuid(v) ? v.toLowerCase() : undefined; },
+    bool: v => v === true,
+    enumv: (v, l, def) => l.includes(v) ? v : (def === undefined ? undefined : def),
+    fecha: (v, req) => { if(v == null) return req ? undefined : null; return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined; },
+    ts: (v, req) => { if(v == null || v === '') return req ? undefined : null; return Number.isFinite(msDe(v)) ? new Date(msDe(v)).toISOString() : undefined; },
+    obj: (v, max) => { if(v == null) return {}; if(typeof v !== 'object' || Array.isArray(v)) return undefined; try{ return JSON.stringify(v).length <= max ? JSON.parse(JSON.stringify(v)) : undefined; }catch(e){ return undefined; } },
+    textos: (v, maxN, maxL) => Array.isArray(v) ? v.filter(x => typeof x === 'string' && x.length <= maxL).slice(0, maxN) : []
+  };
+  function sanear(tabla, f){
+    if(!f || typeof f !== 'object' || Array.isArray(f)) return null;
+    let o;
+    if(tabla === 'plan_ajustes'){
+      const dias = Array.isArray(f.dias_estudio) ? f.dias_estudio.map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 7) : [];
+      o = { limite_diario: ES.ent(f.limite_diario, 1, 20, true), dias_estudio: dias.length ? [...new Set(dias)] : undefined, reglas: ES.obj(f.reglas, 3500) };
+    } else if(tabla === 'plan_temas'){
+      o = { id: ES.uuid(f.id, true), numero: ES.ent(f.numero, 0, 999), nombre: ES.txt(f.nombre, 160, true), bloque: ES.txt(f.bloque, 80), topic_ids: ES.textos(f.topic_ids, 40, 300), archivado: ES.bool(f.archivado) };
+    } else if(tabla === 'plan_tests'){
+      const plat = ES.enumv(f.plataforma, ['tutor_bombero', 'pjfire', 'otra']);
+      let config = {};
+      if(plat === 'pjfire'){
+        const c = f.config && typeof f.config === 'object' ? f.config : {};
+        config = { modo: ES.enumv(c.modo, ['estudio', 'examen', 'fallos'], 'estudio'), topic_ids: ES.textos(c.topic_ids, 40, 300), n: ES.ent(c.n, 1, 200) || 20, minutos: ES.ent(c.minutos, 1, 600) || null };
+      }
+      o = { id: ES.uuid(f.id, true), tema_id: ES.uuid(f.tema_id), plataforma: plat, nombre: ES.txt(f.nombre, 160, true), referencia: ES.txt(f.referencia, 160),
+        url: f.url ? (urlSegura(f.url) || undefined) : null, num_preguntas: ES.ent(f.num_preguntas, 1, 500), config, notas: ES.txt(f.notas, 1000), archivado: ES.bool(f.archivado) };
+    } else if(tabla === 'plan_tareas'){
+      const estado = ES.enumv(f.estado, Object.keys(PLANL.ESTADOS));
+      o = { id: ES.uuid(f.id, true), test_id: ES.uuid(f.test_id, true), fecha: ES.fecha(f.fecha, true), orden: ES.ent(f.orden, -32768, 32767) || 0,
+        prioridad: ES.ent(f.prioridad, 1, 3) || 2, estado, origen: ES.enumv(f.origen, ['plan', 'auto', 'repaso', 'excepcion'], 'plan'),
+        veces_aplazada: ES.ent(f.veces_aplazada, 0, 999) || 0, abierta_at: ES.ts(f.abierta_at), completada_at: ES.ts(f.completada_at),
+        resultado_id: ES.uuid(f.resultado_id), nota: ES.txt(f.nota, 500) };
+      if(o.estado === 'completado' && !o.completada_at) o.completada_at = o.fecha + 'T12:00:00Z';
+    } else if(tabla === 'plan_resultados'){
+      let detalle = null;
+      if(Array.isArray(f.detalle)){
+        detalle = f.detalle.slice(0, 300).filter(x => x && typeof x === 'object' && typeof x.k === 'string' && /^(b:\d{1,15}|p:[0-9a-f-]{36})$/i.test(x.k)).map(x => ({
+          k: x.k, t: esUuid(x.t) ? x.t : null, f: ['pjfire', 'propia', 'tutor_bombero', 'otra'].includes(x.f) ? x.f : null,
+          ok: x.ok === true ? true : x.ok === false ? false : null, s: Number.isInteger(x.s) && x.s >= 0 && x.s <= 3 ? x.s : null }));
+      }
+      o = { id: ES.uuid(f.id, true), test_id: ES.uuid(f.test_id), tarea_id: ES.uuid(f.tarea_id), fuente: ES.enumv(f.fuente, ['manual', 'pjfire', 'examen']),
+        realizado_at: ES.ts(f.realizado_at, true), aciertos: ES.ent(f.aciertos, 0, 1000), fallos: ES.ent(f.fallos, 0, 1000), blancos: ES.ent(f.blancos, 0, 1000),
+        total: ES.ent(f.total, 1, 1000), nota: ES.num(f.nota, 0, 10), duracion_seg: ES.ent(f.duracion_seg, 0, 86400), duracion_medida: ES.bool(f.duracion_medida),
+        session_id: ES.uuid(f.session_id), titulo: ES.txt(f.titulo, 160), detalle, notas: ES.txt(f.notas, 1000) };
+      if(o.aciertos == null && o.nota == null) return null;
+    } else if(tabla === 'plan_preguntas'){
+      const ops = Array.isArray(f.opciones) && f.opciones.length >= 2 && f.opciones.length <= 4 && f.opciones.every(x => typeof x === 'string' && x.length <= 500) ? f.opciones.slice() : undefined;
+      o = { id: ES.uuid(f.id, true), tema_id: ES.uuid(f.tema_id), fuente: ES.enumv(f.fuente, ['propia', 'tutor_bombero', 'otra'], 'propia'), referencia: ES.txt(f.referencia, 160),
+        enunciado: ES.txt(f.enunciado, 2000, true), opciones: ops, correcta: ops ? ES.ent(f.correcta, 0, ops.length - 1, true) : undefined, explicacion: ES.txt(f.explicacion, 4000), archivada: ES.bool(f.archivada) };
+    } else if(tabla === 'plan_eventos'){
+      o = { id: ES.uuid(f.id, true), tipo: ES.enumv(f.tipo, ['abierto', 'completado', 'reabierto', 'aplazado', 'cancelado', 'aviso_fuera_plan', 'aviso_repetido', 'aviso_limite', 'excepcion']),
+        tarea_id: ES.uuid(f.tarea_id), test_id: ES.uuid(f.test_id), at: ES.ts(f.at, true), datos: ES.obj(f.datos, 1500) };
+    } else return null;
+    return Object.values(o).some(v => v === undefined) ? null : o;
+  }
+  // Importa sin duplicar: lo que ya existe (mismo id o mismo nombre o
+  // identificador) se salta y las referencias se rehacen hacia lo que ya
+  // había. Si la copia es de otra cuenta, todo recibe ids nuevos. Se sube
+  // por lotes (una petición por tabla y bloque).
+  async function importarDatos(t, usuarioCopia){
     if(!cargado){ uiToast('Espera a que cargue tu plan.', 'error'); return; }
     const cuenta = k => Array.isArray(t[k]) ? t[k].length : 0;
     if(!await uiConfirm('¿Importar esta copia?\n\n' + cuenta('plan_temas') + ' temas, ' + cuenta('plan_tests') + ' tests, ' + cuenta('plan_tareas') + ' tareas y ' + cuenta('plan_resultados') + ' resultados. Lo que ya tengas no se duplica.', { ok: 'Importar' })) return;
-    const mapa = {};   // id importado → id existente
-    const re = id => (id && mapa[id]) || id;
-    let nuevos = 0, saltados = 0;
-    const filas = k => (Array.isArray(t[k]) ? t[k] : []).filter(x => x && typeof x === 'object');
+    const deOtraCuenta = !!usuarioCopia && usuarioCopia !== yo();
+    const mapa = {};   // id de la copia → id en tu plan
+    const re = id => (id && mapa[id]) || (deOtraCuenta ? null : id);
+    let nuevos = 0, saltados = 0, invalidos = 0;
+    const lotes = {};
+    const anadir = (tabla, f) => {
+      (lotes[tabla] = lotes[tabla] || []).push(Object.assign(f, { user_id: yo() }));
+      aplicarLocal({ op: 'upsert', tabla, fila: f });   // para que lo siguiente vea lo ya importado
+      nuevos++;
+    };
     ORDEN_IMPORT.forEach(tabla => {
-      filas(tabla).forEach(f0 => {
-        const f = limpiarFila(f0);
-        delete f.user_id;
-        if(tabla === 'plan_ajustes'){ if(!d.ajustes) { guardar('plan_ajustes', f); nuevos++; } else saltados++; return; }
-        if(!esUuid(f.id)){ saltados++; return; }
+      (Array.isArray(t[tabla]) ? t[tabla] : []).forEach(f0 => {
+        const f = sanear(tabla, f0);
+        if(!f){ invalidos++; return; }
+        if(tabla === 'plan_ajustes'){ if(!d.ajustes){ guardar('plan_ajustes', f); nuevos++; } else saltados++; return; }
         const k = TABLAS[tabla];
-        if(d[k].some(x => x.id === f.id)){ saltados++; return; }
+        const original = f.id;
+        if(!deOtraCuenta && d[k].some(x => x.id === f.id)){ saltados++; return; }
+        if(deOtraCuenta){ f.id = uid(); mapa[original] = f.id; }
         if(tabla === 'plan_temas'){
-          const ya = d.temas.find(x => String(x.nombre).trim().toLowerCase() === String(f.nombre || '').trim().toLowerCase());
-          if(ya){ mapa[f.id] = ya.id; saltados++; return; }
+          const ya = d.temas.find(x => String(x.nombre).trim().toLowerCase() === f.nombre.trim().toLowerCase());
+          if(ya){ mapa[original] = ya.id; saltados++; return; }
         } else if(tabla === 'plan_tests'){
           f.tema_id = re(f.tema_id);
           if(f.tema_id && !temaDe(f.tema_id)) f.tema_id = null;
           const ya = d.tests.find(x => claveTest(x.plataforma, x.referencia, x.nombre) === claveTest(f.plataforma, f.referencia, f.nombre));
-          if(ya){ mapa[f.id] = ya.id; saltados++; return; }
+          if(ya){ mapa[original] = ya.id; saltados++; return; }
         } else if(tabla === 'plan_tareas'){
           f.test_id = re(f.test_id);
           if(!testDe(f.test_id) || d.tareas.some(x => x.test_id === f.test_id && x.fecha === f.fecha)){ saltados++; return; }
-          if(f.resultado_id) f.resultado_id = re(f.resultado_id);
+          f.resultado_id = null;   // se rehace al importar los resultados
         } else if(tabla === 'plan_resultados'){
           f.test_id = re(f.test_id); f.tarea_id = re(f.tarea_id);
           if(f.test_id && !testDe(f.test_id)) f.test_id = null;
           if(f.tarea_id && !tareaDe(f.tarea_id)) f.tarea_id = null;
           if(f.session_id && d.resultados.some(x => x.session_id === f.session_id)){ saltados++; return; }
+          if(f.detalle) f.detalle.forEach(x => { x.t = re(x.t); if(x.k.startsWith('p:')){ const p = re(x.k.slice(2)); if(p) x.k = 'p:' + p; } });
         } else if(tabla === 'plan_preguntas'){
           f.tema_id = re(f.tema_id);
           if(f.tema_id && !temaDe(f.tema_id)) f.tema_id = null;
@@ -1870,15 +2080,27 @@ const PLAN = (function(){
           if(d.preguntas.some(x => PLANL.normalizar(x.enunciado) === n)){ saltados++; return; }
         } else if(tabla === 'plan_eventos'){
           f.tarea_id = re(f.tarea_id); f.test_id = re(f.test_id);
-          encolar({ op: 'evento', tabla, fila: Object.assign(f, { user_id: yo() }) });
-          nuevos++;
-          return;
         }
-        guardar(tabla, f);
-        nuevos++;
+        anadir(tabla, f);
       });
     });
-    uiToast('Importado: ' + nuevos + ' nuevos, ' + saltados + ' ya los tenías.', 'success');
+    // Tareas completadas: su resultado (el que apunta a ellas).
+    (lotes.plan_resultados || []).forEach(r => {
+      const tarea = r.tarea_id && (lotes.plan_tareas || []).find(x => x.id === r.tarea_id);
+      if(tarea && tarea.estado === 'completado'){ tarea.resultado_id = r.id; aplicarLocal({ op: 'upsert', tabla: 'plan_tareas', fila: tarea }); }
+    });
+    // A la cola, por lotes de 200 y en orden (temas antes que tests, etc.).
+    const u = yo();
+    const ops = [];
+    ORDEN_IMPORT.forEach(tabla => {
+      const l = lotes[tabla] || [];
+      for(let i = 0; i < l.length; i += 200) ops.push({ op: 'lote', tabla, filas: l.slice(i, i + 200), n: uid() });
+    });
+    if(ops.length && !guardarCola(cola(u).concat(ops), u)){ uiToast('No se ha podido guardar la importación en el dispositivo.', 'error'); cargar(); return; }
+    guardarCache();
+    actualizarAviso();
+    subir();
+    uiToast('Importado: ' + nuevos + ' nuevos, ' + saltados + ' que ya tenías' + (invalidos ? ' y ' + invalidos + ' no válidos (no se importan)' : '') + '.', 'success');
     repintar();
   }
   function correoRgpd(){
@@ -1903,7 +2125,7 @@ const PLAN = (function(){
     // para PLANX y PLANP
     datos: () => Object.assign({}, d, { cargado, error: errorCarga }),
     hoy, uid, guardar, cambiar, borrar, evento, temaDe, testDe, tareaDe, mapaTopicTema, nombreTema, hoja, repintar, irA,
-    apuntarResultado, programar, temasOrdenados, etiquetaPlataforma, textoResultado,
+    apuntarResultado, programar, temasOrdenados, etiquetaPlataforma, textoResultado, reintentarYa,
     // acciones de la interfaz (onclick)
     abrirTarea, abrirTest, apuntarTarea, verTarea, menuTarea, moverTarea, aplazar, anadirTarea, programarHoy, programarRepaso,
     repasoFallos, planificarAuto, vista, navegar, verDia, filtrarTests, alternarArchivados, programarTest, menuTest, editarTest,

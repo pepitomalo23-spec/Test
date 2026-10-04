@@ -101,6 +101,11 @@ test('evaluarApertura: todos los casos', () => {
   assert.equal(fuera.puedeAnadirHoy, false);
   // Sin avisos
   assert.equal(P.evaluarApertura({ ...base, ajustes: AJ({ reglas: { avisar_fuera_plan: false } }), tareas: [], resultados: [] }).tipo, 'libre');
+  // Completado otro día sin nota: también es «ya hecho»
+  const sinNota = P.evaluarApertura({ ...base, tareas: [tarea({ id: 'v', test_id: 'T1', fecha: '2026-10-01', estado: 'completado', completada_at: 'x' })], resultados: [] });
+  assert.equal(sinNota.tipo, 'repetido');
+  assert.equal(sinNota.resultado, null);
+  assert.equal(sinNota.tarea.id, 'v');
   // Sin evitar_repetir, un test hecho fuera de plan avisa de fuera de plan
   assert.equal(P.evaluarApertura({ ...base, ajustes: AJ({ reglas: { evitar_repetir: false } }), tareas: [], resultados: [{ id: 'r', test_id: 'T1', realizado_at: '2026-09-01T00:00:00Z' }] }).tipo, 'fuera_plan');
 });
@@ -157,6 +162,10 @@ test('estadísticas por tema, a reforzar y repasos', () => {
   assert.equal(s.B.respondidas, 11);
   assert.equal(s.A.resultados, 3);
   assert.ok(Math.abs(s.A.pct - 5 / 11 * 100) < 1e-9);
+  // Sin fallos ni total no hay %: no se inventa un 100 %
+  assert.equal(P.pctDe({ aciertos: 18 }), null);
+  assert.equal(P.pctDe({ aciertos: 18, total: 30 }), 60);
+  assert.equal(P.statsTemas({ temas, tests, resultados: [{ id: 'x', test_id: 'tA', aciertos: 18, realizado_at: '2026-10-01T00:00:00Z' }] }).A.pct, null);
   const flojos = P.temasAReforzar(s, 60);
   assert.deepEqual(flojos.map(x => x.tema_id), ['A']);
   const rep = P.proponerRepasos({ stats: s, temas, tests, tareas: [], resultados, ajustes: AJ() });
@@ -201,6 +210,8 @@ test('parsearResultado: textos copiados de distintas formas', () => {
     ['Puntuación: 6.45/10', { nota: 6.45 }],
     ['Calificación 7,5 sobre 10', { nota: 7.5 }],
     ['Nota 64,5 %', { nota: 6.45 }],
+    ['Resultado: 18/30 (60%)', { aciertos: 18, total: 30, nota: null }],
+    ['Has acertado 18 de 30 preguntas', { aciertos: 18, nota: null }],
     ['Bien 22 Mal 3 Blanco 5', { aciertos: 22, fallos: 3, blancos: 5 }],
     ['Aciertos\t18\nErrores\t7\nBlancas\t5\nTotal\t30', { aciertos: 18, fallos: 7, blancos: 5, total: 30 }],
   ];

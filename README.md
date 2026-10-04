@@ -253,7 +253,8 @@ terminado y con qué resultado. Investigación, diseño y limitaciones: `docs/pl
 - **Privado y opt-in**: permiso `plan` (Administración → Usuarios). A diferencia de los demás, está **apagado**
   salvo que se encienda (`FEATURES_OPT_IN` en `permisos.js`; el admin siempre lo tiene). En la base de datos,
   `plan_permitido()`: admin, o `feature_flags.plan = true` con la cuenta aprobada y sin bloquear. Cada usuario solo
-  ve sus filas (ni el admin ve las de otros).
+  ve sus filas desde la app (ni el admin ve las de otros); la copia diaria de `backup-db`, que solo descarga el
+  admin, sí las incluye.
 - **Tablas** (`supabase/migrations/20261003c_plan_estudio.sql`): `plan_ajustes` (límite diario, días de estudio,
   reglas), `plan_temas` (con los temas del banco que les corresponden, `topic_ids`), `plan_tests` (catálogo; uno
   por plataforma e identificador), `plan_tareas` (un test un día: pendiente → en curso → completado, o aplazado;

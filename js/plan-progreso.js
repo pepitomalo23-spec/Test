@@ -22,7 +22,12 @@ const PLANP = (function(){
   function plural(n, a, b){ return n + ' ' + (n === 1 ? a : b); }
   function idAttr(x){ return /^[0-9a-f-]{36}$/i.test(String(x || '')) ? x : ''; }
   function desdeDe(h){ return periodo === '7' ? PLANL.sumarDias(h, -6) : periodo === '30' ? PLANL.sumarDias(h, -29) : null; }
-  function diaDe(r){ const ms = Date.parse(r.realizado_at || r.created_at); return isNaN(ms) ? null : PLANL.hoy(new Date(ms)); }
+  function msDe(iso){
+    if(!iso) return NaN;
+    const ms = Date.parse(String(iso).trim().replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1').replace(/([+-]\d{2})$/, '$1:00'));
+    return isNaN(ms) ? Date.parse(iso) : ms;
+  }
+  function diaDe(r){ const ms = msDe(r.realizado_at || r.created_at); return isNaN(ms) ? null : PLANL.hoy(new Date(ms)); }
   function enPeriodo(r, desde, h){ const dd = diaDe(r); return dd && (!desde || dd >= desde) && dd <= h; }
   function duracion(seg){
     seg = Math.round(seg || 0);
@@ -36,6 +41,7 @@ const PLANP = (function(){
   // Aciertos y preguntas de un resultado (null si no tiene recuento).
   function recuento(r){
     if(r.aciertos == null) return null;
+    if(r.fallos == null && r.total == null) return null;   // sin fallos ni total no se sabe sobre cuántas
     const a = Number(r.aciertos) || 0, f = Number(r.fallos) || 0, b = Number(r.blancos) || 0;
     const n = Math.max(Number(r.total) || 0, a + f + b);
     return n > 0 ? { a, n } : null;

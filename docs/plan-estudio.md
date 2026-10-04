@@ -126,7 +126,8 @@ y la migración `supabase/migrations/20261003c_plan_estudio.sql`.
 
 Todas: `user_id` con RLS `user_id = auth.uid() and plan_permitido()`, solo para `authenticated` (anon sin
 permisos). `plan_permitido()` exige ser administrador o tener `feature_flags.plan = true` estando aprobado y no
-bloqueado: el permiso es **opt-in** (apagado para todos los demás). Ni el administrador ve los planes de otros.
+bloqueado: el permiso es **opt-in** (apagado para todos los demás). Desde la app, ni el administrador ve los planes
+de otros; la copia de seguridad diaria (que solo descarga el administrador) sí los incluye.
 Las referencias entre tablas llevan también el `user_id` (claves foráneas compuestas): nadie puede colgar algo
 suyo de un tema, test o tarea de otro aunque conozca su id. Probado con 82 pruebas (`tests/plan/db`).
 
@@ -154,7 +155,8 @@ suyo de un tema, test o tarea de otro aunque conozca su id. Probado con 82 prueb
 
 ### Privacidad y seguridad
 
-- Privado por diseño (RLS + permiso opt-in); el plan de cada uno no lo ve nadie más.
+- Privado por diseño (RLS + permiso opt-in); en la app, el plan de cada uno no lo ve nadie más (la copia de seguridad diaria lo incluye).
+- Importar una copia valida cada fila (solo columnas conocidas, tipos y valores permitidos) y descarta lo demás.
 - Sin credenciales de Tutor Bombero en ningún sitio; sin contenido suyo importado en bloque; sin conexión técnica con su web.
 - Todo texto se pinta escapado; los enlaces solo pueden ser `http(s)` y se abren con `noopener`.
 - Exportación e importación de tus datos en JSON (sin duplicar), y las tablas del plan entran en la copia diaria (`backup-db`).
@@ -170,7 +172,7 @@ suyo de un tema, test o tarea de otro aunque conozca su id. Probado con 82 prueb
 - **El resultado de Tutor Bombero lo apuntas tú** (o lo pegas). Si no lo confirmas, el test no cuenta como hecho.
 - **El tiempo de Tutor Bombero no se mide**: solo cuenta el que apuntes. El tiempo «medido» es el de los tests de
   pj.fire y los exámenes del plan. En los tests de pj.fire es el tiempo de reloj (si se deja a medias y se sigue
-  otro día, no se mide: pasa de 3 horas).
+  otro día, no cuenta como medido).
 - **Detectar la vuelta** depende de que Safari avise al volver a la app; si no, la tarea sigue «en curso» en Hoy
   con su botón «Apuntar resultado».
 - Las pruebas de interfaz se han hecho en Chromium con tamaño y agente de iPad, no en un iPad real: conviene un

@@ -231,6 +231,43 @@ try{
     ok('avisa de lo que no toca hoy y de lo ya hecho, y lo apunta');
   });
 
+  await paso('e2. Un test ya programado otro día se pasa a hoy (no se duplica); «18/30» no inventa la nota', async () => {
+    const manana = sql("select ((now() at time zone 'Europe/Madrid')::date + 1)");
+    const h = hoyMadrid();
+    await pestana('tests');
+    await pagina.locator('.pl-test', { hasText: 'Constitución · Test 5' }).locator('button', { hasText: 'Programar' }).click();
+    await pagina.fill('.pl-hoja [name="fecha"]', manana);
+    await botonHoja('Programar');
+    await colaVacia();
+    await pagina.locator('.pl-test', { hasText: 'Constitución · Test 5' }).locator('button', { hasText: 'Abrir' }).click();
+    await pagina.waitForSelector('.pl-hoja');
+    assert.match(await pagina.textContent('.pl-hoja'), /Lo tienes programado para el/);
+    const [popup] = await Promise.all([ctx.waitForEvent('page'), pagina.locator('.pl-hoja-botones button', { hasText: /^Pasarlo a hoy/ }).click()]);
+    await popup.close();
+    await pagina.waitForSelector('.ui-confirm', { timeout: 1500 }).then(() => pagina.click('.ui-confirm-ok')).catch(() => {});
+    await colaVacia();
+    const t5 = sqlJson("select t.fecha::text as fecha, t.estado from plan_tareas t join plan_tests s on s.id = t.test_id where s.referencia = 'Constitución · Test 5'");
+    assert.deepEqual(t5, [{ fecha: h, estado: 'en_curso' }], 'una sola tarea, movida a hoy: ' + JSON.stringify(t5));
+    ok('el test programado otro día se trae a hoy, sin duplicarlo');
+    // Volver y pegar «18/30»: sin fallos, la nota no se inventa
+    await pagina.evaluate(id => {
+      const k = 'plan_apertura_v1_' + id; const a = JSON.parse(localStorage.getItem(k)); a.at -= 25 * 60000; localStorage.setItem(k, JSON.stringify(a));
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, ADMIN);
+    await pagina.waitForSelector('.pl-hoja');
+    await botonHoja('Sí, apuntar resultado');
+    await pagina.evaluate(() => navigator.clipboard.writeText('Has acertado 18 de 30 preguntas'));
+    await pagina.click('.pl-hoja [data-accion="pegar"]');
+    await pagina.waitForFunction(() => document.querySelector('.pl-hoja [name="aciertos"]').value === '18');
+    assert.equal(await pagina.inputValue('.pl-hoja [name="nota"]'), '');
+    assert.match(await pagina.textContent('.pl-hoja .pl-nota-calc'), /hacen falta los fallos/);
+    await botonHoja('Guardar');
+    await colaVacia();
+    const r = sqlJson("select r.aciertos, r.fallos, r.total, r.nota from plan_resultados r join plan_tests s on s.id = r.test_id where s.referencia = 'Constitución · Test 5'");
+    assert.deepEqual(r, [{ aciertos: 18, fallos: null, total: 30, nota: null }]);
+    ok('«18 de 30» se guarda sin inventar fallos ni nota');
+  });
+
   await paso('f. Test de pj.fire: se registra solo al terminar', async () => {
     await pagina.locator('.pl-test', { hasText: 'Repaso CE en pj.fire' }).locator('button', { hasText: 'Programar' }).click();
     await botonHoja('Programar');
@@ -400,6 +437,36 @@ try{
     await pagina.waitForSelector('#screen-plan.active .pl-pestanas');
     assert.ok(await pagina.locator('.pl-dia, .pl-tarea').count() > 0);
     ok('tras recargar sigue en el Plan');
+  });
+
+  await paso('m. Importar un archivo manipulado no cuela HTML ni datos raros', async () => {
+    const malo = { app: 'pj.fire', tipo: 'plan-de-estudio', version: 1, usuario: '00000000-0000-4000-8000-0000000000ff', tablas: {
+      plan_temas: [{ id: '11111111-1111-4111-8111-111111111111', nombre: '<img src=x onerror="window.__xss=1">Tema raro', numero: 7 }],
+      plan_tests: [
+        { id: '22222222-2222-4222-8222-222222222222', plataforma: 'pjfire', nombre: 'Malicioso', tema_id: '11111111-1111-4111-8111-111111111111',
+          config: { modo: 'estudio', n: '<img src=x onerror="window.__xss=2">', topic_ids: ['CE'] } },
+        { id: '33333333-3333-4333-8333-333333333333', plataforma: 'tutor_bombero', nombre: 'Con enlace malo', url: 'javascript:window.__xss=3' }
+      ],
+      plan_resultados: [{ id: '44444444-4444-4444-8444-444444444444', fuente: 'manual', realizado_at: '2026-10-01T10:00:00Z', aciertos: '<img src=x onerror="window.__xss=4">', total: 10 }],
+      plan_tareas: [{ id: '55555555-5555-4555-8555-555555555555', test_id: '22222222-2222-4222-8222-222222222222', fecha: '2026-10-20', estado: '"><img src=x onerror="window.__xss=5">' }]
+    } };
+    const ruta = CAPTURAS + '/malicioso.json';
+    writeFileSync(ruta, JSON.stringify(malo));
+    await pagina.click('#plBtnAjustes');
+    const [elegir] = await Promise.all([pagina.waitForEvent('filechooser'), pagina.click('text=Importar una copia')]);
+    await elegir.setFiles(ruta);
+    await pagina.waitForSelector('.ui-confirm');
+    await pagina.click('.ui-confirm-ok');
+    await colaVacia();
+    await pagina.click('text=Volver al plan');
+    for(const tab of ['hoy', 'plan', 'tests', 'progreso']){ await pestana(tab); await pagina.waitForTimeout(200); }
+    assert.equal(await pagina.evaluate(() => window.__xss), undefined, 'no se ha ejecutado nada');
+    const cfg = sqlJson("select nombre, config->>'n' as n, url from plan_tests where nombre in ('Malicioso', 'Con enlace malo') order by nombre");
+    assert.deepEqual(cfg, [{ nombre: 'Malicioso', n: '20', url: null }], 'el test del enlace malo no se importa y n se corrige: ' + JSON.stringify(cfg));
+    assert.equal(sql("select count(*) from plan_resultados where aciertos is null and nota is null"), '0');
+    assert.equal(sql("select count(*) from plan_tareas where fecha = '2026-10-20'"), '0', 'la tarea con estado raro no se importa');
+    assert.equal(sql("select count(*) from plan_tests where id = '22222222-2222-4222-8222-222222222222'"), '0', 'de otra cuenta: ids nuevos');
+    ok('lo no válido se descarta y nada se ejecuta');
   });
 
   await paso('l. Capturas: iPad vertical y horizontal, móvil, claro y oscuro', async () => {

@@ -38,6 +38,7 @@ function startQuiz(mode, questions, timeMinutes, ctx){
 /* ---------- reanudar un test dejado a medias (desde la tarjeta bloqueada de home) ---------- */
 function resumeQuiz(){
   if(!quizState || !quizState.mode) return;
+  quizState.reanudado = true;   // se dejó a medias: su tiempo de reloj ya no es el de estudio
   showScreen('screen-quiz');
   document.getElementById('quizCardView').style.display = (quizState.viewMode === 'card') ? 'block' : 'none';
   document.getElementById('quizListView').style.display = (quizState.viewMode === 'list') ? 'block' : 'none';

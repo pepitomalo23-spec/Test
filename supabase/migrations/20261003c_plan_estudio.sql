@@ -7,7 +7,9 @@
 -- qué se ha abierto, qué se ha terminado y con qué resultado.
 --
 -- Es PRIVADO por usuario: cada uno solo ve y toca sus filas (RLS), ni el
--- administrador ve las de los demás, y anon no tiene acceso. Además hay
+-- administrador ve las de los demás desde la app, y anon no tiene acceso
+-- (la copia de seguridad diaria, hecha con la clave de servicio y que solo
+-- descarga el administrador, sí las incluye). Además hay
 -- que tener el permiso «plan», que a diferencia de los demás está
 -- APAGADO salvo que se active a mano (feature_flags.plan = true) o se
 -- sea administrador: ver plan_permitido().
