@@ -1813,7 +1813,8 @@ const PLAN = (function(){
       ['evitar_repetir', 'Avisar antes de repetir un test ya hecho', 'Para no repetirlo por error.'],
       ['mostrar_atrasadas', 'Mostrar las tareas atrasadas', 'En Hoy, y la planificación automática las recoloca primero.'],
       ['priorizar_pendientes', 'Priorizar lo aplazado', 'A igual prioridad, lo que ya se aplazó va antes.'],
-      ['proponer_repasos', 'Proponer repasos de temas flojos', 'Cuando un tema baja del umbral de aciertos.']
+      ['proponer_repasos', 'Proponer repasos de temas flojos', 'Cuando un tema baja del umbral de aciertos.'],
+      ['aviso_noche', 'Aviso por la noche', 'Una notificación con lo que te queda del plan de hoy (o que lo has completado). Necesita las notificaciones activadas (🔔 Recordatorio diario).']
     ];
     el.innerHTML = '<div class="pl-ajustes">' +
       '<button type="button" class="pl-enlace pl-volver" onclick="PLAN.irA(\'hoy\')">' + ICO.izq + ' Volver al plan</button><h2 class="pl-h2">Ajustes del plan</h2>' +
@@ -1825,6 +1826,8 @@ const PLAN = (function(){
       '<section class="pl-card"><h3 class="pl-seccion">Reglas</h3>' + REGLAS.map(x =>
         '<div class="pl-ajuste-fila"><div><b>' + x[1] + '</b><span class="pl-suave">' + x[2] + '</span></div>' +
         '<button type="button" class="switch' + (r[x[0]] ? ' on' : '') + '" role="switch" aria-checked="' + !!r[x[0]] + '" aria-label="' + esc(x[1]) + '" onclick="PLAN.alternarRegla(\'' + x[0] + '\')"><span class="knob"></span></button></div>').join('') +
+      (r.aviso_noche ? '<div class="pl-ajuste-fila"><div><b>Hora del aviso</b><span class="pl-suave">Hora de Madrid.</span></div>' +
+        '<div class="pl-chips">' + [20, 21, 22, 23].map(x => '<button type="button" class="pl-chip' + (Number(r.hora_noche) === x ? ' on' : '') + '" aria-pressed="' + (Number(r.hora_noche) === x) + '" onclick="PLAN.ajustarHoraNoche(' + x + ')">' + x + ':00</button>').join('') + '</div></div>' : '') +
       '<div class="pl-ajuste-fila"><div><b>Umbral de repaso</b><span class="pl-suave">Un tema por debajo de este % de aciertos necesita repaso.</span></div>' +
       '<div class="pl-chips">' + [50, 60, 70, 80].map(u => '<button type="button" class="pl-chip' + (Number(r.umbral_repaso) === u ? ' on' : '') + '" aria-pressed="' + (Number(r.umbral_repaso) === u) + '" onclick="PLAN.ajustarUmbral(' + u + ')">' + u + ' %</button>').join('') + '</div></div></section>' +
       '<section class="pl-card"><h3 class="pl-seccion">Temas de la oposición <span class="pl-num gris">' + d.temas.filter(t => !t.archivado).length + '</span></h3>' +
@@ -1872,6 +1875,11 @@ const PLAN = (function(){
   function ajustarUmbral(u){
     const guardadas = Object.assign({}, (d.ajustes && d.ajustes.reglas) || {});
     guardadas.umbral_repaso = u;
+    guardarAjustes({ reglas: guardadas });
+  }
+  function ajustarHoraNoche(x){
+    const guardadas = Object.assign({}, (d.ajustes && d.ajustes.reglas) || {});
+    guardadas.hora_noche = x;
     guardarAjustes({ reglas: guardadas });
   }
   function editarTema(id){
@@ -2173,6 +2181,6 @@ const PLAN = (function(){
     // acciones de la interfaz (onclick)
     abrirTarea, abrirTest, apuntarTarea, verTarea, menuTarea, moverTarea, aplazar, anadirTarea, programarHoy, programarRepaso,
     repasoFallos, planificarAuto, vista, navegar, verDia, filtrarTests, alternarArchivados, programarTest, menuTest, editarTest,
-    anadirVarios, ajustarLimite, alternarDia, alternarRegla, ajustarUmbral, editarTema, crearVariosTemas, exportar, importar, correoRgpd
+    anadirVarios, ajustarLimite, alternarDia, alternarRegla, ajustarUmbral, ajustarHoraNoche, editarTema, crearVariosTemas, exportar, importar, correoRgpd
   };
 })();

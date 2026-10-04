@@ -292,6 +292,9 @@ terminado y con qué resultado. Investigación, diseño y limitaciones: `docs/pl
 - **Pruebas**: `node --test tests/plan/*.test.mjs` (lógica; también en GitHub Actions), `bash tests/plan/db/run.sh`
   (82 pruebas de RLS y restricciones en un PostgreSQL local) y `tests/plan/e2e` (la app en Chromium con tamaño de
   iPad contra PostgreSQL + PostgREST locales; ver su README).
+- **Aviso por la noche**: `push-reminders` (cada hora) manda a quien tenga el Plan y algo planificado hoy lo que le
+  queda del día, o que lo ha completado, a la hora de `plan_ajustes.reglas.hora_noche` (21 por defecto; se apaga con
+  `aviso_noche`). Una vez al día por dispositivo (`push_subscriptions.last_plan_sent_on`). Necesita las notificaciones activadas.
 - Las tablas `plan_*` están en la copia diaria (`backup-db`) y se pueden exportar e importar en JSON desde Ajustes.
 
 ## Al cambiar un css/ o js/

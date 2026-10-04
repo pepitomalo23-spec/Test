@@ -27,7 +27,9 @@ const PLANL = (function(){
     mostrar_atrasadas: true,     // enseñar (y recolocar) lo que se quedó sin hacer
     proponer_repasos: true,      // sugerir repasos de los temas flojos
     priorizar_pendientes: true,  // a igual prioridad, primero lo aplazado
-    umbral_repaso: 60            // % de aciertos por debajo del cual un tema necesita repaso
+    umbral_repaso: 60,           // % de aciertos por debajo del cual un tema necesita repaso
+    aviso_noche: true,           // notificación por la noche con lo que queda del día (push-reminders)
+    hora_noche: 21               // a qué hora (17-23, hora de Madrid)
   };
   const AJUSTES_DEF = { limite_diario: 3, dias_estudio: [1, 2, 3, 4, 5, 6], reglas: {} };
   const TB_URL = 'https://tutorbomberos.es/TEST/index.jsp';
@@ -221,6 +223,9 @@ const PLANL = (function(){
         if(k === 'umbral_repaso'){
           const u = num(v);
           if(u != null) reglas[k] = Math.min(100, Math.max(0, u));
+        } else if(k === 'hora_noche'){
+          const hn = num(v);
+          if(hn != null) reglas[k] = Math.min(23, Math.max(17, Math.round(hn)));
         } else if(typeof REGLAS_DEF[k] === 'boolean'){
           if(typeof v === 'boolean') reglas[k] = v;
         } else {
