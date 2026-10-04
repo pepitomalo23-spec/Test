@@ -35,6 +35,7 @@ const TABLES = [
   "test_sessions", "session_answers", "dismissed_fails", "question_user_data",
   "nq_sets", "nq_cards", "nq_user_progress",
   "boe_normas_seguimiento", "boe_bloques_seguimiento", "boe_cambios",
+  "plan_ajustes", "plan_temas", "plan_tests", "plan_tareas", "plan_resultados", "plan_eventos", "plan_preguntas",
 ];
 
 async function dumpTable(sb: ReturnType<typeof createClient>, table: string) {

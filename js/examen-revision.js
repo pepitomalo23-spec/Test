@@ -245,12 +245,84 @@ async function finishQuizInner(){
   else { HISTORY.unshift(entry); renderHistory(); }
   lastFinishedReviewId = entry.id;
 
+  // Test lanzado desde el Plan de estudio: se apunta allí solo (resultado
+  // y tarea completada). Si falla, el test ya está guardado igualmente.
+  if(quizState.ctx && quizState.ctx.plan && typeof PLAN !== 'undefined'){
+    try{
+      PLAN.alTerminarTest({
+        ctx: quizState.ctx.plan, sessionId, nota: notaNum, total, ok: quizState.correctCount, bad, blank, elapsedSec,
+        preguntas: SESSION_QUESTIONS.map((q, j) => ({ id: q.id, topic_id: q.topic_id, ok: (SESSION_ANSWERS[j] === null || SESSION_ANSWERS[j] === undefined) ? null : SESSION_ANSWERS[j] === q.correct }))
+      });
+    }catch(e){ reportClientError('plan-test', 'No se pudo apuntar en el Plan un test terminado: ' + (e && (e.message || e))); }
+  }
+
   // el test ya ha terminado: se libera el bloqueo de las demás tarjetas de home
   quizState.mode = null;
   quizSecondsLeft = null;
   clearQuizProgress();
 
   showScreen('screen-result');
+}
+/* Guarda en el historial de Legislación (test_sessions/session_answers)
+   un test hecho fuera de esta pantalla: la parte del banco de un examen
+   combinado del Plan. Mismo cálculo de nota y mismas filas que
+   finishQuizInner, y la misma cola si no hay conexión. preguntas:
+   [{id, correct, options}] (correct e índices en el orden de options, que
+   es el de la base de datos); respuestas: [índice | null].
+   Devuelve el id de la sesión, o null si no se ha podido guardar ya
+   (queda en la cola y se subirá sola). */
+async function guardarSesionBanco({ mode, preguntas, respuestas }, elapsedSec){
+  if(!currentUser || !preguntas || !preguntas.length) return null;
+  const total = preguntas.length;
+  let ok = 0, blank = 0, puntos = 0;
+  preguntas.forEach((q, j) => {
+    const a = respuestas[j];
+    if(a === null || a === undefined){ blank++; return; }
+    if(a === q.correct){ ok++; puntos += 1; }
+    else {
+      const n = (q.options && q.options.length) || 4;
+      puntos -= n > 1 ? 1 / (n - 1) : 0;
+    }
+  });
+  const bad = total - ok - blank;
+  const nota = total ? Math.max(0, (puntos / total) * 10) : 0;
+  const sessionPayload = {
+    user_id: currentUser.id, mode: mode || 'examen', score: Number(nota.toFixed(2)),
+    total, ok, bad, pending: blank, time_seconds: Math.max(0, Math.round(elapsedSec || 0))
+  };
+  const answerRowsFor = sid => preguntas.map((q, j) => {
+    const a = respuestas[j];
+    return { session_id: sid, user_id: currentUser.id, question_id: q.id,
+      selected_index: (a === null || a === undefined) ? null : a, is_correct: a === q.correct, answer_order: j };
+  });
+  // Las falladas (o en blanco) pasan al Repaso diario, como en un test normal.
+  try{
+    if(typeof NQ !== 'undefined' && NQ.addFailedQuestion) preguntas.forEach((q, j) => { if(respuestas[j] !== q.correct) NQ.addFailedQuestion(q.id); });
+  }catch(e){}
+  if(!navigator.onLine){
+    queuePendingResult({ session: sessionPayload, answers: answerRowsFor(null) });
+    return null;
+  }
+  let savedSessionId = null;
+  try{
+    const { data, error } = await sb.from('test_sessions').insert(sessionPayload).select('id').single();
+    if(error) throw error;
+    savedSessionId = data.id;
+    const { error: aErr } = await sb.from('session_answers').insert(answerRowsFor(savedSessionId));
+    if(aErr) throw aErr;
+  }catch(err){
+    if(!navigator.onLine || /fetch|network|load failed|conexi|timeout/i.test(String(err && (err.message || err)))){
+      queuePendingResult(savedSessionId
+        ? { sessionId: savedSessionId, answers: answerRowsFor(savedSessionId) }
+        : { session: sessionPayload, answers: answerRowsFor(null) });
+    } else {
+      reportClientError('guardar-test', 'No se pudo guardar un examen del Plan en el historial: ' + (err && (err.message || err)));
+    }
+    return null;
+  }
+  // Fallos, Test Inteligente, Historial y Estadísticas, al día (sin esperar).
+  (async () => { try{ await loadAppData(); await loadHistory(); renderHistory(); await refreshGlobalStats(); }catch(e){} })();
+  return savedSessionId;
 }
 function openLastReview(){
   const entry = HISTORY.find(h => h.id === lastFinishedReviewId) || SMART_HISTORY.find(h => h.id === lastFinishedReviewId);

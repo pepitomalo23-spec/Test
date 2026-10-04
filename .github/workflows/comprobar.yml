@@ -16,3 +16,5 @@ jobs:
         run: for f in $(find js -name '*.js') sw.js scripts/*.mjs; do node --check "$f" || exit 1; done
       - name: Versiones (?v=) de css/ y js/ al día en index.html
         run: node scripts/versionar.mjs --check
+      - name: Pruebas de la lógica del Plan de estudio
+        run: node --test tests/plan/*.test.mjs

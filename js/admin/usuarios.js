@@ -4,6 +4,12 @@
 
 /* ---------- Administración → plantilla de funciones para cuentas nuevas ---------- */
 let adminDefaultFlags = null;
+// Si una función está encendida en unos flags: las normales, salvo que
+// estén en false; las de FEATURES_OPT_IN (el Plan), solo si están en true.
+function adminFlagOn(flags, key){
+  flags = flags || {};
+  return FEATURES_OPT_IN.includes(key) ? flags[key] === true : flags[key] !== false;
+}
 async function adminLoadDefaultFlags(){
   const el = document.getElementById('defaultFlagsList');
   if(!el) return;
@@ -13,14 +19,14 @@ async function adminLoadDefaultFlags(){
     adminDefaultFlags = (data && data.value) || {};
   }
   el.innerHTML = Object.keys(FEATURES).map(key => {
-    const on = adminDefaultFlags[key] !== false;
+    const on = adminFlagOn(adminDefaultFlags, key);
     return '<div class="admin-user-row" style="justify-content:space-between; margin:6px 0;"><span style="font-size:13px;">' + escapeHtml(FEATURES[key]) + '</span>' +
       '<span class="switch' + (on ? ' on' : '') + '" role="button" tabindex="0" onclick="adminToggleDefaultFlag(\'' + key + '\')" onkeydown="if(event.key===\'Enter\')adminToggleDefaultFlag(\'' + key + '\')"><span class="knob"></span></span></div>';
   }).join('');
 }
 async function adminToggleDefaultFlag(key){
   const prev = Object.assign({}, adminDefaultFlags);
-  adminDefaultFlags[key] = adminDefaultFlags[key] === false;
+  adminDefaultFlags[key] = !adminFlagOn(adminDefaultFlags, key);
   adminLoadDefaultFlags();
   const { error } = await sb.rpc('admin_set_default_feature_flags', { p_flags: adminDefaultFlags });
   if(error){ adminDefaultFlags = prev; adminLoadDefaultFlags(); uiToast('No se pudo guardar: ' + error.message, 'error'); }
@@ -121,7 +127,7 @@ function adminRenderUsers(){
         '<div class="admin-card-meta">Funciones visibles para esta cuenta:</div>' +
         Object.keys(FEATURES).map(key => {
           const flags = u.feature_flags || {};
-          const on = flags[key] !== false;
+          const on = adminFlagOn(flags, key);
           return '<div class="admin-user-row" style="justify-content:space-between;">' +
               '<span style="font-size:13px;">' + esc(FEATURES[key]) + '</span>' +
               '<span class="switch' + (on ? ' on' : '') + '" role="button" tabindex="0" ' +
