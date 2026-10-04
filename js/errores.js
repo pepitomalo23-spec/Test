@@ -7,6 +7,36 @@
 const APP_VERSION = '2026.09.24';
 const reportedErrors = new Set();
 let reportedCount = 0;
+
+/* ---------- Pasos del arranque ----------
+   Si la app tarda en entrar, el aviso «atasco» lleva en «Detalles técnicos»
+   cuándo acabó cada paso (en segundos desde que se abrió), cuánto rato
+   estuvo la pestaña en segundo plano y el tipo de conexión: así se sabe en
+   qué paso se queda colgada. */
+const ARRANQUE_T0 = Date.now();
+const arranquePasos = [];
+let arranqueOculta = 0, arranqueOcultaDesde = document.hidden ? Date.now() : null;
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden) arranqueOcultaDesde = Date.now();
+  else if(arranqueOcultaDesde){ arranqueOculta += Date.now() - arranqueOcultaDesde; arranqueOcultaDesde = null; }
+});
+function pasoArranque(nombre){
+  if(arranquePasos.length < 40) arranquePasos.push(nombre + ' ' + ((Date.now() - ARRANQUE_T0) / 1000).toFixed(1) + ' s');
+}
+function segundosOculta(){ return (arranqueOculta + (arranqueOcultaDesde ? Date.now() - arranqueOcultaDesde : 0)) / 1000; }
+function resumenArranque(pendiente){
+  const c = navigator.connection || {};
+  return (pendiente ? 'Sin terminar: ' + pendiente + '\n' : '') +
+    'Pasos: ' + (arranquePasos.join(' · ') || 'ninguno') + '\n' +
+    'En segundo plano: ' + segundosOculta().toFixed(1) + ' s · conexión: ' + (navigator.onLine ? (c.effectiveType || 'sí') : 'sin conexión') +
+    (c.downlink ? ' (' + c.downlink + ' Mb/s)' : '');
+}
+// Si la pestaña estuvo en segundo plano, la espera no la ha visto nadie
+// (Safari frena las pestañas ocultas): no se avisa de atasco.
+function reportarAtasco(mensaje, pendiente){
+  if(segundosOculta() >= 3) return;
+  reportClientError('atasco', mensaje, resumenArranque(pendiente));
+}
 function reportClientError(kind, message, stack){
   try{
     const msg = String(message || '').slice(0, 1000);

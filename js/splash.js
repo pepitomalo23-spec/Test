@@ -46,6 +46,6 @@ setTimeout(() => {
 // Red de seguridad: si algo se queda colgado (sin red, Supabase caído…),
 // no se deja a nadie mirando el logo para siempre.
 setTimeout(() => {
-  if(!splashDone) reportClientError('atasco', 'La app llevaba 12 s en la pantalla de carga al arrancar (se quitó por seguridad).');
+  if(!splashDone) reportarAtasco('La app llevaba 12 s en la pantalla de carga al arrancar (se quitó por seguridad).');
   finishSplash();
 }, 12000);

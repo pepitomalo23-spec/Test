@@ -55,7 +55,7 @@ async function loadQuestionsCached(){
   const OVERLAP_MS = 15 * 60 * 1000;         // margen (escrituras lentas, reloj del móvil algo desfasado)
   const FULL_EVERY_MS = 7 * 24 * 3600 * 1000;
   let cache = questionsCacheMem;
-  if(!cache){ try{ cache = await idbGet(QCACHE_KEY); }catch(e){ cache = null; } }
+  if(!cache){ try{ cache = await idbGet(QCACHE_KEY); }catch(e){ cache = null; } pasoArranque('copia guardada ' + (cache && cache.rows ? cache.rows.length : 0)); }
   let rows = null;
   const syncStart = Date.now();
   if(cache && Array.isArray(cache.rows) && cache.syncedAt && (Date.now() - (cache.fullAt || 0)) < FULL_EVERY_MS){
@@ -85,6 +85,7 @@ async function loadQuestionsCached(){
             rows = [...byId.values()].sort((a, b) => a.id - b.id);
             cache = { rows, syncedAt: syncStart, fullAt: cache.fullAt };
             idbSet(QCACHE_KEY, cache).catch(() => {});
+            pasoArranque('preguntas al día (' + fresh.length + ' cambiadas)');
           }
         }
       }
@@ -94,6 +95,7 @@ async function loadQuestionsCached(){
     const { data, error } = await fetchAllRows('questions', '*', q => q.order('id'));
     if(error && !data) return { data: null, error };
     rows = data || [];
+    pasoArranque('preguntas descargadas enteras (' + rows.length + ')');
     cache = { rows, syncedAt: syncStart, fullAt: syncStart };
     idbSet(QCACHE_KEY, cache).catch(() => {});
   }
@@ -178,6 +180,7 @@ async function loadAppData(){
       qIds.length ? sb.rpc('get_my_question_data', { p_question_ids: qIds }) : Promise.resolve({ data: [] })
     ]);
     masteryByQuestion = mastery;
+    pasoArranque('respuestas y notas');
     if(dismissedErr) console.error('Error cargando preguntas descartadas de Fallos', dismissedErr);
     (dismissedData || []).forEach(d => { dismissedMap[d.question_id] = d.dismissed_at; });
     if(myNotesErr) console.error('Error cargando notas/explicaciones propias', myNotesErr);
