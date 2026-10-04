@@ -784,17 +784,30 @@
   #screen-callejero.cj-completa .cj-cabeza .cj-nombrar-voz{ width:40px; height:40px; border-radius:11px; }
   #screen-callejero.cj-completa .cj-cabeza.plegada .cj-nombrar .cj-zona-select{ display:none; }
 
-  /* ---------- pantalla principal: barra general y tareas en una caja ---------- */
-  .cj-general{ padding:14px 16px; }
-  .cj-general-cab{ display:flex; justify-content:space-between; align-items:baseline; font-size:14px; color: var(--muted); margin-bottom:8px; }
-  .cj-general-cab b{ font-size:17px; color: var(--text); }
-  .cj-general .cj-nivel-barra{ height:8px; border-radius:4px; margin:0; }
+  /* ---------- pantalla principal: tres botones grandes ---------- */
+  .cj-grandes{ display:flex; flex-direction:column; gap:14px; margin-top:6px; }
+  .cj-grande{ display:flex; align-items:center; gap:16px; width:100%; min-height:96px; padding:18px; border-radius:20px; border:1px solid var(--line);
+    background: var(--card); color: var(--text); font: inherit; text-align:left; cursor:pointer; }
+  .cj-grande:hover{ background: rgba(255,255,255,.04); }
+  .cj-grande-icono{ flex-shrink:0; width:52px; height:52px; border-radius:16px; display:flex; align-items:center; justify-content:center; }
+  .cj-grande-icono svg{ width:26px; height:26px; }
+  .cj-grande.profe .cj-grande-icono{ background: rgba(78,155,247,.15); color: var(--blue); }
+  .cj-grande.repaso .cj-grande-icono{ background: rgba(52,199,89,.15); color:#34c759; }
+  .cj-grande.nuevo .cj-grande-icono{ background: rgba(242,102,92,.15); color: var(--coral); }
+  .cj-grande-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+  .cj-grande-txt b{ font-size:18px; }
+  .cj-grande-txt small{ font-size:14px; color: var(--muted); }
+  .cj-grande-num{ flex-shrink:0; min-width:28px; height:28px; padding:0 8px; border-radius:99px; display:flex; align-items:center; justify-content:center;
+    font-size:14px; font-weight:700; color:#fff; background: var(--coral); }
+  .cj-grande.repaso .cj-grande-num{ background:#34c759; }
+  .cj-grande.profe .cj-grande-num{ background: var(--blue); }
+  .cj-grande > svg{ width:20px; height:20px; flex-shrink:0; color: var(--muted); }
   .cj-tarea-fila .cjt-ficha-n{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
-  .cj-tarea-todo .cjt-ficha-n{ color: var(--blue, #4E9BF7); }
-  .cj-repaso-modos{ margin-top:8px; }
-  .cj-repaso-modos .cj-nivel-n svg{ width:16px; height:16px; }
-  .cj-repaso-modos .cj-nivel > svg{ width:18px; height:18px; flex-shrink:0; color: var(--muted); }
-  .cj-repaso-modos .cj-nivel:disabled{ opacity:.5; cursor:default; }
+  .cj-modos{ margin-top:8px; }
+  .cj-modos .cj-nivel-n svg{ width:16px; height:16px; }
+  .cj-modos .cj-nivel > svg{ width:18px; height:18px; flex-shrink:0; color: var(--muted); }
+  .cj-modos .cj-nivel:disabled{ opacity:.5; cursor:default; }
+  .cj-todas{ margin-top:14px; }
 
   /* ---------- preguntas del temario sin mapa ---------- */
   #screen-callejero.cj-sin-mapa .cj-mapa, #screen-callejero.cj-sin-mapa .cj-plegar{ display:none; }

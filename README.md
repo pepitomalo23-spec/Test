@@ -121,13 +121,12 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   habilidad `memoria` (migración `20261003_callejero_barrios.sql`). La migración
   `20261003_callejero_calle3d.sql` deja guardar estos modos en las tareas del profesor (antes no se
   podían); también nombra `calle3d`, de un modo en 3D que se probó y se quitó, y que ya no se usa.
-- **Repasar lo que llevas visto** (por modo) y **Aprender calles nuevas** (por niveles). Aprender: cada calle sube por cuatro
-  niveles de modo de juego, de más fácil a más difícil (1 ¿Cómo se llama?, 2 Localiza la calle, 3 Cruces y
-  paralelas, 4 ¿Qué parque acude?; se salta el nivel que no tiene sentido para esa calle) y pasa uno cuando lo
-  domina. Las calles nuevas salen de la más fácil a la más difícil: más larga (hasta 2,5 km), de tipo importante
-  (avenida, ronda, plaza…) y cerca del centro; lo de fuera de los barrios, al final. Repaso: todo lo estudiado
-  vuelve cada vez más espaciado (1, 3, 7, 15 y 30 días según la racha de aciertos; si se falla, enseguida).
-  Todo se calcula con `callejero_progreso` (la fecha de la última respuesta): no guarda nada nuevo.
+- **Aprender** y **Repasar**: el alumno elige el modo (1 ¿Cómo se llama?, 2 Localiza la calle, 3 Cruces y
+  paralelas, 4 ¿Qué parque acude?; se salta lo que no tiene sentido para esa calle). Aprender saca primero lo que
+  está a medias y luego calles nuevas, de la más fácil a la más difícil: más larga (hasta 2,5 km), de tipo
+  importante (avenida, ronda, plaza…) y cerca del centro; lo de fuera de los barrios, al final. Repasar: todo lo
+  estudiado vuelve cada vez más espaciado (1, 3, 7, 15 y 30 días según la racha de aciertos; si se falla,
+  enseguida). Todo se calcula con `callejero_progreso` (la fecha de la última respuesta): no guarda nada nuevo.
 - Pantalla, de arriba abajo: tareas del profesor, qué estudiar (zona), progreso, Aprender (modo estudio),
   Practicar (¿Cómo se llama?, Di el nombre, Localiza la calle), Relacionar (cruces y paralelas), Servicio
   (lugares y parque) y las últimas rondas.
@@ -185,12 +184,11 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   páginas (`secciones[].docs` del JSON), y los barrios, recorridos y polígonos, su página (`pg`). El service
   worker guarda las páginas vistas con los datos del usuario (se borran al cerrar sesión).
 
-- La pantalla del Callejero es una sola, «Estudiar» (sin pestañas Hoy ni Progreso). Si el profesor ha mandado
-  algo nuevo, al entrar sale una ventanita («Estudiar esto» abre solo esa tarea; una vez por sesión). De arriba
-  abajo: una sola barra «Lo que dominas» (calles que pasan el nivel 1 y temario dominado, juntos), una caja con
-  lo que ha mandado el profesor (una fila por tarea sin terminar y «Ver todo lo que te ha mandado»), «Repasar lo
-  que llevas visto» (el alumno elige el modo: cada nivel y el temario, con lo que le toca), «Aprender calles
-  nuevas» (los niveles), las fichas del temario (sin porcentajes) y «Todas las calles y modos de juego».
+- La pantalla del Callejero son solo tres botones grandes, y cada uno abre su pantalla (con «‹» para volver):
+  **Lo que te ha mandado** (las tareas sin terminar y las hechas), **Repasar lo estudiado** (cada modo y el
+  temario, con lo que toca hoy) y **Aprender** (calles nuevas por modo, con la zona; las fichas del temario; y
+  «Mapa libre y todos los modos»). Si el profesor ha mandado algo nuevo, al entrar sale una ventanita
+  («Estudiar esto» abre solo esa tarea; una vez por sesión).
 - En las rondas del temario, las preguntas de opciones que no dibujan nada antes de responder (datos,
   distritos, carreteras, parque…) salen sin mapa (clase `cj-sin-mapa`): solo la pregunta y las opciones.
 - Cada ficha se ve en cuatro pestañas: **Lista** (los apartados; al abrir uno, sus botones, los mapas del
@@ -240,7 +238,7 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   mensaje; plegado en «Más opciones»: cuántas rondas y con qué mínimo de aciertos, fecha límite, qué modos
   cuentan con las calles (las preguntas del temario cuentan siempre) y «solo esto». Se puede mandar a varios
   alumnos a la vez y crear una directamente con lo que el alumno más falla (temario y calles, juntos).
-- Al alumno le salen arriba del todo (y en la ventanita, si son nuevas) y lo de calles de cada tarea es una zona más: en sus rondas solo salen sus calles
+- Al alumno le salen en «Lo que te ha mandado» (y en la ventanita, si son nuevas) y lo de calles de cada tarea es una zona más: en sus rondas solo salen sus calles
   y lugares (y los de su zona, si la lleva).
   Con **«solo esto»**, mientras la tarea esté activa el alumno solo puede elegir las tareas del profesor.
 - Cada tarea tiene su conversación (`callejero_mensajes`). Tareas nuevas y mensajes se avisan con una
