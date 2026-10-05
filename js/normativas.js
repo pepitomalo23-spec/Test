@@ -496,8 +496,9 @@ const NQ = (function(){
         '<div class="nq-lib-bar"><i style="width:' + (c.mastered / n * 100) + '%;background:var(--green)"></i><i style="width:' + (c.learning / n * 100) + '%;background:var(--orange)"></i></div></span>' +
         I.chev.replace('class="chev"', '') + '</button>';
     }).join('') + '</div>';
-    return '<div class="nq-lib-head"><h1>Normativas</h1>' +
-      (admin ? '<button class="nq-btn nq-btn-sm" data-act="new-set">' + I.plus + 'Nuevo tema</button>' : '') + '</div>' +
+    return '<div class="nq-lib-head"><h1>Normativas</h1><div class="nq-lib-acts">' +
+      '<button class="nq-btn ghost nq-btn-sm nq-mn-btn" data-act="mnemo" title="Calculadora de mnemotecnia" aria-label="Mnemotecnia">' + I.bulb + '<span>Mnemotecnia</span></button>' +
+      (admin ? '<button class="nq-btn nq-btn-sm" data-act="new-set">' + I.plus + 'Nuevo tema</button>' : '') + '</div></div>' +
       (loaded && (NQ_SETS.length || testSet()) ? srsPanel() : '') +
       '<div class="nq-lib-sub">Temas</div>' + list;
   }
@@ -1454,6 +1455,7 @@ const NQ = (function(){
     const i = el.dataset.i != null ? +el.dataset.i : null;
     switch(act){
       case 'retry-load': loadError = false; render(); load(); break;
+      case 'mnemo': if(typeof MN !== 'undefined') MN.ventana(); break;
       case 'new-set': view.sheet = { type: 'new-set' }; render(); break;
       case 'rename-set': view.sheet = { type: 'rename', setId: set.id }; render(); break;
       case 'root-sheet-close': view.sheet = null; render(); break;

@@ -232,6 +232,14 @@
   /* Edición de temas y tarjetas (solo admin) */
   .nq-lib-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
   .nq-lib-head h1{ margin-bottom:20px; }
+  .nq-lib-acts{ display:flex; gap:8px; align-items:center; margin-bottom:20px; }
+  .nq-mn-btn svg{ width:16px; height:16px; flex-shrink:0; color: var(--amber); }
+  @media (max-width: 640px){
+    .nq-lib-acts .nq-mn-btn{ width:40px; height:40px; padding:0; justify-content:center; border-radius:50%; }
+    .nq-lib-acts .nq-mn-btn span{ display:none; }
+    .nq-lib-acts .nq-mn-btn svg{ width:20px; height:20px; min-width:20px; flex-shrink:0; margin:0; }
+    .nq-lib-acts .nq-btn{ white-space:nowrap; }
+  }
   .nq-btn.nq-btn-sm{ padding:9px 15px; font-size:13px; }
   .nq-btn svg{ width:16px; height:16px; }
   .nq-mode:disabled{ opacity:.45; cursor:default; }
