@@ -3596,19 +3596,27 @@ const CJ = (function(){
     if(q.plano) CJT.pintarPlano(q);
     if(sinMapa) return;
     mapa.invalidateSize();
-    // Lo que se ve en el mapa antes de responder
+    // Lo que se ve en el mapa antes de responder. Solo en la primera
+    // pregunta se encuadra; después se respeta el zoom que haya puesto el
+    // alumno (si la calle queda fuera, el mapa se desplaza sin alejarse).
     if(q.antes) q.antes(mapaApi());
     else if(modo === 'temario'){
-      if(!q.plano) irAEncuadre();
+      if(!q.plano && primera) irAEncuadre();
     }else if(q.via && (modo === 'opciones' || modo === 'voz')){
       resaltar(q.via, '#F2665C', true);
-      verVias([q.via]);
+      primera ? verVias([q.via]) : verSinAlejar(limitesDe([q.via]));
     }else if(modo === 'cruces'){
       resaltar(q.via, '#4E9BF7', true);
-      verVias([q.via]);
-    }else if(!primera){
-      irAZona(true);
+      primera ? verVias([q.via]) : verSinAlejar(limitesDe([q.via]));
     }
+  }
+  // Sin cambiar el zoom: si lo que hay que ver ya está en pantalla, nada; si
+  // no, el mapa se desplaza hasta su centro.
+  function verSinAlejar(caja){
+    if(!caja || !caja.isValid()) return;
+    const vista = mapa.getBounds().pad(-0.08);
+    if(vista.contains(caja) || vista.contains(caja.getCenter())) return;
+    mapa.panTo(caja.getCenter(), { animate: true, duration: 0.5 });
   }
 
   function marcarRespondida(acierto, textoHtml, distancia, modoIntento){
@@ -3642,7 +3650,7 @@ const CJ = (function(){
       bs.forEach(b => L.polygon(b.anillos, { color: '#34D399', weight: q.distrito ? 0 : 3, fillColor: '#34D399', fillOpacity: 0.2, interactive: false }).addTo(capaMarcas));
       if(q.distrito) L.polyline(contornoDistrito(q.distrito), { color: '#34D399', weight: 3, opacity: 0.95, interactive: false }).addTo(capaMarcas);
       L.circleMarker(latlng, { radius: 7, color: '#fff', weight: 2, fillColor: acierto ? '#34D399' : '#F2665C', fillOpacity: 1, interactive: false }).addTo(capaMarcas);
-      if(!acierto) mapa.flyToBounds(cajaBarrios(bs).extend(latlng), { paddingTopLeft: [60, 60], paddingBottomRight: [60, 130], maxZoom: 16, duration: 0.7 });
+      if(!acierto) verSinAlejar(cajaBarrios(bs));
       marcarRespondida(acierto, acierto
         ? '<b>¡Correcto!</b> ' + escapeHtml(q.nombre) + '.' + detalle
         : '<b>Fallo.</b> Te has quedado a ' + formatearDistancia(dist) + '. En verde, dónde está.' + detalle, dist);
@@ -3657,7 +3665,7 @@ const CJ = (function(){
       L.circleMarker(latlng, { radius: 7, color: '#fff', weight: 2, fillColor: acierto ? '#34D399' : '#F2665C', fillOpacity: 1, interactive: false }).addTo(capaMarcas);
       if(l.radio > 20) L.circle([l.lat, l.lng], { radius: l.radio, color: '#34D399', weight: 3, fillColor: '#34D399', fillOpacity: 0.2, interactive: false }).addTo(capaMarcas);
       else L.circleMarker([l.lat, l.lng], { radius: 11, color: '#34D399', weight: 3, fillColor: '#34D399', fillOpacity: 0.35, interactive: false }).addTo(capaMarcas);
-      if(!acierto) mapa.flyToBounds(L.latLngBounds([latlng, [l.lat, l.lng]]), { paddingTopLeft: [60, 60], paddingBottomRight: [60, 130], maxZoom: 17, duration: 0.7 });
+      if(!acierto) verSinAlejar(L.latLngBounds([[l.lat, l.lng], [l.lat, l.lng]]));
       const dir = modo === 'temario' ? detalle : l.direccion ? ' <span class="cj-dir">' + escapeHtml(l.direccion) + '</span>' : '';
       marcarRespondida(acierto, acierto
         ? '<b>¡Correcto!</b> ' + escapeHtml(q.nombre) + '.' + dir
@@ -3673,7 +3681,7 @@ const CJ = (function(){
     const acierto = dist <= Math.max(TOLERANCIA_M, pxEnMetros);
     L.circleMarker(latlng, { radius: 7, color: '#fff', weight: 2, fillColor: acierto ? '#34D399' : '#F2665C', fillOpacity: 1, interactive: false }).addTo(capaMarcas);
     (acierto ? [mejor] : candidatas).forEach(v => resaltar(v, '#34D399'));
-    if(!acierto) verVias(candidatas, latlng);
+    if(!acierto) verSinAlejar(limitesDe([mejor]));
     marcarRespondida(acierto, acierto
       ? '<b>¡Correcto!</b> ' + escapeHtml(q.nombre) + (detalle ? '.' + detalle : '')
       : '<b>Fallo.</b> Te has quedado a ' + formatearDistancia(dist) + '. En verde, dónde está.' + detalle, dist);
