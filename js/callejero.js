@@ -1962,7 +1962,8 @@ const CJ = (function(){
   function seguirGuiada(){
     const g = rondaGuiada;
     if(g && g.tipo === 'repaso') repasar(g.modo); else if(g && g.tipo === 'todo') repasarTodo(g.modo);
-    else if(g && g.tipo === 'fallado') repasarFallado(g.modo); else aprender(g ? g.n : 0);
+    else if(g && g.tipo === 'fallado') repasarFallado(g.modo);
+    else if(g && g.tipo === 'vuelta') repasarVuelta(g.modo); else aprender(g ? g.n : 0);
   }
   // Una fila grande de modo de juego: icono, nombre y lo que lleva.
   function filaModo(accion, titulo, texto, icono, activo){
@@ -2142,6 +2143,56 @@ const CJ = (function(){
       (filas ? '<div class="cj-niveles cj-modos cj-modos-arriba">' + filas + '</div>'
         : '<div class="cj-repaso-vacio">Aquí se irá guardando lo que falles. En cuanto lo aciertes, se quita solo.</div>') + '</div>';
   }
+  // Repasar por vueltas: las calles que ha marcado el profesor (en sus
+  // tareas, también las de sus fichas del temario). En cada forma de
+  // preguntar salen todas antes de repetir: lo ya visto en la vuelta se
+  // guarda en el dispositivo y la siguiente ronda sigue con lo que falta.
+  // Al acabar, empieza otra vuelta; «Empezar de nuevo» la reinicia.
+  const VUELTA_KEY = 'cj_vuelta_';
+  function callesProfesor(){
+    const porNombre = new Map();
+    const pon = v => { if(v.jugable && !porNombre.has(v.nombre)) porNombre.set(v.nombre, v); };
+    // Las de sus tareas (calles sueltas y zonas enteras) y las de sus fichas del temario.
+    const f = filtroDe('p');
+    datos.jugables.forEach(v => { if(f.via(v)) pon(v); });
+    calcularDelProfesor().vias.forEach(pon);
+    return [...porNombre.values()];
+  }
+  function leerVuelta(){
+    try{ return JSON.parse(localStorage.getItem(VUELTA_KEY + (currentUser ? currentUser.id : '')) || '{}'); }catch(e){ return {}; }
+  }
+  function guardarVuelta(v){ try{ localStorage.setItem(VUELTA_KEY + (currentUser ? currentUser.id : ''), JSON.stringify(v)); }catch(e){} }
+  function marcarVista(m, nombres){
+    const v = leerVuelta(), set = new Set(v[m] || []);
+    nombres.forEach(n => set.add(n));
+    v[m] = [...set];
+    guardarVuelta(v);
+  }
+  // Las calles de la vuelta de un modo (las que tienen sentido en él) y las ya vistas.
+  function estadoVuelta(m){
+    const n = m === 'cruces' ? 2 : m === 'parque' ? 3 : -1;
+    const todas = callesProfesor().filter(v => n < 0 || aplica(n, v));
+    const vistas = new Set(leerVuelta()[m] || []);
+    return { todas, vistas: todas.filter(v => vistas.has(v.nombre)).length, pendientes: todas.filter(v => !vistas.has(v.nombre)) };
+  }
+  function repasarVuelta(m){
+    if(!datos) return;
+    let e = estadoVuelta(m);
+    if(!e.todas.length){ uiToast('Tu profesor todavía no te ha marcado calles para esto.', 'info'); return; }
+    if(!e.pendientes.length){
+      // Vuelta terminada: empieza otra.
+      const v = leerVuelta(); delete v[m]; guardarVuelta(v);
+      uiToast('Vuelta completada. Empiezas otra.', 'success');
+      e = estadoVuelta(m);
+    }
+    empezarGuiada(m, barajar(e.pendientes), { tipo: 'vuelta', modo: m });
+  }
+  async function reiniciarVuelta(m){
+    const f = FORMAS_CALLES.find(x => x.modo === m);
+    if(!await uiConfirm('Vuelven a salir todas las calles de tu profesor en «' + (f ? f.titulo : m) + '».', { title: '¿Empezar la vuelta de nuevo?', ok: 'Empezar de nuevo', danger: false })) return;
+    const v = leerVuelta(); delete v[m]; guardarVuelta(v);
+    pintarInicio();
+  }
   const FORMAS_CALLES = [
     { modo: 'opciones', titulo: 'Eligiendo entre 4 nombres', desc: 'Te marco la calle y eliges cómo se llama' },
     { modo: 'localiza', titulo: 'Señalándolas en el mapa', desc: 'Te digo el nombre y la tocas' },
@@ -2158,21 +2209,30 @@ const CJ = (function(){
   }
   function todoHtml(){
     const n = k => k.toLocaleString('es-ES');
-    const nc = callesVistas().length;
+    const nc = callesProfesor().length;
     const nt = typeof CJT !== 'undefined' ? CJT.contarVistas() : null;
     const mandado = typeof CJT !== 'undefined' && tareasActivas().some(t => (t.fichas || []).length);
-    return falladoHtml() + (typeof CJT !== 'undefined' ? '<div class="cj-seccion">Temario</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
+    const calles = '' +
+      '<div class="cj-seccion">Calles de tu profesor · ¿cómo te las pregunto?</div><div class="cj-card cj-repaso">' +
+        '<div class="cj-repaso-vacio">' + (nc ? n(nc) + (nc === 1 ? ' calle marcada' : ' calles marcadas') + ' por tu profesor. Van por vueltas: te salen todas antes de repetir ninguna.'
+          : 'Tu profesor todavía no te ha marcado calles.') + '</div>' +
+        '<div class="cj-niveles cj-modos">' + FORMAS_CALLES.map(f => {
+          const e = nc ? estadoVuelta(f.modo) : { todas: [], vistas: 0 };
+          const t = e.todas.length;
+          const txt = !t ? (nc ? 'Ninguna de tus calles sirve para esto' : f.desc)
+            : e.vistas ? 'Vuelta: ' + e.vistas + ' de ' + t + ' vistas · ' + (t - e.vistas) + ' por salir' : 'Vuelta nueva: ' + t + (t === 1 ? ' calle' : ' calles');
+          return '<div class="cj-vuelta">' + filaModo('CJ.repasarVuelta(\'' + f.modo + '\')', f.titulo, txt, ICONOS[f.modo], t > 0) +
+            (e.vistas ? '<button type="button" class="cj-vuelta-reiniciar" onclick="CJ.reiniciarVuelta(\'' + f.modo + '\')">Empezar la vuelta de nuevo</button>' : '') + '</div>';
+        }).join('') + '</div>' +
+      '</div>';
+    return falladoHtml() + calles + (typeof CJT !== 'undefined' ? '<div class="cj-seccion">Temario</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
         filaModo('CJT.preguntarVistas()', 'Preguntas del temario', nt === null ? 'Todo lo que ya has respondido' : nt ? n(nt) + ' que ya has respondido' : 'Todavía no has respondido ninguna', ICONOS.estudio, nt !== 0) +
         filaModo('CJT.preguntarSinMapa()', 'Preguntas del temario sin mapa', mandado ? 'De lo que te ha mandado tu profesor' : 'De todo el temario', ICONOS.estudio, true) +
       '</div></div>' : '') +
       (datos.barrios.length ? '<div class="cj-seccion">Distritos y barrios</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
         filaModo('CJ.empezar(\'mapadistritos\')', 'Distritos en el mapa', 'Todos de colores; toca el que te pido', ICONOS.barrios, true) +
         filaModo('CJ.empezar(\'mapabarrios\')', 'Barrios en el mapa', 'Todos de colores; toca el que te pido', ICONOS.enbarrio, true) +
-      '</div></div>' : '') +
-      '<div class="cj-seccion">Calles · ¿cómo te las pregunto?</div><div class="cj-card cj-repaso">' +
-        '<div class="cj-repaso-vacio">' + (nc ? n(nc) + (nc === 1 ? ' calle estudiada' : ' calles estudiadas') + '. Elige cómo quieres que te las pregunte:' : 'Todavía no has estudiado ninguna calle.') + '</div>' +
-        '<div class="cj-niveles cj-modos">' + FORMAS_CALLES.map(f => filaModo('CJ.repasarTodo(\'' + f.modo + '\')', f.titulo, f.desc, ICONOS[f.modo], nc > 0)).join('') + '</div>' +
-      '</div>';
+      '</div></div>' : '');
   }
 
   // Calles y lugares por repasar (la última vez mal) de la zona elegida, y el modo que más lo necesita.
@@ -2735,6 +2795,12 @@ const CJ = (function(){
     if(m === 'nombrar'){ desdeTemario = vistaActual === 'temario'; await empezarNombrar(); return; }
     const preguntas = crearPreguntas(m);
     rondaGuiada = limiteRonda || limiteZonas ? guiaPendiente : null;
+    // En una vuelta, lo que en este modo no tiene pregunta (pocas calles
+    // cerca para las opciones, sin cruces…) cuenta ya como visto.
+    if(rondaGuiada && rondaGuiada.tipo === 'vuelta'){
+      const salen = new Set(preguntas.map(q => q.via && q.via.nombre));
+      marcarVista(rondaGuiada.modo, limiteRonda.map(v => v.nombre).filter(nm => !salen.has(nm)));
+    }
     limiteRonda = null;
     limiteZonas = null;
     if(!preguntas.length){ uiToast('No hay preguntas de este tipo en esta zona.', 'info'); return; }
@@ -3437,6 +3503,7 @@ const CJ = (function(){
     ronda.respondidas++;
     const q = ronda.preguntas[ronda.i];
     if(acierto) ronda.aciertos++; else ronda.fallos.push(q);
+    if(rondaGuiada && rondaGuiada.tipo === 'vuelta' && q.via) marcarVista(rondaGuiada.modo, [q.via.nombre]);
     anotarIntento(q.id, modoIntento || MODOS[modo].registra || modo, acierto, distancia);
     el('cjResultado').className = 'cj-resultado ' + (acierto ? 'ok' : 'ko');
     el('cjResultadoTexto').innerHTML = textoHtml;
@@ -3890,7 +3957,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, ver, repasarTodo, repasarFallado, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, ver, repasarTodo, repasarFallado, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)

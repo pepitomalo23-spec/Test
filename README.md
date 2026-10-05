@@ -198,8 +198,12 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   ronda solo de eso en cada fila. Se quita solo en cuanto se acierta.
 - **Repasar lo estudiado**: todo lo dado hasta ahora, en una sola pantalla: el temario (las preguntas ya
   respondidas y las preguntas sin mapa —de lo que ha mandado el profesor o, si no hay, de todo el temario—),
-  «Distritos en el mapa» y «Barrios en el mapa», y las calles ya estudiadas en cualquier modo, eligiendo antes
-  cómo preguntarlas (4 nombres, señalándolas, diciendo el nombre, cruces o parque). Ya no hay «lo que toca hoy».
+  «Distritos en el mapa» y «Barrios en el mapa», y las calles. Ya no hay «lo que toca hoy».
+- **Calles de tu profesor, por vueltas** (en Repasar, tras «Lo fallado»): solo las que ha marcado el profesor (sus
+  tareas: calles sueltas y zonas enteras, y las de sus fichas del temario). Se elige cómo preguntarlas (4 nombres,
+  señalándolas, diciendo el nombre, cruces o parque) y cada forma lleva su vuelta: salen todas antes de repetir
+  (lo ya visto se guarda en el dispositivo, `cj_vuelta_<usuario>`, y la ronda siguiente sigue con lo que falta).
+  Al acabar empieza otra; «Empezar la vuelta de nuevo» la reinicia.
 - «Distritos en el mapa» y «Barrios en el mapa» (modos `mapadistritos` y `mapabarrios`): todos a la vez, cada
   uno de un color y sin nombres (los barrios de al lado, de colores distintos), y se toca el que se pide. Sus
   respuestas se guardan con el modo `barrios` (misma habilidad e ids), así que no hace falta tocar la base de datos.
