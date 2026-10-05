@@ -112,6 +112,14 @@
   .header-nav span svg{ width:17px; height:17px; flex-shrink:0; }
   #navNormativas svg.icon-diagonal{ transform: rotate(-40deg); }
   .header-nav .nav-dot{ width:3px; height:3px; border-radius:50%; background: var(--line); }
+  /* Tabletas (iPad): con cinco accesos, la barra va a la izquierda y algo más
+     compacta, para que no la tape el botón de cuenta (a la derecha). */
+  @media (min-width:641px) and (max-width:1100px){
+    header{ justify-content:flex-start; }
+    .header-nav{ gap:14px; }
+    .header-nav .nav-dot{ display:none; }
+    .header-nav span{ font-size:15px; gap:6px; }
+  }
 
   /* --- Barra superior/inferior en móvil: los tres accesos ("Normativas",
      "Legislación", "Estadísticas") no cabían junto al botón de cuenta en el

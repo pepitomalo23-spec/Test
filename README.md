@@ -43,8 +43,10 @@ js/                  código, en orden de carga (ver el final de index.html)
   callejero.js       Callejero: mapa, modos de juego, modo estudio, tareas y modo selección
   callejero-temario.js   Callejero: temario de la academia (fichas, en el mapa, preguntas y planos)
   callejero-profesor.js  Callejero: los alumnos del profesor, tareas y mensajes
+  mnemotecnia.js     Mnemotecnia: calculadora del código fonético de Ramón Campayo
   arranque.js        escucha la sesión y arranca la app (siempre el último)
-datos/               datos que la app descarga cuando hacen falta (callejero-temario.json)
+datos/               datos que la app descarga cuando hacen falta (callejero-temario.json,
+                     mnemotecnia.json y su licencia, mnemotecnia-LICENCIA.txt)
 sw.js                service worker: app sin conexión y actualizaciones
 scripts/versionar.mjs  pone el ?v= de cada css/js en index.html
 supabase/            migraciones de la base de datos y funciones (Edge Functions)
@@ -215,6 +217,9 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   uno de un color y sin nombres (los barrios de al lado, de colores distintos), y se toca el que se pide. Sus
   respuestas se guardan con el modo `barrios` (misma habilidad e ids), así que no hace falta tocar la base de datos.
 - Las rondas no tienen tope: traen todas las preguntas que haya (`PREGUNTAS_POR_RONDA = Infinity`).
+- En las rondas el mapa solo se encuadra en la primera pregunta; después respeta el zoom que haya puesto el
+  alumno: si lo que hay que ver (la calle de la pregunta o, al fallar, dónde estaba) queda fuera de la pantalla,
+  se desplaza sin alejarse (`verSinAlejar`).
 - **Notas de calle**: en una ronda de calles o lugares, arriba, «Nota» (texto y una foto). Al responder sale en
   pequeño en una esquina del mapa (se toca para verla en grande). Son de cada alumno (`callejero_notas`, clave
   `v:<nombre normalizado>` o `l:<id>`); la foto va en el almacén `question-notes` (`callejero/<usuario>/…`).
@@ -280,6 +285,20 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   Con **«solo esto»**, mientras la tarea esté activa el alumno solo puede elegir las tareas del profesor.
 - Cada tarea tiene su conversación (`callejero_mensajes`). Tareas nuevas y mensajes se avisan con una
   notificación (`push-reminders`, a quien tenga activado el recordatorio) y con un número en la pestaña.
+
+## Mnemotecnia
+
+- Pestaña propia (`screen-mnemotecnia`, `js/mnemotecnia.js`, `css/mnemotecnia.css`): calculadora del código
+  fonético de Ramón Campayo («Desarrolla una mente prodigiosa»): 0 R · 1 T D · 2 N Ñ · 3 M · 4 C K Q · 5 L ·
+  6 S Z · 7 F · 8 CH J G · 9 V B P. Las vocales, H, Y, W y X no cuentan; CH es un 8, RR un solo 0 y LL no cuenta.
+  (La tabla se comprobó con el conversor «Casillero Mental» enlazado en ramoncampayo.com y con mnemotecnia.es.)
+- Al escribir un número salen las letras de cada cifra, palabras que lo forman (primero sustantivos, luego
+  adjetivos, verbos y el resto) y, si es largo, el número partido en el menor número de trozos con palabra.
+  Al escribir una palabra, sale su número.
+- `datos/mnemotecnia.json` (solo se descarga al abrir la pestaña): número → hasta 30 palabras. Lo genera
+  `node scripts/mnemotecnia.mjs ruta/a/index.dic` a partir del diccionario de LibreOffice para español
+  (https://github.com/wooorm/dictionaries, `dictionaries/es`; triple licencia GPL 3 / LGPL 3 / MPL 1.1, se usa
+  bajo la LGPL 3; su texto en `datos/mnemotecnia-LICENCIA.txt`).
 
 ## Al cambiar un css/ o js/
 
