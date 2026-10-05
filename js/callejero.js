@@ -397,6 +397,7 @@ const CJ = (function(){
   async function cargarProgreso(){
     await subirPendientes();   // lo que estaba en la cola ya cuenta en el servidor
     cargarNotas();
+    cargarMarcadas().then(() => { if(vistaActual === 'inicio') pintarInicio(); }, () => {});
     cargarVueltas().then(() => { if(vistaActual === 'inicio' && subInicio === 'repasar') pintarInicio(); }, () => {});
     const { data, error } = await sb.rpc('callejero_progreso');
     if(error) return;
@@ -410,6 +411,36 @@ const CJ = (function(){
      podría dar la respuesta). Son de cada alumno (callejero_notas); la
      foto va en el almacén «question-notes», como las de las preguntas. */
   let notas = new Map();   // clave → { texto, imagen }
+  /* ---------- tareas que el alumno da por vistas ----------
+     Cada tarea del profesor tiene «Ya la he visto». Hasta marcarla, se queda
+     en «Lo que te ha mandado» y nada de ella va a Repasar; al marcarla, sale
+     de esa lista y sus calles y su temario pasan a Repasar
+     (callejero_tareas_hechas, con copia en el dispositivo). */
+  const CHECK_KEY = 'cj_tareas_vistas_';
+  let tareasMarcadas = new Set();
+  function leerMarcadas(){ try{ return new Set(JSON.parse(localStorage.getItem(CHECK_KEY + (currentUser ? currentUser.id : '')) || '[]')); }catch(e){ return new Set(); } }
+  function guardarMarcadas(){ try{ localStorage.setItem(CHECK_KEY + (currentUser ? currentUser.id : ''), JSON.stringify([...tareasMarcadas])); }catch(e){} }
+  async function cargarMarcadas(){
+    if(!currentUser) return;
+    tareasMarcadas = leerMarcadas();
+    const { data, error } = await sb.from('callejero_tareas_hechas').select('tarea_id');
+    if(error) return;
+    tareasMarcadas = new Set((data || []).map(r => Number(r.tarea_id)));
+    guardarMarcadas();
+  }
+  const tareaMarcada = t => tareasMarcadas.has(Number(t.id));
+  function tareasDelRepaso(){ return tareasActivas().filter(tareaMarcada); }
+  async function marcarTarea(id){
+    id = Number(id);
+    const ya = tareasMarcadas.has(id);
+    ya ? tareasMarcadas.delete(id) : tareasMarcadas.add(id);
+    guardarMarcadas();
+    pintarInicio();
+    const r = ya ? await sb.from('callejero_tareas_hechas').delete().eq('tarea_id', id).eq('user_id', currentUser.id)
+      : await sb.from('callejero_tareas_hechas').upsert({ user_id: currentUser.id, tarea_id: id });
+    if(r.error){ uiToast('No se ha podido guardar: ' + r.error.message, 'error'); return; }
+    uiToast(ya ? 'La tarea vuelve a «Lo que te ha mandado» y sale de Repasar' : 'Hecho: lo de esta tarea ya sale en Repasar', 'success');
+  }
   async function cargarNotas(){
     if(!currentUser) return;
     const { data, error } = await sb.from('callejero_notas').select('clave, texto, imagen, updated_at');
@@ -659,7 +690,7 @@ const CJ = (function(){
   // Al cerrar sesión: nada de esta cuenta se queda en memoria.
   function reiniciar(){
     try{ Object.keys(localStorage).filter(k => k.startsWith('cj_tareas_')).forEach(k => localStorage.removeItem(k)); }catch(e){}
-    progreso = new Map(); tareas = []; rondasServidor = []; rondasLocales = []; notas = new Map();
+    progreso = new Map(); tareas = []; rondasServidor = []; rondasLocales = []; notas = new Map(); tareasMarcadas = new Set();
     ronda = null; modo = null; seleccion = null; verTemario = null; desdeTemario = false; ultimosAvisos = 0; delProfesor = null; verEstudio = 'calles';
     if(typeof CJT !== 'undefined') CJT.reiniciar();
     if(el('cjInicio')) mostrarVista('inicio');
@@ -1733,18 +1764,22 @@ const CJ = (function(){
     const vencida = t.fecha_limite && new Date(t.fecha_limite + 'T23:59:59') < new Date();
     const det = [describirTarea(t).que, Math.min(t.rondas_validas, t.rondas) + '/' + t.rondas + (t.rondas === 1 ? ' ronda' : ' rondas'),
       t.fecha_limite ? (vencida ? 'venció el ' : 'hasta el ') + fechaCorta(t.fecha_limite) : ''].filter(Boolean).join(' · ');
-    return '<button type="button" class="cjt-ficha cj-tarea-fila" onclick="CJT.abrirTarea(' + t.id + ')">' +
+    const marcada = tareaMarcada(t);
+    return '<div class="cj-tarea-linea"><button type="button" class="cjt-ficha cj-tarea-fila" onclick="CJT.abrirTarea(' + t.id + ')">' +
       '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">' + escapeHtml(t.titulo) +
         (!t.vista_at ? ' <span class="cj-tarea-solo">Nueva</span>' : '') +
         (t.sin_leer ? ' <span class="cj-tarea-msgs">' + t.sin_leer + (t.sin_leer === 1 ? ' mensaje' : ' mensajes') + '</span>' : '') + '</span>' +
-        '<span class="cjt-ficha-d">' + escapeHtml(det) + '</span></span>' + FLECHA_FILA + '</button>';
+        '<span class="cjt-ficha-d">' + escapeHtml(det) + '</span></span>' + FLECHA_FILA + '</button>' +
+      '<button type="button" class="cj-check' + (marcada ? ' on' : '') + '" aria-pressed="' + marcada + '" onclick="CJ.marcarTarea(' + t.id + ')">' +
+        '<span class="cj-check-caja">' + (marcada ? svgIcono('M20 6 9 17l-5-5') : '') + '</span>' + (marcada ? 'Vista · en Repasar' : 'Ya la he visto') + '</button></div>';
   }
   function tareasHtml(){
     const ts = tareasActivas();
-    const porHacer = ts.filter(t => !tareaHecha(t)), hechas = ts.filter(tareaHecha);
-    return (porHacer.length ? '<div class="cj-card cjt-inicio">' + porHacer.map(filaTarea).join('') + '</div>'
-        : '<div class="cj-card"><div class="cj-repaso-vacio">' + (ts.length ? 'Lo tienes todo hecho.' : 'Tu profesor no te ha mandado nada.') + '</div></div>') +
-      (hechas.length ? '<div class="cj-seccion">Hechas</div><div class="cj-card cjt-inicio">' + hechas.map(filaTarea).join('') + '</div>' : '') +
+    const porHacer = ts.filter(t => !tareaMarcada(t)), hechas = ts.filter(tareaMarcada);
+    return (porHacer.length ? '<div class="cj-repaso-vacio cj-tareas-ayuda">Cuando termines de ver una tarea, márcala con «Ya la he visto»: entonces pasa a Repasar.</div>' +
+          '<div class="cj-card cjt-inicio">' + porHacer.map(filaTarea).join('') + '</div>'
+        : '<div class="cj-card"><div class="cj-repaso-vacio">' + (ts.length ? 'Las tienes todas vistas: todo está en Repasar.' : 'Tu profesor no te ha mandado nada.') + '</div></div>') +
+      (hechas.length ? '<div class="cj-seccion">Ya vistas · en Repasar</div><div class="cj-card cjt-inicio">' + hechas.map(filaTarea).join('') + '</div>' : '') +
       (ts.length > 1 ? '<button type="button" class="cj-hoy-otro" onclick="CJT.abrirProfesor()">Verlo todo junto ›</button>' : '');
   }
   const marcandoVista = new Set();
@@ -1812,14 +1847,14 @@ const CJ = (function(){
   // La pantalla principal: solo tres botones grandes; cada uno abre lo suyo.
   function inicioHtml(){
     if(soloEsto()) return tareasHtml() + AVISO_SOLO + (tareasZona().length ? callesHtml(false) : '');
-    const porHacer = tareasActivas().filter(t => !tareaHecha(t)).length;
+    const porHacer = tareasActivas().filter(t => !tareaMarcada(t)).length;
     const boton = (sub, clase, icono, titulo, texto, num) =>
       '<button type="button" class="cj-grande ' + clase + '" onclick="CJ.irA(\'' + sub + '\')">' +
         '<span class="cj-grande-icono">' + svgIcono(icono) + '</span>' +
         '<span class="cj-grande-txt"><b>' + titulo + '</b><small>' + texto + '</small></span>' +
         (num ? '<span class="cj-grande-num">' + num + '</span>' : '') + FLECHA_FILA + '</button>';
     return '<div class="cj-grandes">' +
-      boton('tareas', 'profe', ICONOS.localiza, 'Lo que te ha mandado', porHacer ? (porHacer === 1 ? '1 sin terminar' : porHacer + ' sin terminar') : 'Nada pendiente', porHacer) +
+      boton('tareas', 'profe', ICONOS.localiza, 'Lo que te ha mandado', porHacer ? (porHacer === 1 ? '1 por ver' : porHacer + ' por ver') : 'Nada pendiente', porHacer) +
       boton('repasar', 'repaso', ICONOS.repasar, 'Repasar lo estudiado', 'Todo lo dado hasta ahora', 0) +
       boton('aprender', 'nuevo', ICONOS.aprender, 'Aprender', 'Distritos, barrios, calles, lugares y temario', 0) +
     '</div>';
@@ -2153,10 +2188,12 @@ const CJ = (function(){
   function callesProfesor(){
     const porNombre = new Map();
     const pon = v => { if(v.jugable && !porNombre.has(v.nombre)) porNombre.set(v.nombre, v); };
-    // Las de sus tareas (calles sueltas y zonas enteras) y las de sus fichas del temario.
-    const f = filtroDe('p');
-    datos.jugables.forEach(v => { if(f.via(v)) pon(v); });
-    calcularDelProfesor().vias.forEach(pon);
+    // Las de las tareas que ya ha marcado como vistas (calles sueltas, zonas
+    // enteras y las de sus fichas del temario); lo que aún no ha visto, no.
+    const ts = tareasDelRepaso();
+    const fs = ts.map(t => filtroDe('t:' + t.id, t));
+    if(fs.length) datos.jugables.forEach(v => { if(fs.some(f => f.via(v))) pon(v); });
+    ts.filter(esTemario).forEach(t => { if(typeof CJT !== 'undefined') CJT.geoClaves(t.fichas).forEach(it => it.vias.forEach(pon)); });
     return [...porNombre.values()];
   }
   // Se guarda en la cuenta (callejero_vueltas), para seguir igual en otro
@@ -2247,10 +2284,11 @@ const CJ = (function(){
     const nc = callesProfesor().length;
     const nt = typeof CJT !== 'undefined' ? CJT.contarVistas() : null;
     const mandado = typeof CJT !== 'undefined' && tareasActivas().some(t => (t.fichas || []).length);
+    const mandadoVisto = mandado && tareasDelRepaso().some(t => (t.fichas || []).length);
     const calles = '' +
       '<div class="cj-seccion">Calles de tu profesor · ¿cómo te las pregunto?</div><div class="cj-card cj-repaso">' +
-        '<div class="cj-repaso-vacio">' + (nc ? n(nc) + (nc === 1 ? ' calle marcada' : ' calles marcadas') + ' por tu profesor. Van por vueltas: te salen todas antes de repetir ninguna.'
-          : 'Tu profesor todavía no te ha marcado calles.') + '</div>' +
+        '<div class="cj-repaso-vacio">' + (nc ? n(nc) + (nc === 1 ? ' calle' : ' calles') + ' de las tareas que ya has visto. Van por vueltas: te salen todas antes de repetir ninguna.'
+          : tareasActivas().length ? 'Aquí salen las calles de las tareas que marques con «Ya la he visto» (en «Lo que te ha mandado»).' : 'Tu profesor todavía no te ha marcado calles.') + '</div>' +
         '<div class="cj-niveles cj-modos">' + FORMAS_CALLES.map(f => {
           const e = nc ? estadoVuelta(f.modo) : { todas: [], vistas: 0 };
           const t = e.todas.length;
@@ -2262,7 +2300,7 @@ const CJ = (function(){
       '</div>';
     return falladoHtml() + calles + (typeof CJT !== 'undefined' ? '<div class="cj-seccion">Temario</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
         filaModo('CJT.preguntarVistas()', 'Preguntas del temario', nt === null ? 'Todo lo que ya has respondido' : nt ? n(nt) + ' que ya has respondido' : 'Todavía no has respondido ninguna', ICONOS.estudio, nt !== 0) +
-        filaModo('CJT.preguntarSinMapa()', 'Preguntas del temario sin mapa', mandado ? 'De lo que te ha mandado tu profesor' : 'De todo el temario', ICONOS.estudio, true) +
+        filaModo('CJT.preguntarSinMapa()', 'Preguntas del temario sin mapa', !mandado ? 'De todo el temario' : mandadoVisto ? 'De las tareas que ya has visto' : 'Cuando marques una tarea como vista', ICONOS.estudio, !mandado || mandadoVisto) +
       '</div></div>' : '') +
       (datos.barrios.length ? '<div class="cj-seccion">Distritos y barrios</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
         filaModo('CJ.empezar(\'mapadistritos\')', 'Distritos en el mapa', 'Todos de colores; toca el que te pido', ICONOS.barrios, true) +
@@ -3992,7 +4030,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, ver, repasarTodo, repasarFallado, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarTarea, ver, repasarTodo, repasarFallado, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)
@@ -4002,5 +4040,5 @@ const CJ = (function(){
     // temario (js/callejero-temario.js)
     empezarTemario, otraRonda, responderPlano, PREGUNTAS_POR_RONDA, esTemario,
     ordenarPorRepaso: ordenarPorRepasoBase,
-    progreso: () => progreso, tareas: () => tareasActivas(), repintar: () => { if(vistaActual === 'inicio') pintarInicio(); } };
+    progreso: () => progreso, tareas: () => tareasActivas(), tareasDelRepaso: () => tareasDelRepaso(), repintar: () => { if(vistaActual === 'inicio') pintarInicio(); } };
 })();

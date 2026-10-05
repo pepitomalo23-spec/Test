@@ -639,10 +639,13 @@ const CJT = (function(){
   }
   // Repasar: las preguntas sin mapa de lo que ha mandado el profesor (si no
   // ha mandado temario, de todo el temario).
-  function temarioMandado(){ return [...new Set(CJ.tareas().flatMap(t => t.fichas || []))]; }
+  // Solo de las tareas que el alumno ya ha marcado como vistas.
+  function temarioMandado(){ return [...new Set(CJ.tareasDelRepaso().flatMap(t => t.fichas || []))]; }
   function preguntarSinMapa(){
     if(!T){ asegurar(); uiToast('Cargando el temario…', 'info'); return; }
-    const ts = CJ.tareas().filter(t => (t.fichas || []).length);
+    const hay = CJ.tareas().some(t => (t.fichas || []).length);
+    const ts = CJ.tareasDelRepaso().filter(t => (t.fichas || []).length);
+    if(hay && !ts.length){ uiToast('Marca una tarea con «Ya la he visto» y su temario saldrá aquí.', 'info'); return; }
     const claves = ts.length ? temarioMandado() : T.fichas.map(f => f.id);
     preguntar(claves, ts.length === 1 ? ts[0].id : null, ts.length ? 'Lo que te ha mandado · sin mapa' : 'Temario · sin mapa', ts.length === 1 ? null : 'f:sinmapa', true);
   }

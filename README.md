@@ -199,8 +199,12 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
 - **Repasar lo estudiado**: todo lo dado hasta ahora, en una sola pantalla: el temario (las preguntas ya
   respondidas y las preguntas sin mapa —de lo que ha mandado el profesor o, si no hay, de todo el temario—),
   «Distritos en el mapa» y «Barrios en el mapa», y las calles. Ya no hay «lo que toca hoy».
-- **Calles de tu profesor, por vueltas** (en Repasar, tras «Lo fallado»): solo las que ha marcado el profesor (sus
-  tareas: calles sueltas y zonas enteras, y las de sus fichas del temario). Se elige cómo preguntarlas (4 nombres,
+- **«Ya la he visto»**: cada tarea del profesor tiene ese botón. Hasta marcarla se queda en «Lo que te ha mandado»
+  y nada de ella sale en Repasar; al marcarla pasa a «Ya vistas · en Repasar» y sus calles y su temario (sin mapa)
+  entran en Repasar. Se puede desmarcar. Se guarda en `callejero_tareas_hechas` (migración
+  `20261008_callejero_tareas_hechas.sql`), con copia en el dispositivo.
+- **Calles de tu profesor, por vueltas** (en Repasar, tras «Lo fallado»): solo las de las tareas ya marcadas como
+  vistas (calles sueltas y zonas enteras, y las de sus fichas del temario). Se elige cómo preguntarlas (4 nombres,
   señalándolas, diciendo el nombre, cruces o parque) y cada forma lleva su vuelta: salen todas antes de repetir
   (lo ya visto se guarda en la cuenta, `callejero_vueltas`, con copia en el dispositivo, `cj_vuelta_<usuario>`;
   al cargar gana lo más reciente; la ronda siguiente sigue con lo que falta, en cualquier dispositivo).
