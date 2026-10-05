@@ -397,6 +397,7 @@ const CJ = (function(){
   async function cargarProgreso(){
     await subirPendientes();   // lo que estaba en la cola ya cuenta en el servidor
     cargarNotas();
+    cargarFallosDesde().then(() => { if(vistaActual === 'inicio' && subInicio === 'repasar') pintarInicio(); }, () => {});
     cargarMarcadas().then(() => { if(vistaActual === 'inicio') pintarInicio(); }, () => {});
     cargarVueltas().then(() => { if(vistaActual === 'inicio' && subInicio === 'repasar') pintarInicio(); }, () => {});
     const { data, error } = await sb.rpc('callejero_progreso');
@@ -1998,7 +1999,7 @@ const CJ = (function(){
   function seguirGuiada(){
     const g = rondaGuiada;
     if(g && g.tipo === 'repaso') repasar(g.modo); else if(g && g.tipo === 'todo') repasarTodo(g.modo);
-    else if(g && g.tipo === 'fallado') repasarFallado(g.modo);
+    else if(g && g.tipo === 'fallos') empezarFallos();
     else if(g && g.tipo === 'vuelta') repasarVuelta(g.modo); else aprender(g ? g.n : 0);
   }
   // Una fila grande de modo de juego: icono, nombre y lo que lleva.
@@ -2128,12 +2129,33 @@ const CJ = (function(){
   }
   // Lo fallado: lo que la última vez se respondió mal (calles por modo,
   // temario, barrios y distritos). Se quita solo en cuanto se acierta.
+  // «Restablecer» lo vacía: desde esa fecha (segundos) solo cuenta lo que se vuelva a fallar.
+  const FALLOS_KEY = 'cj_fallos_desde_';
+  let fallosDesde = 0;
+  function esFallo(p){ return estadoDe(p) === 'fallada' && (Number(p.ultima) || 0) > fallosDesde; }
+  async function cargarFallosDesde(){
+    if(!currentUser) return;
+    try{ fallosDesde = Number(localStorage.getItem(FALLOS_KEY + currentUser.id)) || 0; }catch(e){}
+    const { data, error } = await sb.from('callejero_fallos_reinicio').select('desde').maybeSingle();
+    if(error || !data) return;
+    fallosDesde = Math.floor(new Date(data.desde).getTime() / 1000);
+    try{ localStorage.setItem(FALLOS_KEY + currentUser.id, String(fallosDesde)); }catch(e){}
+  }
+  async function restablecerFallos(){
+    if(!await uiConfirm('Se vacía «Lo fallado». A partir de ahora solo se guarda lo que vuelvas a fallar.', { title: '¿Restablecer lo fallado?', ok: 'Restablecer', danger: true })) return;
+    const ahora = new Date();
+    fallosDesde = Math.floor(ahora.getTime() / 1000);
+    try{ localStorage.setItem(FALLOS_KEY + currentUser.id, String(fallosDesde)); }catch(e){}
+    pintarInicio();
+    const { error } = await sb.from('callejero_fallos_reinicio').upsert({ user_id: currentUser.id, desde: ahora.toISOString() });
+    uiToast(error ? 'No se ha podido guardar en tu cuenta: ' + error.message : 'Lo fallado, vacío', error ? 'error' : 'success');
+  }
   function fallados(){
     const calles = {}, barrios = new Set(), distritos = new Set();
     const porIdBarrio = new Map(datos.barrios.map(b => [idBarrio(b), b.nombre]));
     const porIdDistrito = new Map(datos.distritos.map(d => [idDistrito(d), d]));
     progreso.forEach((p, k) => {
-      if(estadoDe(p) !== 'fallada') return;
+      if(!esFallo(p)) return;
       const [hab, s] = k.split('|'), id = Number(s);
       if(HAB_CALLES.includes(hab) && id > 0 && id < ID_TEMARIO){
         const v = datos.viaPorId.get(id);
@@ -2145,38 +2167,51 @@ const CJ = (function(){
     });
     return { calles, barrios: [...barrios], distritos: [...distritos] };
   }
-  function repasarFallado(tipo){
-    if(!datos) return;
-    const f = fallados();
-    const nada = () => uiToast('¡Ya no te queda nada fallado de esto!', 'success');
-    if(tipo === 'temario'){ CJT.repasarFalladas(); return; }
-    if(tipo === 'barrios' || tipo === 'distritos'){
-      const lista = f[tipo];
-      if(!lista.length){ nada(); return; }
-      limiteZonas = lista;
-      guiaPendiente = { tipo: 'fallado', modo: tipo };
-      empezar(tipo === 'barrios' ? 'mapabarrios' : 'mapadistritos').finally(() => { limiteZonas = null; guiaPendiente = null; });
-      return;
-    }
-    const vias = f.calles[tipo] ? [...f.calles[tipo].values()] : [];
-    if(!vias.length){ nada(); return; }
-    empezarGuiada(tipo, barajar(vias), { tipo: 'fallado', modo: tipo });
+  // «Hacer solo fallos»: una ronda con todo lo fallado mezclado, cada cosa
+  // preguntada como se falló (cada pregunta lleva su modo).
+  async function empezarFallos(){
+    try{ await Promise.all([cargarLeaflet(), cargarDatos()]); }catch(e){ uiToast(e.message, 'error'); return; }
+    if(typeof CJT !== 'undefined'){ try{ await CJT.cargar(); }catch(e){} }
+    actualizarFiltro();
+    const f = fallados(), qs = [];
+    const anadir = (m, lista) => lista.forEach(q => { q.modo = m; qs.push(q); });
+    try{
+      Object.entries(f.calles).forEach(([m, porNombre]) => { limiteRonda = [...porNombre.values()]; anadir(m, crearPreguntas(m)); });
+      limiteRonda = null;
+      if(f.barrios.length){ limiteZonas = f.barrios; anadir('mapabarrios', crearPreguntas('mapabarrios')); }
+      if(f.distritos.length){ limiteZonas = f.distritos; anadir('mapadistritos', crearPreguntas('mapadistritos')); }
+    }finally{ limiteRonda = null; limiteZonas = null; }
+    if(typeof CJT !== 'undefined') anadir('temario', CJT.preguntasFalladas());
+    if(!qs.length){ uiToast('¡No te queda nada fallado!', 'success'); pintarInicio(); return; }
+    desdeTemario = false;
+    verTemario = null;
+    ronda = { id: nuevoUid(), preguntas: barajar(qs), i: 0, aciertos: 0, respondidas: 0, fallos: [], respondida: false, zona, tareaId: null,
+      mixta: true, titulo: 'Solo fallos', encuadre: null };
+    rondaGuiada = { tipo: 'fallos' };
+    modo = ronda.preguntas[0].modo;
+    mostrarVista('juego');
+    ponerInterfaz();
+    crearMapa();
+    capaZona.clearLayers();
+    capaPuntos.clearLayers();
+    mapa.setView(CENTRO, 13);
+    siguientePregunta(true);
   }
   function falladoHtml(){
     const f = fallados();
+    // Lo del temario necesita el temario descargado: al llegar, se vuelve a pintar.
+    if(typeof CJT !== 'undefined' && !CJT.listo()) CJT.cargar().then(() => { if(vistaActual === 'inicio' && subInicio === 'repasar') pintarInicio(); }, () => {});
     const nt = typeof CJT !== 'undefined' ? CJT.falladas() : [];
-    const muestra = nombres => nombres.slice(0, 3).join(', ') + (nombres.length > 3 ? '…' : '');
-    const cuenta = (k, uno, varios) => k + ' ' + (k === 1 ? uno : varios);
-    const MODOS_F = [['opciones', '¿Cómo se llama?'], ['localiza', 'Señalarlas en el mapa'], ['cruces', 'Cruces y paralelas'], ['parque', '¿Qué parque acude?']];
-    const filas = MODOS_F.filter(([m]) => f.calles[m] && f.calles[m].size).map(([m, t]) => {
-      const nombres = [...f.calles[m].keys()];
-      return filaModo('CJ.repasarFallado(\'' + m + '\')', t + ' · ' + cuenta(nombres.length, 'calle', 'calles'), muestra(nombres), ICONOS[m], true);
-    }).concat(
-      nt.length ? [filaModo('CJ.repasarFallado(\'temario\')', 'Temario · ' + cuenta(nt.length, 'pregunta', 'preguntas'), muestra(nt.map(x => x.nombre)), ICONOS.estudio, true)] : [],
-      f.distritos.length ? [filaModo('CJ.repasarFallado(\'distritos\')', 'Distritos · ' + f.distritos.length, muestra(f.distritos), ICONOS.barrios, true)] : [],
-      f.barrios.length ? [filaModo('CJ.repasarFallado(\'barrios\')', 'Barrios · ' + f.barrios.length, muestra(f.barrios), ICONOS.enbarrio, true)] : []).join('');
+    const nc = Object.values(f.calles).reduce((a, m) => a + m.size, 0);
+    const total = nc + nt.length + f.barrios.length + f.distritos.length;
+    const cuenta = (k, uno, varios) => k ? k + ' ' + (k === 1 ? uno : varios) : '';
+    const partes = [cuenta(nc, 'calle', 'calles'), cuenta(nt.length, 'pregunta del temario', 'preguntas del temario'),
+      cuenta(f.barrios.length, 'barrio', 'barrios'), cuenta(f.distritos.length, 'distrito', 'distritos')].filter(Boolean).join(' · ');
     return '<div class="cj-seccion cj-seccion-fallado">Lo fallado</div><div class="cj-card cj-repaso cj-fallado">' +
-      (filas ? '<div class="cj-niveles cj-modos cj-modos-arriba">' + filas + '</div>'
+      (total
+        ? '<button type="button" class="cj-hoy-btn cj-fallos-btn" onclick="CJ.empezarFallos()"><span class="cj-hoy-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg></span>' +
+            '<span class="cj-hoy-txt"><b>Hacer solo fallos · ' + total + '</b><small>' + escapeHtml(partes) + ' · todo mezclado, cada uno como lo fallaste</small></span></button>' +
+          '<button type="button" class="cj-vuelta-reiniciar cj-fallos-reset" onclick="CJ.restablecerFallos()">Restablecer</button>'
         : '<div class="cj-repaso-vacio">Aquí se irá guardando lo que falles. En cuanto lo aciertes, se quita solo.</div>') + '</div>';
   }
   // Repasar por vueltas: las calles que ha marcado el profesor (en sus
@@ -3531,6 +3566,11 @@ const CJ = (function(){
   function siguientePregunta(primera){
     if(!primera) ronda.i++;
     if(ronda.i >= ronda.preguntas.length){ terminar(); return; }
+    // Solo fallos: cada pregunta, con su modo.
+    if(ronda.mixta && ronda.preguntas[ronda.i].modo !== modo){
+      modo = ronda.preguntas[ronda.i].modo;
+      ponerInterfaz();
+    }
     ronda.respondida = false;
     ronda.vista = false;
     capaMarcas.clearLayers();
@@ -3966,7 +4006,8 @@ const CJ = (function(){
     const total = ronda.preguntas.length;
     const fallos = ronda.fallos;
     const m = modo;
-    const titulo = m === 'temario' ? 'Temario · ' + ronda.titulo : MODOS[m].titulo;
+    const mixta = !!ronda.mixta;
+    const titulo = mixta ? ronda.titulo : m === 'temario' ? 'Temario · ' + ronda.titulo : MODOS[m].titulo;
     guardarRondaLocal();
     el('cjPlano').classList.add('hidden');
     el('cjFin').innerHTML =
@@ -3980,7 +4021,7 @@ const CJ = (function(){
               (m === 'temario' && q.resumen && q.respuesta === 'opciones' ? ' <span class="cj-dir">· ' + escapeHtml(q.resumen) + '</span>' : '') + '</li>').join('') + '</ul>'
           : '<div class="cj-fin-sub">¡Todas bien!</div>') +
         '<div class="cj-fin-actions">' +
-          '<button type="button" class="btn btn-primary btn-light" onclick="' + (m === 'temario' ? 'CJ.otraRonda()' : rondaGuiada ? 'CJ.seguirGuiada()' : 'CJ.empezar(\'' + m + '\')') + '">' +
+          '<button type="button" class="btn btn-primary btn-light" onclick="' + (mixta ? 'CJ.empezarFallos()' : m === 'temario' ? 'CJ.otraRonda()' : rondaGuiada ? 'CJ.seguirGuiada()' : 'CJ.empezar(\'' + m + '\')') + '">' +
             (rondaGuiada && rondaGuiada.tipo !== 'nivel' ? 'Seguir repasando' : rondaGuiada ? 'Seguir aprendiendo' : 'Otra ronda') + '</button>' +
           '<button type="button" class="btn btn-ghost" onclick="CJ.salir()">Volver</button>' +
         '</div>' +
@@ -4030,7 +4071,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarTarea, ver, repasarTodo, repasarFallado, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarTarea, empezarFallos, restablecerFallos, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)
@@ -4040,5 +4081,5 @@ const CJ = (function(){
     // temario (js/callejero-temario.js)
     empezarTemario, otraRonda, responderPlano, PREGUNTAS_POR_RONDA, esTemario,
     ordenarPorRepaso: ordenarPorRepasoBase,
-    progreso: () => progreso, tareas: () => tareasActivas(), tareasDelRepaso: () => tareasDelRepaso(), repintar: () => { if(vistaActual === 'inicio') pintarInicio(); } };
+    progreso: () => progreso, esFallo, tareas: () => tareasActivas(), tareasDelRepaso: () => tareasDelRepaso(), repintar: () => { if(vistaActual === 'inicio') pintarInicio(); } };
 })();
