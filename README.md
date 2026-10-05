@@ -293,10 +293,13 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 - Arriba, el día de hoy con un anillo de progreso, la racha (días seguidos con todo hecho; los días sin nada
   apuntado no la cortan) y lo que queda en 7 días. Debajo, el mes con puntos de color por categoría (✓ si el
   día está completo, punto naranja si quedó algo sin hacer), la lista del día elegido para marcar, las tareas
-  atrasadas (con «A hoy» / «Pasar todas a hoy») y los próximos días.
+  atrasadas (con «A hoy» / «Pasar todas a hoy»).
 - Cada tarea: título, categoría (normativas, legislación, callejero, específico, test, físico, repaso, otro),
   nota y día; al crearla se puede repetir (cada día, de lunes a viernes o cada semana) hasta una fecha: las
   repetidas comparten `serie` y al borrar una se ofrece borrar también las siguientes. Borrar se puede deshacer.
+- Se edita con el lápiz de cada tarea (o tocándola), en la misma hoja que para añadir. En una que se repite, los
+  cambios van a «Solo esta» o a «Esta y las siguientes»; en este caso también se puede cambiar la repetición, y
+  entonces se rehacen las siguientes desde ese día (las ya hechas en un día que sigue, siguen hechas).
 - Copia en el dispositivo (`pj_calendario_v1:<usuario>`) para pintar al momento; los cambios se ven antes de
   que responda el servidor y, si fallan, se recarga lo del servidor.
 
