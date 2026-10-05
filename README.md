@@ -1,6 +1,7 @@
 # pj.fire
 
 App web de tests de legislación. Es una web estática (sin paso de compilación) publicada en Vercel, con los datos en Supabase.
+Las ramas `claude/...` no se despliegan (`git.deploymentEnabled` en `vercel.json`): solo se publica lo que llega a `main`, para no gastar el cupo diario de despliegues del plan gratuito.
 
 ## Estructura
 
