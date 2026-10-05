@@ -620,12 +620,14 @@ const NQ = (function(){
     const nums = caja.dataset.nums.split(',');
     try{
       const res = await Promise.all(nums.map(n => MN.sugerir(n)));
+      const chip = w => '<button type="button" class="nq-sug-w" data-act="add-word" data-w="' + esc(w) + '">' + esc(w) + '</button>';
       if(!document.body.contains(caja)) return;
       caja.innerHTML = '<div class="nq-hint" style="text-align:left">Ideas (toca una para añadirla):</div>' + res.map((r, k) =>
-        '<div class="nq-sug-fila"><b>' + esc(nums[k]) + '</b>' + (r.una.length
-          ? r.una.slice(0, 10).map(w => '<button type="button" class="nq-sug-w" data-act="add-word" data-w="' + esc(w) + '">' + esc(w) + '</button>').join('')
-          : r.trozos.map(([n, ws]) => '<span class="nq-sug-trozo">' + esc(n) + ':</span>' + ws.slice(0, 5).map(w => '<button type="button" class="nq-sug-w" data-act="add-word" data-w="' + esc(w) + '">' + esc(w) + '</button>').join('')).join('')) +
-        '</div>').join('');
+        '<div class="nq-sug-fila"><b>' + esc(nums[k]) + '</b>' + (r.una.length ? r.una.map(chip).join('') : '') +
+          (!r.una.length && !r.trozos.length ? '<span class="nq-sug-trozo">sin palabras</span>' : '') + '</div>' +
+        (r.trozos.length ? '<div class="nq-sug-fila"><span class="nq-sug-trozo">' + (r.una.length ? 'O en varias palabras' : 'En varias palabras') + '</span></div>' +
+          r.trozos.map(([n, ws]) => '<div class="nq-sug-fila"><span class="nq-sug-trozo">' + esc(n) + ':</span>' + ws.map(chip).join('') + '</div>').join('') : '')
+      ).join('');
     }catch(e){ caja.innerHTML = '<div class="nq-hint" style="text-align:left">No se pudieron cargar las ideas de palabras.</div>'; }
   }
 
