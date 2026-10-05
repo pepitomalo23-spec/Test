@@ -286,6 +286,20 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 - Cada tarea tiene su conversación (`callejero_mensajes`). Tareas nuevas y mensajes se avisan con una
   notificación (`push-reminders`, a quien tenga activado el recordatorio) y con un número en la pestaña.
 
+## Calendario
+
+- Pestaña propia (`screen-calendario`, `js/calendario.js`, `css/calendario.css`): cada alumno se apunta qué
+  estudiar cada día. Tabla `calendario_tareas` (migración `20261010_calendario.sql`), privada por RLS.
+- Arriba, el día de hoy con un anillo de progreso, la racha (días seguidos con todo hecho; los días sin nada
+  apuntado no la cortan) y lo que queda en 7 días. Debajo, el mes con puntos de color por categoría (✓ si el
+  día está completo, punto naranja si quedó algo sin hacer), la lista del día elegido para marcar, las tareas
+  atrasadas (con «A hoy» / «Pasar todas a hoy») y los próximos días.
+- Cada tarea: título, categoría (normativas, legislación, callejero, específico, test, físico, repaso, otro),
+  nota y día; al crearla se puede repetir (cada día, de lunes a viernes o cada semana) hasta una fecha: las
+  repetidas comparten `serie` y al borrar una se ofrece borrar también las siguientes. Borrar se puede deshacer.
+- Copia en el dispositivo (`pj_calendario_v1:<usuario>`) para pintar al momento; los cambios se ven antes de
+  que responda el servidor y, si fallan, se recarga lo del servidor.
+
 ## Mnemotecnia
 
 - Ventana dentro de Normativas (mini botón de bombilla junto al título; `MN.ventana()` en `js/mnemotecnia.js`,
