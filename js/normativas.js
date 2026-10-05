@@ -110,6 +110,11 @@ const NQ = (function(){
       if(r.stars && (r.starsU || 0) > (l.starsU || 0)){ l.stars = r.stars; l.starsU = r.starsU; changed = true; }
       if(r.opt && (r.optU || 0) > (l.optU || 0)){ l.opt = r.opt; l.optU = r.optU; changed = true; }
       if(r.bestMatch && (!l.bestMatch || r.bestMatch < l.bestMatch)){ l.bestMatch = r.bestMatch; changed = true; }
+      Object.keys(r.w || {}).forEach(id => {
+        l.w = l.w || {};
+        const a = l.w[id], b = r.w[id];
+        if(!a || (b && (b.u || 0) > (a.u || 0))){ l.w[id] = b; changed = true; }
+      });
     });
     return changed;
   }
@@ -204,6 +209,7 @@ const NQ = (function(){
     undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
     shuffle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+    bulb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>',
     pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
     // Mismo emblema que la tarjeta «Test Inteligente» de Inicio.
@@ -246,8 +252,24 @@ const NQ = (function(){
     return c;
   }
   function opts(set){ return sp(set).opt; }
+  /* ---------- Mis palabras (mnemotecnia) ----------
+     Cada alumno puede apuntar en cada tarjeta las palabras que ha asociado
+     al número de la normativa (código fonético de Ramón Campayo; ver la
+     pestaña Mnemotecnia). Con «Responder con: Mis palabras», las preguntas
+     piden esas palabras en vez del número, que es más fácil de recordar.
+     Se guardan con el avance (db[tema].w[tarjeta]) y se sincronizan igual. */
+  function palabras(set, i){ const w = (sp(set).w || {})[set.ids[i]]; return w && w.txt ? w.txt : ''; }
+  function setPalabras(set, i, txt){
+    const p = sp(set);
+    p.w = p.w || {};
+    p.w[set.ids[i]] = { txt: String(txt || '').trim().slice(0, 300), u: Date.now() };
+    save();
+  }
+  const conPalabras = set => opts(set).answerWith === 'words';
   function pool(set){
-    const all = set.terms.map((_, i) => i);
+    let all = set.terms.map((_, i) => i);
+    // Respondiendo con las palabras, solo las tarjetas que las tienen.
+    if(conPalabras(set)){ const conW = all.filter(i => palabras(set, i)); if(conW.length) all = conW; }
     if(opts(set).starred){
       const st = all.filter(i => isStar(set, i));
       if(st.length) return st;
@@ -256,11 +278,13 @@ const NQ = (function(){
   }
   function qa(set, i){
     const [t, d] = set.terms[i];
+    if(conPalabras(set)) return { prompt: t, answer: palabras(set, i) || d };
     return opts(set).answerWith === 'term' ? { prompt: d, answer: t } : { prompt: t, answer: d };
   }
   function makeChoices(set, i){
     const correct = qa(set, i).answer;
-    const others = shuffle(set.terms.map((_, j) => j).filter(j => j !== i))
+    // Con «Mis palabras», las opciones falsas son palabras de otras tarjetas, nunca un número.
+    const others = shuffle(set.terms.map((_, j) => j).filter(j => j !== i && (!conPalabras(set) || palabras(set, j))))
       .map(j => qa(set, j).answer)
       .filter((a, k, arr) => a !== correct && arr.indexOf(a) === k)
       .slice(0, 3);
@@ -534,8 +558,12 @@ const NQ = (function(){
           '<div class="nq-edit-actions"><button class="nq-btn ghost nq-btn-sm" type="button" data-act="cancel-edit">Cancelar</button><button class="nq-btn nq-btn-sm" type="submit">Guardar</button></div>' +
           '</div></form>';
       }
-      return '<div class="nq-term"><div class="nq-term-main"><div class="nq-term-t">' + esc(t) + '</div><div class="nq-term-d">' + esc(d) + '</div>' + (edit ? trampasLine(set, i) : '') + '</div>' +
+      if(view.palabras === id) return formPalabras(set, i);
+      const w = palabras(set, i);
+      return '<div class="nq-term"><div class="nq-term-main"><div class="nq-term-t">' + esc(t) + '</div><div class="nq-term-d">' + esc(d) + '</div>' +
+        (w ? '<div class="nq-term-w">' + I.bulb + esc(w) + '</div>' : '') + (edit ? trampasLine(set, i) : '') + '</div>' +
         '<div class="nq-term-tools"><button class="nq-ib" data-act="speak" data-i="' + i + '" title="Escuchar">' + I.speaker + '</button>' +
+        '<button class="nq-ib' + (w ? ' w-on' : '') + '" data-act="palabras" data-i="' + i + '" title="Mis palabras para el número">' + I.bulb + '</button>' +
         '<button class="nq-ib' + (isStar(set, i) ? ' star-on' : '') + '" data-act="star" data-i="' + i + '" title="Destacar">' + I.star + '</button>' +
         (edit ? '<button class="nq-ib" data-act="edit-card" data-i="' + i + '" title="Editar">' + I.pencil + '</button>' +
           '<button class="nq-ib nq-ib-del" data-act="del-card" data-i="' + i + '" title="Eliminar">' + I.trash + '</button>' : '') +
@@ -569,6 +597,36 @@ const NQ = (function(){
         (edit ? '<span class="sep"></span><button class="nq-sec-link" data-act="rename-set">Renombrar</button><button class="nq-sec-link nq-danger" data-act="del-set">Eliminar tema</button>' : '') + '</div>' +
       modes + avance + terms +
       (canStudy ? '<div class="nq-cta-wrap"><button class="nq-btn block" data-act="study" data-mode="learn">Estudiar este tema</button></div>' : '');
+  }
+
+  // Formulario de «Mis palabras» de una tarjeta, con sugerencias de la
+  // calculadora de Mnemotecnia para cada número de la normativa.
+  function formPalabras(set, i){
+    const [t, d] = set.terms[i];
+    const numeros = (String(d).match(/\d+/g) || []).slice(0, 4);
+    return '<form class="nq-term nq-term-edit" data-submit="save-words" data-i="' + i + '" autocomplete="off"><div class="nq-term-main">' +
+      '<div class="nq-term-t">' + esc(t) + '</div><div class="nq-term-d">' + esc(d) + '</div>' +
+      '<label class="nq-edit-lbl">Mis palabras para el número</label>' +
+      '<textarea class="nq-input nq-ta" name="words" rows="2" placeholder="Ej.: chal pez (659)" data-autofocus>' + esc(palabras(set, i)) + '</textarea>' +
+      (numeros.length ? '<div class="nq-sug" id="nqSug" data-nums="' + esc(numeros.join(',')) + '"><div class="nq-hint" style="text-align:left">Buscando palabras…</div></div>' : '') +
+      '<div class="nq-edit-actions">' + (palabras(set, i) ? '<button class="nq-btn ghost nq-btn-sm" type="button" data-act="del-words" data-i="' + i + '">Quitar</button>' : '') +
+        '<button class="nq-btn ghost nq-btn-sm" type="button" data-act="cancel-words">Cancelar</button><button class="nq-btn nq-btn-sm" type="submit">Guardar</button></div>' +
+      '</div></form>';
+  }
+  // Las sugerencias llegan después (el diccionario se descarga al pedirlo).
+  async function pintarSugerencias(){
+    const caja = document.getElementById('nqSug');
+    if(!caja || typeof MN === 'undefined') return;
+    const nums = caja.dataset.nums.split(',');
+    try{
+      const res = await Promise.all(nums.map(n => MN.sugerir(n)));
+      if(!document.body.contains(caja)) return;
+      caja.innerHTML = '<div class="nq-hint" style="text-align:left">Ideas (toca una para añadirla):</div>' + res.map((r, k) =>
+        '<div class="nq-sug-fila"><b>' + esc(nums[k]) + '</b>' + (r.una.length
+          ? r.una.slice(0, 10).map(w => '<button type="button" class="nq-sug-w" data-act="add-word" data-w="' + esc(w) + '">' + esc(w) + '</button>').join('')
+          : r.trozos.map(([n, ws]) => '<span class="nq-sug-trozo">' + esc(n) + ':</span>' + ws.slice(0, 5).map(w => '<button type="button" class="nq-sug-w" data-act="add-word" data-w="' + esc(w) + '">' + esc(w) + '</button>').join('')).join('')) +
+        '</div>').join('');
+    }catch(e){ caja.innerHTML = '<div class="nq-hint" style="text-align:left">No se pudieron cargar las ideas de palabras.</div>'; }
   }
 
   /* ---------- edición (solo admin; la base de datos lo exige igualmente) ---------- */
@@ -612,6 +670,12 @@ const NQ = (function(){
     const set = view.setId ? getSet(view.setId) : null;
     if(kind === 'create-set'){ const t = val('title'); if(t){ view.sheet = null; await createSet(t); } }
     else if(kind === 'rename-set' && set){ const t = val('title'); if(t) await renameSet(set, t); }
+    else if(kind === 'save-words' && set){
+      setPalabras(set, +form.dataset.i, val('words'));
+      view.palabras = null;
+      render();
+      uiToast('Palabras guardadas', 'success');
+    }
     else if(kind === 'save-card' && set){
       const t = val('term'), d = val('definition');
       if(t && d) await saveCard(set, +form.dataset.i, t, d);
@@ -714,7 +778,8 @@ const NQ = (function(){
     if(study.mode === 'fc'){
       rows += '<div class="nq-cfg-row"><span>Mostrar primero</span><select class="nq-select" data-opt="fcFront"><option value="term"' + (o.fcFront === 'term' ? ' selected' : '') + '>Término</option><option value="def"' + (o.fcFront === 'def' ? ' selected' : '') + '>Normativa</option></select></div>';
     } else {
-      rows += '<div class="nq-cfg-row"><span>Responder con</span><select class="nq-select" data-opt="answerWith"><option value="def"' + (o.answerWith === 'def' ? ' selected' : '') + '>Normativa</option><option value="term"' + (o.answerWith === 'term' ? ' selected' : '') + '>Término</option></select></div>';
+      rows += '<div class="nq-cfg-row"><span>Responder con</span><select class="nq-select" data-opt="answerWith"><option value="def"' + (o.answerWith === 'def' ? ' selected' : '') + '>Normativa</option><option value="term"' + (o.answerWith === 'term' ? ' selected' : '') + '>Término</option><option value="words"' + (o.answerWith === 'words' ? ' selected' : '') + '>Mis palabras (mnemotecnia)</option></select></div>' +
+        (o.answerWith === 'words' ? '<div class="nq-hint" style="text-align:left;margin:-4px 0 8px">Te pregunto las palabras que asociaste al número de cada normativa. Solo entran las tarjetas que las tienen (se apuntan en la lista de términos, con la bombilla).</div>' : '');
       if(study.mode === 'learn') rows += tog('written', 'Preguntas escritas (2ª vuelta)', o.written);
       rows += tog('aiHard', '🔥 Opciones difíciles con IA cuando ya te lo sabes', o.aiHard && o.answerWith === 'def', o.answerWith !== 'def');
     }
@@ -962,6 +1027,7 @@ const NQ = (function(){
     const [t, d] = set.terms[i];
     const defFirst = opts(set).fcFront === 'def';
     const front = defFirst ? d : t, back = defFirst ? t : d;
+    const w = palabras(set, i), wHtml = w ? '<div class="nq-fc-w">' + I.bulb + esc(w) + '</div>' : '';
     const tools = '<div class="nq-fc-tools"><button class="nq-ib" data-act="speak-fc" title="Escuchar">' + I.speaker + '</button>' +
       '<button class="nq-ib' + (isStar(set, i) ? ' star-on' : '') + '" data-act="star" data-i="' + i + '" title="Destacar">' + I.star + '</button></div>';
     return studyHeader((st.pos + 1) + ' / ' + n, true) +
@@ -969,8 +1035,8 @@ const NQ = (function(){
       '<div class="nq-fc-counts"><span class="nq-c-orange"><span class="nq-pill orange">' + st.learning.length + '</span>En progreso</span>' +
         '<span class="nq-c-green">Conocida<span class="nq-pill green">' + st.known.length + '</span></span></div>' +
       '<div class="nq-fc-stage"><div class="nq-fc-card' + (st.flipped ? ' flipped' : '') + '" id="nqFcCard"><div class="nq-fc-inner">' +
-        '<div class="nq-fc-face">' + tools + '<div>' + esc(front) + '</div><div class="nq-fc-side">' + (defFirst ? 'Normativa' : 'Término') + '</div></div>' +
-        '<div class="nq-fc-face nq-fc-back">' + tools + '<div>' + esc(back) + '</div><div class="nq-fc-side">' + (defFirst ? 'Término' : 'Normativa') + '</div></div>' +
+        '<div class="nq-fc-face">' + tools + '<div>' + esc(front) + '</div>' + (defFirst ? wHtml : '') + '<div class="nq-fc-side">' + (defFirst ? 'Normativa' : 'Término') + '</div></div>' +
+        '<div class="nq-fc-face nq-fc-back">' + tools + '<div>' + esc(back) + '</div>' + (defFirst ? '' : wHtml) + '<div class="nq-fc-side">' + (defFirst ? 'Término' : 'Normativa') + '</div></div>' +
       '</div></div></div>' +
       '<div class="nq-fc-controls">' +
         '<button class="nq-ib" data-act="fc-undo" title="Deshacer"' + (st.hist.length ? '' : ' disabled style="opacity:.35"') + '>' + I.undo + '</button>' +
@@ -1392,6 +1458,10 @@ const NQ = (function(){
       case 'root-sheet-bg': if(e.target === el){ view.sheet = null; render(); } break;
       case 'del-set': deleteSet(set); break;
       case 'edit-card': view.editing = set.ids[i]; render(); break;
+      case 'palabras': view.palabras = set.ids[i]; render(); pintarSugerencias(); break;
+      case 'cancel-words': view.palabras = null; render(); break;
+      case 'del-words': setPalabras(set, i, ''); view.palabras = null; render(); uiToast('Palabras quitadas', 'success'); break;
+      case 'add-word': { const ta = el.closest('form').querySelector('textarea[name="words"]'); ta.value = (ta.value.trim() ? ta.value.trim() + ' ' : '') + el.dataset.w; ta.focus(); break; }
       case 'toggle-edit': view.editMode = !view.editMode; view.editing = null; view.adding = false; render(); break;
       case 'open-add': view.adding = true; render(); break;
       case 'close-add': view.adding = false; render(); break;
