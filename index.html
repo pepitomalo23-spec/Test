@@ -60,6 +60,7 @@
 <link rel="stylesheet" href="css/test.css?v=06abd3d71a">
 <link rel="stylesheet" href="css/normativas.css?v=fa9397f080">
 <link rel="stylesheet" href="css/callejero.css?v=7a15c6aa44">
+<link rel="stylesheet" href="css/calendario.css?v=754898cafd">
 <link rel="stylesheet" href="css/mnemotecnia.css?v=7933e62382">
 </head>
 <body>
@@ -154,6 +155,11 @@
       <span id="navStats" role="button" tabindex="0" onclick="showScreen('screen-stats')" onkeydown="if(event.key==='Enter')showScreen('screen-stats')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16v5"/><path d="M16 14.639V21"/><path d="M20 10.656V21"/><path d="m22 3-8.646 8.646a.5.5 0 0 1-.708 0L9.354 8.354a.5.5 0 0 0-.707 0L2 15"/><path d="M4 18.463V21"/><path d="M8 14.656V21"/></svg>
         <span class="header-nav-label">Estadísticas</span>
+      </span>
+      <div class="nav-dot"></div>
+      <span id="navCalendario" role="button" tabindex="0" onclick="showScreen('screen-calendario')" onkeydown="if(event.key==='Enter')showScreen('screen-calendario')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>
+        <span class="header-nav-label">Calendario</span>
       </span>
     </div>
     <div class="header-user" id="headerUser">
@@ -477,6 +483,11 @@
       <div class="hidden" id="cjTemario"></div>
     </section>
 
+
+    <section class="screen" id="screen-calendario">
+      <h1>Calendario</h1>
+      <div id="calRoot"></div>
+    </section>
 
     <section class="screen" id="screen-stats">
       <h1>Estadísticas</h1>
@@ -1069,7 +1080,7 @@
 <script src="js/estadisticas.js?v=3dfae87638"></script>
 <script src="js/contenido.js?v=284326574e"></script>
 <script src="js/historial.js?v=d1494e67e6"></script>
-<script src="js/navegacion.js?v=593baf815b"></script>
+<script src="js/navegacion.js?v=3ff05c62c6"></script>
 <script src="js/configuracion-test.js?v=a7484ef8cc"></script>
 <script src="js/test-inteligente.js?v=a7a43bfe6a"></script>
 <script src="js/test.js?v=a7af84c693"></script>
@@ -1095,6 +1106,7 @@
 <script src="js/callejero-temario.js?v=f99325ffdb"></script>
 <script src="js/callejero-profesor.js?v=55890007ea"></script>
 <script src="js/mnemotecnia.js?v=c08acd5057"></script>
+<script src="js/calendario.js?v=6aeee62fdf"></script>
 <script src="js/arranque.js?v=838162d6bd"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
   <button type="button" class="image-lightbox-close" onclick="closeImageLightbox(event)" title="Cerrar">
