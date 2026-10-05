@@ -397,6 +397,7 @@ const CJ = (function(){
   async function cargarProgreso(){
     await subirPendientes();   // lo que estaba en la cola ya cuenta en el servidor
     cargarNotas();
+    cargarVueltas().then(() => { if(vistaActual === 'inicio' && subInicio === 'repasar') pintarInicio(); }, () => {});
     const { data, error } = await sb.rpc('callejero_progreso');
     if(error) return;
     progreso = progresoDesdeFilas(data);
@@ -2158,15 +2159,49 @@ const CJ = (function(){
     calcularDelProfesor().vias.forEach(pon);
     return [...porNombre.values()];
   }
+  // Se guarda en la cuenta (callejero_vueltas), para seguir igual en otro
+  // dispositivo, y una copia en este (por si no hay conexión). v[modo]: lo
+  // visto; v._t[modo]: cuándo cambió (al cargar, gana lo más reciente).
   function leerVuelta(){
     try{ return JSON.parse(localStorage.getItem(VUELTA_KEY + (currentUser ? currentUser.id : '')) || '{}'); }catch(e){ return {}; }
   }
   function guardarVuelta(v){ try{ localStorage.setItem(VUELTA_KEY + (currentUser ? currentUser.id : ''), JSON.stringify(v)); }catch(e){} }
-  function marcarVista(m, nombres){
-    const v = leerVuelta(), set = new Set(v[m] || []);
-    nombres.forEach(n => set.add(n));
-    v[m] = [...set];
+  const subidasVuelta = {};
+  function cambiarVuelta(m, vistas){
+    const v = leerVuelta();
+    v[m] = vistas;
+    v._t = Object.assign({}, v._t, { [m]: Date.now() });
     guardarVuelta(v);
+    // A la cuenta, un momento después (varias respuestas seguidas, una subida).
+    clearTimeout(subidasVuelta[m]);
+    subidasVuelta[m] = setTimeout(() => subirVuelta(m), 800);
+  }
+  function subirVuelta(m){
+    if(!currentUser) return;
+    const v = leerVuelta();
+    sb.from('callejero_vueltas').upsert({ user_id: currentUser.id, modo: m, vistas: v[m] || [], updated_at: new Date((v._t || {})[m] || Date.now()).toISOString() })
+      .then(() => {}, () => {});
+  }
+  async function cargarVueltas(){
+    if(!currentUser) return;
+    const { data, error } = await sb.from('callejero_vueltas').select('modo, vistas, updated_at');
+    if(error) return;
+    const v = leerVuelta(), t = Object.assign({}, v._t), subir = [];
+    (data || []).forEach(r => {
+      const servidor = new Date(r.updated_at).getTime();
+      if(!t[r.modo] || servidor >= t[r.modo]){ v[r.modo] = r.vistas || []; t[r.modo] = servidor; }
+      else subir.push(r.modo);
+    });
+    Object.keys(t).forEach(m => { if(!(data || []).some(r => r.modo === m)) subir.push(m); });
+    v._t = t;
+    guardarVuelta(v);
+    subir.forEach(subirVuelta);
+  }
+  function marcarVista(m, nombres){
+    if(!nombres.length) return;
+    const set = new Set(leerVuelta()[m] || []);
+    nombres.forEach(n => set.add(n));
+    cambiarVuelta(m, [...set]);
   }
   // Las calles de la vuelta de un modo (las que tienen sentido en él) y las ya vistas.
   function estadoVuelta(m){
@@ -2181,7 +2216,7 @@ const CJ = (function(){
     if(!e.todas.length){ uiToast('Tu profesor todavía no te ha marcado calles para esto.', 'info'); return; }
     if(!e.pendientes.length){
       // Vuelta terminada: empieza otra.
-      const v = leerVuelta(); delete v[m]; guardarVuelta(v);
+      cambiarVuelta(m, []);
       uiToast('Vuelta completada. Empiezas otra.', 'success');
       e = estadoVuelta(m);
     }
@@ -2190,7 +2225,7 @@ const CJ = (function(){
   async function reiniciarVuelta(m){
     const f = FORMAS_CALLES.find(x => x.modo === m);
     if(!await uiConfirm('Vuelven a salir todas las calles de tu profesor en «' + (f ? f.titulo : m) + '».', { title: '¿Empezar la vuelta de nuevo?', ok: 'Empezar de nuevo', danger: false })) return;
-    const v = leerVuelta(); delete v[m]; guardarVuelta(v);
+    cambiarVuelta(m, []);
     pintarInicio();
   }
   const FORMAS_CALLES = [
