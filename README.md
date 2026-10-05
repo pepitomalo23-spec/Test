@@ -299,6 +299,12 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   `node scripts/mnemotecnia.mjs ruta/a/index.dic` a partir del diccionario de LibreOffice para español
   (https://github.com/wooorm/dictionaries, `dictionaries/es`; triple licencia GPL 3 / LGPL 3 / MPL 1.1, se usa
   bajo la LGPL 3; su texto en `datos/mnemotecnia-LICENCIA.txt`).
+- «Mis palabras» en Normativas: cada término tiene un botón de bombilla para apuntar las palabras que uno asocia
+  al número de su normativa (con ideas de `MN.sugerir` para cada número de la definición). Se guardan en el
+  progreso de Normativas (`nq_user_progress`, clave `w` por tarjeta, gana la más reciente) y se ven bajo la
+  normativa en la lista y en las fichas. Con «Responder con: Mis palabras» en las opciones de Aprender/Probar
+  se pregunta el término y se responde con las palabras (solo entran las tarjetas que las tienen, y las opciones
+  falsas son palabras de otras tarjetas).
 
 ## Al cambiar un css/ o js/
 

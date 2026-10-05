@@ -100,8 +100,16 @@ const MN = (function(){
     pintar();
     cargar().then(pintarResultados, e => { const a = document.getElementById('mnResultado'); if(a) a.innerHTML = '<div class="mn-ayuda">' + esc(e.message) + '</div>'; });
   }
+  // Para Normativas: palabras para un número (en una palabra o en trozos).
+  async function sugerir(n){
+    await cargar();
+    n = String(n).replace(/\D/g, '');
+    const una = datos[n] || [];
+    const ps = !una.length && n.length > 1 ? trozos(n) : null;
+    return { una, trozos: ps ? ps.map(t => [t, datos[t]]) : [] };
+  }
   return {
-    abrir, numeroDe,
+    abrir, numeroDe, sugerir,
     numero: v => { numero = String(v).replace(/\D/g, '').slice(0, 24); const i = document.getElementById('mnNumero'); if(i && i.value !== numero) i.value = numero; pintarResultados(); },
     palabra: v => { palabra = String(v).slice(0, 60); pintarResultados(); }
   };

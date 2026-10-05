@@ -75,6 +75,18 @@
   .nq-ib svg{ width:18px; height:18px; }
   .nq-ib.star-on{ color: var(--amber); }
   .nq-ib.star-on svg{ fill: currentColor; }
+  .nq-ib.w-on{ color: var(--amber); }
+  /* Mis palabras (mnemotecnia) */
+  .nq-term-w{ display:flex; align-items:flex-start; gap:6px; margin-top:8px; font-size:13px; line-height:1.4; color: var(--amber); font-weight:600; }
+  .nq-term-w svg{ width:15px; height:15px; flex-shrink:0; margin-top:1px; }
+  .nq-sug{ display:flex; flex-direction:column; gap:8px; margin:10px 0; }
+  .nq-sug-fila{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:13px; }
+  .nq-sug-fila > b{ min-width:44px; font-variant-numeric: tabular-nums; }
+  .nq-sug-w{ border:1px solid var(--line); background: var(--card-hi); color: var(--text); border-radius:999px; padding:4px 10px; font:inherit; font-size:12.5px; cursor:pointer; }
+  .nq-sug-w:hover{ border-color: var(--amber); color: var(--amber); }
+  .nq-sug-trozo{ color: var(--muted); font-weight:600; margin-left:4px; }
+  .nq-fc-w{ position:absolute; bottom:40px; left:20px; right:20px; display:flex; justify-content:center; align-items:center; gap:6px; font-size:15px; color: var(--amber); font-weight:600; }
+  .nq-fc-w svg{ width:16px; height:16px; flex-shrink:0; }
   .nq-empty-terms{ color: var(--muted); font-size:13px; padding: 24px 0; text-align:center; }
 
   .nq-cta-wrap{ position:sticky; bottom:0; padding: 18px 0 6px; background: linear-gradient(to top, var(--bg) 60%, transparent); margin-top:8px; }
