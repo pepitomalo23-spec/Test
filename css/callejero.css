@@ -868,3 +868,6 @@
   .cj-check.on{ border-color: rgba(52,211,153,.55); color: var(--green); }
   .cj-check.on .cj-check-caja{ background: var(--green); border-color: var(--green); color:#0b0b0b; }
   .cj-tareas-ayuda{ margin:0 2px 10px; }
+  .cj-fallado .cj-hoy-btn.cj-fallos-btn{ border-color: rgba(242,102,92,.5); background: rgba(242,102,92,.1); }
+  .cj-fallado .cj-fallos-btn .cj-hoy-play{ background: var(--coral); }
+  .cj-fallos-reset{ display:block; margin:6px 0 0 auto; color: var(--muted); }

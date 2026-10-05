@@ -193,9 +193,11 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   Córdoba, sin lo del profesor), plazas y glorietas, y los lugares por grupos (colegios, salud, parques,
   monumentos, edificios públicos, ocio, transporte…); y el temario de la academia. Usa el visor del temario
   (`verTemario`), que admite elementos con varios barrios (un distrito), colores y nombres sobre el mapa.
-- **Lo fallado** (arriba en Repasar): lo que la última vez se respondió mal (estado `fallada`: racha 0), por
-  tipo: calles por modo (¿Cómo se llama?, señalarlas, cruces, parque), temario, distritos y barrios, con una
-  ronda solo de eso en cada fila. Se quita solo en cuanto se acierta.
+- **Lo fallado** (arriba en Repasar): lo que la última vez se respondió mal (estado `fallada`: racha 0). Un solo
+  botón, «Hacer solo fallos», con todo mezclado y cada cosa preguntada como se falló (calles en su modo, temario,
+  barrios y distritos en el mapa de colores; cada pregunta lleva su `modo` y la ronda lo cambia entre preguntas).
+  Se quita solo al acertarlo. «Restablecer» lo vacía: desde esa fecha solo cuenta lo que se vuelva a fallar
+  (`callejero_fallos_reinicio`, migración `20261009_callejero_fallos_reinicio.sql`).
 - **Repasar lo estudiado**: todo lo dado hasta ahora, en una sola pantalla: el temario (las preguntas ya
   respondidas y las preguntas sin mapa —de lo que ha mandado el profesor o, si no hay, de todo el temario—),
   «Distritos en el mapa» y «Barrios en el mapa», y las calles. Ya no hay «lo que toca hoy».
