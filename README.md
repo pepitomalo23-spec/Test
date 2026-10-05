@@ -202,7 +202,8 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
 - **Calles de tu profesor, por vueltas** (en Repasar, tras «Lo fallado»): solo las que ha marcado el profesor (sus
   tareas: calles sueltas y zonas enteras, y las de sus fichas del temario). Se elige cómo preguntarlas (4 nombres,
   señalándolas, diciendo el nombre, cruces o parque) y cada forma lleva su vuelta: salen todas antes de repetir
-  (lo ya visto se guarda en el dispositivo, `cj_vuelta_<usuario>`, y la ronda siguiente sigue con lo que falta).
+  (lo ya visto se guarda en la cuenta, `callejero_vueltas`, con copia en el dispositivo, `cj_vuelta_<usuario>`;
+  al cargar gana lo más reciente; la ronda siguiente sigue con lo que falta, en cualquier dispositivo).
   Al acabar empieza otra; «Empezar la vuelta de nuevo» la reinicia.
 - «Distritos en el mapa» y «Barrios en el mapa» (modos `mapadistritos` y `mapabarrios`): todos a la vez, cada
   uno de un color y sin nombres (los barrios de al lado, de colores distintos), y se toca el que se pide. Sus
