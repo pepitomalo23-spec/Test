@@ -79,7 +79,7 @@
   /* Mis palabras (mnemotecnia) */
   .nq-term-w{ display:flex; align-items:flex-start; gap:6px; margin-top:8px; font-size:13px; line-height:1.4; color: var(--amber); font-weight:600; }
   .nq-term-w svg{ width:15px; height:15px; flex-shrink:0; margin-top:1px; }
-  .nq-sug{ display:flex; flex-direction:column; gap:8px; margin:10px 0; }
+  .nq-sug{ display:flex; flex-direction:column; gap:8px; margin:10px 0; max-height:340px; overflow-y:auto; overscroll-behavior:contain; }
   .nq-sug-fila{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:13px; }
   .nq-sug-fila > b{ min-width:44px; font-variant-numeric: tabular-nums; }
   .nq-sug-w{ border:1px solid var(--line); background: var(--card-hi); color: var(--text); border-radius:999px; padding:4px 10px; font:inherit; font-size:12.5px; cursor:pointer; }

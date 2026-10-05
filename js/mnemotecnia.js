@@ -62,7 +62,7 @@ const MN = (function(){
     if(numero.length > 2){
       const ps = trozos(numero);
       if(ps && ps.length > 1) html += '<div class="mn-sub">' + (una ? 'O en varias palabras' : 'En varias palabras') + '</div>' +
-        ps.map(t => '<div class="mn-trozo"><span class="mn-trozo-n">' + t + '</span><div class="mn-palabras">' + chips(datos[t].slice(0, 12)) + '</div></div>').join('');
+        ps.map(t => '<div class="mn-trozo"><span class="mn-trozo-n">' + t + '</span><div class="mn-palabras">' + chips(datos[t]) + '</div></div>').join('');
     }
     if(!una && !(numero.length > 2)) html += '<div class="mn-ayuda">No encuentro palabras para este número.</div>';
     return html;
@@ -105,8 +105,9 @@ const MN = (function(){
     await cargar();
     n = String(n).replace(/\D/g, '');
     const una = datos[n] || [];
-    const ps = !una.length && n.length > 1 ? trozos(n) : null;
-    return { una, trozos: ps ? ps.map(t => [t, datos[t]]) : [] };
+    // Lo mismo que la pestaña: todas las de una palabra y, si es largo, también en trozos.
+    const ps = n.length > 2 || !una.length ? trozos(n) : null;
+    return { una, trozos: ps && ps.length > 1 ? ps.map(t => [t, datos[t]]) : [] };
   }
   return {
     abrir, numeroDe, sugerir,
