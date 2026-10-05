@@ -1,7 +1,7 @@
 /* Navegación entre pantallas y bloqueo de tarjetas con un test a medias. */
 
 /* ---------- navigation ---------- */
-const TOP_LEVEL_SCREENS = ['screen-normativas', 'screen-home', 'screen-callejero', 'screen-stats', 'screen-mnemotecnia'];
+const TOP_LEVEL_SCREENS = ['screen-normativas', 'screen-home', 'screen-callejero', 'screen-stats'];
 const LAST_SCREEN_KEY = 'legis_last_screen';
 // Pantallas de "detalle" o de proceso (un artículo concreto, el
 // configurador de un test, la revisión de un test ya hecho...) no se
@@ -14,7 +14,6 @@ const SCREEN_RESTORE_TARGET = {
   'screen-home': 'screen-home',
   'screen-stats': 'screen-stats',
   'screen-callejero': 'screen-callejero',
-  'screen-mnemotecnia': 'screen-mnemotecnia',
   'screen-boe-cambios': 'screen-boe-cambios',
   'screen-my-additions': 'screen-my-additions',
   'screen-notas-todas': 'screen-my-additions',
@@ -46,8 +45,6 @@ function showScreen(id){
   document.getElementById('navHome').classList.toggle('active', id === 'screen-home');
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
   document.getElementById('navCallejero').classList.toggle('active', id === 'screen-callejero');
-  document.getElementById('navMnemotecnia').classList.toggle('active', id === 'screen-mnemotecnia');
-  if(id === 'screen-mnemotecnia' && typeof MN !== 'undefined') MN.abrir();
   const isTopLevel = TOP_LEVEL_SCREENS.includes(id);
   // Recordamos la última pantalla visitada, para poder volver a ella (o a
   // su pantalla padre, ver SCREEN_RESTORE_TARGET) si la app se recarga

@@ -288,7 +288,8 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 
 ## Mnemotecnia
 
-- Pestaña propia (`screen-mnemotecnia`, `js/mnemotecnia.js`, `css/mnemotecnia.css`): calculadora del código
+- Ventana dentro de Normativas (mini botón de bombilla junto al título; `MN.ventana()` en `js/mnemotecnia.js`,
+  `css/mnemotecnia.css`; ya no es una pestaña): calculadora del código
   fonético de Ramón Campayo («Desarrolla una mente prodigiosa»): 0 R · 1 T D · 2 N Ñ · 3 M · 4 C K Q · 5 L ·
   6 S Z · 7 F · 8 CH J G · 9 V B P. Las vocales, H, Y, W y X no cuentan; CH es un 8, RR un solo 0 y LL no cuenta.
   (La tabla se comprobó con el conversor «Casillero Mental» enlazado en ramoncampayo.com y con mnemotecnia.es.)

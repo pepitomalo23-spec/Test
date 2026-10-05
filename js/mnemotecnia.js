@@ -109,8 +109,35 @@ const MN = (function(){
     const ps = n.length > 2 || !una.length ? trozos(n) : null;
     return { una, trozos: ps && ps.length > 1 ? ps.map(t => [t, datos[t]]) : [] };
   }
+  // Ventana con la calculadora (se abre desde Normativas). Se crea una vez
+  // y se reutiliza, así conserva lo último que se escribió.
+  function ventana(){
+    let bg = document.getElementById('mnVentana');
+    if(!bg){
+      bg = document.createElement('div');
+      bg.id = 'mnVentana';
+      bg.className = 'mn-ventana-bg';
+      bg.innerHTML = '<div class="mn-ventana" role="dialog" aria-modal="true" aria-labelledby="mnTitulo">' +
+        '<div class="mn-ventana-cab"><div><h2 id="mnTitulo">Mnemotecnia</h2><div class="mn-intro">Código fonético de Ramón Campayo: de números a palabras, y al revés.</div></div>' +
+        '<button class="mn-cerrar" type="button" aria-label="Cerrar">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>' +
+        '<div class="mn-ventana-cuerpo"><div id="mnRoot"></div></div></div>';
+      bg.addEventListener('click', e => { if(e.target === bg || e.target.closest('.mn-cerrar')) cerrar(); });
+      document.body.appendChild(bg);
+    }
+    bg.classList.add('on');
+    document.addEventListener('keydown', esc_);
+    abrir();
+    setTimeout(() => { const i = document.getElementById('mnNumero'); if(i && matchMedia('(hover: hover)').matches) i.focus(); }, 50);
+  }
+  function cerrar(){
+    const bg = document.getElementById('mnVentana');
+    if(bg) bg.classList.remove('on');
+    document.removeEventListener('keydown', esc_);
+  }
+  function esc_(e){ if(e.key === 'Escape') cerrar(); }
   return {
-    abrir, numeroDe, sugerir,
+    abrir, ventana, cerrar, numeroDe, sugerir,
     numero: v => { numero = String(v).replace(/\D/g, '').slice(0, 24); const i = document.getElementById('mnNumero'); if(i && i.value !== numero) i.value = numero; pintarResultados(); },
     palabra: v => { palabra = String(v).slice(0, 60); pintarResultados(); }
   };
