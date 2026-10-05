@@ -16,6 +16,8 @@ const CAL = (function(){
     ['repaso', 'Repaso', 'var(--amber)'],
     ['otro', 'Otro', 'var(--muted)']
   ];
+  const ICONO = { normativas: '📘', legislacion: '⚖️', callejero: '🗺️', especifico: '🔥', test: '📝', fisico: '🏃', repaso: '🔁', otro: '✨' };
+  const LAPIZ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
   const CAT = Object.fromEntries(CATS.map(([k, n, c]) => [k, { n, c }]));
   // Desde la tarea se puede saltar a su apartado.
   const IR = { normativas: 'screen-normativas', legislacion: 'screen-home', callejero: 'screen-callejero', test: 'screen-home' };
@@ -24,7 +26,7 @@ const CAL = (function(){
   const FRASES = ['Día libre. Si te apetece, apunta algo.', 'Nada apuntado para este día.', 'Hueco libre: buen momento para un repaso.'];
 
   let tareas = [], cargado = false, cargando = null, dueño = null;
-  let mes = null, elegido = null, hoja = null;
+  let mes = null, elegido = null;
 
   /* ---------- fechas (siempre en hora local, como 'AAAA-MM-DD') ---------- */
   const dos = n => String(n).padStart(2, '0');
@@ -154,7 +156,8 @@ const CAL = (function(){
         '<span class="cal-tarea-meta"><span class="cal-cat">' + esc(c.n) + '</span>' + (conFecha ? '<span class="cal-tarea-f">' + esc(nombreDia(t.fecha, true)) + '</span>' : '') + (t.serie ? '<span class="cal-rep" title="Se repite">↻</span>' : '') + '</span>' +
       '</button>' +
       (conFecha ? '<button class="cal-mini" data-cal="a-hoy" data-id="' + t.id + '">A hoy</button>'
-        : IR[t.categoria] && !t.hecho ? '<button class="cal-ir" data-cal="ir" data-k="' + t.categoria + '" aria-label="Ir a ' + esc(c.n) + '">›</button>' : '') +
+        : (IR[t.categoria] && !t.hecho ? '<button class="cal-ir" data-cal="ir" data-k="' + t.categoria + '" aria-label="Ir a ' + esc(c.n) + '">›</button>' : '') +
+          '<button class="cal-ir cal-lapiz" data-cal="editar" data-id="' + t.id + '" aria-label="Editar">' + LAPIZ + '</button>') +
       '</div>';
   }
   function dia(){
@@ -173,60 +176,108 @@ const CAL = (function(){
         (at.length === 1 ? 'Tarea atrasada' : 'Tareas atrasadas') + '<button class="cal-mini" data-cal="todas-a-hoy">Pasar todas a hoy</button></summary>' +
       '<div class="cal-lista">' + at.slice(-30).reverse().map(t => tarjeta(t, true)).join('') + '</div></details>';
   }
-  function proximos(){
-    const h = hoy(), fs = [...new Set(tareas.filter(t => t.fecha > h && t.fecha !== elegido).map(t => t.fecha))].slice(0, 5);
-    if(!fs.length) return '';
-    return '<div class="cal-prox"><div class="cal-sec">Próximos días</div>' + fs.map(f => {
-      const ts = delDia(f);
-      return '<button class="cal-prox-fila" data-cal="dia" data-f="' + f + '"><span class="cal-prox-f"><b>' + deIso(f).getDate() + '</b>' + MESES[deIso(f).getMonth()].slice(0, 3) + '</span>' +
-        '<span class="cal-prox-t">' + ts.slice(0, 3).map(t => '<span style="--c:' + CAT[t.categoria].c + '">' + esc(t.titulo) + '</span>').join('') + (ts.length > 3 ? '<em>y ' + (ts.length - 3) + ' más</em>' : '') + '</span></button>';
-    }).join('') + '</div>';
-  }
   function pintar(){
     const root = document.getElementById('calRoot');
     if(!root || !document.getElementById('screen-calendario').classList.contains('active')) return;
     if(!elegido) elegido = hoy();
     if(!mes){ const d = deIso(elegido); mes = [d.getFullYear(), d.getMonth()]; }
     if(!cargado && !tareas.length && cargando){ root.innerHTML = '<div class="cal-cargando">Cargando tu calendario…</div>'; return; }
-    root.innerHTML = cabecera() + '<div class="cal-cuerpo"><div class="cal-col">' + rejilla() + '</div><div class="cal-col">' + dia() + bloqueAtrasadas() + proximos() + '</div></div>';
+    root.innerHTML = cabecera() + '<div class="cal-cuerpo"><div class="cal-col">' + rejilla() + '</div><div class="cal-col">' + dia() + bloqueAtrasadas() + '</div></div>';
   }
 
   /* ---------- hoja para añadir o editar ---------- */
+  // h: estado de la hoja abierta. En una tarea que se repite (serie), los
+  // cambios pueden ir solo a ella o a ella y las siguientes.
+  let h = null, ultimaCat = 'normativas';
+  const REPS = [['', 'No'], ['1', 'Cada día'], ['lab', 'L a V'], ['7', 'Semanal']];
+  function repDeSerie(t){
+    const fs = tareas.filter(x => x.serie === t.serie).map(x => x.fecha).sort();
+    if(fs.length < 2) return { rep: '', hasta: t.fecha };
+    const salto = fs.slice(1).map((f, k) => Math.round((deIso(f) - deIso(fs[k])) / 864e5));
+    const rep = salto.every(x => x === 7) ? '7' : salto.every(x => x === 1) ? '1' : 'lab';
+    return { rep, hasta: fs[fs.length - 1] };
+  }
+  function siguientes(t){ return t.serie ? tareas.filter(x => x.serie === t.serie && x.fecha > t.fecha) : []; }
+
   function abrirHoja(t){
-    const nueva = !t;
-    t = t || { titulo: '', nota: '', categoria: (hoja && hoja.ultimaCat) || 'normativas', fecha: elegido };
     cerrarHoja();
+    const nueva = !t;
+    const base = t || { titulo: '', nota: '', categoria: ultimaCat, fecha: elegido };
+    const serie = t && t.serie ? repDeSerie(t) : null;
+    h = { t, cat: base.categoria, fecha: base.fecha, rep: serie ? serie.rep : '', hasta: serie ? serie.hasta : masDias(base.fecha, 27),
+          alcance: 'una', repIni: serie ? serie.rep : '', hastaIni: serie ? serie.hasta : null };
     const bg = document.createElement('div');
     bg.className = 'cal-hoja-bg';
     bg.id = 'calHoja';
-    bg.innerHTML = '<form class="cal-hoja" autocomplete="off"><div class="cal-hoja-asa"></div>' +
-      '<h3>' + (nueva ? 'Nueva tarea' : 'Editar tarea') + '</h3>' +
-      '<input class="cal-in cal-in-t" name="titulo" maxlength="200" required placeholder="¿Qué toca? Ej.: Tema 4, fichas de EPIs…" value="' + esc(t.titulo) + '">' +
-      '<div class="cal-cats">' + CATS.map(([k, n, c]) => '<button type="button" class="cal-cat-op' + (k === t.categoria ? ' on' : '') + '" data-k="' + k + '" style="--c:' + c + '"><i></i>' + n + '</button>').join('') + '</div>' +
-      '<label class="cal-lbl">Día<input class="cal-in" type="date" name="fecha" required value="' + t.fecha + '"></label>' +
-      '<textarea class="cal-in" name="nota" rows="2" maxlength="1000" placeholder="Nota (opcional): páginas, artículos, cuántos tests…">' + esc(t.nota || '') + '</textarea>' +
-      (nueva ? '<div class="cal-rep-fila"><label class="cal-lbl">Repetir<select class="cal-in" name="rep">' +
-          '<option value="">No</option><option value="1">Cada día</option><option value="lab">De lunes a viernes</option><option value="7">Cada semana</option></select></label>' +
-          '<label class="cal-lbl cal-hasta hidden">Hasta<input class="cal-in" type="date" name="hasta" value="' + masDias(t.fecha, 27) + '"></label></div>' : '') +
-      '<div class="cal-hoja-acts">' +
-        (nueva ? '' : '<button type="button" class="cal-btn peligro" data-h="borrar">Borrar</button>') +
-        '<span></span><button type="button" class="cal-btn" data-h="cerrar">Cancelar</button><button type="submit" class="cal-btn primario">' + (nueva ? 'Añadir' : 'Guardar') + '</button></div></form>';
+    bg.innerHTML = '<form class="cal-hoja" autocomplete="off" novalidate>' +
+      '<div class="cal-hoja-top"><div class="cal-hoja-asa"></div>' +
+        '<div class="cal-hoja-cab"><span class="cal-hoja-ico" data-ico></span><div class="cal-hoja-tit"><h3>' + (nueva ? 'Nueva tarea' : 'Editar tarea') + '</h3><div class="cal-hoja-sub" data-sub></div></div>' +
+        '<button type="button" class="cal-x" data-h="cerrar" aria-label="Cerrar">✕</button></div></div>' +
+      '<div class="cal-hoja-cuerpo">' +
+        '<input class="cal-titulo" name="titulo" maxlength="200" placeholder="¿Qué toca estudiar?" value="' + esc(base.titulo) + '">' +
+        '<div class="cal-campo"><div class="cal-campo-t">Categoría</div><div class="cal-cats">' +
+          CATS.map(([k, n, c]) => '<button type="button" class="cal-cat-op" data-cat="' + k + '" style="--c:' + c + '"><span>' + ICONO[k] + '</span>' + n + '</button>').join('') + '</div></div>' +
+        '<div class="cal-campo"><div class="cal-campo-t">Día</div><div class="cal-segs" data-dias></div></div>' +
+        '<div class="cal-campo"><div class="cal-campo-t">Nota</div><textarea class="cal-in" name="nota" rows="2" maxlength="1000" placeholder="Páginas, artículos, cuántos tests…">' + esc(base.nota || '') + '</textarea></div>' +
+        (t && t.serie && siguientes(t).length ? '<div class="cal-campo"><div class="cal-campo-t">Aplicar los cambios a</div><div class="cal-segs cal-segs-full" data-alcance></div></div>' : '') +
+        '<div class="cal-campo" data-rep-campo><div class="cal-campo-t">Repetir</div><div class="cal-segs cal-segs-full" data-rep></div>' +
+          '<div class="cal-hasta" data-hasta></div></div>' +
+      '</div>' +
+      '<div class="cal-hoja-pie">' + (nueva ? '' : '<button type="button" class="cal-btn peligro" data-h="borrar">Borrar</button>') +
+        '<button type="submit" class="cal-btn primario cal-guardar">' + (nueva ? 'Añadir tarea' : 'Guardar cambios') + '</button></div></form>';
     document.body.appendChild(bg);
-    hoja = Object.assign(hoja || {}, { t: nueva ? null : t, cat: t.categoria });
     const f = bg.querySelector('form');
+    pintarHoja(f);
     bg.addEventListener('click', e => {
       if(e.target === bg) return cerrarHoja();
-      const op = e.target.closest('.cal-cat-op');
-      if(op){ hoja.cat = op.dataset.k; f.querySelectorAll('.cal-cat-op').forEach(b => b.classList.toggle('on', b === op)); }
-      const h = e.target.closest('[data-h]');
-      if(h && h.dataset.h === 'cerrar') cerrarHoja();
-      if(h && h.dataset.h === 'borrar') borrar(t);
+      const b = e.target.closest('button');
+      if(!b) return;
+      if(b.dataset.cat){ h.cat = b.dataset.cat; ultimaCat = h.cat; }
+      else if(b.dataset.dia){ h.fecha = b.dataset.dia; }
+      else if(b.dataset.rep != null){ h.rep = b.dataset.rep; }
+      else if(b.dataset.hastaN){ h.hasta = masDias(h.fecha, +b.dataset.hastaN); }
+      else if(b.dataset.alc){ h.alcance = b.dataset.alc; }
+      else if(b.dataset.h === 'cerrar') return cerrarHoja();
+      else if(b.dataset.h === 'borrar') return borrar(t);
+      else return;
+      pintarHoja(f);
     });
-    if(f.rep) f.rep.addEventListener('change', () => f.querySelector('.cal-hasta').classList.toggle('hidden', !f.rep.value));
+    bg.addEventListener('change', e => {
+      if(e.target.name === 'otroDia' && e.target.value){ h.fecha = e.target.value; pintarHoja(f); }
+      if(e.target.name === 'hasta' && e.target.value){ h.hasta = e.target.value; pintarHoja(f); }
+    });
     f.addEventListener('submit', e => { e.preventDefault(); guardar(f); });
     document.addEventListener('keydown', teclaHoja, true);
     requestAnimationFrame(() => bg.classList.add('on'));
     if(nueva && matchMedia('(hover: hover)').matches) setTimeout(() => f.titulo.focus(), 60);
+  }
+  function pintarHoja(f){
+    const c = CAT[h.cat], hh = hoy();
+    f.style.setProperty('--c', c.c);
+    f.querySelector('[data-ico]').textContent = ICONO[h.cat];
+    f.querySelector('[data-sub]').textContent = c.n + ' · ' + nombreDia(h.fecha);
+    f.querySelectorAll('.cal-cat-op').forEach(b => b.classList.toggle('on', b.dataset.cat === h.cat));
+    const rapidos = [[hh, 'Hoy'], [masDias(hh, 1), 'Mañana'], [masDias(hh, 2), 'Pasado']];
+    const otro = !rapidos.some(r => r[0] === h.fecha);
+    f.querySelector('[data-dias]').innerHTML = rapidos.map(([d, n]) => '<button type="button" class="cal-seg' + (d === h.fecha ? ' on' : '') + '" data-dia="' + d + '">' + n + '</button>').join('') +
+      '<label class="cal-seg cal-seg-fecha' + (otro ? ' on' : '') + '">📅 ' + (otro ? esc(nombreDia(h.fecha, true)) : 'Otro día') + '<input type="date" name="otroDia" value="' + h.fecha + '"></label>';
+    const alc = f.querySelector('[data-alcance]');
+    if(alc){
+      const n = siguientes(h.t).length;
+      alc.innerHTML = '<button type="button" class="cal-seg' + (h.alcance === 'una' ? ' on' : '') + '" data-alc="una">Solo esta</button>' +
+        '<button type="button" class="cal-seg' + (h.alcance === 'serie' ? ' on' : '') + '" data-alc="serie">Esta y las ' + n + ' siguientes</button>';
+    }
+    // La repetición se cambia en una tarea suelta o en toda la serie (no en una sola de la serie).
+    const verRep = !h.t || !h.t.serie || h.alcance === 'serie' || !alc;
+    f.querySelector('[data-rep-campo]').classList.toggle('hidden', !verRep);
+    f.querySelector('[data-rep]').innerHTML = REPS.map(([k, n]) => '<button type="button" class="cal-seg' + (k === h.rep ? ' on' : '') + '" data-rep="' + k + '">' + n + '</button>').join('');
+    if(h.hasta < h.fecha) h.hasta = masDias(h.fecha, 27);
+    const fechas = fechasRepetidas(h.fecha, h.rep, h.hasta);
+    f.querySelector('[data-hasta]').innerHTML = h.rep ?
+      '<div class="cal-hasta-fila"><span>Hasta</span>' + [[6, '1 semana'], [13, '2 semanas'], [27, '4 semanas']].map(([n, txt]) =>
+        '<button type="button" class="cal-chip' + (h.hasta === masDias(h.fecha, n) ? ' on' : '') + '" data-hasta-n="' + n + '">' + txt + '</button>').join('') +
+        '<label class="cal-chip cal-chip-fecha">📅 ' + esc(nombreDia(h.hasta, true)) + '<input type="date" name="hasta" value="' + h.hasta + '" min="' + h.fecha + '"></label></div>' +
+      '<div class="cal-hasta-res">Se apuntará en <b>' + fechas.length + '</b> ' + (fechas.length === 1 ? 'día' : 'días') + '</div>' : '';
   }
   function teclaHoja(e){ if(e.key === 'Escape'){ e.stopPropagation(); cerrarHoja(); } }
   function cerrarHoja(){
@@ -244,39 +295,64 @@ const CAL = (function(){
     }
     return out.length ? out : [desde];
   }
+  const ahora = () => new Date().toISOString();
+  const fila = (fecha, d, serie, hecho) => ({ id: crypto.randomUUID(), user_id: yo(), fecha, titulo: d.titulo, nota: d.nota, categoria: d.categoria,
+    hecho: !!hecho, serie, orden: delDia(fecha).length, created_at: ahora() });
+  const sinMeta = r => { const { created_at, ...x } = r; return x; };
+  function irA(fecha){ elegido = fecha; const d = deIso(fecha); mes = [d.getFullYear(), d.getMonth()]; }
+
   async function guardar(f){
-    const titulo = f.titulo.value.trim(), nota = f.nota.value.trim() || null, fecha = f.fecha.value, cat = hoja.cat;
-    if(!titulo || !fecha) return;
-    hoja.ultimaCat = cat;
-    const t = hoja.t;
+    const titulo = f.titulo.value.trim();
+    if(!titulo){ f.titulo.classList.add('mal'); f.titulo.focus(); setTimeout(() => f.titulo.classList.remove('mal'), 600); return; }
+    const d = { titulo, nota: f.nota.value.trim() || null, categoria: h.cat };
+    const { t, fecha, rep, hasta } = h;
+    const alcance = t && t.serie && siguientes(t).length ? h.alcance : 'serie';
     cerrarHoja();
-    if(t){
-      Object.assign(t, { titulo, nota, fecha, categoria: cat });
-      ordenar();
-      elegido = fecha; const d = deIso(fecha); mes = [d.getFullYear(), d.getMonth()];
-      return enviar(sb.from('calendario_tareas').update({ titulo, nota, fecha, categoria: cat, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo guardar');
+    irA(fecha);
+    if(!t){
+      const fechas = fechasRepetidas(fecha, rep, hasta), serie = fechas.length > 1 ? crypto.randomUUID() : null;
+      const filas = fechas.map(x => fila(x, d, serie));
+      tareas.push(...filas); ordenar();
+      if(fechas.length > 1) uiToast('Añadida en ' + fechas.length + ' días', 'success');
+      return enviar(sb.from('calendario_tareas').insert(filas.map(sinMeta)), 'No se pudo añadir');
     }
-    const fechas = fechasRepetidas(fecha, f.rep && f.rep.value, f.hasta && f.hasta.value);
-    const serie = fechas.length > 1 ? crypto.randomUUID() : null;
-    const filas = fechas.map(x => ({ id: crypto.randomUUID(), user_id: yo(), fecha: x, titulo, nota, categoria: cat, hecho: false, serie,
-      orden: delDia(x).length, created_at: new Date().toISOString() }));
-    tareas.push(...filas); ordenar();
-    elegido = fecha; const d = deIso(fecha); mes = [d.getFullYear(), d.getMonth()];
-    if(fechas.length > 1) uiToast('Añadida en ' + fechas.length + ' días', 'success');
-    return enviar(sb.from('calendario_tareas').insert(filas.map(({ created_at, ...r }) => r)), 'No se pudo añadir');
+    const ops = [];
+    const cambiaRep = rep !== h.repIni || (rep && hasta !== h.hastaIni) || (rep && fecha !== t.fecha);
+    if(alcance === 'una' || !cambiaRep){
+      // Mismos días: se cambian los datos (y, en la serie, también en las siguientes).
+      const delta = Math.round((deIso(fecha) - deIso(t.fecha)) / 864e5);
+      const grupo = alcance === 'serie' && t.serie ? [t, ...siguientes(t)] : [t];
+      grupo.forEach(x => { Object.assign(x, d); if(delta) x.fecha = masDias(x.fecha, delta); });
+      if(alcance === 'una' && t.serie && rep !== h.repIni) t.serie = null;
+      grupo.forEach(x => ops.push(sb.from('calendario_tareas').update({ ...d, fecha: x.fecha, serie: x.serie, updated_at: ahora() }).eq('id', x.id)));
+    } else {
+      // Cambia la repetición: se rehacen las siguientes desde el nuevo día
+      // (las que ya estaban hechas en un día que sigue, siguen hechas).
+      const viejas = siguientes(t), hechas = new Set(viejas.filter(x => x.hecho).map(x => x.fecha));
+      const ids = new Set(viejas.map(x => x.id));
+      tareas = tareas.filter(x => !ids.has(x.id));
+      const fechas = fechasRepetidas(fecha, rep, hasta), serie = fechas.length > 1 ? (t.serie || crypto.randomUUID()) : null;
+      Object.assign(t, d, { fecha, serie });
+      const nuevas = fechas.slice(1).map(x => fila(x, d, serie, hechas.has(x)));
+      tareas.push(...nuevas);
+      if(ids.size) ops.push(sb.from('calendario_tareas').delete().in('id', [...ids]));
+      ops.push(sb.from('calendario_tareas').update({ ...d, fecha, serie, updated_at: ahora() }).eq('id', t.id));
+      if(nuevas.length) ops.push(sb.from('calendario_tareas').insert(nuevas.map(sinMeta)));
+      if(nuevas.length || ids.size) uiToast(serie ? 'Ahora se repite en ' + fechas.length + ' días' : 'Ya no se repite', 'success');
+    }
+    ordenar();
+    return enviar(Promise.all(ops).then(rs => rs.find(r => r.error) || {}), 'No se pudo guardar');
   }
   async function borrar(t){
     cerrarHoja();
     let todas = false;
-    if(t.serie){
-      const sig = tareas.filter(x => x.serie === t.serie && x.fecha > t.fecha).length;
-      if(sig) todas = await uiConfirm('¿Borrar también las siguientes?\n\nEsta tarea se repite: hay ' + sig + ' más después de este día.', { ok: 'Borrar todas', cancel: 'Solo esta', danger: true });
-    }
-    const fuera = todas ? tareas.filter(x => x.serie === t.serie && x.fecha >= t.fecha) : [t];
+    const sig = siguientes(t).length;
+    if(sig) todas = await uiConfirm('¿Borrar también las siguientes?\n\nEsta tarea se repite: hay ' + sig + ' más después de este día.', { ok: 'Borrar todas', cancel: 'Solo esta', danger: true });
+    const fuera = todas ? [t, ...siguientes(t)] : [t];
     const ids = new Set(fuera.map(x => x.id));
     tareas = tareas.filter(x => !ids.has(x.id));
     uiToast(fuera.length > 1 ? 'Borradas ' + fuera.length + ' tareas' : 'Tarea borrada', 'success', {
-      action: 'Deshacer', onAction: () => { tareas.push(...fuera); ordenar(); enviar(sb.from('calendario_tareas').insert(fuera.map(({ created_at, ...r }) => r)), 'No se pudo recuperar'); }
+      action: 'Deshacer', onAction: () => { tareas.push(...fuera); ordenar(); enviar(sb.from('calendario_tareas').insert(fuera.map(sinMeta)), 'No se pudo recuperar'); }
     });
     return enviar(sb.from('calendario_tareas').delete().in('id', [...ids]), 'No se pudo borrar');
   }
@@ -288,8 +364,7 @@ const CAL = (function(){
     const t = el.dataset.id ? tareas.find(x => x.id === el.dataset.id) : null;
     switch(el.dataset.cal){
       case 'dia': {
-        elegido = el.dataset.f; const d = deIso(elegido); mes = [d.getFullYear(), d.getMonth()]; pintar();
-        if(el.classList.contains('cal-prox-fila')) document.querySelector('.cal-dia-cab').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        irA(el.dataset.f); pintar();
         break;
       }
       case 'mes': { const d = new Date(mes[0], mes[1] + Number(el.dataset.d), 1); mes = [d.getFullYear(), d.getMonth()]; pintar(); break; }
