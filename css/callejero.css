@@ -855,3 +855,5 @@
   #screen-callejero.cj-completa .cj-nota.grande{ max-width:min(calc(100% - 70px), 520px); }
   .cj-fallado{ border-color: rgba(242,102,92,.45); }
   .cj-seccion-fallado{ color: var(--coral); }
+  .cj-vuelta{ display:flex; flex-direction:column; gap:4px; }
+  .cj-vuelta-reiniciar{ align-self:flex-end; padding:4px 10px; border:none; background:none; color: var(--blue); font: inherit; font-size:12.5px; font-weight:700; cursor:pointer; }
