@@ -42,8 +42,8 @@ function featureEnabled(key){
   return myFeatureFlags[key] !== false;
 }
 function applyFeatureVisibility(){
-  const navNormativas = document.getElementById('navNormativas');
-  if(navNormativas) navNormativas.classList.toggle('hidden', !featureEnabled('normativas'));
+  const estudioCardNormativas = document.getElementById('estudioCardNormativas');
+  if(estudioCardNormativas) estudioCardNormativas.classList.toggle('hidden', !featureEnabled('normativas'));
 
   const modeCardInteligente = document.getElementById('modeCardInteligente');
   if(modeCardInteligente) modeCardInteligente.classList.toggle('hidden', !featureEnabled('inteligente'));
@@ -59,7 +59,7 @@ function applyFeatureVisibility(){
 
   const toggleId = (id, key) => { const el = document.getElementById(id); if(el) el.classList.toggle('hidden', !featureEnabled(key)); };
   toggleId('navStats', 'estadisticas');
-  toggleId('navCallejero', 'callejero');
+  toggleId('estudioCardCallejero', 'callejero');
   toggleId('modeCardFallos', 'fallos');
   toggleId('modeCardSimulacro', 'simulacro');
   toggleId('modeCardExamen', 'examen');
