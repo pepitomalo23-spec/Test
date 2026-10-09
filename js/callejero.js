@@ -684,8 +684,11 @@ const CJ = (function(){
     ultimosAvisos = Date.now();
     const { data, error } = await sb.rpc('callejero_avisos');
     const n = error || !data ? 0 : (data.tareas_nuevas || 0) + (data.mensajes || 0);
-    const punto = document.getElementById('navCallejeroAviso');
-    if(punto){ punto.textContent = n > 9 ? '9+' : String(n); punto.classList.toggle('hidden', !n); }
+    // El aviso sale en la pestaña Estudio y en su recuadro de Callejero.
+    ['navCallejeroAviso', 'estudioCallejeroAviso'].forEach(id => {
+      const punto = document.getElementById(id);
+      if(punto){ punto.textContent = n > 9 ? '9+' : String(n); punto.classList.toggle('hidden', !n); }
+    });
   }
   document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') comprobarAvisos(); });
   // Al cerrar sesión: nada de esta cuenta se queda en memoria.
@@ -695,8 +698,10 @@ const CJ = (function(){
     ronda = null; modo = null; seleccion = null; verTemario = null; desdeTemario = false; ultimosAvisos = 0; delProfesor = null; verEstudio = 'calles';
     if(typeof CJT !== 'undefined') CJT.reiniciar();
     if(el('cjInicio')) mostrarVista('inicio');
-    const punto = document.getElementById('navCallejeroAviso');
-    if(punto) punto.classList.add('hidden');
+    ['navCallejeroAviso', 'estudioCallejeroAviso'].forEach(id => {
+      const punto = document.getElementById(id);
+      if(punto) punto.classList.add('hidden');
+    });
   }
 
   /* ---------- geometría ---------- */

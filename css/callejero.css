@@ -214,7 +214,7 @@
   .cj-fin-tarea.ok{ border-color: rgba(52,211,153,.5); color: var(--green); font-weight:600; }
 
   /* Aviso en la pestaña Callejero: tareas sin ver y mensajes sin leer. */
-  #navCallejero{ position:relative; }
+  #navEstudio{ position:relative; }
   .nav-aviso{ position:absolute; top:-7px; left:10px; min-width:16px; height:16px; padding:0 4px; border-radius:99px; background: var(--coral);
     color:#fff; font-family: var(--sans); font-size:10px; font-weight:700; line-height:16px; text-align:center; border:2px solid var(--bg); }
   .nav-aviso.hidden{ display:none; }
