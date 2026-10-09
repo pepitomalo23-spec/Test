@@ -20,7 +20,7 @@ const CAL = (function(){
   const LAPIZ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
   const CAT = Object.fromEntries(CATS.map(([k, n, c]) => [k, { n, c }]));
   // Desde la tarea se puede saltar a su apartado.
-  const IR = { normativas: 'screen-normativas', legislacion: 'screen-home', callejero: 'screen-callejero', test: 'screen-home' };
+  const IR = { normativas: 'screen-normativas', legislacion: 'screen-home', callejero: 'screen-callejero', especifico: 'screen-especifico', test: 'screen-home' };
   const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   const FRASES = ['Día libre. Si te apetece, apunta algo.', 'Nada apuntado para este día.', 'Hueco libre: buen momento para un repaso.'];

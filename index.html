@@ -52,7 +52,7 @@
 <!-- Fuentes de Google: se cargan sin bloquear el primer pintado. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&family=Roboto+Slab:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- Estilos de la app. El ?v= lo pone scripts/versionar.mjs (no editar a mano). -->
 <link rel="stylesheet" href="css/base.css?v=d38ea13f39">
 <link rel="stylesheet" href="css/admin.css?v=21dc5eb58b">
@@ -61,6 +61,7 @@
 <link rel="stylesheet" href="css/normativas.css?v=fa9397f080">
 <link rel="stylesheet" href="css/callejero.css?v=8032527378">
 <link rel="stylesheet" href="css/calendario.css?v=6b699957ab">
+<link rel="stylesheet" href="css/especifico.css?v=bb1ebef9fe">
 <link rel="stylesheet" href="css/inicio.css?v=3d16a3424a">
 <link rel="stylesheet" href="css/mnemotecnia.css?v=7933e62382">
 </head>
@@ -229,6 +230,11 @@
           <b class="nav-aviso estudio-card-aviso hidden" id="estudioCallejeroAviso">0</b>
           <svg class="estudio-card-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </div>
+        <div class="estudio-card especifico" id="estudioCardEspecifico" role="button" tabindex="0" onclick="showScreen('screen-especifico')" onkeydown="if(event.key==='Enter')showScreen('screen-especifico')">
+          <div class="estudio-card-icono"><span class="esp-logo" aria-hidden="true"></span></div>
+          <div><div class="estudio-card-nombre">Específico</div><div class="estudio-card-sub">Temario de bombero</div></div>
+          <svg class="estudio-card-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </div>
       </div>
     </section>
 
@@ -329,6 +335,12 @@
         <div id="historyLoadingPlaceholder"><div class="skel-list"><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:60%"></span><span class="skel skel-line" style="width:35%;opacity:.7"></span></span></div><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:72%"></span><span class="skel skel-line" style="width:40%;opacity:.7"></span></span></div><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:50%"></span><span class="skel skel-line" style="width:30%;opacity:.7"></span></span></div></div></div>
       </div>
       </div>
+    </section>
+
+    <!-- ===== ESPECÍFICO: temario de bombero (js/especifico.js) ===== -->
+    <section class="screen" id="screen-especifico">
+      <h1>Específico</h1>
+      <div id="espRoot"></div>
     </section>
 
     <!-- ===== NORMATIVAS SCREEN ===== -->
@@ -1103,7 +1115,7 @@
 <script src="js/estadisticas.js?v=30681595f0"></script>
 <script src="js/contenido.js?v=284326574e"></script>
 <script src="js/historial.js?v=d1494e67e6"></script>
-<script src="js/navegacion.js?v=5d427991c2"></script>
+<script src="js/navegacion.js?v=e00caa3d00"></script>
 <script src="js/configuracion-test.js?v=a7484ef8cc"></script>
 <script src="js/test-inteligente.js?v=a7a43bfe6a"></script>
 <script src="js/test.js?v=a7af84c693"></script>
@@ -1129,7 +1141,8 @@
 <script src="js/callejero-temario.js?v=f99325ffdb"></script>
 <script src="js/callejero-profesor.js?v=55890007ea"></script>
 <script src="js/mnemotecnia.js?v=c08acd5057"></script>
-<script src="js/calendario.js?v=0eeacf6018"></script>
+<script src="js/calendario.js?v=4d1c0bbcaa"></script>
+<script src="js/especifico.js?v=a4aebfab2f"></script>
 <script src="js/inicio.js?v=026a9b7daf"></script>
 <script src="js/arranque.js?v=838162d6bd"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">

@@ -15,6 +15,7 @@ css/                 estilos, en orden de carga
   normativas.css     Normativas (fichas estilo Quizlet)
   callejero.css      Callejero (mapa y juego)
   calendario.css     Calendario
+  especifico.css     Específico (temario de bombero)
   inicio.css         Inicio (resumen del día)
 js/                  código, en orden de carga (ver el final de index.html)
   nucleo.js          avisos, esqueletos de carga, cliente de Supabase, resultados pendientes
@@ -48,6 +49,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   callejero-profesor.js  Callejero: los alumnos del profesor, tareas y mensajes
   mnemotecnia.js     Mnemotecnia: calculadora del código fonético de Ramón Campayo
   calendario.js      Calendario: tareas de estudio de cada día
+  especifico.js      Específico: temas del temario de bombero
   inicio.js          Inicio: lo de hoy, test a medias, accesos rápidos y progreso
   arranque.js        escucha la sesión y arranca la app (siempre el último)
 datos/               datos que la app descarga cuando hacen falta (callejero-temario.json,
@@ -294,7 +296,7 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 ## Barra superior e Inicio
 
 - La barra tiene tres pestañas: **Inicio** (`screen-inicio`), **Estudio** (`screen-estudio`: recuadros grandes
-  de Legislación, Normativas y Callejero) y **Estadísticas**. Legislación, Normativas y Callejero marcan Estudio;
+  de Legislación, Normativas, Callejero y Específico) y **Estadísticas**. Esas cuatro pantallas marcan Estudio;
   el calendario marca Inicio.
 - Inicio (`js/inicio.js`, `css/inicio.css`) es la pantalla de entrada: saludo, el test a medias (para
   continuarlo), las tareas de hoy del calendario (se marcan ahí mismo; tocando el recuadro se abre el calendario
