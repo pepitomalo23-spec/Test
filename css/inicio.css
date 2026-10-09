@@ -1,0 +1,80 @@
+/* Inicio */
+.ini-saludo{ margin-bottom:18px; }
+.ini-saludo h1{ margin-bottom:4px; }
+.ini-fecha{ font-size:13.5px; color: var(--muted); line-height:1.4; }
+
+.ini-flecha{ display:flex; color: var(--muted-2); flex-shrink:0; }
+.ini-flecha svg{ width:20px; height:20px; }
+.ini-barra{ display:block; height:6px; border-radius:99px; background: var(--line); overflow:hidden; }
+.ini-barra i{ display:block; height:100%; border-radius:inherit; background: linear-gradient(90deg, var(--coral), var(--amber)); transition: width .5s cubic-bezier(.2,.7,.2,1); }
+
+/* Test a medias */
+.ini-continuar{ width:100%; display:flex; align-items:center; gap:14px; padding:16px 18px; margin-bottom:14px; text-align:left; font:inherit; color: var(--text);
+  background: var(--card); border:1px solid var(--coral); border-radius:18px; cursor:pointer; }
+.ini-continuar-ico{ width:44px; height:44px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; background: var(--coral); color:#fff; }
+.ini-continuar-ico svg{ width:18px; height:18px; margin-left:2px; }
+.ini-continuar-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.ini-continuar-txt b{ font-size:15.5px; }
+.ini-continuar-txt > span{ font-size:12.5px; color: var(--muted); }
+.ini-continuar-txt .ini-barra{ margin-top:5px; height:4px; }
+
+/* Hoy (resumen del calendario) */
+.ini-hoy{ position:relative; padding:18px 18px 14px; border-radius:22px; margin-bottom:8px; cursor:pointer;
+  background: radial-gradient(120% 140% at 0% 0%, rgba(242,102,92,.18), transparent 55%), radial-gradient(120% 140% at 100% 100%, rgba(245,192,67,.12), transparent 55%), var(--card);
+  border:1px solid var(--line); transition: border-color .15s; }
+.ini-hoy:hover{ border-color: var(--muted-2); }
+.ini-hoy-cab{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.ini-hoy-tit{ font-family: var(--title); font-size:22px; letter-spacing:.3px; }
+.ini-hoy-msg{ font-size:14px; color: var(--muted); margin-top:2px; }
+.ini-hoy-num{ font-size:15px; color: var(--muted); white-space:nowrap; }
+.ini-hoy-num b{ font-size:26px; color: var(--text); }
+.ini-barra-hoy{ margin-bottom:12px; }
+.ini-tareas{ display:flex; flex-direction:column; gap:6px; }
+.ini-tarea{ display:flex; align-items:center; gap:12px; padding:9px 10px 9px 8px; border-radius:14px; background: var(--card-hi); border-left:3px solid var(--c); }
+.ini-check{ width:30px; height:30px; flex-shrink:0; border-radius:50%; border:2px solid var(--c); background:none; color:transparent; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition: background .15s, color .15s; }
+.ini-check svg{ width:16px; height:16px; }
+.ini-tarea.hecha .ini-check{ background: var(--c); color:#fff; }
+.ini-tarea-txt{ min-width:0; display:flex; flex-direction:column; gap:2px; }
+.ini-tarea-t{ font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ini-tarea-cat{ font-size:12px; color: var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ini-tarea.hecha .ini-tarea-t{ text-decoration: line-through; color: var(--muted); }
+.ini-mas{ font-size:12.5px; color: var(--muted); padding:6px 4px 0; }
+.ini-anadir{ width:100%; padding:14px; border-radius:14px; border:1px dashed var(--line); background:none; color: var(--muted); font:inherit; font-size:14px; cursor:pointer; }
+.ini-anadir span{ color: var(--coral); font-weight:700; font-size:17px; margin-right:4px; }
+.ini-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.ini-chip{ font-size:12px; padding:4px 10px; border-radius:99px; background: var(--card-hi); border:1px solid var(--line); color: var(--muted); }
+.ini-chip b{ color: var(--text); }
+.ini-chip.fuego{ border-color: rgba(255,122,61,.5); background: rgba(255,122,61,.12); color: var(--text); }
+.ini-chip.aviso{ border-color: rgba(242,102,92,.5); color: var(--coral); }
+.ini-hoy-pie{ display:flex; align-items:center; justify-content:flex-end; gap:2px; margin-top:12px; font-size:13px; font-weight:600; color: var(--coral); }
+.ini-hoy-pie svg{ width:16px; height:16px; }
+
+/* Accesos rápidos */
+.ini-rapidos{ display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:12px; margin-bottom:8px; }
+@media (max-width:640px){ .ini-rapidos{ grid-template-columns: repeat(2, 1fr); } }
+.ini-rapido{ display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding:16px; min-height:120px; text-align:left; font:inherit; color: var(--text);
+  background: var(--card); border:1px solid var(--line); border-radius:16px; cursor:pointer; transition: border-color .15s, background .15s, transform .15s; }
+.ini-rapido:hover:not(:disabled){ border-color: var(--muted-2); background: var(--card-hi); transform: translateY(-1px); }
+.ini-rapido:disabled{ opacity:.45; cursor:not-allowed; }
+.ini-rapido-ico{ color: var(--c); margin-bottom:auto; padding-bottom:12px; }
+.ini-rapido-ico svg{ width:30px; height:30px; }
+.ini-rapido-t{ font-family: var(--title); font-size:16px; letter-spacing:.2px; }
+.ini-rapido-s{ font-size:12px; color: var(--muted); }
+
+/* Progreso */
+.ini-progreso{ width:100%; display:block; text-align:left; font:inherit; color: var(--text); padding:18px; margin-bottom:8px;
+  background: var(--card); border:1px solid var(--line); border-radius:18px; cursor:pointer; }
+.ini-progreso:hover{ border-color: var(--muted-2); }
+.ini-progreso-cab{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.ini-progreso-pct{ font-family: var(--title); font-size:30px; color: var(--green); }
+.ini-progreso-s{ font-size:13px; color: var(--muted); }
+.ini-dominio{ display:flex; height:10px; border-radius:99px; overflow:hidden; background: var(--blue); opacity:.95; }
+.ini-dominio i{ display:block; height:100%; }
+.ini-dominio .v{ background: var(--green); }
+.ini-dominio .a{ background: var(--amber); }
+.ini-dominio .r{ background: var(--coral); }
+.ini-progreso-datos{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px 14px; margin-top:10px; font-size:12.5px; color: var(--muted); }
+.ini-progreso-datos b{ color: var(--text); }
+
+/* Volver desde el calendario */
+.cal-volver{ margin-bottom:14px; width:max-content; }

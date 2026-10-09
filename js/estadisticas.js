@@ -466,4 +466,5 @@ async function refreshGlobalStats(sessionsPromise){
   renderMasteryBar();
   renderTopicRanking();
   renderStreakStats();
+  if(typeof INICIO !== 'undefined') INICIO.pintar();
 }

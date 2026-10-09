@@ -1,10 +1,10 @@
 /* Navegación entre pantallas y bloqueo de tarjetas con un test a medias. */
 
 /* ---------- navigation ---------- */
-// Barra superior: Inicio (calendario), Estudio y Estadísticas. Legislación,
-// Normativas y Callejero se abren desde los recuadros de Estudio y siguen
-// mostrando la barra, con Estudio marcado.
-const TOP_LEVEL_SCREENS = ['screen-calendario', 'screen-estudio', 'screen-normativas', 'screen-home', 'screen-callejero', 'screen-stats'];
+// Barra superior: Inicio, Estudio y Estadísticas. El calendario se abre
+// desde Inicio (con Inicio marcado); Legislación, Normativas y Callejero,
+// desde los recuadros de Estudio (con Estudio marcado).
+const TOP_LEVEL_SCREENS = ['screen-inicio', 'screen-calendario', 'screen-estudio', 'screen-normativas', 'screen-home', 'screen-callejero', 'screen-stats'];
 const ESTUDIO_SCREENS = ['screen-estudio', 'screen-normativas', 'screen-home', 'screen-callejero'];
 const LAST_SCREEN_KEY = 'legis_last_screen';
 // Pantallas de "detalle" o de proceso (un artículo concreto, el
@@ -14,6 +14,7 @@ const LAST_SCREEN_KEY = 'legis_last_screen';
 // pierde. En vez de mandar siempre a Inicio, cada una cae en la pantalla
 // "padre" desde la que se llegó a ella, que sí es segura de reabrir.
 const SCREEN_RESTORE_TARGET = {
+  'screen-inicio': 'screen-inicio',
   'screen-estudio': 'screen-estudio',
   'screen-normativas': 'screen-normativas',
   'screen-home': 'screen-home',
@@ -40,16 +41,17 @@ function getLastScreen(){
     const target = saved && SCREEN_RESTORE_TARGET[saved];
     if(target) return target;
   }catch(e){}
-  return 'screen-calendario';
+  return 'screen-inicio';
 }
 function showScreen(id){
   if(SCREEN_FEATURE[id] && !featureEnabled(SCREEN_FEATURE[id])) id = 'screen-home';
   if(id !== 'screen-quiz'){ clearInterval(timerInterval); }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  document.getElementById('navInicio').classList.toggle('active', id === 'screen-calendario');
+  document.getElementById('navInicio').classList.toggle('active', id === 'screen-inicio' || id === 'screen-calendario');
   document.getElementById('navEstudio').classList.toggle('active', ESTUDIO_SCREENS.includes(id));
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
+  if(id === 'screen-inicio' && typeof INICIO !== 'undefined') INICIO.abrir();
   if(id === 'screen-calendario' && typeof CAL !== 'undefined') CAL.abrir();
   const isTopLevel = TOP_LEVEL_SCREENS.includes(id);
   // Recordamos la última pantalla visitada, para poder volver a ella (o a

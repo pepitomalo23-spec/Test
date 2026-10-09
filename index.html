@@ -61,6 +61,7 @@
 <link rel="stylesheet" href="css/normativas.css?v=fa9397f080">
 <link rel="stylesheet" href="css/callejero.css?v=8032527378">
 <link rel="stylesheet" href="css/calendario.css?v=6b699957ab">
+<link rel="stylesheet" href="css/inicio.css?v=3d16a3424a">
 <link rel="stylesheet" href="css/mnemotecnia.css?v=7933e62382">
 </head>
 <body>
@@ -103,7 +104,7 @@
 
   <header>
     <div class="header-nav">
-      <span class="active" id="navInicio" role="button" tabindex="0" onclick="showScreen('screen-calendario')" onkeydown="if(event.key==='Enter')showScreen('screen-calendario')">
+      <span class="active" id="navInicio" role="button" tabindex="0" onclick="showScreen('screen-inicio')" onkeydown="if(event.key==='Enter')showScreen('screen-inicio')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
         <span class="header-nav-label">Inicio</span>
       </span>
@@ -169,6 +170,11 @@
   </div>
 
   <main>
+
+    <!-- ===== INICIO: lo de hoy, test a medias, accesos rápidos y progreso (js/inicio.js) ===== -->
+    <section class="screen active" id="screen-inicio">
+      <div id="inicioRoot"></div>
+    </section>
 
     <!-- ===== ESTUDIO: acceso a Legislación, Normativas y Callejero ===== -->
     <section class="screen" id="screen-estudio">
@@ -497,8 +503,12 @@
     </section>
 
 
-    <section class="screen active" id="screen-calendario">
-      <h1>Inicio</h1>
+    <section class="screen" id="screen-calendario">
+      <span class="back-link cal-volver" role="button" tabindex="0" onclick="showScreen('screen-inicio')" onkeydown="if(event.key==='Enter')showScreen('screen-inicio')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="11,6 5,12 11,18"/></svg>
+        Inicio
+      </span>
+      <h1>Calendario</h1>
       <div id="calRoot"></div>
     </section>
 
@@ -1090,10 +1100,10 @@
 <script src="js/dispositivo.js?v=c9392ff647"></script>
 <script src="js/datos.js?v=c4fa07c24e"></script>
 <script src="js/temario.js?v=313da6bd23"></script>
-<script src="js/estadisticas.js?v=3dfae87638"></script>
+<script src="js/estadisticas.js?v=30681595f0"></script>
 <script src="js/contenido.js?v=284326574e"></script>
 <script src="js/historial.js?v=d1494e67e6"></script>
-<script src="js/navegacion.js?v=72d8845955"></script>
+<script src="js/navegacion.js?v=5d427991c2"></script>
 <script src="js/configuracion-test.js?v=a7484ef8cc"></script>
 <script src="js/test-inteligente.js?v=a7a43bfe6a"></script>
 <script src="js/test.js?v=a7af84c693"></script>
@@ -1114,12 +1124,13 @@
 <script src="js/admin/temario.js?v=45b68f00ea"></script>
 <script src="js/admin/importar-ia.js?v=fc5e42e6f8"></script>
 <script src="js/admin/callejero.js?v=5d85c58ac1"></script>
-<script src="js/normativas.js?v=b6340a85ac"></script>
+<script src="js/normativas.js?v=af0393b916"></script>
 <script src="js/callejero.js?v=ebcc226418"></script>
 <script src="js/callejero-temario.js?v=f99325ffdb"></script>
 <script src="js/callejero-profesor.js?v=55890007ea"></script>
 <script src="js/mnemotecnia.js?v=c08acd5057"></script>
-<script src="js/calendario.js?v=8d15ce8e50"></script>
+<script src="js/calendario.js?v=0eeacf6018"></script>
+<script src="js/inicio.js?v=026a9b7daf"></script>
 <script src="js/arranque.js?v=838162d6bd"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
   <button type="button" class="image-lightbox-close" onclick="closeImageLightbox(event)" title="Cerrar">
