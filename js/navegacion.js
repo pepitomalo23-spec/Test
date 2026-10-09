@@ -4,8 +4,8 @@
 // Barra superior: Inicio, Estudio y Estadísticas. El calendario se abre
 // desde Inicio (con Inicio marcado); Legislación, Normativas y Callejero,
 // desde los recuadros de Estudio (con Estudio marcado).
-const TOP_LEVEL_SCREENS = ['screen-inicio', 'screen-calendario', 'screen-estudio', 'screen-normativas', 'screen-home', 'screen-callejero', 'screen-stats'];
-const ESTUDIO_SCREENS = ['screen-estudio', 'screen-normativas', 'screen-home', 'screen-callejero'];
+const TOP_LEVEL_SCREENS = ['screen-inicio', 'screen-calendario', 'screen-estudio', 'screen-especifico', 'screen-normativas', 'screen-home', 'screen-callejero', 'screen-stats'];
+const ESTUDIO_SCREENS = ['screen-estudio', 'screen-especifico', 'screen-normativas', 'screen-home', 'screen-callejero'];
 const LAST_SCREEN_KEY = 'legis_last_screen';
 // Pantallas de "detalle" o de proceso (un artículo concreto, el
 // configurador de un test, la revisión de un test ya hecho...) no se
@@ -16,6 +16,7 @@ const LAST_SCREEN_KEY = 'legis_last_screen';
 const SCREEN_RESTORE_TARGET = {
   'screen-inicio': 'screen-inicio',
   'screen-estudio': 'screen-estudio',
+  'screen-especifico': 'screen-especifico',
   'screen-normativas': 'screen-normativas',
   'screen-home': 'screen-home',
   'screen-stats': 'screen-stats',
@@ -53,6 +54,7 @@ function showScreen(id){
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
   if(id === 'screen-inicio' && typeof INICIO !== 'undefined') INICIO.abrir();
   if(id === 'screen-calendario' && typeof CAL !== 'undefined') CAL.abrir();
+  if(id === 'screen-especifico' && typeof ESP !== 'undefined') ESP.abrir();
   const isTopLevel = TOP_LEVEL_SCREENS.includes(id);
   // Recordamos la última pantalla visitada, para poder volver a ella (o a
   // su pantalla padre, ver SCREEN_RESTORE_TARGET) si la app se recarga
