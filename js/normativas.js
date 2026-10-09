@@ -82,6 +82,7 @@ const NQ = (function(){
     }
     if(view.name === 'set' && !getSet(view.setId)) view = { name: 'library' };
     if(!study) render();
+    if(typeof INICIO !== 'undefined') INICIO.pintar();
     if(pendingLoad){ pendingLoad = false; load(); }
     else pullProgress();
   }
@@ -1641,5 +1642,7 @@ const NQ = (function(){
     renderStudy();
     return true;
   }
-  return { render, load, close: closeStudy, startReview, addFailedQuestion, seedFailed };
+  // Fichas que tocan repasar hoy (null si aún no se han cargado los temas).
+  function pendientesHoy(){ return loaded ? srsItems().due.length : null; }
+  return { render, load, close: closeStudy, startReview, addFailedQuestion, seedFailed, pendientesHoy };
 })();

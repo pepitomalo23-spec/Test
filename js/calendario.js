@@ -177,6 +177,7 @@ const CAL = (function(){
       '<div class="cal-lista">' + at.slice(-30).reverse().map(t => tarjeta(t, true)).join('') + '</div></details>';
   }
   function pintar(){
+    if(typeof INICIO !== 'undefined') INICIO.pintar();
     const root = document.getElementById('calRoot');
     if(!root || !document.getElementById('screen-calendario').classList.contains('active')) return;
     if(!elegido) elegido = hoy();
@@ -358,6 +359,12 @@ const CAL = (function(){
   }
 
   /* ---------- acciones ---------- */
+  function marcar(t){
+    if(!t) return;
+    t.hecho = !t.hecho;
+    if(t.hecho && t.fecha === hoy() && delDia(t.fecha).every(x => x.hecho)) uiToast('¡Todo hecho por hoy! 🎉', 'success');
+    enviar(sb.from('calendario_tareas').update({ hecho: t.hecho, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo marcar');
+  }
   function onClick(e){
     const el = e.target.closest('[data-cal]');
     if(!el) return;
@@ -371,13 +378,7 @@ const CAL = (function(){
       case 'hoy': { elegido = hoy(); const d = deIso(elegido); mes = [d.getFullYear(), d.getMonth()]; pintar(); break; }
       case 'nueva': abrirHoja(); break;
       case 'editar': if(t) abrirHoja(t); break;
-      case 'hecho': {
-        if(!t) return;
-        t.hecho = !t.hecho;
-        if(t.hecho && t.fecha === hoy() && delDia(t.fecha).every(x => x.hecho)) uiToast('¡Todo hecho por hoy! 🎉', 'success');
-        enviar(sb.from('calendario_tareas').update({ hecho: t.hecho, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo marcar');
-        break;
-      }
+      case 'hecho': marcar(t); break;
       case 'a-hoy': if(t){ t.fecha = hoy(); ordenar(); enviar(sb.from('calendario_tareas').update({ fecha: t.fecha, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo mover'); } break;
       case 'todas-a-hoy': {
         e.preventDefault();
@@ -400,5 +401,24 @@ const CAL = (function(){
     pintar();
     cargar();
   }
-  return { abrir, recargar: cargar };
+  /* ---------- resumen para la pantalla de Inicio ---------- */
+  // Carga las tareas si aún no están (sin abrir el calendario).
+  function asegurar(){
+    if(dueño !== yo()){ tareas = []; cargado = false; }
+    if(!cargado && !cargando) cargar();
+  }
+  // null mientras no hay nada que enseñar (cargando por primera vez).
+  function resumenHoy(){
+    if(!yo() || dueño !== yo() || (!cargado && !tareas.length && cargando)) return null;
+    const h = hoy(), lista = delDia(h);
+    return {
+      lista: lista.map(t => ({ id: t.id, titulo: t.titulo, nota: t.nota, hecho: t.hecho, cat: CAT[t.categoria].n, color: CAT[t.categoria].c, icono: ICONO[t.categoria] })),
+      hechas: lista.filter(t => t.hecho).length,
+      racha: racha(),
+      atrasadas: atrasadas().length,
+      manana: delDia(masDias(h, 1)).length
+    };
+  }
+  function marcarId(id){ marcar(tareas.find(x => x.id === id)); }
+  return { abrir, recargar: cargar, asegurar, resumenHoy, marcar: marcarId, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
 })();
