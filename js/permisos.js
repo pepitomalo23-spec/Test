@@ -6,7 +6,12 @@
    en feature_flags para ese usuario, se trata como ACTIVADA (para no
    quitarle a nadie algo que ya venía usando el día que se despliega esto).
    El administrador siempre ve todo, tenga lo que tenga en su propio
-   feature_flags. */
+   feature_flags.
+   Lo que depende de un permiso está OCULTO hasta saber los permisos del
+   usuario (en index.html va con class="hidden" y data-feature="clave"):
+   si internet tarda o falla, no se ve nada que no tenga. Los últimos
+   permisos recibidos se guardan en el dispositivo para el arranque
+   siguiente (y para sin conexión). */
 const FEATURES = {
   normativas: 'Normativas (y Repaso diario)',
   estadisticas: 'Estadísticas',
@@ -18,7 +23,8 @@ const FEATURES = {
   examen: 'Examen',
   notas_ia: 'Notas y explicaciones con IA',
   boe: 'Cambios BOE',
-  callejero: 'Callejero'
+  callejero: 'Callejero',
+  especifico: 'Específico'
 };
 // Pantallas que dependen de una función: si está desactivada, se va a Inicio.
 const SCREEN_FEATURE = {
@@ -34,36 +40,33 @@ const SCREEN_FEATURE = {
   'screen-historial-todo': 'historial',
   'screen-fallos': 'fallos',
   'screen-inteligente': 'inteligente',
-  'screen-callejero': 'callejero'
+  'screen-callejero': 'callejero',
+  'screen-especifico': 'especifico',
+  'screen-esp-test': 'especifico'
 };
-let myFeatureFlags = {};
+// null = aún no se saben los permisos de este usuario: no se enseña nada con permiso.
+let myFeatureFlags = null;
+const PERMISOS_CACHE = 'pj_permisos_v1:';
 function featureEnabled(key){
   if(currentUserIsAdmin) return true;
+  if(!myFeatureFlags) return false;
   return myFeatureFlags[key] !== false;
 }
+// Permisos recién llegados del servidor: se aplican y se guardan en el dispositivo.
+function setMyFeatureFlags(flags){
+  myFeatureFlags = flags || {};
+  try{ if(currentUser) localStorage.setItem(PERMISOS_CACHE + currentUser.id, JSON.stringify(myFeatureFlags)); }catch(e){}
+  applyFeatureVisibility();
+}
+// Al entrar, antes de hablar con el servidor: los últimos permisos conocidos (o ninguno).
+function loadCachedFeatureFlags(userId){
+  let f = null;
+  try{ f = JSON.parse(localStorage.getItem(PERMISOS_CACHE + userId) || 'null'); }catch(e){}
+  myFeatureFlags = f && typeof f === 'object' ? f : null;
+  applyFeatureVisibility();
+}
 function applyFeatureVisibility(){
-  const estudioCardNormativas = document.getElementById('estudioCardNormativas');
-  if(estudioCardNormativas) estudioCardNormativas.classList.toggle('hidden', !featureEnabled('normativas'));
-
-  const modeCardInteligente = document.getElementById('modeCardInteligente');
-  if(modeCardInteligente) modeCardInteligente.classList.toggle('hidden', !featureEnabled('inteligente'));
-
-  const headerMyAdditionsBtn = document.getElementById('headerMyAdditionsBtn');
-  if(headerMyAdditionsBtn) headerMyAdditionsBtn.classList.toggle('hidden', !featureEnabled('notas_ia'));
-
-  const statsAdvancedWrap = document.getElementById('statsAdvancedWrap');
-  if(statsAdvancedWrap) statsAdvancedWrap.classList.toggle('hidden', !featureEnabled('stats_avanzadas'));
-
-  const historySection = document.getElementById('historySection');
-  if(historySection) historySection.classList.toggle('hidden', !featureEnabled('historial'));
-
-  const toggleId = (id, key) => { const el = document.getElementById(id); if(el) el.classList.toggle('hidden', !featureEnabled(key)); };
-  toggleId('navStats', 'estadisticas');
-  toggleId('estudioCardCallejero', 'callejero');
-  toggleId('modeCardFallos', 'fallos');
-  toggleId('modeCardSimulacro', 'simulacro');
-  toggleId('modeCardExamen', 'examen');
-  toggleId('headerBoeBtn', 'boe');
+  document.querySelectorAll('[data-feature]').forEach(el => el.classList.toggle('hidden', !featureEnabled(el.dataset.feature)));
   // Separadores de la barra de navegación: solo entre elementos visibles.
   const nav = document.querySelector('.header-nav');
   if(nav){
@@ -79,6 +82,7 @@ function applyFeatureVisibility(){
   // Si está en una pantalla que ya no tiene permitida, a Inicio.
   const active = document.querySelector('.screen.active');
   if(active && SCREEN_FEATURE[active.id] && !featureEnabled(SCREEN_FEATURE[active.id])) showScreen('screen-home');
+  if(typeof INICIO !== 'undefined') INICIO.pintar();
 }
 
 /* Los permisos se vuelven a leer al volver a la app y cada minuto: así, si
@@ -103,8 +107,7 @@ async function refreshMyPermissions(){
     }
     const next = data.feature_flags || {};
     if(JSON.stringify(next) !== JSON.stringify(myFeatureFlags)){
-      myFeatureFlags = next;
-      applyFeatureVisibility();
+      setMyFeatureFlags(next);
       if(typeof NQ !== 'undefined') NQ.load();
     }
   }catch(e){}

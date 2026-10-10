@@ -321,6 +321,12 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   test guardarlas (sustituyendo o añadiendo). El botón «Copiar marcador» de Administración › Específico copia
   `datos/marcador-tutorbomberos.txt` para pegarlo como dirección de un marcador. `tema` es la clave fija de cada tema en `TEMAS`.
 
+- Permisos por función (`js/permisos.js`): lo que depende de un permiso va en `index.html` con `class="hidden"` y
+  `data-feature="clave"`, y solo se enseña cuando se conocen los permisos del usuario (los últimos recibidos se
+  guardan en el dispositivo, `pj_permisos_v1:<usuario>`). Si internet tarda o falla, no se ve nada que no tenga.
+  El Específico tiene su permiso (`especifico`), y además la base de datos no deja leer sus tests ni preguntas a
+  quien lo tenga quitado (migración `20261013_especifico_permiso.sql`).
+
 ## Calendario
 
 - Se abre desde Inicio (`screen-calendario`, `js/calendario.js`, `css/calendario.css`): cada alumno se apunta qué
