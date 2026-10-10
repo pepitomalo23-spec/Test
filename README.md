@@ -348,6 +348,9 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   la pregunta en «Preguntas marcadas» (tabla `especifico_marcadas`, privada de cada usuario; migración
   `20261014_especifico_dificultad_marcadas.sql`). Al reimportar sustituyendo, las preguntas con el mismo
   enunciado se actualizan en su sitio, para no perder sus marcas.
+  Las explicaciones (con sus imágenes incrustadas) son casi todo el peso de las preguntas, así que los tests y
+  las pruebas se cargan sin ellas (columna `tiene_explicacion`, migración `20261018_especifico_tiene_explicacion.sql`)
+  y cada explicación se pide al abrirla (`ESPT.explicacion`, con memoria mientras dura la sesión).
   Cada respuesta (en un test o en «Preguntas marcadas») se guarda en `especifico_respuestas` (privada de cada
   usuario; migración `20261015_especifico_respuestas.sql`): primero en una cola del dispositivo y de ahí a
   Supabase, así sin conexión no se pierde. Estadísticas tiene dos pestañas, Legislación y Específico (esta solo

@@ -613,3 +613,4 @@
   #screen-pru .quiz-nav-btn[data-pru="sig"], #screen-pru .quiz-nav-btn[data-pru="terminar"]{ right:22px; }
   #screen-pru .quiz-card + .quiz-bottombar, #screen-pru .pru-exp + .quiz-bottombar{ margin-top:0; }
   #pruCuerpo:has(.quiz-bottombar){ padding-bottom:96px; }
+  .pru-cargando{ color: var(--muted); font-style: italic; }

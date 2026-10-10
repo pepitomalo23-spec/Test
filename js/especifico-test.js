@@ -59,7 +59,7 @@ const ESPT = (function(){
     else{
       cargando = true; pintar();
       const [r] = await Promise.all([
-        sb.from('especifico_preguntas').select('id,orden,enunciado,opciones,correcta,explicacion,dificultad').eq('test_id', t.id).order('orden'),
+        sb.from('especifico_preguntas').select('id,orden,enunciado,opciones,correcta,tiene_explicacion,dificultad').eq('test_id', t.id).order('orden'),
         marcadasCargadas ? null : cargarMarcadas()
       ]);
       cargando = false;
@@ -73,7 +73,7 @@ const ESPT = (function(){
     empezar('marcadas'); test = null;
     cargando = true; pintar();
     const { data, error: e } = await sb.from('especifico_marcadas')
-      .select('created_at, especifico_preguntas(id,orden,enunciado,opciones,correcta,explicacion,dificultad,test_id,especifico_tests(id,titulo,tema,orden))');
+      .select('created_at, especifico_preguntas(id,orden,enunciado,opciones,correcta,tiene_explicacion,dificultad,test_id,especifico_tests(id,titulo,tema,orden))');
     cargando = false;
     if(e){ error = e.message; pintar(); return; }
     const filas = (data || []).map(r => r.especifico_preguntas).filter(p => p && p.especifico_tests);
@@ -119,13 +119,13 @@ const ESPT = (function(){
     return '<article class="espt-preg dif-' + dif + '" id="espt-' + p.id + '" title="Dificultad: ' + (DIF[p.dificultad] || 'sin dato') + '">' +
       (marcadas.has(p.id) ? '<span class="espt-estrella" title="Marcada">' + ICO.estrella + '</span>' : '') +
       '<div class="espt-iconos">' +
-        (p.explicacion ? '<button type="button" data-espt="exp" data-p="' + p.id + '" title="Ver explicación" aria-label="Ver explicación">' + ICO.exp + '</button>' : '') +
+        (p.tiene_explicacion ? '<button type="button" data-espt="exp" data-p="' + p.id + '" title="Ver explicación" aria-label="Ver explicación">' + ICO.exp + '</button>' : '') +
         '<button type="button" data-espt="marca" data-p="' + p.id + '" title="' + (marcadas.has(p.id) ? 'Quitar de Preguntas marcadas' : 'Guardar en Preguntas marcadas') + '" aria-label="Marcar pregunta">' + ICO.marca + '</button>' +
       '</div>' +
       '<div class="espt-enunciado">' + html(p.enunciado) + '</div>' +
       '<div class="espt-ops">' + ops + '</div>' +
       (elegida && elegida !== p.correcta ? '<div class="espt-correcta">La correcta es la <b>' + escapeHtml(p.correcta) + ')</b></div>' : '') +
-      (abiertas.has(p.id) ? '<div class="espt-exp">' + html(p.explicacion) + '</div>' : '') +
+      (abiertas.has(p.id) ? '<div class="espt-exp">' + (expl.has(p.id) ? html(expl.get(p.id)) : '<span class="espt-cargando">Cargando explicación…</span>') + '</div>' : '') +
       '</article>';
   }
   function pie(){
@@ -206,6 +206,22 @@ const ESPT = (function(){
   }
   addEventListener('online', enviarRespuestas);
 
+  /* Las explicaciones (con sus imágenes) son casi todo el peso de las
+     preguntas: no se descargan con el test, sino al abrir cada una, y se
+     guardan en memoria mientras dure la sesión. Las usan también las
+     pruebas de js/pruebas.js. */
+  const expl = new Map(), pidiendo = new Map();
+  function explicacion(id){
+    if(expl.has(id)) return Promise.resolve(expl.get(id));
+    if(pidiendo.has(id)) return pidiendo.get(id);
+    const pr = sb.from('especifico_preguntas').select('explicacion').eq('id', id).single()
+      .then(({ data, error }) => { if(error) throw error; expl.set(id, (data && data.explicacion) || ''); return expl.get(id); })
+      .catch(() => { pidiendo.delete(id); return 'No se pudo cargar la explicación. Comprueba la conexión y vuelve a abrirla.'; })
+      .finally(() => pidiendo.delete(id));
+    pidiendo.set(id, pr);
+    return pr;
+  }
+
   function onClick(e){
     const op = e.target.closest('[data-op]');
     if(op && !op.disabled){
@@ -221,7 +237,11 @@ const ESPT = (function(){
     const id = b.dataset.p;
     switch(b.dataset.espt){
       case 'volver': showScreen('screen-especifico'); break;
-      case 'exp': abiertas.has(id) ? abiertas.delete(id) : abiertas.add(id); repintar(id); break;
+      case 'exp':
+        if(abiertas.has(id)){ abiertas.delete(id); repintar(id); break; }
+        abiertas.add(id); repintar(id);
+        if(!expl.has(id)) explicacion(id).then(() => { if(abiertas.has(id)) repintar(id); });
+        break;
       case 'marca': alternarMarca(id); break;
       case 'reiniciar': resp = {}; abiertas = new Set(); pintar(); arriba(); break;
     }
@@ -230,6 +250,6 @@ const ESPT = (function(){
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', enganchar); else enganchar();
 
   // Al cambiar de cuenta, nada de la anterior.
-  function reiniciar(){ marcadas = new Set(); marcadasCargadas = false; cache.clear(); }
-  return { abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar };
+  function reiniciar(){ marcadas = new Set(); marcadasCargadas = false; cache.clear(); expl.clear(); }
+  return { abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar, explicacion };
 })();

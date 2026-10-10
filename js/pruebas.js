@@ -89,7 +89,7 @@ const PRU = (function(){
   async function preguntasEsp(ids){
     const out = [];
     for(let i = 0; i < ids.length; i += 100){
-      const { data, error } = await sb.from('especifico_preguntas').select('id,test_id,enunciado,opciones,correcta,explicacion,dificultad').in('id', ids.slice(i, i + 100));
+      const { data, error } = await sb.from('especifico_preguntas').select('id,test_id,enunciado,opciones,correcta,tiene_explicacion,dificultad').in('id', ids.slice(i, i + 100));
       if(error) throw error;
       out.push(...(data || []));
     }
@@ -355,7 +355,7 @@ const PRU = (function(){
     // Las del Específico no se barajan: muchas dicen «a y b son correctas».
     const ops = p.opciones || [], t = tests[p.test_id];
     return { k: 'e', id: p.id, html: p.enunciado, opciones: ops.map(o => o.html), correcta: ops.findIndex(o => o.l === p.correcta),
-      tema: t ? temaEsp(t.tema).replace(/^\d+\.\s*/, '') + ' · ' + t.titulo : '', dif: p.dificultad || '', explicacion: p.explicacion || '' };
+      tema: t ? temaEsp(t.tema).replace(/^\d+\.\s*/, '') + ' · ' + t.titulo : '', dif: p.dificultad || '', explicacion: p.tiene_explicacion ? null : '' };   // null: se pide al abrirla (ESPT.explicacion)
   }
   // Elige al azar del Específico respetando cuántas de cada dificultad.
   function elegirEsp(pool, n, dif){
@@ -451,7 +451,17 @@ const PRU = (function(){
   }
   const enunciado = it => it.k === 'l' ? escapeHtml(it.texto) : espHtml(it.html);
   const opcion = (it, j) => it.k === 'l' ? escapeHtml(it.opciones[j]) : espHtml(it.opciones[j]);
-  const explicacion = it => it.explicacion ? (it.k === 'l' ? escapeHtml(it.explicacion) : espHtml(it.explicacion)) : '';
+  // Las del Específico llegan sin explicación (pesa mucho): se pide al mostrarla.
+  function explicacion(it){
+    if(it.k === 'e' && it.explicacion == null){
+      ESPT.explicacion(it.id).then(t => {
+        it.explicacion = t;
+        document.querySelectorAll('[data-exp-id="' + it.id + '"]').forEach(x => { x.innerHTML = espHtml(t) || 'Sin explicación.'; });
+      });
+      return '<span class="pru-cargando" data-exp-id="' + it.id + '">Cargando explicación…</span>';
+    }
+    return it.explicacion ? (it.k === 'l' ? escapeHtml(it.explicacion) : espHtml(it.explicacion)) : '';
+  }
   function mostrar(){
     showScreen('screen-pru');
     $('pruCabecera').classList.remove('hidden');
@@ -713,7 +723,7 @@ const PRU = (function(){
             (j === it.correcta ? ICONS.check : j === r ? ICONS.cross : '') + '</span></div>';
         }).join('') + '</div>' +
         (r == null ? '<div class="simc-blanco">En blanco</div>' : '') +
-        (it.explicacion ? '<details class="simc-exp"><summary>Explicación</summary><div>' + explicacion(it) + '</div></details>' : '') +
+        (it.explicacion !== '' ? '<details class="simc-exp" data-i="' + i + '"><summary>Explicación</summary><div class="simc-exp-cuerpo"></div></details>' : '') +
         (it.k === 'l' && it.art ? '<div class="simc-art">' + escapeHtml(it.art) + '</div>' : '') +
       '</div>').join('');
   }
@@ -780,6 +790,13 @@ const PRU = (function(){
   function enganchar(){
     const s = $('screen-pru'), c = $('screen-pru-config');
     if(s){ s.addEventListener('click', onClick); s.addEventListener('keydown', onKey); }
+    // En la corrección, la explicación se pinta (y se descarga, si es del Específico) al abrirla.
+    if(s) s.addEventListener('toggle', e => {
+      const d = e.target;
+      if(!d.matches || !d.matches('details.simc-exp') || !d.open || !est) return;
+      const cuerpo = d.querySelector('.simc-exp-cuerpo'), it = est.items[Number(d.dataset.i)];
+      if(cuerpo && it && !cuerpo.dataset.listo){ cuerpo.dataset.listo = '1'; cuerpo.innerHTML = explicacion(it) || 'Sin explicación.'; }
+    }, true);
     if(c){ c.addEventListener('click', onConfigClick); c.addEventListener('keydown', onKey); }
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', enganchar); else enganchar();
