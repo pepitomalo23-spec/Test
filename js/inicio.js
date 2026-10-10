@@ -52,20 +52,24 @@ const INICIO = (function(){
   }
 
   // Simulacro conjunto (Legislación + Específico): solo con las dos cosas activadas.
+  // Si hay una prueba de js/pruebas.js a medias (el conjunto o un modo del Específico), se sigue desde aquí.
   function conjunto(){
-    if(typeof SIMC === 'undefined' || !SIMC.disponible()) return '';
-    const m = SIMC.aMedias();
+    if(typeof PRU === 'undefined') return '';
+    const m = PRU.aMedias();
     if(m){
       const pct = m.total ? Math.round(m.hechas / m.total * 100) : 0;
-      return '<button type="button" class="ini-continuar" data-ini="conjunto">' +
+      return '<button type="button" class="ini-continuar" data-ini="prueba">' +
         '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
-        '<span class="ini-continuar-txt"><b>Continuar simulacro conjunto</b><span>' + m.hechas + ' de ' + m.total + ' respondidas</span>' +
+        '<span class="ini-continuar-txt"><b>Continuar ' + esc(m.titulo.charAt(0).toLowerCase() + m.titulo.slice(1)) + '</b><span>' + m.hechas + ' de ' + m.total + ' respondidas</span>' +
           '<span class="ini-barra"><i style="width:' + pct + '%"></i></span></span>' +
-        '<span class="ini-flecha">' + FLECHA + '</span></button>';
+        '<span class="ini-flecha">' + FLECHA + '</span></button>' + (PRU.conjuntoDisponible() && m.modo !== 'conjunto' ? tarjetaConjunto() : '');
     }
+    return PRU.conjuntoDisponible() ? tarjetaConjunto() : '';
+  }
+  function tarjetaConjunto(){
     return '<button type="button" class="ini-conjunto" data-ini="conjunto">' +
       '<span class="ini-conjunto-ico">' + ICO.conjunto + '</span>' +
-      '<span class="ini-conjunto-txt"><b>Simulacro conjunto</b><span>Legislación + Específico · tú eliges los temas</span></span>' +
+      '<span class="ini-conjunto-txt"><b>Simulacro conjunto</b><span>Legislación + Específico · tú eliges temas, % y dificultad</span></span>' +
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }
 
@@ -164,7 +168,8 @@ const INICIO = (function(){
       case 'nueva': e.stopPropagation(); CAL.nueva(); break;
       case 'calendario': showScreen('screen-calendario'); break;
       case 'reanudar': resumeQuiz(); break;
-      case 'conjunto': SIMC.abrirConfig(); break;
+      case 'conjunto': PRU.abrirConfig('conjunto'); break;
+      case 'prueba': PRU.continuar(); break;
       case 'inteligente': openInteligente(); break;
       case 'fallos': openFallos(); break;
       case 'fichas':

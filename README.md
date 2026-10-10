@@ -52,7 +52,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   especifico.js      Específico: temas del temario de bombero
   especifico-test.js hacer un test del Específico y ver las Preguntas marcadas (diseño de tutorbomberos)
   estadisticas-especifico.js  Estadísticas › pestaña Específico
-  simulacro-conjunto.js  Simulacro conjunto (Legislación + Específico), desde Inicio
+  pruebas.js         Simulacro conjunto (Inicio) y modos del Específico (panel pj.fire), con su historial
   importar-especifico.js  recibe las preguntas que envía el marcador de tutorbomberos.es
   inicio.js          Inicio: lo de hoy, test a medias, accesos rápidos y progreso
   arranque.js        escucha la sesión y arranca la app (siempre el último)
@@ -354,15 +354,22 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   con el Específico activado), cada una con lo suyo y sin mezclar: `js/estadisticas-especifico.js` (ESTE)
   calcula el dominio con las mismas reglas que Legislación, la nota, el ranking de temas y los tests que más
   fallas (estos dos, con «Estadísticas avanzadas»).
-- **Simulacro conjunto** (`js/simulacro-conjunto.js`, SIMC): en Inicio, solo con el Específico y el Simulacro
-  activados. Se eligen temas de Legislación y del Específico, número de preguntas, tiempo y reparto (mitad y
-  mitad o según las preguntas de cada parte); todas seguidas y corrección al final con la puntuación de los
-  simulacros (acierto +1, fallo −1/(opciones−1), en blanco 0). Las de Legislación se barajan como siempre; las
-  del Específico no (muchas dicen «a y b son correctas»). Al terminar, cada parte se guarda en su sitio: la de
-  Legislación como sesión `mode = 'conjunto'` (historial, Fallos, estadísticas de Legislación; sin conexión, a
-  la cola de resultados pendientes) y la del Específico en `especifico_respuestas` (`ESPT.registrar`). A medias
-  se guarda en el dispositivo (`pj_simulacro_conjunto:<usuario>`) y se continúa desde Inicio; el reloj cuenta
-  hasta una hora fija, así que sigue corriendo aunque se cierre la app.
+- **Pruebas** (`js/pruebas.js`, PRU): el **Simulacro conjunto** (Inicio; con el Específico y el Simulacro activados)
+  y los modos del Específico en su **panel de pj.fire** (Estudio › Específico, selector «Panel pj.fire / Tests de
+  tutorbomberos», recordado en el dispositivo): Estudio y Fallos (una a una, corrección al momento; solo cuentan
+  las vistas) y Simulacro y Examen (todas seguidas, tiempo, corrección al final). Cada modo respeta su permiso
+  (fallos, simulacro, examen). Se elige: preguntas, tiempo, temas, en el conjunto el % de Legislación y del
+  Específico (de 10 en 10, o atajos), y cuántas de cada dificultad del Específico (verde fácil, amarilla media,
+  roja difícil, en %; lo que no llega sale de las demás). Las de Legislación son todas «media», así que la
+  dificultad solo se aplica al Específico. Puntuación de los simulacros (acierto +1, fallo −1/(opciones−1),
+  en blanco 0). Las de Legislación se barajan como siempre; las del Específico no («a y b son correctas»).
+  Al terminar: la parte de Legislación, como sesión `mode = 'conjunto'` (estadísticas, Fallos y Repaso; no sale
+  en el historial de Legislación); la del Específico, en `especifico_respuestas` (`ESPT.registrar`); y la prueba
+  entera en `historial_pruebas` (migración `20261016_historial_pruebas.sql`), que es el historial propio: el
+  del conjunto en su ventana de configuración y el de los modos del Específico en su panel; se puede revisar y
+  borrar. Sin conexión, el historial espera en el dispositivo y se sube después. Una prueba a medias se guarda
+  en el dispositivo (`pj_prueba:<usuario>`, solo una a la vez) y se sigue desde Inicio o desde el panel; el
+  reloj cuenta hasta una hora fija.
 - Permisos por función (`js/permisos.js`): lo que depende de un permiso va en `index.html` con `class="hidden"` y
   `data-feature="clave"`, y solo se enseña cuando se conocen los permisos del usuario (los últimos recibidos se
   guardan en el dispositivo, `pj_permisos_v1:<usuario>`). Si internet tarda o falla, no se ve nada que no tenga.
