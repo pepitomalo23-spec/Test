@@ -331,6 +331,11 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   el marcador no puede leer (de otras webs, por CORS) las descarga `supabase/functions/imagen-externa` (solo
   administradores) y se incrustan: la CSP no deja mostrar imágenes externas. En el texto se guardan `<b>`, `<i>`,
   `<u>`, `<sub>`, `<sup>`, `<br>` e `<img>` (data: o https:).
+  El marcador «Revisar cambios» (`datos/marcador-tutorbomberos-revisar.txt`) es el mismo código con
+  `MODO = "revisar"` (lo cambia `scripts/marcador.mjs`): la web compara cada test con lo guardado (por enunciado
+  y, si cambió, por sus opciones), enseña lo nuevo, lo cambiado y lo que ya no está, y al aplicar solo escribe eso
+  (lo que llega vacío no pisa lo que hay; lo que ya no está solo se borra si se marca). Las cuentas de preguntas
+  por test se leen por páginas (`ESP.contarPreguntas`): Supabase devuelve como mucho 1000 filas por consulta.
 
 - Al hacer un test (`js/especifico-test.js`) cada entrada empieza de cero; una sola respuesta por pregunta (si se
   falla, se señala la correcta). La franja izquierda es la dificultad (`especifico_preguntas.dificultad`: verde,

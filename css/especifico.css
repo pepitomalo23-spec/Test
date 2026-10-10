@@ -134,3 +134,5 @@
 .imp-detalles{ margin:0 0 12px; font-size:14px; }
 .imp-detalles summary{ cursor:pointer; color: var(--coral); font-weight:600; margin-bottom:6px; }
 .espt-preg sub, .espt-preg sup{ font-size:.75em; line-height:0; }
+.imp-ok{ color:#43a047; font-weight:600; }
+.imp-detalles summary .imp-nuevo{ color: var(--esp-naranja); }

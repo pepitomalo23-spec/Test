@@ -10,9 +10,13 @@
    que todas tengan correcta, opciones con texto y explicación, y que cada
    imagen quede incrustada; lo que no cuadre sale en el informe final.
    El marcador listo para pegar se genera con
-     node scripts/marcador.mjs   →  datos/marcador-tutorbomberos-todo.txt */
+     node scripts/marcador.mjs   →  datos/marcador-tutorbomberos-todo.txt
+   y, con MODO = "revisar", datos/marcador-tutorbomberos-revisar.txt. */
 (async () => {
   const APP = "https://test-pablo-jesus.vercel.app";
+  // «todo» importa; «revisar» (el marcador «Revisar cambios», generado de este
+  // mismo archivo) hace lo mismo pero pj.fire enseña antes qué es nuevo o ha cambiado.
+  const MODO = "todo";
   const w = (ms) => new Promise((r) => setTimeout(r, ms)),
     norm = (s) => String(s || "").replace(/\s+/g, " ").trim(),
     mk = (t, css, p) => {
@@ -363,7 +367,7 @@
     let nPreg = 0;
     for (let i = 0; i < tests.length && !stop; i++) {
       const t = tests[i];
-      say("Test " + (i + 1) + " de " + tests.length + "\n" + t.titulo + "\n\nPreguntas: " + nPreg + " · Imágenes: " + nImg + (nImgMal ? " (" + nImgMal + " pendientes)" : ""));
+      say((MODO === "revisar" ? "Revisando cambios\n" : "") + "Test " + (i + 1) + " de " + tests.length + "\n" + t.titulo + "\n\nPreguntas: " + nPreg + " · Imágenes: " + nImg + (nImgMal ? " (" + nImgMal + " pendientes)" : ""));
       try {
         const malAntes = nImgMal;
         const { out, av } = await sacar(await pedir(t));
@@ -386,7 +390,7 @@
     box.remove();
 
     // ---------- enviar a pj.fire ----------
-    const paquete = { tipo: "pjfire-lote", v: 2, origen: location.href, total: tests.length, tests: lote };
+    const paquete = { tipo: "pjfire-lote", v: 2, modo: MODO, origen: location.href, total: tests.length, tests: lote };
     sb.remove();
     msg.textContent =
       (stop ? "Parado. " : "¡Hecho! ") + lote.length + " de " + tests.length + " tests · " + nPreg + " preguntas · " + nImg + " imágenes";
