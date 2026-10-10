@@ -126,3 +126,8 @@
 .esp-marcadas-txt b{ font-family:'Roboto Slab', serif; font-size:18px; color: var(--esp-titulo); }
 .esp-marcadas-txt span{ font-size:13px; color: var(--muted); }
 .esp-marcadas-flecha{ font-size:24px; color: var(--muted); }
+.imp-resumen{ margin:0 0 12px; padding-left:20px; font-size:14px; line-height:1.55; }
+.imp-nuevo{ color: var(--esp-naranja); font-weight:600; }
+.imp-nota{ color: var(--muted); font-size:13px !important; }
+.imp-barra{ height:8px; border-radius:4px; background: var(--line); overflow:hidden; margin:4px 0 12px; }
+.imp-barra span{ display:block; height:100%; background: var(--esp-naranja); transition: width .3s; }

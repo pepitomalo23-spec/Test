@@ -58,7 +58,8 @@ datos/               datos que la app descarga cuando hacen falta (callejero-tem
                      mnemotecnia.json y su licencia, mnemotecnia-LICENCIA.txt)
 sw.js                service worker: app sin conexión y actualizaciones
 scripts/versionar.mjs  pone el ?v= de cada css/js en index.html
-scripts/marcador.mjs   genera datos/marcador-tutorbomberos.txt desde scripts/marcador/tutorbomberos.js
+scripts/marcador.mjs   genera datos/marcador-tutorbomberos.txt y datos/marcador-tutorbomberos-todo.txt
+                       desde scripts/marcador/tutorbomberos.js y tutorbomberos-todo.js
 supabase/            migraciones de la base de datos y funciones (Edge Functions)
 assets/              iconos, logo y vídeo
 ```
@@ -320,6 +321,11 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   un botón. `js/importar-especifico.js` limpia el HTML (solo `<br>`, `<b>`, `<i>` e `<img>`) y pregunta en qué
   test guardarlas (sustituyendo o añadiendo). El botón «Copiar marcador» de Administración › Específico copia
   `datos/marcador-tutorbomberos.txt` para pegarlo como dirección de un marcador. `tema` es la clave fija de cada tema en `TEMAS`.
+  El marcador «Extraer todo» (`scripts/marcador/tutorbomberos-todo.js`), pulsado en la lista de temas de
+  tutorbomberos (tob.test), pide cada test como su botón (`seleccionaClase` → formulario `formulario`), sin abrirlo ni
+  responder, y manda todos juntos (`tipo: 'pjfire-lote'`). La web los reparte por el id de tema de tutorbomberos
+  (`TEMAS_TB` en `js/importar-especifico.js`; los temas que no están, como la ordenanza de Málaga, se dejan fuera),
+  actualiza el test que ya tenga el mismo título (sin distinguir mayúsculas ni tildes) y crea los demás al final de su tema.
 
 - Al hacer un test (`js/especifico-test.js`) cada entrada empieza de cero; una sola respuesta por pregunta (si se
   falla, se señala la correcta). La franja izquierda es la dificultad (`especifico_preguntas.dificultad`: verde,
