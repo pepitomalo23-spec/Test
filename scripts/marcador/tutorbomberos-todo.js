@@ -14,8 +14,10 @@
    y, con MODO = "revisar", datos/marcador-tutorbomberos-revisar.txt. */
 (async () => {
   const APP = "https://test-pablo-jesus.vercel.app";
-  // «todo» importa; «revisar» (el marcador «Revisar cambios», generado de este
-  // mismo archivo) hace lo mismo pero pj.fire enseña antes qué es nuevo o ha cambiado.
+  // «todo» saca todos los tests y los importa. «revisar» (el marcador «Revisar
+  // cambios», generado de este mismo archivo) pregunta antes a pj.fire qué tests
+  // tienes, saca solo esos para ver qué ha cambiado y de los demás solo avisa
+  // de que son nuevos (pj.fire puede pedirlos después con «pjfire-traer»).
   const MODO = "todo";
   const w = (ms) => new Promise((r) => setTimeout(r, ms)),
     norm = (s) => String(s || "").replace(/\s+/g, " ").trim(),
@@ -360,40 +362,14 @@
       return { out, av };
     };
 
-    // ---------- recorrer todos ----------
-    const lote = [],
-      fallidos = [],
-      avisos = [];
-    let nPreg = 0;
-    for (let i = 0; i < tests.length && !stop; i++) {
-      const t = tests[i];
-      say((MODO === "revisar" ? "Revisando cambios\n" : "") + "Test " + (i + 1) + " de " + tests.length + "\n" + t.titulo + "\n\nPreguntas: " + nPreg + " · Imágenes: " + nImg + (nImgMal ? " (" + nImgMal + " pendientes)" : ""));
-      try {
-        const malAntes = nImgMal;
-        const { out, av } = await sacar(await pedir(t));
-        if (!out.length) throw new Error("no salió ninguna pregunta (¿sesión caducada?)");
-        nPreg += out.length;
-        const a = [];
-        if (t.esperadas && out.length !== t.esperadas) a.push(out.length + " de " + t.esperadas + " preguntas");
-        if (av.sinCorrecta) a.push(av.sinCorrecta + " sin correcta");
-        if (av.opcionVacia) a.push(av.opcionVacia + " opciones vacías");
-        if (av.sinExplicacion) a.push(av.sinExplicacion + " sin explicación");
-        if (av.sinDificultad) a.push(av.sinDificultad + " sin dificultad");
-        if (nImgMal > malAntes) a.push(nImgMal - malAntes + " imágenes las descargará pj.fire");
-        if (a.length) avisos.push("«" + t.titulo + "»: " + a.join(", "));
-        lote.push({ temaId: t.temaId, tema: temas[t.temaId] || "", titulo: t.titulo, esperadas: t.esperadas, avisos: a, preguntas: out });
-      } catch (e) {
-        fallidos.push("«" + t.titulo + "»: " + e.message);
-      }
-      await w(250);
-    }
-    box.remove();
-
-    // ---------- enviar a pj.fire ----------
-    const paquete = { tipo: "pjfire-lote", v: 2, modo: MODO, origen: location.href, total: tests.length, tests: lote };
-    sb.remove();
-    msg.textContent =
-      (stop ? "Parado. " : "¡Hecho! ") + lote.length + " de " + tests.length + " tests · " + nPreg + " preguntas · " + nImg + " imágenes";
+    // ---------- pj.fire ----------
+    // Cada pulsación del marcador anula los oyentes de la anterior.
+    const yo = {};
+    window.__pjfireMarcador = yo;
+    const deApp = (fn) =>
+      addEventListener("message", (e) => {
+        if (window.__pjfireMarcador === yo && e.origin === APP && e.data) fn(e);
+      });
     const lista = (tit, xs, color) => {
       if (!xs.length) return;
       const d = mk("div", "margin:8px 0;font-size:13px;color:" + color);
@@ -403,32 +379,155 @@
       d.append(ul);
       P.append(d);
     };
-    lista("No se pudieron sacar (vuelve a pasar el marcador):", fallidos, "#ff8a80");
-    lista("Revisa:", avisos, "#ffd180");
-    if (!fallidos.length && !avisos.length && !stop)
-      P.append(mk("div", "margin:8px 0;color:#b9f6ca", { textContent: "Todo completo: todas las preguntas, correctas, explicaciones e imágenes." }));
-    const est = mk("div", "margin:10px 0;font-weight:600"),
-      b0 = mk("button", "font-size:17px;padding:12px 16px;border:0;border-radius:8px;background:#f07611;color:white;margin-right:8px", {
-        textContent: "Enviar a pj.fire",
-        type: "button",
-      }),
-      b4 = mk("button", "font-size:17px;padding:12px 16px;border:0;border-radius:8px;background:dimgray;color:white", {
-        textContent: "Cerrar",
-        type: "button",
+    const boton = (txt, color) =>
+      mk("button", "font-size:17px;padding:12px 16px;border:0;border-radius:8px;color:white;margin:4px 8px 0 0;background:" + color, { textContent: txt, type: "button" });
+
+    // ---------- sacar una lista de tests ----------
+    const extraer = async (cuales, cab) => {
+      stop = false;
+      P.insertBefore(sb, msg.nextSibling);
+      if (!box.isConnected) document.body.append(box);
+      const lote = [],
+        fallidos = [],
+        avisos = [];
+      let nPreg = 0;
+      for (let i = 0; i < cuales.length && !stop; i++) {
+        const t = cuales[i];
+        say(cab + "Test " + (i + 1) + " de " + cuales.length + "\n" + t.titulo + "\n\nPreguntas: " + nPreg + " · Imágenes: " + nImg + (nImgMal ? " (" + nImgMal + " pendientes)" : ""));
+        try {
+          const malAntes = nImgMal;
+          const { out, av } = await sacar(await pedir(t));
+          if (!out.length) throw new Error("no salió ninguna pregunta (¿sesión caducada?)");
+          nPreg += out.length;
+          const a = [];
+          if (t.esperadas && out.length !== t.esperadas) a.push(out.length + " de " + t.esperadas + " preguntas");
+          if (av.sinCorrecta) a.push(av.sinCorrecta + " sin correcta");
+          if (av.opcionVacia) a.push(av.opcionVacia + " opciones vacías");
+          if (av.sinExplicacion) a.push(av.sinExplicacion + " sin explicación");
+          if (av.sinDificultad) a.push(av.sinDificultad + " sin dificultad");
+          if (nImgMal > malAntes) a.push(nImgMal - malAntes + " imágenes las descargará pj.fire");
+          if (a.length) avisos.push("«" + t.titulo + "»: " + a.join(", "));
+          lote.push({ temaId: t.temaId, tema: temas[t.temaId] || "", titulo: t.titulo, esperadas: t.esperadas, avisos: a, preguntas: out });
+        } catch (e) {
+          fallidos.push("«" + t.titulo + "»: " + e.message);
+        }
+        await w(250);
+      }
+      box.remove();
+      sb.remove();
+      msg.textContent = (stop ? "Parado. " : "¡Hecho! ") + lote.length + " de " + cuales.length + " tests · " + nPreg + " preguntas · " + nImg + " imágenes";
+      lista("No se pudieron sacar (vuelve a pasar el marcador):", fallidos, "#ff8a80");
+      lista("Revisa:", avisos, "#ffd180");
+      if (!fallidos.length && !avisos.length && !stop && lote.length)
+        P.append(mk("div", "margin:8px 0;color:#b9f6ca", { textContent: "Todo completo: todas las preguntas, correctas, explicaciones e imágenes." }));
+      return lote;
+    };
+    const est = mk("div", "margin:10px 0;font-weight:600");
+    const cerrarP = boton("Cerrar", "dimgray");
+    cerrarP.onclick = () => P.remove();
+
+    if (MODO !== "revisar") {
+      // ---------- «Extraer todo»: todos los tests, y se envían al final ----------
+      const lote = await extraer(tests, "");
+      const paquete = { tipo: "pjfire-lote", v: 3, modo: "todo", origen: location.href, total: tests.length, tests: lote };
+      const b0 = boton("Enviar a pj.fire", "#f07611");
+      P.append(est, b0, cerrarP);
+      let enviado = false;
+      deApp((e) => {
+        if (e.data.tipo === "pjfire-listo" && !enviado) {
+          enviado = true;
+          e.source.postMessage(paquete, APP);
+          est.textContent = "Enviado: confirma en pj.fire.";
+        } else if (e.data.tipo === "pjfire-recibido") est.textContent = "¡pj.fire lo ha recibido!";
       });
-    P.append(est, b0, b4);
-    b4.onclick = () => P.remove();
-    let enviado = false;
-    addEventListener("message", (e) => {
-      if (e.origin !== APP || !e.data) return;
-      if (e.data.tipo === "pjfire-listo" && !enviado) {
-        enviado = true;
-        e.source.postMessage(paquete, APP);
-        est.textContent = "Enviado: confirma en pj.fire.";
-      } else if (e.data.tipo === "pjfire-recibido") est.textContent = "¡pj.fire lo ha recibido!";
+      const enviar = () => {
+        enviado = false;
+        const v = window.open(APP + "/#importar-especifico", "_blank");
+        est.textContent = v ? "Abriendo pj.fire…" : "Pulsa «Enviar a pj.fire».";
+        return !!v;
+      };
+      b0.onclick = () => {
+        if (!enviar()) est.textContent = "El navegador no deja abrir pj.fire: permite las ventanas emergentes.";
+      };
+      if (lote.length) enviar();
+      return;
+    }
+
+    // ---------- «Revisar cambios»: solo los tests que ya tienes en pj.fire ----------
+    // Primero se abre pj.fire (aún dentro de la pulsación, para que el
+    // navegador lo deje) y se le pide la lista de tus tests.
+    const TEMAS_TB = { 3: "fuego", 4: "extintores", 5: "sistemas", 6: "utiles", 7: "epi", 8: "vehiculos", 9: "fisica",
+      10: "hidraulica", 11: "gases", 12: "electricidad", 13: "mercancias", 14: "radio", 15: "socorrismo", 16: "forestales",
+      17: "intervenciones", 18: "construccion", 19: "cte", 800: "rseiei", 20: "prl", 21: "ascensores", 419: "himenopteros" };
+    const ct = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/^\s*test\s*-\s*/i, "").replace(/\s+/g, " ").trim().toLowerCase();
+    sb.remove();
+    say("Revisar cambios\n\nPreguntando a pj.fire qué tests tienes…\n(si te pide entrar, entra con tu cuenta de administrador)");
+    let app = null,
+      pidiendo = true;
+    const misTests = await new Promise((ok) => {
+      deApp((e) => {
+        if (!pidiendo) return;
+        if (e.data.tipo === "pjfire-listo" && !app) {
+          app = e.source;
+          app.postMessage({ tipo: "pjfire-revisar" }, APP);
+        } else if (e.data.tipo === "pjfire-mis-tests" && Array.isArray(e.data.tests) && e.source === app) ok(e.data.tests);
+      });
+      if (!window.open(APP + "/#importar-especifico", "_blank")) {
+        const b = boton("Abrir pj.fire", "#f07611");
+        b.onclick = () => {
+          if (window.open(APP + "/#importar-especifico", "_blank")) b.remove();
+        };
+        P.append(b);
+      }
+    });
+    // Se emparejan como en pj.fire: mismo tema y título (sin tildes ni mayúsculas); cada uno una vez.
+    const usados = new Set(),
+      revisar = [],
+      nuevos = [];
+    tests.forEach((t) => {
+      const k = TEMAS_TB[t.temaId];
+      if (!k) return; // tema que no está en pj.fire
+      const j = misTests.findIndex((m, n) => !usados.has(n) && m.tema === k && ct(m.titulo) === ct(t.titulo));
+      if (j >= 0) {
+        usados.add(j);
+        revisar.push(t);
+      } else nuevos.push(t);
+    });
+    pidiendo = false;
+    const noEstan = misTests.filter((m, n) => !usados.has(n));
+    const lote = await extraer(revisar, "Revisando tus tests\n");
+    const paquete = {
+      tipo: "pjfire-lote", v: 3, modo: "revisar", origen: location.href, total: revisar.length, tests: lote,
+      nuevos: nuevos.map((t) => ({ temaId: t.temaId, tema: temas[t.temaId] || "", titulo: t.titulo, esperadas: t.esperadas })),
+      noEstan: noEstan.map((m) => ({ tema: String(m.tema || ""), titulo: String(m.titulo || "") })),
+    };
+    if (nuevos.length) P.append(mk("div", "margin:8px 0;font-size:13px;color:#ffd180", { textContent: nuevos.length + (nuevos.length === 1 ? " test nuevo" : " tests nuevos") + " en tutorbomberos que aún no tienes: los verás en pj.fire." }));
+    const b0 = boton("Enviar a pj.fire", "#f07611");
+    P.append(est, b0, cerrarP);
+    // Desde pj.fire se pueden pedir los tests nuevos: se sacan y se mandan.
+    deApp(async (e) => {
+      if (e.data.tipo === "pjfire-recibido") est.textContent = "¡pj.fire lo ha recibido!";
+      else if (e.data.tipo === "pjfire-listo" && !app) {
+        app = e.source;
+        app.postMessage(paquete, APP);
+        est.textContent = "Enviado: mira pj.fire.";
+      } else if (e.data.tipo === "pjfire-traer" && Array.isArray(e.data.indices)) {
+        const quiero = e.data.indices.map((n) => nuevos[n]).filter(Boolean);
+        if (!quiero.length) return;
+        [...P.children].forEach((c) => c !== msg && c.remove());
+        const l2 = await extraer(quiero, "Trayendo los tests nuevos\n");
+        e.source.postMessage({ tipo: "pjfire-lote", v: 3, modo: "todo", origen: location.href, total: quiero.length, tests: l2 }, APP);
+        P.append(est, cerrarP);
+        est.textContent = "Enviados a pj.fire: confirma allí.";
+      }
     });
     const enviar = () => {
-      enviado = false;
+      if (app && !app.closed) {
+        app.postMessage(paquete, APP);
+        est.textContent = "Enviado: mira pj.fire.";
+        return true;
+      }
+      app = null;
       const v = window.open(APP + "/#importar-especifico", "_blank");
       est.textContent = v ? "Abriendo pj.fire…" : "Pulsa «Enviar a pj.fire».";
       return !!v;
@@ -436,7 +535,7 @@
     b0.onclick = () => {
       if (!enviar()) est.textContent = "El navegador no deja abrir pj.fire: permite las ventanas emergentes.";
     };
-    if (lote.length) enviar();
+    enviar();
   } catch (e) {
     box.remove();
     P.remove();

@@ -268,7 +268,15 @@ const IMP = (function(){
       };
     }).filter(t => t.titulo && t.preguntas.length);
     const total = Number.isInteger(p.total) ? p.total : p.tests.length;
-    return ts.length ? { origen, total, modo: p.modo === 'revisar' ? 'revisar' : 'todo', tests: ts } : null;
+    const modo = p.modo === 'revisar' ? 'revisar' : 'todo';
+    // «Revisar cambios»: tests de tutorbomberos que aún no tienes (solo el título; se piden
+    // después por su número) y tests tuyos que ya no aparecen allí.
+    const nuevos = (Array.isArray(p.nuevos) ? p.nuevos.slice(0, 1000) : []).map((t, i) => ({
+      i, clave: TEMAS_TB[String(t && t.temaId)] || '', titulo: String((t && t.titulo) || '').slice(0, 200), esperadas: Number(t && t.esperadas) || 0
+    })).filter(t => t.clave && t.titulo);
+    const noEstan = Array.isArray(p.noEstan) ? p.noEstan.slice(0, 1000).map(t => ({ tema: String((t && t.tema) || ''), titulo: String((t && t.titulo) || '') })) : null;
+    if(!ts.length && !(modo === 'revisar' && (nuevos.length || noEstan))) return null;
+    return { origen, total, modo, tests: ts, nuevos, noEstan };
   }
   function ventana(titulo){
     abierto = true;
@@ -315,7 +323,7 @@ const IMP = (function(){
         (nuevos ? ' <span class="imp-nuevo">(' + (nuevos === ts.length ? (nuevos === 1 ? 'nuevo' : 'todos nuevos') : nuevos + (nuevos === 1 ? ' nuevo' : ' nuevos')) + ')</span>' : '') + '</li>';
     }).join('');
     cuerpo.innerHTML = plan.length
-      ? '<p><b>' + plan.length + ' tests</b> con <b>' + nPreg + ' preguntas</b>.</p>' +
+      ? '<p><b>' + plan.length + (plan.length === 1 ? ' test' : ' tests') + '</b> con <b>' + nPreg + (nPreg === 1 ? ' pregunta' : ' preguntas') + '</b>.</p>' +
         '<ul class="imp-resumen">' + filas + '</ul>' +
         '<p class="imp-nota">Los tests que ya tienes con el mismo título se actualizan (sin perder las preguntas marcadas); los demás se crean al final de su tema.</p>' +
         notasLote(fuera) +
@@ -411,6 +419,18 @@ const IMP = (function(){
     r.quitadas = resto;
     return r;
   }
+  // El marcador pregunta primero qué tests tienes, para sacar solo esos.
+  let revisando = false, fuente = null;
+  function pedirRevision(){
+    const bg = ventana('Revisar cambios');
+    const cuerpo = bg.querySelector('.imp-cuerpo');
+    cuandoAdmin(async () => {
+      if(!(await cargarTests(cuerpo))) return;
+      try{ fuente.win.postMessage({ tipo: 'pjfire-mis-tests', tests: tests.map(t => ({ tema: t.tema, titulo: t.titulo })) }, fuente.origen); }catch(e){}
+      cuerpo.innerHTML = '<p>tutorbomberos está revisando tus <b>' + tests.length + ' tests</b>.</p>' +
+        '<p class="imp-nota">Mira el avance en su pestaña; cuando termine, aquí verás qué ha cambiado y qué hay nuevo. No cierres ninguna de las dos.</p>';
+    });
+  }
   async function mostrarRevision(){
     if(abierto) return;
     const bg = ventana('Revisar cambios');
@@ -435,10 +455,19 @@ const IMP = (function(){
     const suma = k => conTest.reduce((n, t) => n + t.cambios[k].length, 0);
     const nNuevas = suma('nuevas'), nCambiadas = suma('cambiadas'), nQuitadas = suma('quitadas'), nOrden = suma('orden');
     const corto = h => { const t = textoPlano(h); return t.length > 110 ? t.slice(0, 107) + '…' : t || '(con imagen)'; };
+    const nPregs = n => n + (n === 1 ? ' pregunta' : ' preguntas');
     const temaDe = k => { const i = ESP.temas().findIndex(x => x.clave === k); return i >= 0 ? (i + 1) + '. ' + ESP.temas()[i].titulo : k; };
     // En pj.fire pero no en tutorbomberos (solo si llegaron todos los tests).
-    const temasLote = new Set(plan.map(t => t.clave));
-    const desaparecidos = lote.total === lote.tests.length ? tests.filter(x => temasLote.has(x.tema) && !usados.has(x.id)) : [];
+    let desaparecidos;
+    if(lote.noEstan){
+      // Lo dice el marcador: tests tuyos que no encontró en tutorbomberos.
+      const quedan = tests.slice();
+      desaparecidos = lote.noEstan.map(m => { const k = quedan.findIndex(x => x.tema === m.tema && claveTitulo(x.titulo) === claveTitulo(m.titulo)); return k >= 0 ? quedan.splice(k, 1)[0] : null; }).filter(Boolean);
+    } else {
+      const temasLote = new Set(plan.map(t => t.clave));
+      desaparecidos = lote.total === lote.tests.length ? tests.filter(x => temasLote.has(x.tema) && !usados.has(x.id)) : [];
+    }
+    const nuevosTb = lote.nuevos || [];
     const detalle = [];
     nuevosTests.forEach(t => detalle.push('<details class="imp-detalles"><summary><span class="imp-nuevo">Test nuevo</span> · ' + escapeHtml(t.titulo) + ' (' + t.preguntas.length + ' preguntas)</summary><p class="imp-nota">' + escapeHtml(temaDe(t.clave)) + '</p></details>'));
     conTest.filter(t => t.cambios.nuevas.length || t.cambios.cambiadas.length || t.cambios.quitadas.length).forEach(t => {
@@ -453,10 +482,12 @@ const IMP = (function(){
         '</ul></details>');
     });
     const hay = nuevosTests.length || nNuevas || nCambiadas || nQuitadas || nOrden;
-    const nPregs = n => n + (n === 1 ? ' pregunta' : ' preguntas');
+    const bloqueNuevos = nuevosTb.length ? '<details class="imp-detalles"><summary><span class="imp-nuevo">' + nuevosTb.length + (nuevosTb.length === 1 ? ' test nuevo' : ' tests nuevos') + ' en tutorbomberos</span> que aún no tienes</summary><ul class="imp-resumen">' +
+        nuevosTb.map(t => '<li>' + escapeHtml(t.titulo) + ' <span class="imp-nota">(' + escapeHtml(temaDe(t.clave)) + (t.esperadas ? ' · ' + nPregs(t.esperadas) : '') + ')</span></li>').join('') + '</ul></details>' +
+      '<label class="imp-check"><input type="checkbox" id="impTraerNuevos" checked> <span>Traer también ' + (nuevosTb.length === 1 ? 'el test nuevo' : 'los ' + nuevosTb.length + ' tests nuevos') + ' (tutorbomberos ' + (nuevosTb.length === 1 ? 'lo saca' : 'los saca') + ' y te pide confirmar)</span></label>' : '';
     const cifra = (n, uno, varios) => '<b>' + n + '</b> ' + (n === 1 ? uno : varios);
     cuerpo.innerHTML =
-      '<p>' + plan.length + ' tests de tutorbomberos comparados con pj.fire.</p>' +
+      '<p>' + plan.length + (plan.length === 1 ? ' test tuyo comparado' : ' tests tuyos comparados') + ' con tutorbomberos.</p>' +
       (hay ? '<ul class="imp-resumen">' +
           (nuevosTests.length ? '<li>' + cifra(nuevosTests.length, 'test nuevo', 'tests nuevos') + ' (' + nPregs(nuevosTests.reduce((n, t) => n + t.preguntas.length, 0)) + ')</li>' : '') +
           (nNuevas ? '<li>' + cifra(nNuevas, 'pregunta nueva', 'preguntas nuevas') + ' en tests que ya tienes</li>' : '') +
@@ -464,17 +495,20 @@ const IMP = (function(){
           (nQuitadas ? '<li>' + cifra(nQuitadas, 'pregunta ya no está', 'preguntas ya no están') + ' en tutorbomberos</li>' : '') +
           (nOrden ? '<li>' + cifra(nOrden, 'pregunta cambia', 'preguntas cambian') + ' solo de orden</li>' : '') +
         '</ul>' + detalle.join('')
-        : '<p class="imp-ok">✓ Todo está al día: no hay nada nuevo ni cambiado.</p>') +
+        : '<p class="imp-ok">✓ Tus tests están al día: ninguna pregunta nueva ni cambiada.</p>') +
+      bloqueNuevos +
       (desaparecidos.length ? '<details class="imp-detalles"><summary>' + desaparecidos.length + (desaparecidos.length === 1 ? ' test tuyo ya no está' : ' tests tuyos ya no están') + ' en tutorbomberos</summary><ul class="imp-resumen">' +
         desaparecidos.map(x => '<li>' + escapeHtml(x.titulo) + ' <span class="imp-nota">(' + escapeHtml(temaDe(x.tema)) + ')</span></li>').join('') + '</ul><p class="imp-nota">No se tocan: si quieres quitarlos, hazlo en Administración › Específico.</p></details>' : '') +
       notasLote(fuera) +
       (nQuitadas ? '<label class="imp-check"><input type="checkbox" id="impBorrarQuitadas"> <span>Borrar también de pj.fire ' + (nQuitadas === 1 ? 'la pregunta que ya no está' : 'las ' + nQuitadas + ' preguntas que ya no están') + ' en tutorbomberos</span></label>' : '') +
-      '<div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">' + (hay ? 'Cancelar' : 'Cerrar') + '</button>' +
-        (hay ? '<button type="button" class="imp-btn primario" data-imp="aplicar">Aplicar cambios</button>' : '') + '</div>';
+      '<div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">' + (hay || nuevosTb.length ? 'Cancelar' : 'Cerrar') + '</button>' +
+        (hay ? '<button type="button" class="imp-btn primario" data-imp="aplicar">Aplicar cambios</button>'
+          : nuevosTb.length ? '<button type="button" class="imp-btn primario" data-imp="aplicar">Traer los nuevos</button>' : '') + '</div>';
   }
   async function aplicarRevision(bg){
     const cuerpo = bg.querySelector('.imp-cuerpo');
     const borrar = !!(bg.querySelector('#impBorrarQuitadas') || {}).checked;
+    const traer = (bg.querySelector('#impTraerNuevos') || {}).checked ? (lote.nuevos || []).map(t => t.i) : [];
     const fallos = [];
     let hechos = 0;
     guardando = true;
@@ -535,6 +569,18 @@ const IMP = (function(){
     }
     lote = null;
     guardando = false;
+    if(traer.length){
+      // Los nuevos los saca la pestaña de tutorbomberos y llegan como «Importar todo».
+      let ok = false;
+      try{ fuente.win.postMessage({ tipo: 'pjfire-traer', indices: traer }, fuente.origen); ok = true; }catch(e){}
+      if(conCambios.length && !fallos.length) uiToast('Cambios aplicados en ' + hechos + (hechos === 1 ? ' test' : ' tests'), 'success');
+      cuerpo.innerHTML = ok
+        ? (fallos.length ? '<p class="imp-aviso">Fallaron ' + fallos.length + ': ' + escapeHtml(fallos.join('; ')) + '</p>' : '') +
+          '<p>tutorbomberos está sacando ' + (traer.length === 1 ? 'el test nuevo' : 'los <b>' + traer.length + ' tests nuevos</b>') + '…</p><p class="imp-nota">Mira el avance en su pestaña; al terminar te pedirá confirmar aquí.</p>'
+        : '<p class="imp-aviso">No se pudo hablar con la pestaña de tutorbomberos: para traer los nuevos usa el marcador «Extraer todo».</p><div class="imp-botones"><button type="button" class="imp-btn primario" data-imp="cerrar">Cerrar</button></div>';
+      plan = null;
+      return;
+    }
     if(fallos.length || sinImg){
       cuerpo.innerHTML = '<p>Aplicados los cambios de ' + hechos + ' de ' + conCambios.length + ' tests.' + (fallos.length ? ' <span class="imp-aviso">Fallaron ' + fallos.length + ':</span>' : '') + '</p>' +
         (fallos.length ? '<ul class="imp-resumen">' + fallos.map(f => '<li>' + escapeHtml(f) + '</li>').join('') + '</ul><p class="imp-nota">Vuelve a pasar el marcador «Revisar cambios» para terminar.</p>' : '') +
@@ -563,12 +609,20 @@ const IMP = (function(){
     try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
     addEventListener('message', e => {
       if(!origenValido(e.origin) || !e.data || paquete || lote) return;
+      if(e.data.tipo === 'pjfire-revisar'){
+        if(revisando) return;
+        revisando = true;
+        fuente = { win: e.source, origen: e.origin };
+        pedirRevision();
+        return;
+      }
       if(e.data.tipo === 'pjfire-lote'){
         const l = normalizarLote(e.data);
         if(!l) return;
         lote = l;
+        fuente = { win: e.source, origen: e.origin };
         try{ e.source.postMessage({ tipo: 'pjfire-recibido' }, e.origin); }catch(err){}
-        cerrar();   // por si estaba abierta la ventana de «Pegar»
+        cerrar();   // por si estaba abierta la ventana de «Pegar» o la de espera
         cuandoAdmin(lote.modo === 'revisar' ? mostrarRevision : mostrarLote);
         return;
       }
@@ -586,9 +640,9 @@ const IMP = (function(){
     // Sin pestaña de origen (el navegador la desconectó) no llegará nada: a pegar.
     let n = window.opener ? 0 : 30;
     const aviso = setInterval(() => {
-      if(paquete || lote || ++n > 30){
+      if(paquete || lote || revisando || ++n > 30){
         clearInterval(aviso);
-        if(!paquete && !lote) cuandoAdmin(mostrar);   // no llegó nada: se ofrece pegarlas
+        if(!paquete && !lote && !revisando) cuandoAdmin(mostrar);   // no llegó nada: se ofrece pegarlas
         return;
       }
       try{ if(window.opener) window.opener.postMessage({ tipo: 'pjfire-listo' }, '*'); }catch(e){}
