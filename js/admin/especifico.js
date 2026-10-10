@@ -15,7 +15,7 @@ async function adminLoadEspecifico(){
   el.innerHTML = skelList(3);
   if(!adminEspMarcador){
     // Se trae ya, para que «Copiar marcador» copie al momento (Safari solo deja copiar dentro del toque).
-    fetch('datos/marcador-tutorbomberos.txt?v=28813194a9').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador = t.trim(); }).catch(() => {});
+    fetch('datos/marcador-tutorbomberos.txt?v=23cf16d1dd').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador = t.trim(); }).catch(() => {});
   }
   const [rt, rp] = await Promise.all([
     sb.from('especifico_tests').select('id,tema,titulo,orden,created_at').order('orden').order('created_at'),

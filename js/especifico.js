@@ -62,7 +62,12 @@ const ESP = (function(){
   function pintar(){
     const root = document.getElementById('espRoot');
     if(!root) return;
-    root.innerHTML = '<ul class="esp-lista">' + TEMAS.map(([k, t, i]) => {
+    const nm = typeof ESPT !== 'undefined' ? ESPT.numMarcadas() : null;
+    root.innerHTML = '<button type="button" class="esp-marcadas" data-marcadas="1">' +
+        '<span class="esp-marcadas-ico">★</span><span class="esp-marcadas-txt"><b>Preguntas marcadas</b>' +
+        '<span>' + (nm == null ? 'Las que guardas con la estrella' : nm ? nm + (nm === 1 ? ' pregunta guardada' : ' preguntas guardadas') : 'Todavía no has guardado ninguna') + '</span></span>' +
+        '<span class="esp-marcadas-flecha">›</span></button>' +
+      '<ul class="esp-lista">' + TEMAS.map(([k, t, i]) => {
       return '<li class="esp-tema' + (k === abierto ? ' abierto' : '') + '">' +
         '<button type="button" class="esp-cab" data-tema="' + k + '" aria-expanded="' + (k === abierto) + '">' +
           '<span class="esp-caja" aria-hidden="true"></span>' +
@@ -83,6 +88,7 @@ const ESP = (function(){
     if(root && !root.dataset.listo){
       root.dataset.listo = '1';
       root.addEventListener('click', e => {
+        if(e.target.closest('[data-marcadas]')){ ESPT.abrirMarcadas(); return; }
         const ft = e.target.closest('[data-test]');
         if(ft){ abrirTest(ft.dataset.test); return; }
         const cab = e.target.closest('.esp-cab');
@@ -96,6 +102,7 @@ const ESP = (function(){
     }
     pintar();
     cargar();
+    if(typeof ESPT !== 'undefined') ESPT.cargarMarcadas().then(pintar);
   }
   return { abrir, temas: () => TEMAS.map(([k, t]) => ({ clave: k, titulo: t })) };
 })();

@@ -45,7 +45,8 @@ const IMP = (function(){
         .map(o => ({ l: o.l.toLowerCase(), html: limpiar(o.html) })),
       correcta: /^[a-z]$/i.test(q.correcta || '') ? q.correcta.toLowerCase() : '',
       confirmada: q.confirmada !== false,
-      explicacion: limpiar(q.explicacion)
+      explicacion: limpiar(q.explicacion),
+      dificultad: ['facil', 'media', 'dificil'].includes(q.dificultad) ? q.dificultad : ''
     })).filter(q => q.opciones.length);
     if(!preguntas.length) return null;
     return { titulo: String(p.titulo || '').slice(0, 200), origen: String(p.origen || '').slice(0, 500), preguntas };
@@ -112,17 +113,41 @@ const IMP = (function(){
     const btn = bg.querySelector('[data-imp="guardar"]');
     btn.disabled = true; btn.textContent = 'Guardando…';
     try{
-      let orden = 0;
+      const fila = (q, orden) => ({ test_id: testId, orden, enunciado: q.enunciado, opciones: q.opciones, correcta: q.correcta,
+        confirmada: q.confirmada, explicacion: q.explicacion, dificultad: q.dificultad, origen: paquete.origen || null });
+      let nuevas = [], cambiadas = [], sobran = [];
       if(sustituir){
-        const { error } = await sb.from('especifico_preguntas').delete().eq('test_id', testId);
+        // Se actualizan en su sitio las que ya estaban (mismo enunciado): así no
+        // se pierden las estrellas que les hayan puesto los alumnos.
+        const { data, error } = await sb.from('especifico_preguntas').select('id,enunciado').eq('test_id', testId);
         if(error) throw error;
-      } else if(cuentas[testId]){
-        const { data, error } = await sb.from('especifico_preguntas').select('orden').eq('test_id', testId).order('orden', { ascending: false }).limit(1);
-        if(error) throw error;
-        orden = data && data.length ? data[0].orden + 1 : 0;
+        const clave = h => String(h || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+        const libres = new Map();
+        (data || []).forEach(r => { const k = clave(r.enunciado); if(!libres.has(k)) libres.set(k, []); libres.get(k).push(r.id); });
+        paquete.preguntas.forEach((q, i) => {
+          const ids = libres.get(clave(q.enunciado));
+          if(ids && ids.length) cambiadas.push({ id: ids.shift(), fila: fila(q, i) });
+          else nuevas.push(fila(q, i));
+        });
+        libres.forEach(ids => { sobran.push(...ids); });
+      } else {
+        let orden = 0;
+        if(cuentas[testId]){
+          const { data, error } = await sb.from('especifico_preguntas').select('orden').eq('test_id', testId).order('orden', { ascending: false }).limit(1);
+          if(error) throw error;
+          orden = data && data.length ? data[0].orden + 1 : 0;
+        }
+        nuevas = paquete.preguntas.map((q, i) => fila(q, orden + i));
       }
-      const filas = paquete.preguntas.map((q, i) => ({ test_id: testId, orden: orden + i, enunciado: q.enunciado, opciones: q.opciones,
-        correcta: q.correcta, confirmada: q.confirmada, explicacion: q.explicacion, origen: paquete.origen || null }));
+      if(sobran.length){
+        const { error } = await sb.from('especifico_preguntas').delete().in('id', sobran);
+        if(error) throw error;
+      }
+      for(let k = 0; k < cambiadas.length; k += 5){
+        const rs = await Promise.all(cambiadas.slice(k, k + 5).map(c => sb.from('especifico_preguntas').update(c.fila).eq('id', c.id)));
+        const r = rs.find(x => x.error);
+        if(r) throw r.error;
+      }
       // En tandas de como mucho ~1,5 MB (las imágenes van dentro del texto).
       let tanda = [], peso = 0;
       const enviar = async () => {
@@ -131,12 +156,13 @@ const IMP = (function(){
         if(error) throw error;
         tanda = []; peso = 0;
       };
-      for(const f of filas){
+      for(const f of nuevas){
         const p = JSON.stringify(f).length;
         if(tanda.length && peso + p > 1500000) await enviar();
         tanda.push(f); peso += p;
       }
       await enviar();
+      const filas = paquete.preguntas;
       const t = tests.find(x => x.id === testId);
       uiToast(filas.length + ' preguntas guardadas en «' + (t ? t.titulo : 'el test') + '»', 'success');
       paquete = null;

@@ -158,6 +158,29 @@
       alert("No encuentro preguntas en esta pantalla.");
       return;
     }
+    // Dificultad de la pregunta: el color de su franja izquierda
+    // (verde = fácil, amarilla = media, roja = difícil).
+    const dif = (q) => {
+      const els = [q, ...q.querySelectorAll("div")].slice(0, 8);
+      for (const e of els) {
+        const cs = getComputedStyle(e);
+        if (parseFloat(cs.borderLeftWidth) < 3 || cs.borderLeftStyle === "none") continue;
+        const m = (cs.borderLeftColor.match(/[\d.]+/g) || []).map(Number);
+        if (m.length < 3 || (m.length > 3 && m[3] === 0)) continue;
+        const [r, g, b] = m.map((v) => v / 255),
+          mx = Math.max(r, g, b),
+          mn = Math.min(r, g, b),
+          d = mx - mn;
+        if (d < 0.15) continue;
+        let h =
+          mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        h = (h * 60 + 360) % 360;
+        if (h >= 75 && h < 170) return "facil";
+        if (h >= 28 && h < 75) return "media";
+        if (h < 28 || h >= 330) return "dificil";
+      }
+      return "";
+    };
     const out = [],
       cards = [],
       pq = [],
@@ -255,6 +278,7 @@
         opciones: ops,
         correcta: cor,
         confirmada: !unc.includes(k),
+        dificultad: dif(q),
         explicacion: eh,
       });
       cards.push(

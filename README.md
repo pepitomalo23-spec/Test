@@ -50,7 +50,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   mnemotecnia.js     Mnemotecnia: calculadora del código fonético de Ramón Campayo
   calendario.js      Calendario: tareas de estudio de cada día
   especifico.js      Específico: temas del temario de bombero
-  especifico-test.js hacer un test del Específico (diseño del aula virtual de tutorbomberos)
+  especifico-test.js hacer un test del Específico y ver las Preguntas marcadas (diseño de tutorbomberos)
   importar-especifico.js  recibe las preguntas que envía el marcador de tutorbomberos.es
   inicio.js          Inicio: lo de hoy, test a medias, accesos rápidos y progreso
   arranque.js        escucha la sesión y arranca la app (siempre el último)
@@ -321,6 +321,12 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   test guardarlas (sustituyendo o añadiendo). El botón «Copiar marcador» de Administración › Específico copia
   `datos/marcador-tutorbomberos.txt` para pegarlo como dirección de un marcador. `tema` es la clave fija de cada tema en `TEMAS`.
 
+- Al hacer un test (`js/especifico-test.js`) cada entrada empieza de cero; una sola respuesta por pregunta (si se
+  falla, se señala la correcta). La franja izquierda es la dificultad (`especifico_preguntas.dificultad`: verde,
+  amarilla, roja; gris sin dato), que el marcador lee del color de la franja en tutorbomberos. La estrella guarda
+  la pregunta en «Preguntas marcadas» (tabla `especifico_marcadas`, privada de cada usuario; migración
+  `20261014_especifico_dificultad_marcadas.sql`). Al reimportar sustituyendo, las preguntas con el mismo
+  enunciado se actualizan en su sitio, para no perder sus marcas.
 - Permisos por función (`js/permisos.js`): lo que depende de un permiso va en `index.html` con `class="hidden"` y
   `data-feature="clave"`, y solo se enseña cuando se conocen los permisos del usuario (los últimos recibidos se
   guardan en el dispositivo, `pj_permisos_v1:<usuario>`). Si internet tarda o falla, no se ve nada que no tenga.
