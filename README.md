@@ -355,8 +355,11 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   calcula el dominio con las mismas reglas que Legislación, la nota, el ranking de temas y los tests que más
   fallas (estos dos, con «Estadísticas avanzadas»).
 - **Pruebas** (`js/pruebas.js`, PRU): el **Simulacro conjunto** (Inicio; con el Específico y el Simulacro activados)
-  y los modos del Específico en su **panel de pj.fire** (Estudio › Específico, selector «Panel pj.fire / Tests de
-  tutorbomberos», recordado en el dispositivo): Estudio y Fallos (una a una, corrección al momento; solo cuentan
+  y los modos del Específico en su **panel de pj.fire** (Estudio › Específico; el botón junto al título cambia entre
+  «Panel pj.fire» y «Tests de tutorbomberos», recordado en el dispositivo). Cada modo se configura con las mismas
+  piezas que su gemelo de Legislación (filas de ajustes y hoja de opciones en Estudio y Simulacro, botones en Examen,
+  y Fallos con su recuento por tema y «Quitar de Fallos», tabla `especifico_descartadas`, migración
+  `20261017_especifico_descartadas.sql`): Estudio y Fallos (una a una, corrección al momento; solo cuentan
   las vistas) y Simulacro y Examen (todas seguidas, tiempo, corrección al final). Cada modo respeta su permiso
   (fallos, simulacro, examen). Se elige: preguntas, tiempo, temas, en el conjunto el % de Legislación y del
   Específico (de 10 en 10, o atajos), y cuántas de cada dificultad del Específico (verde fácil, amarilla media,
