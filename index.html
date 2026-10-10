@@ -56,8 +56,8 @@
 <!-- Estilos de la app. El ?v= lo pone scripts/versionar.mjs (no editar a mano). -->
 <link rel="stylesheet" href="css/base.css?v=d38ea13f39">
 <link rel="stylesheet" href="css/admin.css?v=f2c8e427a7">
-<link rel="stylesheet" href="css/pantallas.css?v=a49716dc9f">
-<link rel="stylesheet" href="css/test.css?v=d11fae6caf">
+<link rel="stylesheet" href="css/pantallas.css?v=86ce256292">
+<link rel="stylesheet" href="css/test.css?v=f0df8086e3">
 <link rel="stylesheet" href="css/normativas.css?v=fa9397f080">
 <link rel="stylesheet" href="css/callejero.css?v=8032527378">
 <link rel="stylesheet" href="css/calendario.css?v=6b699957ab">
@@ -339,7 +339,7 @@
 
     <!-- ===== ESPECÍFICO: temario de bombero (js/especifico.js) ===== -->
     <section class="screen" id="screen-especifico">
-      <h1>Específico</h1>
+      <div class="esp-cabecera"><h1>Específico</h1><button type="button" class="esp-vista-btn hidden" id="espVistaBtn"></button></div>
       <div id="espRoot"></div>
     </section>
 
@@ -1104,6 +1104,7 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-primary btn-block btn-light" id="pruEmpezar" onclick="PRU.empezar()">Comenzar</button>
+          <button class="btn btn-ghost btn-block hidden" id="pruQuitar" style="color: var(--coral); border-color: var(--coral); margin-top:8px;" onclick="PRU.quitarFallos()">Quitar de Fallos</button>
         </div>
       </div>
     </section>
@@ -1218,11 +1219,11 @@
 <script src="js/callejero-profesor.js?v=55890007ea"></script>
 <script src="js/mnemotecnia.js?v=c08acd5057"></script>
 <script src="js/calendario.js?v=4d1c0bbcaa"></script>
-<script src="js/especifico.js?v=fc399a400a"></script>
+<script src="js/especifico.js?v=e28b03784c"></script>
 <script src="js/importar-especifico.js?v=c6c712fd36"></script>
 <script src="js/especifico-test.js?v=901b6d359c"></script>
 <script src="js/estadisticas-especifico.js?v=59cc6c5df0"></script>
-<script src="js/pruebas.js?v=d4eac3f5e6"></script>
+<script src="js/pruebas.js?v=2c6fe51b3b"></script>
 <script src="js/inicio.js?v=62fb820f40"></script>
 <script src="js/arranque.js?v=838162d6bd"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">

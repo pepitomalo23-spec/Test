@@ -13,19 +13,28 @@
    medias se guarda en el dispositivo y se continúa desde donde se empezó. */
 const PRU = (function(){
   const N_SIM = [20, 30, 40, 50, 60, 80, 100];
-  const N_EST = [10, 20, 30, 40, 0];        // 0 = todas
-  const MINUTOS = [15, 30, 45, 60, 90, 120];
+  // Cada modo del Específico se configura igual que su gemelo de Legislación
+  // (js/configuracion-test.js): Estudio y Simulacro con filas de ajustes que
+  // abren la hoja de opciones; Examen con botones de preguntas y tiempo; Fallos
+  // con la pantalla de «N preguntas falladas» y «Quitar de Fallos».
   const MODOS = {
-    'conjunto':      { titulo: 'Simulacro conjunto', corto: 'Simulacro conjunto', legis: true, vista: 'lista', tiempo: true, temas: true, cuantas: N_SIM, def: 40, flags: ['especifico', 'simulacro'], volver: 'screen-inicio' },
-    'esp-estudio':   { titulo: 'Estudio del Específico', corto: 'Estudio', vista: 'tarjeta', tiempo: false, temas: true, cuantas: N_EST, def: 20, flags: ['especifico'], volver: 'screen-especifico' },
-    'esp-fallos':    { titulo: 'Fallos del Específico', corto: 'Fallos', vista: 'tarjeta', tiempo: false, temas: true, falladas: true, cuantas: N_EST, def: 0, flags: ['especifico', 'fallos'], volver: 'screen-especifico' },
-    'esp-simulacro': { titulo: 'Simulacro del Específico', corto: 'Simulacro', vista: 'lista', tiempo: true, temas: false, cuantas: N_SIM, def: 40, flags: ['especifico', 'simulacro'], volver: 'screen-especifico' },
-    'esp-examen':    { titulo: 'Examen del Específico', corto: 'Examen', vista: 'lista', tiempo: true, temas: true, cuantas: N_SIM, def: 40, flags: ['especifico', 'examen'], volver: 'screen-especifico' }
+    'conjunto':      { titulo: 'Simulacro conjunto', corto: 'Simulacro conjunto', largo: 'Simulacro conjunto', legis: true, vista: 'lista', temas: true, flags: ['especifico', 'simulacro'], volver: 'screen-inicio',
+                       cuantas: N_SIM, minutos: [15, 30, 45, 60, 90, 120], def: [40, 60] },
+    'esp-estudio':   { titulo: 'Estudio', corto: 'Estudio', largo: 'Estudio del Específico', vista: 'tarjeta', temas: true, flags: ['especifico'], volver: 'screen-especifico',
+                       cuantas: PREGUNTAS_OPTIONS.map(v => v || 0), minutos: MINUTOS_OPTIONS.map(v => v || 0), def: [0, 0] },
+    'esp-fallos':    { titulo: 'Fallos', corto: 'Fallos', largo: 'Fallos del Específico', vista: 'tarjeta', falladas: true, flags: ['especifico', 'fallos'], volver: 'screen-especifico', cuantas: [0], minutos: [0], def: [0, 0] },
+    'esp-simulacro': { titulo: 'Configura tu simulacro', corto: 'Simulacro', largo: 'Simulacro del Específico', vista: 'lista', flags: ['especifico', 'simulacro'], volver: 'screen-especifico',
+                       sub: 'Preguntas de todo el Específico. Elige cuántas quieres y de cuánto tiempo dispones.',
+                       cuantas: COUNT_OPTIONS.concat([60, 80, 100]), minutos: TIME_OPTIONS.concat([90, 120]), def: [COUNT_OPTIONS[1] || 20, TIME_OPTIONS[1] || 30] },
+    'esp-examen':    { titulo: 'Configura tu examen', corto: 'Examen', largo: 'Examen del Específico', vista: 'lista', temas: true, flags: ['especifico', 'examen'], volver: 'screen-especifico',
+                       sub: 'Elige los temas, cuántas preguntas quieres y de cuánto tiempo dispones.',
+                       cuantas: COUNT_OPTIONS.concat([60, 80, 100]), minutos: TIME_OPTIONS.concat([90, 120]), def: [COUNT_OPTIONS[1] || 20, TIME_OPTIONS[1] || 30] }
   };
   const DIFS = [['facil', 'Fácil', 'verde'], ['media', 'Media', 'amarilla'], ['dificil', 'Difícil', 'roja']];
   const PLURAL = { facil: ['fácil', 'fáciles'], media: ['media', 'medias'], dificil: ['difícil', 'difíciles'] };
   const LETRAS = ['A', 'B', 'C', 'D', 'E', 'F'];
-  const cfg = { modo: 'conjunto', legis: new Set(), esp: new Set(), cuantas: 40, minutos: 60, pct: 50, dif: 'cualquiera', difPct: { facil: 40, media: 40, dificil: 20 } };
+  // dif: 'aleatoria' | 'facil' | 'media' | 'dificil' (como en Legislación) | 'elegir' (% de cada color)
+  const cfg = { modo: 'conjunto', legis: new Set(), esp: new Set(), cuantas: 40, minutos: 60, pct: 50, dif: 'aleatoria', difPct: { facil: 40, media: 40, dificil: 20 } };
   let meta = null;          // { tests: {id: {tema, titulo}}, preg: [{id, test_id, tema, dif}], estado: {id: 'green'|'yellow'|'red'} }
   let est = null;           // prueba en curso o en revisión
   let reloj = null, filtro = 'todas';
@@ -50,16 +59,18 @@ const PRU = (function(){
   }
   // Qué preguntas hay (sin el texto) y cómo las llevas (mismas reglas que Estadísticas).
   async function cargarMeta(){
-    const [rt, preg, resp] = await Promise.all([
+    const [rt, preg, resp, desc] = await Promise.all([
       sb.from('especifico_tests').select('id,tema,titulo'),
       todas(() => sb.from('especifico_preguntas').select('id,test_id,dificultad').order('id')),
-      todas(() => sb.from('especifico_respuestas').select('pregunta_id,acierto').eq('user_id', currentUser.id).order('id'))
+      todas(() => sb.from('especifico_respuestas').select('pregunta_id,acierto,created_at').eq('user_id', currentUser.id).order('id')),
+      todas(() => sb.from('especifico_descartadas').select('pregunta_id,descartada_at').eq('user_id', currentUser.id).order('pregunta_id'))
     ]);
     if(rt.error) throw rt.error;
     const tests = {};
     (rt.data || []).forEach(t => { tests[t.id] = { tema: t.tema, titulo: t.titulo }; });
-    const intentos = {};
-    resp.forEach(r => { (intentos[r.pregunta_id] = intentos[r.pregunta_id] || []).push(r.acierto); });
+    const intentos = {}, ultimo = {}, quitada = {};
+    resp.forEach(r => { (intentos[r.pregunta_id] = intentos[r.pregunta_id] || []).push(r.acierto); ultimo[r.pregunta_id] = r.created_at; });
+    desc.forEach(d => { quitada[d.pregunta_id] = d.descartada_at; });
     const estado = {};
     Object.keys(intentos).forEach(id => {
       const a = intentos[id];
@@ -67,8 +78,10 @@ const PRU = (function(){
       for(let i = a.length - 1; i >= 0 && a[i]; i--) racha++;
       estado[id] = (!a.some(x => !x) || racha >= 3) ? 'green' : racha >= 1 ? 'yellow' : 'red';
     });
+    // En Fallos: las rojas, menos las quitadas que no se han vuelto a fallar después.
+    const enFallos = id => estado[id] === 'red' && !(quitada[id] && (!ultimo[id] || new Date(quitada[id]) >= new Date(ultimo[id])));
     meta = {
-      tests, estado,
+      tests, estado, enFallos,
       preg: preg.filter(p => tests[p.test_id]).map(p => ({ id: p.id, test_id: p.test_id, tema: tests[p.test_id].tema, dif: p.dificultad || '' }))
     };
     return meta;
@@ -91,27 +104,28 @@ const PRU = (function(){
     return TOPICS.filter(t => t.enabled && n[t.id]).map(t => ({ id: t.id, nombre: t.name, n: n[t.id] }));
   }
   const m = () => MODOS[cfg.modo];
+  const difDe = p => DIFS.some(([d]) => d === p.dif) ? p.dif : '';
   // Preguntas del Específico que entran con la configuración actual.
   function poolEsp(){
     if(!meta) return [];
-    return meta.preg.filter(p => (!m().temas || cfg.esp.has(p.tema)) && (!m().falladas || meta.estado[p.id] === 'red'));
+    return meta.preg.filter(p => (!m().temas || cfg.esp.has(p.tema)) && (!m().falladas || meta.enFallos(p.id)) &&
+      (!DIFS.some(([d]) => d === cfg.dif) || difDe(p) === cfg.dif));
   }
   function espTemas(){
     if(!meta) return [];
     const n = {};
-    meta.preg.forEach(p => { if(!m().falladas || meta.estado[p.id] === 'red') n[p.tema] = (n[p.tema] || 0) + 1; });
+    meta.preg.forEach(p => { n[p.tema] = (n[p.tema] || 0) + 1; });
     return ESP.temas().map((t, i) => ({ id: t.clave, nombre: (i + 1) + '. ' + t.titulo, n: n[t.clave] || 0 })).filter(t => t.n);
   }
   // Cuántas de cada dificultad, según los % elegidos y lo que hay. Lo que no
   // llega de un color sale de los demás (primero de las que no tienen dato).
   function repartoDif(n, pool){
+    if(cfg.dif !== 'elegir') return null;
     const hay = { facil: 0, media: 0, dificil: 0, '': 0 };
-    pool.forEach(p => { hay[p.dif in hay ? p.dif : '']++; });
+    pool.forEach(p => { hay[difDe(p)]++; });
     const r = { facil: 0, media: 0, dificil: 0, '': 0 };
-    if(cfg.dif !== 'elegir'){ return null; }
-    let quedan = n;
     DIFS.forEach(([k]) => { r[k] = Math.min(hay[k], Math.round(n * cfg.difPct[k] / 100)); });
-    quedan = n - r.facil - r.media - r.dificil;
+    let quedan = n - r.facil - r.media - r.dificil;
     if(quedan < 0){ r.facil += quedan; quedan = 0; }   // por el redondeo
     const rellenar = k => { const x = Math.min(quedan, hay[k] - r[k]); r[k] += x; quedan -= x; };
     rellenar(''); DIFS.forEach(([k]) => rellenar(k));
@@ -121,11 +135,8 @@ const PRU = (function(){
     const pe = poolEsp();
     const pl = m().legis ? QUESTIONS_POOL.filter(q => cfg.legis.has(q.topic_id)) : [];
     const ne = pe.length, nl = pl.length;
-    let total = cfg.cuantas || (ne + nl);
-    let l = 0;
-    if(m().legis){
-      l = nl && ne ? Math.round(total * cfg.pct / 100) : nl ? total : 0;
-    }
+    const total = cfg.cuantas || (ne + nl);
+    let l = m().legis ? (nl && ne ? Math.round(total * cfg.pct / 100) : nl ? total : 0) : 0;
     let e = total - l;
     if(l > nl){ e += l - nl; l = nl; }
     if(e > ne){ l = Math.min(nl, l + e - ne); e = ne; }
@@ -141,79 +152,155 @@ const PRU = (function(){
       if(!(await uiConfirm('Tienes un «' + MODOS[g.modo].corto + '» a medias.\n\n¿Lo descartas para empezar este? Si no, puedes seguirlo desde «Continuar».', { ok: 'Descartar y empezar', danger: true }))) return;
       borrarGuardado();
     }
-    if(m().legis !== MODOS[modo].legis || cfg.modo !== modo){ cfg.cuantas = MODOS[modo].def; }
+    if(cfg.modo !== modo){ [cfg.cuantas, cfg.minutos] = MODOS[modo].def; }
     cfg.modo = modo;
     if(MODOS[modo].legis && whenAppDataReady(() => abrirConfig(modo))) return;
+    const ov = $('screen-pru-config');
+    ov.dataset.mode = modo;
     $('pruTitulo').textContent = MODOS[modo].titulo;
-    $('pruConfig').innerHTML = '<div class="simc-cargando">Cargando temas…</div>';
+    $('pruConfig').innerHTML = '<div class="simc-cargando">Cargando…</div>';
+    $('pruQuitar').classList.add('hidden');
     pintarPie();
     openOverlay('screen-pru-config');
     try{
       await cargarMeta();   // cada vez: por si hay preguntas nuevas o has respondido más
-      if(m().falladas && !cfg.esp.size) espTemas().forEach(t => cfg.esp.add(t.id));
       pintarConfig();
-      cargarHistorial().then(pintarConfig).catch(() => {});
+      if(modo === 'conjunto') cargarHistorial().then(pintarConfig).catch(() => {});
     }catch(e){
       $('pruConfig').innerHTML = '<div class="tree-empty">No se pudieron cargar las preguntas del Específico: ' + escapeHtml(e.message || String(e)) + '</div>';
     }
   }
   function cerrarConfig(){ $('screen-pru-config').classList.remove('active'); }
+
+  // Piezas con el mismo HTML que la configuración de Legislación.
   const fila = (sel, id, nombre, n, parte) =>
     '<div class="topic-row' + (sel ? ' selected' : '') + '" role="checkbox" aria-checked="' + sel + '" tabindex="0" data-pru-tema="' + parte + '" data-id="' + escapeHtml(id) + '">' +
       '<span class="topic-check">' + ICONS.check + '</span>' +
-      '<span class="topic-text"><span class="topic-name">' + escapeHtml(nombre) + '</span></span><span class="simc-n">' + n + '</span></div>';
-  const todosBtn = (parte, lista) => {
+      '<span class="topic-text"><span class="topic-name">' + escapeHtml(nombre) + '</span></span>' + (n != null ? '<span class="simc-n">' + n + '</span>' : '') + '</div>';
+  const todosBtn = (parte, lista, txt) => {
     const on = lista.length && lista.every(t => cfg[parte].has(t.id));
-    return '<span class="switch-row" role="button" tabindex="0" data-pru-todos="' + parte + '"><span class="switch' + (on ? ' on' : '') + '"><span class="knob"></span></span><span class="switch-label">Todos</span></span>';
+    return '<span class="switch-row" role="button" tabindex="0" data-pru-todos="' + parte + '"><span class="switch' + (on ? ' on' : '') + '"><span class="knob"></span></span><span class="switch-label">' + txt + '</span></span>';
   };
-  const opciones = (que, lista, fmt) => '<div class="param-options">' + lista.map(v =>
+  const chips = (que, lista, fmt) => '<div class="param-options">' + lista.map(v =>
     '<span class="param-opt' + (String(cfg[que]) === String(v) ? ' selected' : '') + '" role="button" tabindex="0" data-pru-opt="' + que + '" data-v="' + v + '">' + fmt(v) + '</span>').join('') + '</div>';
+  const bloque = (label, cuerpo, extra) => '<div class="config-block"><div class="config-block-head"><div class="config-block-label">' + label + '</div>' + (extra || '') + '</div>' + cuerpo + '</div>';
   const paso = (que, txt, v, clase) =>
     '<div class="pru-paso ' + (clase || '') + '"><span class="pru-paso-txt">' + txt + '</span>' +
       '<button type="button" class="pru-paso-btn" data-pru-paso="' + que + '" data-d="-1" aria-label="Menos">−</button>' +
       '<span class="pru-paso-v">' + v + '%</span>' +
       '<button type="button" class="pru-paso-btn" data-pru-paso="' + que + '" data-d="1" aria-label="Más">+</button></div>';
+  const OPC = {
+    minutos: () => m().minutos.map(v => ({ value: v, label: v ? v + ' min' : 'Sin límite' })),
+    cuantas: () => m().cuantas.map(v => ({ value: v, label: v ? v + ' preguntas' : 'Sin límite' })),
+    dif: () => DIFICULTAD_OPTIONS.map(v => ({ value: v, label: DIFICULTAD_LABELS[v] })).concat([{ value: 'elegir', label: 'Por colores (elegir %)' }])
+  };
+  const ROTULO = { minutos: 'Minutos', cuantas: 'Preguntas', dif: 'Dificultad' };
+  const ICONO = { minutos: () => ICONS.timer, cuantas: () => ICONS.doc, dif: () => ICONS.chart };
+  function filaAjuste(k){
+    const o = OPC[k]().find(x => String(x.value) === String(cfg[k]));
+    return '<div class="settings-row" role="button" tabindex="0" data-pru-ajuste="' + k + '">' +
+      '<span class="settings-row-icon">' + ICONO[k]() + '</span><span class="settings-row-label">' + ROTULO[k] + '</span>' +
+      '<span class="settings-row-value">' + (o ? o.label : '') + '</span><span class="settings-row-chevron">' + ICONS.chevron + '</span></div>';
+  }
+  // La hoja de opciones de abajo, la misma de Legislación (#sheetOverlay).
+  function hoja(k){
+    $('sheetTitle').textContent = ROTULO[k];
+    const cont = $('sheetOptions');
+    cont.innerHTML = '';
+    OPC[k]().forEach(o => {
+      const row = document.createElement('div');
+      row.className = 'sheet-option' + (String(cfg[k]) === String(o.value) ? ' selected' : '');
+      row.setAttribute('role', 'button'); row.setAttribute('tabindex', '0');
+      row.innerHTML = '<span>' + o.label + '</span><span class="sheet-check">' + ICONS.check + '</span>';
+      row.onclick = () => { cfg[k] = o.value; closeSettingSheet(); pintarConfig(); };
+      cont.appendChild(row);
+    });
+    $('sheetOverlay').classList.add('show');
+  }
+  function difPasos(p){
+    if(cfg.dif !== 'elegir') return '';
+    return '<div class="pru-difs">' + DIFS.map(([k, t, c]) => paso(k, '<span class="pru-dot ' + k + '"></span>' + t + ' <span class="pru-dif-c">(' + c + ')</span>', cfg.difPct[k], k)).join('') +
+      (p.dif ? '<div class="pru-dif-plan">Saldrán ' + DIFS.map(([k]) => '<b>' + p.dif[k] + '</b> ' + PLURAL[k][p.dif[k] === 1 ? 0 : 1]).join(', ') + (p.dif[''] ? ' y <b>' + p.dif[''] + '</b> sin dato' : '') + '.</div>' : '') + '</div>';
+  }
   function pintarConfig(){
-    const M = m(), p = plan();
-    let h = '';
-    h += '<div class="config-block"><div class="config-block-head"><div class="config-block-label">Preguntas</div></div>' + opciones('cuantas', M.cuantas, v => v ? v + ' preguntas' : 'Todas') + '</div>';
-    if(M.tiempo) h += '<div class="config-block"><div class="config-block-head"><div class="config-block-label">Tiempo</div></div>' + opciones('minutos', MINUTOS, v => v + ' min') + '</div>';
-    if(M.legis){
-      h += '<div class="config-block"><div class="config-block-head"><div class="config-block-label">Cuánto de cada parte</div></div>' +
-        '<div class="pru-reparto"><div class="pru-barra"><i class="legis" style="width:' + cfg.pct + '%"></i><i class="esp" style="width:' + (100 - cfg.pct) + '%"></i></div>' +
-        paso('pct', 'Legislación', cfg.pct, 'legis') +
-        '<div class="pru-paso esp"><span class="pru-paso-txt">Específico</span><span class="pru-paso-v solo">' + (100 - cfg.pct) + '%</span></div>' +
-        '<div class="param-options pru-atajos">' + [[50, 'Mitad y mitad'], [70, '70 / 30'], [30, '30 / 70'], ['prop', 'Según las preguntas de cada parte']].map(([v, t]) =>
-          '<span class="param-opt" role="button" tabindex="0" data-pru-pct="' + v + '">' + t + '</span>').join('') + '</div></div></div>';
+    const M = m(), modo = cfg.modo, p = plan();
+    if(M.falladas){ pintarFallos(p); return; }
+    let h = M.sub ? '<div class="config-sub">' + M.sub + '</div>' : '';
+    if(modo === 'esp-estudio' || modo === 'esp-simulacro'){
+      // Como Estudio y Simulacro de Legislación: filas que abren la hoja de opciones.
+      h += '<div class="config-block"><div class="settings-list">' + ['minutos', 'cuantas', 'dif'].map(filaAjuste).join('') + '</div>' + difPasos(p) + '</div>';
+    } else {
+      // Como Examen de Legislación: botones de número de preguntas y tiempo.
+      h += bloque('Número de preguntas', chips('cuantas', M.cuantas, v => v + ' preguntas')) + bloque('Tiempo', chips('minutos', M.minutos, v => v + ' min'));
+      if(M.legis){
+        h += bloque('Cuánto de cada parte', '<div class="pru-reparto"><div class="pru-barra"><i class="legis" style="width:' + cfg.pct + '%"></i><i class="esp" style="width:' + (100 - cfg.pct) + '%"></i></div>' +
+          paso('pct', 'Legislación', cfg.pct, 'legis') +
+          '<div class="pru-paso esp"><span class="pru-paso-txt">Específico</span><span class="pru-paso-v solo">' + (100 - cfg.pct) + '%</span></div>' +
+          '<div class="param-options pru-atajos">' + [[50, 'Mitad y mitad'], [70, '70 / 30'], [30, '30 / 70'], ['prop', 'Según las preguntas de cada parte']].map(([v, t]) =>
+            '<span class="param-opt" role="button" tabindex="0" data-pru-pct="' + v + '">' + t + '</span>').join('') + '</div></div>');
+      }
+      h += '<div class="config-block">' + (M.legis ? '<div class="config-block-head"><div class="config-block-label">Dificultad del Específico</div></div>' : '') +
+        '<div class="settings-list">' + filaAjuste('dif') + '</div>' + difPasos(p) + '</div>';
     }
-    h += '<div class="config-block"><div class="config-block-head"><div class="config-block-label">Dificultad' + (M.legis ? ' del Específico' : '') + '</div></div>' +
-      opciones('dif', ['cualquiera', 'elegir'], v => v === 'cualquiera' ? 'Al azar' : 'Elegir cuántas de cada color') +
-      (cfg.dif === 'elegir' ? '<div class="pru-difs">' + DIFS.map(([k, t, c]) => paso(k, '<span class="pru-dot ' + k + '"></span>' + t + ' <span class="pru-dif-c">(' + c + ')</span>', cfg.difPct[k], k)).join('') +
-        (p.dif ? '<div class="pru-dif-plan">Saldrán ' + DIFS.map(([k]) => '<b>' + p.dif[k] + '</b> ' + PLURAL[k][p.dif[k] === 1 ? 0 : 1]).join(', ') + (p.dif[''] ? ' y <b>' + p.dif[''] + '</b> sin dato' : '') + '.</div>' : '') + '</div>' : '') + '</div>';
     if(M.legis){
       const lt = legisTemas();
-      h += '<div class="config-block"><div class="config-block-head"><div class="config-block-label">Temas de Legislación</div>' + todosBtn('legis', lt) + '</div>' +
-        (lt.length ? '<div class="topics-card">' + lt.map(t => fila(cfg.legis.has(t.id), t.id, t.nombre, t.n, 'legis')).join('') + '</div>' : '<div class="tree-empty">No hay temas de Legislación con preguntas.</div>') + '</div>';
+      h += bloque('Temas de Legislación', lt.length ? '<div class="topics-card">' + lt.map(t => fila(cfg.legis.has(t.id), t.id, t.nombre, t.n, 'legis')).join('') + '</div>' : '<div class="tree-empty">No hay temas de Legislación con preguntas.</div>', todosBtn('legis', lt, 'Todos'));
     }
     if(M.temas){
       const et = espTemas();
-      h += '<div class="config-block"><div class="config-block-head"><div class="config-block-label">Temas del Específico' + (M.falladas ? ' (con fallos)' : '') + '</div>' + todosBtn('esp', et) + '</div>' +
-        (et.length ? '<div class="topics-card">' + et.map(t => fila(cfg.esp.has(t.id), t.id, t.nombre, t.n, 'esp')).join('') + '</div>'
-          : '<div class="tree-empty">' + (M.falladas ? 'No tienes preguntas falladas en el Específico. 👌' : 'Todavía no hay preguntas en el Específico.') + '</div>') + '</div>';
+      h += bloque(M.legis ? 'Temas del Específico' : 'Temas',
+        et.length ? '<div class="topics-card">' + et.map(t => fila(cfg.esp.has(t.id), t.id, t.nombre, M.legis ? t.n : null, 'esp')).join('') + '</div>'
+          : '<div class="tree-empty">Todavía no hay preguntas en el Específico.</div>',
+        todosBtn('esp', et, M.legis ? 'Todos' : 'Seleccionar todo'));
     }
-    h += historialHtml();
+    if(modo === 'conjunto') h += historialHtml(['conjunto']);
     $('pruConfig').innerHTML = h;
     pintarPie();
+  }
+  // Fallos: igual que el de Legislación (cuántas, por tema, «Comenzar repaso» y «Quitar de Fallos»).
+  function pintarFallos(p){
+    const n = {};
+    p.pe.forEach(x => { n[x.tema] = (n[x.tema] || 0) + 1; });
+    $('pruConfig').innerHTML =
+      '<div class="fallos-hero"><div class="fallos-icon">' + ICONS.fallos + '</div>' +
+        '<div class="fallos-count"><span>' + p.pe.length + '</span></div><div class="fallos-label">preguntas falladas pendientes de repaso</div></div>' +
+      '<div class="fallos-breakdown">' + ESP.temas().filter(t => n[t.clave]).map(t =>
+        '<div class="fallos-row"><span class="fallos-row-name">' + escapeHtml(temaEsp(t.clave)) + '</span><span class="fallos-row-count">' + n[t.clave] + ' falladas</span></div>').join('') + '</div>';
+    $('pruQuitar').classList.toggle('hidden', !p.pe.length);
+    pintarPie();
+  }
+  async function quitarFallos(){
+    const ids = plan().pe.map(x => x.id);
+    if(!ids.length) return;
+    const n = ids.length;
+    if(!(await uiConfirm('Vas a quitar estas ' + n + ' pregunta' + (n === 1 ? '' : 's') + ' fallada' + (n === 1 ? '' : 's') + ' de Fallos.\n\n' +
+      'Seguirán contando como falladas en Estadísticas. Si vuelves a fallar alguna más adelante, reaparecerá aquí automáticamente.\n\n¿Continuar?'))) return;
+    const b = $('pruQuitar');
+    b.disabled = true;
+    try{
+      const ahora = new Date().toISOString();
+      for(let i = 0; i < ids.length; i += 500){
+        const { error } = await sb.from('especifico_descartadas').upsert(ids.slice(i, i + 500).map(id => ({ pregunta_id: id, descartada_at: ahora })), { onConflict: 'user_id,pregunta_id' });
+        if(error) throw error;
+      }
+      uiToast('Quitadas de Fallos', 'success');
+      cerrarConfig();
+      cargarPanel();
+    }catch(e){ uiToast('No se ha podido completar la operación. Inténtalo de nuevo.', 'error'); }
+    b.disabled = false;
   }
   function pintarPie(){
     const b = $('pruEmpezar');
     if(!b) return;
     if(!meta){ b.disabled = true; b.textContent = 'Cargando…'; return; }
-    const p = plan(), n = p.l + p.e;
+    const p = plan(), n = p.l + p.e, modo = cfg.modo;
     b.disabled = !n;
-    const partes = m().legis ? p.l + ' de Legislación + ' + p.e + ' del Específico' : n + (n === 1 ? ' pregunta' : ' preguntas');
-    b.textContent = !n ? (m().legis ? 'Elige temas de Legislación o del Específico' : m().falladas ? 'No hay falladas con esa selección' : 'Elige algún tema')
-      : 'Comenzar (' + partes + (m().tiempo ? ', ' + cfg.minutos + ' min' : '') + ')';
+    if(modo === 'esp-fallos'){ b.textContent = 'Comenzar repaso'; return; }
+    if(modo === 'esp-estudio'){ b.textContent = n ? 'Iniciar test' : 'Selecciona un tema'; return; }
+    if(modo === 'esp-examen' && !cfg.esp.size){ b.textContent = 'Selecciona un tema'; return; }
+    if(!n){ b.textContent = m().legis ? 'Elige temas de Legislación o del Específico' : 'No hay preguntas con esa selección'; return; }
+    b.textContent = (modo === 'esp-examen' ? 'Comenzar examen (' : 'Comenzar simulacro (') +
+      (m().legis ? p.l + ' de Legislación + ' + p.e + ' del Específico' : n + ' preguntas') + ', ' + cfg.minutos + ' min)';
   }
   function cambiarPaso(que, d){
     if(que === 'pct'){ cfg.pct = Math.max(0, Math.min(100, cfg.pct + d * 10)); return; }
@@ -231,10 +318,11 @@ const PRU = (function(){
     }
   }
   function onConfigClick(e){
-    const t = e.target.closest('[data-pru-tema],[data-pru-todos],[data-pru-opt],[data-pru-paso],[data-pru-pct],[data-pru-hist],[data-pru-borrar]');
+    const t = e.target.closest('[data-pru-tema],[data-pru-todos],[data-pru-opt],[data-pru-paso],[data-pru-pct],[data-pru-hist],[data-pru-borrar],[data-pru-ajuste]');
     if(!t) return;
     if(t.dataset.pruBorrar){ e.stopPropagation(); borrarHistorial(t.dataset.pruBorrar); return; }
     if(t.dataset.pruHist){ revisarHistorial(t.dataset.pruHist); return; }
+    if(t.dataset.pruAjuste){ hoja(t.dataset.pruAjuste); return; }
     if(t.dataset.pruTema){
       const s = cfg[t.dataset.pruTema], id = t.dataset.id;
       s.has(id) ? s.delete(id) : s.add(id);
@@ -251,8 +339,7 @@ const PRU = (function(){
         cfg.pct = p.nl + p.ne ? Math.round(p.nl / (p.nl + p.ne) * 100) : 50;
       } else cfg.pct = Number(t.dataset.pruPct);
     } else {
-      const q = t.dataset.pruOpt;
-      cfg[q] = q === 'dif' ? t.dataset.v : Number(t.dataset.v);
+      cfg[t.dataset.pruOpt] = Number(t.dataset.v);
     }
     pintarConfig();
   }
@@ -290,9 +377,8 @@ const PRU = (function(){
       const esp = ids.length ? await preguntasEsp(ids) : [];
       let items = legis.map(q => itemLegis(q)).concat(esp.filter(x => (x.opciones || []).length).map(x => itemEsp(x, meta.tests)));
       items = barajar(items);
-      const M = m();
       est = { modo: cfg.modo, items, resp: new Array(items.length).fill(null), vistas: new Array(items.length).fill(false), i: 0,
-        inicio: Date.now(), fin: M.tiempo ? Date.now() + cfg.minutos * 60000 : null, terminado: false };
+        inicio: Date.now(), fin: cfg.minutos ? Date.now() + cfg.minutos * 60000 : null, terminado: false };
       guardar();
       cerrarConfig();
       mostrar();
@@ -354,7 +440,7 @@ const PRU = (function(){
   function aMedias(modos){
     const g = guardado();
     if(!g || !permitido(g.modo) || (modos && !modos.includes(g.modo))) return null;
-    return { modo: g.modo, titulo: MODOS[g.modo].titulo, hechas: (g.resp || []).filter(r => r != null).length, total: (g.items || []).length };
+    return { modo: g.modo, titulo: MODOS[g.modo].largo, hechas: (g.resp || []).filter(r => r != null).length, total: (g.items || []).length };
   }
 
   /* ---------- hacer la prueba ---------- */
@@ -602,7 +688,7 @@ const PRU = (function(){
     const todo = r.todo || { total: 0, bien: 0, mal: 0, blanco: 0, nota: 0 };
     const filtros = [['todas', 'Todas'], ['mal', 'Falladas'], ['blanco', 'En blanco']].concat(M.legis ? [['legis', 'Legislación'], ['esp', 'Específico']] : []);
     $('pruCuerpo').innerHTML =
-      '<div class="result-hero"><div class="result-label">' + M.titulo + ' · ' + (est.fecha ? escapeHtml(formatRelativeDate(est.fecha)) + ' · ' : '') + formatMMSS(r.segundos || 0) + '</div>' +
+      '<div class="result-hero"><div class="result-label">' + M.largo + ' · ' + (est.fecha ? escapeHtml(formatRelativeDate(est.fecha)) + ' · ' : '') + formatMMSS(r.segundos || 0) + '</div>' +
         '<div class="result-score">' + formatNota(todo.nota) + '<span>/10</span></div>' +
         '<div class="simc-sub">' + todo.bien + ' aciertos · ' + todo.mal + ' fallos · ' + todo.blanco + ' en blanco</div></div>' +
       (M.legis ? '<div class="simc-partes">' + caja('Legislación', r.l, 'legis') + caja('Específico', r.e, 'esp') + '</div>' : '') +
@@ -636,7 +722,7 @@ const PRU = (function(){
   const ICO_MODO = { 'esp-estudio': 'estudio', 'esp-fallos': 'fallos', 'esp-simulacro': 'simulacro', 'esp-examen': 'examen' };
   let panelMeta = null;
   function panelHtml(){
-    const nFallos = panelMeta ? panelMeta.preg.filter(p => panelMeta.estado[p.id] === 'red').length : null;
+    const nFallos = panelMeta ? panelMeta.preg.filter(p => panelMeta.enFallos(p.id)).length : null;
     const sub = { 'esp-estudio': 'Elige tus temas', 'esp-fallos': nFallos == null ? '<span class="skel skel-inline"></span>' : nFallos ? nFallos + ' pendientes' : 'Sin fallos 👌',
       'esp-simulacro': 'Tiempo y preguntas', 'esp-examen': 'Temas, tiempo y preguntas' };
     const cards = Object.keys(ICO_MODO).filter(permitido).map(k =>
@@ -703,7 +789,7 @@ const PRU = (function(){
   function reiniciar(){ clearInterval(reloj); est = null; meta = null; panelMeta = null; historial = null; cfg.legis.clear(); cfg.esp.clear(); }
   return {
     conjuntoDisponible: () => permitido('conjunto'),
-    abrirConfig, cerrarConfig, empezar, continuar, aMedias, reiniciar,
+    abrirConfig, cerrarConfig, empezar, quitarFallos, continuar, aMedias, reiniciar,
     panelHtml, cargarPanel, onPanelClick, onKey
   };
 })();

@@ -62,7 +62,8 @@ const ESP = (function(){
   /* Dos vistas: «Tests de tutorbomberos» (los temas y sus tests, con el diseño
      de tutorbomberos) y «Panel pj.fire» (como Legislación: Estudio, Fallos,
      Simulacro y Examen con preguntas del Específico; lo pinta PRU, en
-     js/pruebas.js). Se recuerda la elegida en el dispositivo. */
+     js/pruebas.js). Se cambia con el botón junto al título y se recuerda la
+     elegida en el dispositivo. */
   const VISTA = 'pj_esp_vista';
   function vista(){
     if(typeof PRU === 'undefined') return 'tb';
@@ -73,19 +74,24 @@ const ESP = (function(){
     pintar();
     if(v === 'pj') PRU.cargarPanel();
   }
-  function selectorVista(v){
-    if(typeof PRU === 'undefined') return '';
-    return '<div class="stats-tabs esp-vistas" role="tablist" aria-label="Cómo ver el Específico">' +
-      '<button type="button" class="stats-tab' + (v === 'pj' ? ' active' : '') + '" role="tab" aria-selected="' + (v === 'pj') + '" data-esp-vista="pj">Panel pj.fire</button>' +
-      '<button type="button" class="stats-tab' + (v === 'tb' ? ' active' : '') + '" role="tab" aria-selected="' + (v === 'tb') + '" data-esp-vista="tb">Tests de tutorbomberos</button></div>';
+  // Un botón pequeño junto al título cambia de una vista a la otra.
+  const ICO_CAMBIO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>';
+  function botonVista(v){
+    const b = document.getElementById('espVistaBtn');
+    if(!b) return;
+    b.classList.toggle('hidden', typeof PRU === 'undefined');
+    b.innerHTML = ICO_CAMBIO + (v === 'pj' ? 'Tests de tutorbomberos' : 'Panel pj.fire');
+    b.title = v === 'pj' ? 'Ver los temas con sus tests, como en tutorbomberos' : 'Ver el panel como en Legislación';
+    b.onclick = () => cambiarVista(v === 'pj' ? 'tb' : 'pj');
   }
   function pintar(){
     const root = document.getElementById('espRoot');
     if(!root) return;
     const v = vista();
-    if(v === 'pj'){ root.innerHTML = selectorVista(v) + PRU.panelHtml(); return; }
+    botonVista(v);
+    if(v === 'pj'){ root.innerHTML = PRU.panelHtml(); return; }
     const nm = typeof ESPT !== 'undefined' ? ESPT.numMarcadas() : null;
-    root.innerHTML = selectorVista(v) + '<button type="button" class="esp-marcadas" data-marcadas="1">' +
+    root.innerHTML = '<button type="button" class="esp-marcadas" data-marcadas="1">' +
         '<span class="esp-marcadas-ico">★</span><span class="esp-marcadas-txt"><b>Preguntas marcadas</b>' +
         '<span>' + (nm == null ? 'Las que guardas con la estrella' : nm ? nm + (nm === 1 ? ' pregunta guardada' : ' preguntas guardadas') : 'Todavía no has guardado ninguna') + '</span></span>' +
         '<span class="esp-marcadas-flecha">›</span></button>' +
@@ -110,8 +116,6 @@ const ESP = (function(){
     if(root && !root.dataset.listo){
       root.dataset.listo = '1';
       root.addEventListener('click', e => {
-        const cv = e.target.closest('[data-esp-vista]');
-        if(cv){ cambiarVista(cv.dataset.espVista); return; }
         if(e.target.closest('[data-marcadas]')){ ESPT.abrirMarcadas(); return; }
         if(vista() === 'pj' && PRU.onPanelClick(e)) return;
         const ft = e.target.closest('[data-test]');
