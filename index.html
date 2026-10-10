@@ -116,7 +116,7 @@
         <span class="header-nav-label">Inicio</span>
       </span>
       <div class="nav-dot"></div>
-      <span id="navStats" role="button" tabindex="0" onclick="showScreen('screen-stats')" onkeydown="if(event.key==='Enter')showScreen('screen-stats')">
+      <span id="navStats" data-feature="estadisticas" class="hidden" role="button" tabindex="0" onclick="showScreen('screen-stats')" onkeydown="if(event.key==='Enter')showScreen('screen-stats')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16v5"/><path d="M16 14.639V21"/><path d="M20 10.656V21"/><path d="m22 3-8.646 8.646a.5.5 0 0 1-.708 0L9.354 8.354a.5.5 0 0 0-.707 0L2 15"/><path d="M4 18.463V21"/><path d="M8 14.656V21"/></svg>
         <span class="header-nav-label">Estadísticas</span>
       </span>
@@ -143,7 +143,7 @@
         <span style="flex:1;">Modo claro</span>
         <span class="switch" id="themeSwitch"><span class="knob"></span></span>
       </div>
-      <button class="header-user-boe" id="headerBoeBtn" onclick="closeUserMenu(); showScreen('screen-boe-cambios');">
+      <button class="header-user-boe hidden" id="headerBoeBtn" data-feature="boe" onclick="closeUserMenu(); showScreen('screen-boe-cambios');">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
         Cambios BOE
       </button>
@@ -152,7 +152,7 @@
         <span style="flex:1;">Recordatorio diario</span>
         <span class="reminder-state" id="reminderMenuState"></span>
       </button>
-      <button class="header-user-boe" id="headerMyAdditionsBtn" onclick="closeUserMenu(); openMyAdditions();">
+      <button class="header-user-boe hidden" id="headerMyAdditionsBtn" data-feature="notas_ia" onclick="closeUserMenu(); openMyAdditions();">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
         Notas y explicaciones IA
       </button>
@@ -186,7 +186,7 @@
           <div><div class="estudio-card-nombre">Legislación</div><div class="estudio-card-sub">Tests por temas, fallos, simulacros y exámenes</div></div>
           <svg class="estudio-card-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </div>
-        <div class="estudio-card normativas" id="estudioCardNormativas" role="button" tabindex="0" onclick="showScreen('screen-normativas')" onkeydown="if(event.key==='Enter')showScreen('screen-normativas')">
+        <div class="estudio-card normativas hidden" id="estudioCardNormativas" data-feature="normativas" role="button" tabindex="0" onclick="showScreen('screen-normativas')" onkeydown="if(event.key==='Enter')showScreen('screen-normativas')">
           <div class="estudio-card-icono"><svg class="icon-diagonal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M10 9.5 L10 15.5"/>
           <path d="M10.5 -2 A1 1 0 0 1 11.5 -1"/>
@@ -224,13 +224,13 @@
           <div><div class="estudio-card-nombre">Normativas</div><div class="estudio-card-sub">Fichas para memorizar y repasar</div></div>
           <svg class="estudio-card-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </div>
-        <div class="estudio-card callejero" id="estudioCardCallejero" role="button" tabindex="0" onclick="showScreen('screen-callejero')" onkeydown="if(event.key==='Enter')showScreen('screen-callejero')">
+        <div class="estudio-card callejero hidden" id="estudioCardCallejero" data-feature="callejero" role="button" tabindex="0" onclick="showScreen('screen-callejero')" onkeydown="if(event.key==='Enter')showScreen('screen-callejero')">
           <div class="estudio-card-icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg></div>
           <div><div class="estudio-card-nombre">Callejero</div><div class="estudio-card-sub">Mapa y juego de calles</div></div>
           <b class="nav-aviso estudio-card-aviso hidden" id="estudioCallejeroAviso">0</b>
           <svg class="estudio-card-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </div>
-        <div class="estudio-card especifico" id="estudioCardEspecifico" role="button" tabindex="0" onclick="showScreen('screen-especifico')" onkeydown="if(event.key==='Enter')showScreen('screen-especifico')">
+        <div class="estudio-card especifico hidden" id="estudioCardEspecifico" data-feature="especifico" role="button" tabindex="0" onclick="showScreen('screen-especifico')" onkeydown="if(event.key==='Enter')showScreen('screen-especifico')">
           <div class="estudio-card-icono"><span class="esp-logo" aria-hidden="true"></span></div>
           <div><div class="estudio-card-nombre">Específico</div><div class="estudio-card-sub">Temario de bombero</div></div>
           <svg class="estudio-card-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
@@ -258,7 +258,7 @@
             Reanudar
           </div>
         </div>
-        <div class="mode-card fallos" id="modeCardFallos" role="button" tabindex="0" onclick="openFallos()">
+        <div class="mode-card fallos hidden" id="modeCardFallos" data-feature="fallos" role="button" tabindex="0" onclick="openFallos()">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
               <path d="m15 7-6 6"/>
@@ -272,7 +272,7 @@
             Reanudar
           </div>
         </div>
-        <div class="mode-card inteligente" id="modeCardInteligente" role="button" tabindex="0" onclick="openInteligente()">
+        <div class="mode-card inteligente hidden" id="modeCardInteligente" data-feature="inteligente" role="button" tabindex="0" onclick="openInteligente()">
           <div class="mode-emblem">
             <svg viewBox="5 5 14 14" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
               <path d="M-10.5 20.5a2 2 0 01-4 0"/>
@@ -295,7 +295,7 @@
             Reanudar
           </div>
         </div>
-        <div class="mode-card simulacro" id="modeCardSimulacro" role="button" tabindex="0" onclick="openConfig('simulacro')">
+        <div class="mode-card simulacro hidden" id="modeCardSimulacro" data-feature="simulacro" role="button" tabindex="0" onclick="openConfig('simulacro')">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85"/>
@@ -310,7 +310,7 @@
             Reanudar
           </div>
         </div>
-        <div class="mode-card examen" id="modeCardExamen" role="button" tabindex="0" onclick="openConfig('examen')">
+        <div class="mode-card examen hidden" id="modeCardExamen" data-feature="examen" role="button" tabindex="0" onclick="openConfig('examen')">
           <div class="mode-emblem">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
               <path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/>
@@ -329,7 +329,7 @@
         </div>
       </div>
 
-      <div id="historySection">
+      <div id="historySection" data-feature="historial" class="hidden">
       <div class="section-row"><div class="section-title">Historial</div><div class="section-rule"></div></div>
       <div class="history" id="historyList">
         <div id="historyLoadingPlaceholder"><div class="skel-list"><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:60%"></span><span class="skel skel-line" style="width:35%;opacity:.7"></span></span></div><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:72%"></span><span class="skel skel-line" style="width:40%;opacity:.7"></span></span></div><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:50%"></span><span class="skel skel-line" style="width:30%;opacity:.7"></span></span></div></div></div>
@@ -574,7 +574,7 @@
           <div class="stat-sub">Nivel general: <b id="statLevelPct">—</b></div>
         </div>
       </div>
-      <div id="statsAdvancedWrap">
+      <div id="statsAdvancedWrap" data-feature="stats_avanzadas" class="hidden">
       <div class="ranking-card">
         <div class="ranking-head">
           <div class="ranking-title">Ranking de temas</div>
@@ -1131,7 +1131,7 @@
 <script src="js/pwa.js?v=f1516473fb"></script>
 <script src="js/errores.js?v=2fdc270c12"></script>
 <script src="js/alturas.js?v=cb41af982f"></script>
-<script src="js/permisos.js?v=1c9f0790d9"></script>
+<script src="js/permisos.js?v=26387c57d4"></script>
 <script src="js/dispositivo.js?v=c9392ff647"></script>
 <script src="js/datos.js?v=c4fa07c24e"></script>
 <script src="js/temario.js?v=313da6bd23"></script>
@@ -1148,7 +1148,7 @@
 <script src="js/ia.js?v=e9d8fff760"></script>
 <script src="js/aportaciones.js?v=824eb0002d"></script>
 <script src="js/examen-revision.js?v=ab52662d16"></script>
-<script src="js/cuenta.js?v=f91060fe9c"></script>
+<script src="js/cuenta.js?v=f076fb249c"></script>
 <script src="js/tema.js?v=e96fc2a4ed"></script>
 <script src="js/admin/panel.js?v=9e8ff5b7b8"></script>
 <script src="js/admin/actividad.js?v=7e043c23e6"></script>

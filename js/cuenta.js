@@ -127,6 +127,8 @@ async function onLoggedIn(user, isFreshSignIn){
   // como "en curso" con su botón "Reanudar", igual que si nunca se
   // hubiera cerrado la app.
   restoreQuizProgress();
+  // Mientras llegan los permisos, solo lo que ya se sabía que tiene (o nada).
+  loadCachedFeatureFlags(user.id);
 
   // Cargamos el perfil primero para saber si la cuenta ya está
   // aprobada por un administrador (sustituye a la confirmación por
@@ -139,8 +141,9 @@ async function onLoggedIn(user, isFreshSignIn){
   }
   currentUserIsAdmin = !!(profile && profile.is_admin);
   currentUserIsProfesor = !!(profile && profile.es_profesor);
-  myFeatureFlags = (profile && profile.feature_flags) || {};
-  applyFeatureVisibility();
+  // Sin perfil (falló la conexión) se quedan los permisos guardados: nunca «todo activado».
+  if(profile) setMyFeatureFlags(profile.feature_flags || {});
+  else applyFeatureVisibility();
   startPermissionsWatch();
   // Los temas de Normativas dependen de la sesión (RLS) y de si es admin.
   if(typeof NQ !== 'undefined') NQ.load();
@@ -382,10 +385,11 @@ function waitForLoginCodeVerification(verifyId){
 function onLoggedOut(){
   stopActivityHeartbeat();
   if(permsCheckTimer){ clearInterval(permsCheckTimer); permsCheckTimer = null; }
-  myFeatureFlags = {};
+  myFeatureFlags = null;
   stopActivityLive();
   currentUser = null;
   currentUserIsAdmin = false;
+  applyFeatureVisibility();
   currentUserIsProfesor = false;
   if(typeof CJ !== 'undefined') CJ.reiniciar();
   if(typeof CJP !== 'undefined') CJP.reiniciar();
