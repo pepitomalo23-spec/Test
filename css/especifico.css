@@ -136,3 +136,4 @@
 .espt-preg sub, .espt-preg sup{ font-size:.75em; line-height:0; }
 .imp-ok{ color:#43a047; font-weight:600; }
 .imp-detalles summary .imp-nuevo{ color: var(--esp-naranja); }
+.espt-cargando{ color: var(--muted); font-style: italic; }
