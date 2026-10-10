@@ -56,13 +56,13 @@
 <!-- Estilos de la app. El ?v= lo pone scripts/versionar.mjs (no editar a mano). -->
 <link rel="stylesheet" href="css/base.css?v=d38ea13f39">
 <link rel="stylesheet" href="css/admin.css?v=f2c8e427a7">
-<link rel="stylesheet" href="css/pantallas.css?v=33dd9ad0a8">
-<link rel="stylesheet" href="css/test.css?v=06abd3d71a">
+<link rel="stylesheet" href="css/pantallas.css?v=a49716dc9f">
+<link rel="stylesheet" href="css/test.css?v=5a22b23b0e">
 <link rel="stylesheet" href="css/normativas.css?v=fa9397f080">
 <link rel="stylesheet" href="css/callejero.css?v=8032527378">
 <link rel="stylesheet" href="css/calendario.css?v=6b699957ab">
 <link rel="stylesheet" href="css/especifico.css?v=20b208cc13">
-<link rel="stylesheet" href="css/inicio.css?v=3d16a3424a">
+<link rel="stylesheet" href="css/inicio.css?v=d053a242c5">
 <link rel="stylesheet" href="css/mnemotecnia.css?v=7933e62382">
 </head>
 <body>
@@ -1090,6 +1090,42 @@
       </div>
     </section>
 
+    <!-- ===== SIMULACRO CONJUNTO (Legislación + Específico), js/simulacro-conjunto.js ===== -->
+    <section class="screen overlay" id="screen-simc-config">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h1>Simulacro conjunto</h1>
+          <button class="modal-close" aria-label="Cerrar" onclick="SIMC.cerrarConfig()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="config-sub">Preguntas de Legislación y del Específico mezcladas. Elige los temas de cada parte, cuántas preguntas y el tiempo. Corrección al final.</div>
+          <div id="simcConfig"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary btn-block btn-light" id="simcEmpezar" onclick="SIMC.empezar()">Comenzar</button>
+        </div>
+      </div>
+    </section>
+    <section class="screen" id="screen-simc">
+      <div class="quiz-head" id="simcCabecera">
+        <span class="back-link" role="button" tabindex="0" data-simc="salir">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="11,6 5,12 11,18"/></svg>
+          Salir
+        </span>
+        <div class="quiz-head-right">
+          <span class="quiz-progress" id="simcContador">0 / 0</span>
+          <span class="quiz-timer" id="simcRelojCaja">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
+            <span id="simcReloj">00:00</span>
+          </span>
+          <button class="quiz-finish-btn" data-simc="terminar">Finalizar</button>
+        </div>
+      </div>
+      <div id="simcCuerpo"></div>
+    </section>
+
     <!-- ===== RESULT SCREEN ===== -->
     <section class="screen" id="screen-result">
       <div class="result-hero">
@@ -1148,14 +1184,14 @@
 <script src="js/pwa.js?v=f1516473fb"></script>
 <script src="js/errores.js?v=2fdc270c12"></script>
 <script src="js/alturas.js?v=cb41af982f"></script>
-<script src="js/permisos.js?v=e1f8b0f70d"></script>
+<script src="js/permisos.js?v=fd1bccf113"></script>
 <script src="js/dispositivo.js?v=c9392ff647"></script>
-<script src="js/datos.js?v=c4fa07c24e"></script>
+<script src="js/datos.js?v=de72ff4cb5"></script>
 <script src="js/temario.js?v=313da6bd23"></script>
 <script src="js/estadisticas.js?v=eaac726aba"></script>
 <script src="js/contenido.js?v=284326574e"></script>
-<script src="js/historial.js?v=d1494e67e6"></script>
-<script src="js/navegacion.js?v=908335f1da"></script>
+<script src="js/historial.js?v=abe7fa2dd5"></script>
+<script src="js/navegacion.js?v=e6a3e778c0"></script>
 <script src="js/configuracion-test.js?v=a7484ef8cc"></script>
 <script src="js/test-inteligente.js?v=a7a43bfe6a"></script>
 <script src="js/test.js?v=a7af84c693"></script>
@@ -1165,7 +1201,7 @@
 <script src="js/ia.js?v=e9d8fff760"></script>
 <script src="js/aportaciones.js?v=824eb0002d"></script>
 <script src="js/examen-revision.js?v=ab52662d16"></script>
-<script src="js/cuenta.js?v=f564f8400e"></script>
+<script src="js/cuenta.js?v=b59772b88f"></script>
 <script src="js/tema.js?v=e96fc2a4ed"></script>
 <script src="js/admin/panel.js?v=9e8ff5b7b8"></script>
 <script src="js/admin/actividad.js?v=7e043c23e6"></script>
@@ -1185,9 +1221,10 @@
 <script src="js/calendario.js?v=4d1c0bbcaa"></script>
 <script src="js/especifico.js?v=f468e7ab3f"></script>
 <script src="js/importar-especifico.js?v=c6c712fd36"></script>
-<script src="js/especifico-test.js?v=8b35be6bcb"></script>
+<script src="js/especifico-test.js?v=c153fd7e9f"></script>
 <script src="js/estadisticas-especifico.js?v=59cc6c5df0"></script>
-<script src="js/inicio.js?v=026a9b7daf"></script>
+<script src="js/simulacro-conjunto.js?v=1015f47ecf"></script>
+<script src="js/inicio.js?v=1406bce8f0"></script>
 <script src="js/arranque.js?v=838162d6bd"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
   <button type="button" class="image-lightbox-close" onclick="closeImageLightbox(event)" title="Cerrar">

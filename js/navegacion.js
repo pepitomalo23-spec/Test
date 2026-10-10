@@ -35,7 +35,9 @@ const SCREEN_RESTORE_TARGET = {
   'screen-review': 'screen-home',
   'screen-config': 'screen-home',
   'screen-quiz': 'screen-home',
-  'screen-result': 'screen-home'
+  'screen-result': 'screen-home',
+  'screen-simc': 'screen-inicio',        // el simulacro conjunto a medias se sigue desde Inicio
+  'screen-simc-config': 'screen-inicio'
 };
 function getLastScreen(){
   try{
@@ -50,7 +52,7 @@ function showScreen(id){
   if(id !== 'screen-quiz'){ clearInterval(timerInterval); }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  document.getElementById('navInicio').classList.toggle('active', id === 'screen-inicio' || id === 'screen-calendario');
+  document.getElementById('navInicio').classList.toggle('active', id === 'screen-inicio' || id === 'screen-calendario' || id === 'screen-simc');
   document.getElementById('navEstudio').classList.toggle('active', ESTUDIO_SCREENS.includes(id));
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
   if(id === 'screen-inicio' && typeof INICIO !== 'undefined') INICIO.abrir();

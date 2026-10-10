@@ -195,10 +195,12 @@ const ESPT = (function(){
     }catch(e){}
     enviando = false;
   }
-  function guardarRespuesta(id, acierto){
-    if(!claveCola()) return;
-    const c = leerCola();
-    c.push({ pregunta_id: id, acierto, created_at: new Date().toISOString() });
+  function guardarRespuesta(id, acierto){ registrar([{ pregunta_id: id, acierto }]); }
+  // También las usa el Simulacro conjunto (js/simulacro-conjunto.js).
+  function registrar(lista){
+    if(!claveCola() || !lista.length) return;
+    const c = leerCola(), ahora = new Date().toISOString();
+    lista.forEach(r => c.push({ pregunta_id: r.pregunta_id, acierto: !!r.acierto, created_at: ahora }));
     escribirCola(c);
     enviarRespuestas();
   }
@@ -229,5 +231,5 @@ const ESPT = (function(){
 
   // Al cambiar de cuenta, nada de la anterior.
   function reiniciar(){ marcadas = new Set(); marcadasCargadas = false; cache.clear(); }
-  return { abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas };
+  return { abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar };
 })();

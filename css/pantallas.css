@@ -228,7 +228,7 @@
   .hist-item.t-examen .hist-icon{ color: var(--blue); }
   .hist-item.t-estudio .hist-icon{ color: var(--purple); }
   .hist-item.t-fallos .hist-icon{ color: var(--coral); }
-  .hist-item.t-simulacro .hist-icon{ color: var(--teal); }
+  .hist-item.t-simulacro .hist-icon, .hist-item.t-conjunto .hist-icon{ color: var(--teal); }
   .hist-item.t-inteligente .hist-icon{ color: var(--amber); }
   .hist-content{ flex:1; min-width:0; }
   .hist-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }

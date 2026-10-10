@@ -28,6 +28,8 @@ const FEATURES = {
 };
 // Pantallas que dependen de una función: si está desactivada, se va a Inicio.
 const SCREEN_FEATURE = {
+  'screen-simc': 'simulacro',
+  'screen-simc-config': 'simulacro',
   'screen-normativas': 'normativas',
   'screen-stats': 'estadisticas',
   'screen-articulo-preguntas': 'estadisticas',

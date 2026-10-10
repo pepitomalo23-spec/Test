@@ -78,3 +78,12 @@
 
 /* Volver desde el calendario */
 .cal-volver{ margin-bottom:14px; width:max-content; }
+/* Simulacro conjunto (Legislación + Específico) */
+.ini-conjunto{ width:100%; display:flex; align-items:center; gap:14px; padding:16px 18px; margin-bottom:14px; text-align:left; font:inherit; color: var(--text);
+  background: var(--card); border:1px solid var(--line); border-left:4px solid var(--teal); border-radius:16px; cursor:pointer; }
+.ini-conjunto:hover{ border-color: var(--teal); }
+.ini-conjunto-ico{ width:44px; height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color: var(--teal); }
+.ini-conjunto-ico svg{ width:32px; height:32px; }
+.ini-conjunto-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.ini-conjunto-txt b{ font-size:15.5px; }
+.ini-conjunto-txt span{ font-size:12.5px; color: var(--muted); }

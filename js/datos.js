@@ -268,6 +268,8 @@ const ICONS = {
   pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
   image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15l-5-5L5 20"/></svg>'
 };
+ICONS.conjunto = ICONS.simulacro;   // Simulacro conjunto (Legislación + Específico)
+
 
 let quizState = { mode:null, index:0, correctCount:0, answered:false };
 let ACTIVE_QUESTIONS = SAMPLE_QUESTIONS;
