@@ -16,8 +16,8 @@ async function adminLoadEspecifico(){
   if(!adminEspMarcador.uno || !adminEspMarcador.todo || !adminEspMarcador.revisar){
     // Se traen ya, para que «Copiar marcador» copie al momento (Safari solo deja copiar dentro del toque).
     fetch('datos/marcador-tutorbomberos.txt?v=378b511271').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.uno = t.trim(); }).catch(() => {});
-    fetch('datos/marcador-tutorbomberos-todo.txt?v=d4c3652754').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.todo = t.trim(); }).catch(() => {});
-    fetch('datos/marcador-tutorbomberos-revisar.txt?v=bdf6a79388').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.revisar = t.trim(); }).catch(() => {});
+    fetch('datos/marcador-tutorbomberos-todo.txt?v=9c6a0aa905').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.todo = t.trim(); }).catch(() => {});
+    fetch('datos/marcador-tutorbomberos-revisar.txt?v=ad98bcf960').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.revisar = t.trim(); }).catch(() => {});
   }
   let rt, cuentas;
   try{

@@ -332,7 +332,10 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   administradores) y se incrustan: la CSP no deja mostrar imágenes externas. En el texto se guardan `<b>`, `<i>`,
   `<u>`, `<sub>`, `<sup>`, `<br>` e `<img>` (data: o https:).
   El marcador «Revisar cambios» (`datos/marcador-tutorbomberos-revisar.txt`) es el mismo código con
-  `MODO = "revisar"` (lo cambia `scripts/marcador.mjs`): la web compara cada test con lo guardado (por enunciado
+  `MODO = "revisar"` (lo cambia `scripts/marcador.mjs`). Abre primero pj.fire, que le pasa la lista de tests
+  guardados (`pjfire-revisar` → `pjfire-mis-tests`); solo saca esos, y de los demás manda el título (`nuevos`)
+  y los guardados que no encontró (`noEstan`). Los nuevos se pueden pedir después (`pjfire-traer`) y llegan
+  como un «Importar todo». La web compara cada test con lo guardado (por enunciado
   y, si cambió, por sus opciones), enseña lo nuevo, lo cambiado y lo que ya no está, y al aplicar solo escribe eso
   (lo que llega vacío no pisa lo que hay; lo que ya no está solo se borra si se marca). Las cuentas de preguntas
   por test se leen por páginas (`ESP.contarPreguntas`): Supabase devuelve como mucho 1000 filas por consulta.
