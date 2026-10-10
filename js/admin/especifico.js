@@ -5,7 +5,7 @@
 let adminEspTests = [];
 let adminEspTema = null;
 let adminEspPreguntas = {};   // test_id → cuántas preguntas tiene
-let adminEspMarcador = { uno: '', todo: '' };
+let adminEspMarcador = { uno: '', todo: '', revisar: '' };
 
 async function adminLoadEspecifico(){
   const el = document.getElementById('adminEspLista');
@@ -13,20 +13,22 @@ async function adminLoadEspecifico(){
   const temas = ESP.temas();
   if(!adminEspTema) adminEspTema = temas[0].clave;
   el.innerHTML = skelList(3);
-  if(!adminEspMarcador.uno || !adminEspMarcador.todo){
+  if(!adminEspMarcador.uno || !adminEspMarcador.todo || !adminEspMarcador.revisar){
     // Se traen ya, para que «Copiar marcador» copie al momento (Safari solo deja copiar dentro del toque).
     fetch('datos/marcador-tutorbomberos.txt?v=378b511271').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.uno = t.trim(); }).catch(() => {});
-    fetch('datos/marcador-tutorbomberos-todo.txt?v=7570899f0c').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.todo = t.trim(); }).catch(() => {});
+    fetch('datos/marcador-tutorbomberos-todo.txt?v=d4c3652754').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.todo = t.trim(); }).catch(() => {});
+    fetch('datos/marcador-tutorbomberos-revisar.txt?v=bdf6a79388').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.revisar = t.trim(); }).catch(() => {});
   }
-  const [rt, rp] = await Promise.all([
-    sb.from('especifico_tests').select('id,tema,titulo,orden,created_at').order('orden').order('created_at'),
-    sb.from('especifico_preguntas').select('test_id')
-  ]);
-  const error = rt.error || rp.error;
-  if(error){ el.innerHTML = '<div class="admin-empty">No se pudieron cargar los tests: ' + escapeHtml(error.message) + '</div>'; return; }
+  let rt, cuentas;
+  try{
+    [rt, cuentas] = await Promise.all([
+      sb.from('especifico_tests').select('id,tema,titulo,orden,created_at').order('orden').order('created_at'),
+      ESP.contarPreguntas()
+    ]);
+    if(rt.error) throw rt.error;
+  }catch(error){ el.innerHTML = '<div class="admin-empty">No se pudieron cargar los tests: ' + escapeHtml(error.message || String(error)) + '</div>'; return; }
   adminEspTests = rt.data || [];
-  adminEspPreguntas = {};
-  (rp.data || []).forEach(r => { adminEspPreguntas[r.test_id] = (adminEspPreguntas[r.test_id] || 0) + 1; });
+  adminEspPreguntas = cuentas;
   adminPintarEspecifico();
 }
 function adminEspDelTema(k){ return adminEspTests.filter(t => t.tema === k).sort((a, b) => a.orden - b.orden || String(a.created_at).localeCompare(String(b.created_at))); }
@@ -91,9 +93,9 @@ async function adminEspBorrar(id){
 
 /* Marcadores de tutorbomberos.es (datos/marcador-tutorbomberos*.txt, generados
    con node scripts/marcador.mjs): se copian para pegarlos como dirección de
-   un marcador del navegador. tipo: 'uno' (el test abierto) o 'todo'. */
+   un marcador del navegador. tipo: 'uno' (el test abierto), 'todo' o 'revisar'. */
 function adminEspCopiarMarcador(tipo){
-  const txt = adminEspMarcador[tipo === 'todo' ? 'todo' : 'uno'];
+  const txt = adminEspMarcador[tipo === 'todo' || tipo === 'revisar' ? tipo : 'uno'];
   if(!txt){ uiToast('El marcador aún se está cargando; vuelve a pulsar en un momento.', 'info'); return; }
   let ok = false;
   try{

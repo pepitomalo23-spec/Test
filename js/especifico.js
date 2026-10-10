@@ -104,5 +104,16 @@ const ESP = (function(){
     cargar();
     if(typeof ESPT !== 'undefined') ESPT.cargarMarcadas().then(pintar);
   }
-  return { abrir, temas: () => TEMAS.map(([k, t]) => ({ clave: k, titulo: t })) };
+  /* Cuántas preguntas tiene cada test ({ test_id: n }). Por páginas: Supabase
+     devuelve como mucho 1000 filas por consulta. */
+  async function contarPreguntas(){
+    const n = {};
+    for(let desde = 0; ; desde += 1000){
+      const { data, error } = await sb.from('especifico_preguntas').select('test_id').order('id').range(desde, desde + 999);
+      if(error) throw error;
+      (data || []).forEach(r => { n[r.test_id] = (n[r.test_id] || 0) + 1; });
+      if(!data || data.length < 1000) return n;
+    }
+  }
+  return { abrir, contarPreguntas, temas: () => TEMAS.map(([k, t]) => ({ clave: k, titulo: t })) };
 })();

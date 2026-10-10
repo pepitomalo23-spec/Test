@@ -53,6 +53,21 @@ const IMP = (function(){
     return { titulo: String(p.titulo || '').slice(0, 200), origen: String(p.origen || '').slice(0, 500), preguntas };
   }
 
+  /* Tests y cuántas preguntas tiene cada uno (en tests y cuentas). */
+  let tests = [], cuentas = {};
+  async function cargarTests(cuerpo){
+    try{
+      const [rt, n] = await Promise.all([sb.from('especifico_tests').select('id,tema,titulo,orden').order('orden'), ESP.contarPreguntas()]);
+      if(rt.error) throw rt.error;
+      tests = rt.data || [];
+      cuentas = n;
+      return true;
+    }catch(e){
+      cuerpo.innerHTML = '<p>No se pudieron cargar los tests: ' + escapeHtml(e.message || String(e)) + '</p><div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">Cerrar</button></div>';
+      return false;
+    }
+  }
+
   /* ---------- ventana para elegir el test ---------- */
   function cerrar(){ const bg = document.getElementById('impBg'); if(bg) bg.remove(); abierto = false; }
   async function mostrar(){
@@ -71,17 +86,9 @@ const IMP = (function(){
     bg.addEventListener('change', e => { if(e.target.name === 'test') pintarSustituir(bg); });
     if(paquete) await elegir(bg);
   }
-  let tests = [], cuentas = {};
   async function elegir(bg){
     const cuerpo = bg.querySelector('.imp-cuerpo');
-    const [rt, rp] = await Promise.all([
-      sb.from('especifico_tests').select('id,tema,titulo,orden').order('orden'),
-      sb.from('especifico_preguntas').select('test_id')
-    ]);
-    if(rt.error || rp.error){ cuerpo.innerHTML = '<p>No se pudieron cargar los tests: ' + escapeHtml((rt.error || rp.error).message) + '</p><div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">Cerrar</button></div>'; return; }
-    tests = rt.data || [];
-    cuentas = {};
-    (rp.data || []).forEach(r => { cuentas[r.test_id] = (cuentas[r.test_id] || 0) + 1; });
+    if(!(await cargarTests(cuerpo))) return;
     const n = paquete.preguntas.length, sinConfirmar = paquete.preguntas.filter(q => !q.confirmada).length;
     const grupos = ESP.temas().map((t, i) => {
       const ts = tests.filter(x => x.tema === t.clave);
@@ -151,7 +158,7 @@ const IMP = (function(){
     if(sustituir){
       const { data, error } = await sb.from('especifico_preguntas').select('id,enunciado').eq('test_id', testId);
       if(error) throw error;
-      const clave = h => String(h || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+      const clave = claveTexto;
       const libres = new Map();
       (data || []).forEach(r => { const k = clave(r.enunciado); if(!libres.has(k)) libres.set(k, []); libres.get(k).push(r.id); });
       preguntas.forEach((q, i) => {
@@ -231,6 +238,7 @@ const IMP = (function(){
     else if(b.dataset.imp === 'guardar') guardar(bg);
     else if(b.dataset.imp === 'pegar') pegar(bg);
     else if(b.dataset.imp === 'lote'){ b.disabled = true; guardarLote(bg); }
+    else if(b.dataset.imp === 'aplicar'){ b.disabled = true; aplicarRevision(bg); }
   }
 
   /* ---------- «Extraer todo» (scripts/marcador/tutorbomberos-todo.js) ----------
@@ -260,27 +268,20 @@ const IMP = (function(){
       };
     }).filter(t => t.titulo && t.preguntas.length);
     const total = Number.isInteger(p.total) ? p.total : p.tests.length;
-    return ts.length ? { origen, total, tests: ts } : null;
+    return ts.length ? { origen, total, modo: p.modo === 'revisar' ? 'revisar' : 'todo', tests: ts } : null;
   }
-  async function mostrarLote(){
-    if(abierto) return;
+  function ventana(titulo){
     abierto = true;
     const bg = document.createElement('div');
     bg.className = 'imp-bg';
     bg.id = 'impBg';
-    bg.innerHTML = '<div class="imp-panel" role="dialog" aria-modal="true" aria-labelledby="impTit"><h2 id="impTit">Importar todo</h2><div class="imp-cuerpo"><div class="cal-cargando">Cargando tus tests…</div></div></div>';
+    bg.innerHTML = '<div class="imp-panel" role="dialog" aria-modal="true" aria-labelledby="impTit"><h2 id="impTit">' + titulo + '</h2><div class="imp-cuerpo"><div class="cal-cargando">Cargando tus tests…</div></div></div>';
     document.body.appendChild(bg);
     bg.addEventListener('click', onClick);
-    const cuerpo = bg.querySelector('.imp-cuerpo');
-    const [rt, rp] = await Promise.all([
-      sb.from('especifico_tests').select('id,tema,titulo,orden').order('orden'),
-      sb.from('especifico_preguntas').select('test_id')
-    ]);
-    if(rt.error || rp.error){ cuerpo.innerHTML = '<p>No se pudieron cargar los tests: ' + escapeHtml((rt.error || rp.error).message) + '</p><div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">Cerrar</button></div>'; return; }
-    tests = rt.data || [];
-    cuentas = {};
-    (rp.data || []).forEach(r => { cuentas[r.test_id] = (cuentas[r.test_id] || 0) + 1; });
-    // Cada test que llega se empareja con uno que ya exista (mismo tema y título; cada uno una vez).
+    return bg;
+  }
+  // Cada test que llega se empareja con uno que ya exista (mismo tema y título; cada uno una vez).
+  function emparejar(){
     const usados = new Set();
     plan = lote.tests.filter(t => t.clave).map(t => {
       const ya = tests.find(x => x.tema === t.clave && !usados.has(x.id) && claveTitulo(x.titulo) === claveTitulo(t.titulo));
@@ -289,6 +290,22 @@ const IMP = (function(){
     });
     const fuera = {};
     lote.tests.filter(t => !t.clave).forEach(t => { fuera[t.temaTb] = (fuera[t.temaTb] || 0) + 1; });
+    return { fuera, usados };
+  }
+  // Temas que se dejan fuera, tests que no llegaron y avisos del marcador.
+  function notasLote(fuera){
+    const omitidos = Object.keys(fuera), conAvisos = plan.filter(t => t.avisos.length);
+    return (omitidos.length ? '<p class="imp-nota">Se dejan fuera (ese tema no está en pj.fire): ' + omitidos.map(k => '«' + escapeHtml(k) + '» (' + fuera[k] + ')').join(', ') + '.</p>' : '') +
+      (lote.total > lote.tests.length ? '<p class="imp-aviso">Faltan ' + (lote.total - lote.tests.length) + ' de los ' + lote.total + ' tests de tutorbomberos (no se pudieron sacar o se paró antes): vuelve a pasar el marcador después.</p>' : '') +
+      (conAvisos.length ? '<details class="imp-detalles"><summary>Revisa ' + conAvisos.length + (conAvisos.length === 1 ? ' test' : ' tests') + '</summary><ul class="imp-resumen">' +
+        conAvisos.map(t => '<li><b>' + escapeHtml(t.titulo) + '</b>: ' + escapeHtml(t.avisos.join(', ')) + '</li>').join('') + '</ul></details>' : '');
+  }
+  async function mostrarLote(){
+    if(abierto) return;
+    const bg = ventana('Importar todo');
+    const cuerpo = bg.querySelector('.imp-cuerpo');
+    if(!(await cargarTests(cuerpo))) return;
+    const { fuera } = emparejar();
     const nPreg = plan.reduce((n, t) => n + t.preguntas.length, 0);
     const filas = ESP.temas().map((tm, i) => {
       const ts = plan.filter(t => t.clave === tm.clave);
@@ -297,16 +314,11 @@ const IMP = (function(){
       return '<li><b>' + (i + 1) + '. ' + escapeHtml(tm.titulo) + '</b>: ' + ts.length + (ts.length === 1 ? ' test' : ' tests') +
         (nuevos ? ' <span class="imp-nuevo">(' + (nuevos === ts.length ? (nuevos === 1 ? 'nuevo' : 'todos nuevos') : nuevos + (nuevos === 1 ? ' nuevo' : ' nuevos')) + ')</span>' : '') + '</li>';
     }).join('');
-    const omitidos = Object.keys(fuera);
-    const conAvisos = plan.filter(t => t.avisos.length);
     cuerpo.innerHTML = plan.length
       ? '<p><b>' + plan.length + ' tests</b> con <b>' + nPreg + ' preguntas</b>.</p>' +
         '<ul class="imp-resumen">' + filas + '</ul>' +
         '<p class="imp-nota">Los tests que ya tienes con el mismo título se actualizan (sin perder las preguntas marcadas); los demás se crean al final de su tema.</p>' +
-        (omitidos.length ? '<p class="imp-nota">Se dejan fuera (ese tema no está en pj.fire): ' + omitidos.map(k => '«' + escapeHtml(k) + '» (' + fuera[k] + ')').join(', ') + '.</p>' : '') +
-        (lote.total > lote.tests.length ? '<p class="imp-aviso">Faltan ' + (lote.total - lote.tests.length) + ' de los ' + lote.total + ' tests de tutorbomberos (no se pudieron sacar o se paró antes): vuelve a pasar el marcador después.</p>' : '') +
-        (conAvisos.length ? '<details class="imp-detalles"><summary>Revisa ' + conAvisos.length + (conAvisos.length === 1 ? ' test' : ' tests') + '</summary><ul class="imp-resumen">' +
-          conAvisos.map(t => '<li><b>' + escapeHtml(t.titulo) + '</b>: ' + escapeHtml(t.avisos.join(', ')) + '</li>').join('') + '</ul></details>' : '') +
+        notasLote(fuera) +
         '<div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">Cancelar</button><button type="button" class="imp-btn primario" data-imp="lote">Importar todo</button></div>'
       : '<p>Ninguno de los tests es de un tema de pj.fire.</p><div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">Cerrar</button></div>';
   }
@@ -329,7 +341,7 @@ const IMP = (function(){
           tests.push(data);
           t.id = data.id;
         }
-        await volcar(t.id, t.preguntas, lote.origen, !!cuentas[t.id]);
+        await volcar(t.id, t.preguntas, lote.origen, true);   // actualiza las que ya estén, sin duplicar
         hechos++; nPreg += t.preguntas.length;
       }catch(e){ fallos.push('«' + t.titulo + '»: ' + (e.message || e)); }
     }
@@ -344,6 +356,192 @@ const IMP = (function(){
         '<div class="imp-botones"><button type="button" class="imp-btn primario" data-imp="cerrar">Cerrar</button></div>';
     } else {
       uiToast(hechos + ' tests y ' + nPreg + ' preguntas guardados', 'success');
+      cerrar();
+    }
+    plan = null;
+    showScreen('screen-especifico');
+  }
+
+  /* ---------- «Revisar cambios» (mismo marcador con modo «revisar») ----------
+     Compara cada test de tutorbomberos con el que ya hay en pj.fire y enseña
+     qué es nuevo, qué ha cambiado y qué ya no está, antes de tocar nada. Al
+     aplicar solo se escribe lo que cambia; las preguntas que ya no están
+     solo se borran si se marca la casilla. Nunca se borra un dato que ya
+     tienes porque en tutorbomberos venga vacío (puede ser un fallo al leerlo). */
+  const textoPlano = h => String(h || '').replace(/<\/?(b|i|u|sub|sup)>/g, '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
+  const claveTexto = h => textoPlano(h).toLowerCase();
+  // Para comparar: las imágenes incrustadas por una huella; las que aún son
+  // un enlace (se incrustan al aplicar) valen como cualquier imagen.
+  function comparable(h, laxo){
+    return String(h || '').replace(/<img src="([^"]*)">/g, (m, src) => laxo ? '[img]' : '[img:' + src.length + ':' + src.slice(-40) + ']').replace(/\s+/g, ' ').trim();
+  }
+  function difPregunta(viejo, q){
+    const campos = [];
+    const igual = (a, b) => { const laxo = /src="https:/.test(a + b); return comparable(a, laxo) === comparable(b, laxo); };
+    if(!igual(viejo.enunciado, q.enunciado)) campos.push('enunciado');
+    const ops = o => (o || []).map(x => x.l + ')' + x.html);
+    if(!igual(ops(viejo.opciones).join('|'), ops(q.opciones).join('|'))) campos.push('opciones');
+    if(q.correcta && q.correcta !== viejo.correcta) campos.push('correcta');
+    if(q.explicacion && !igual(viejo.explicacion, q.explicacion)) campos.push('explicación');
+    if(q.dificultad && q.dificultad !== viejo.dificultad) campos.push('dificultad');
+    return campos;
+  }
+  function compararTest(viejas, nuevas){
+    const r = { nuevas: [], cambiadas: [], quitadas: [], orden: [] };
+    const libres = new Map(), sinPar = [];
+    viejas.forEach(v => { const k = claveTexto(v.enunciado); if(!libres.has(k)) libres.set(k, []); libres.get(k).push(v); });
+    const pares = new Array(nuevas.length).fill(null);
+    nuevas.forEach((q, i) => { const vs = libres.get(claveTexto(q.enunciado)); if(vs && vs.length) pares[i] = vs.shift(); });
+    // Las que no casan por el enunciado: misma pregunta con el enunciado retocado si sus opciones son iguales.
+    const resto = [];
+    libres.forEach(vs => resto.push(...vs));
+    const huella = q => (q.opciones || []).map(o => claveTexto(o.html)).join('|');
+    nuevas.forEach((q, i) => {
+      if(pares[i]) return;
+      const h = huella(q), k = h.replace(/\|/g, '') ? resto.findIndex(v => huella(v) === h) : -1;
+      if(k >= 0) pares[i] = resto.splice(k, 1)[0];
+    });
+    nuevas.forEach((q, i) => {
+      const v = pares[i];
+      if(!v){ r.nuevas.push(i); return; }
+      const campos = difPregunta(v, q);
+      if(campos.length) r.cambiadas.push({ i, v, campos });
+      else if(v.orden !== i) r.orden.push({ id: v.id, orden: i });
+    });
+    r.quitadas = resto;
+    return r;
+  }
+  async function mostrarRevision(){
+    if(abierto) return;
+    const bg = ventana('Revisar cambios');
+    const cuerpo = bg.querySelector('.imp-cuerpo');
+    if(!(await cargarTests(cuerpo))) return;
+    const { fuera, usados } = emparejar();
+    const conTest = plan.filter(t => t.id);
+    try{
+      for(let i = 0; i < conTest.length; i++){
+        const t = conTest[i];
+        cuerpo.innerHTML = '<p>Comparando ' + (i + 1) + ' de ' + conTest.length + '…</p><p class="imp-nota">' + escapeHtml(t.titulo) + '</p>' +
+          '<div class="imp-barra"><span style="width:' + Math.round(i / conTest.length * 100) + '%"></span></div>';
+        const { data, error } = await sb.from('especifico_preguntas').select('id,orden,enunciado,opciones,correcta,explicacion,dificultad').eq('test_id', t.id).order('orden').range(0, 4999);
+        if(error) throw error;
+        t.cambios = compararTest(data || [], t.preguntas);
+      }
+    }catch(e){
+      cuerpo.innerHTML = '<p>No se pudo comparar: ' + escapeHtml(e.message || String(e)) + '</p><div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">Cerrar</button></div>';
+      return;
+    }
+    const nuevosTests = plan.filter(t => !t.id);
+    const suma = k => conTest.reduce((n, t) => n + t.cambios[k].length, 0);
+    const nNuevas = suma('nuevas'), nCambiadas = suma('cambiadas'), nQuitadas = suma('quitadas'), nOrden = suma('orden');
+    const corto = h => { const t = textoPlano(h); return t.length > 110 ? t.slice(0, 107) + '…' : t || '(con imagen)'; };
+    const temaDe = k => { const i = ESP.temas().findIndex(x => x.clave === k); return i >= 0 ? (i + 1) + '. ' + ESP.temas()[i].titulo : k; };
+    // En pj.fire pero no en tutorbomberos (solo si llegaron todos los tests).
+    const temasLote = new Set(plan.map(t => t.clave));
+    const desaparecidos = lote.total === lote.tests.length ? tests.filter(x => temasLote.has(x.tema) && !usados.has(x.id)) : [];
+    const detalle = [];
+    nuevosTests.forEach(t => detalle.push('<details class="imp-detalles"><summary><span class="imp-nuevo">Test nuevo</span> · ' + escapeHtml(t.titulo) + ' (' + t.preguntas.length + ' preguntas)</summary><p class="imp-nota">' + escapeHtml(temaDe(t.clave)) + '</p></details>'));
+    conTest.filter(t => t.cambios.nuevas.length || t.cambios.cambiadas.length || t.cambios.quitadas.length).forEach(t => {
+      const c = t.cambios, partes = [];
+      if(c.nuevas.length) partes.push(c.nuevas.length + (c.nuevas.length === 1 ? ' nueva' : ' nuevas'));
+      if(c.cambiadas.length) partes.push(c.cambiadas.length + (c.cambiadas.length === 1 ? ' cambiada' : ' cambiadas'));
+      if(c.quitadas.length) partes.push(c.quitadas.length + ' ya no ' + (c.quitadas.length === 1 ? 'está' : 'están'));
+      detalle.push('<details class="imp-detalles"><summary>' + escapeHtml(t.titulo) + ' · ' + partes.join(', ') + '</summary><p class="imp-nota">' + escapeHtml(temaDe(t.clave)) + '</p><ul class="imp-resumen">' +
+        c.nuevas.map(i => '<li><span class="imp-nuevo">Nueva:</span> ' + escapeHtml(corto(t.preguntas[i].enunciado)) + '</li>').join('') +
+        c.cambiadas.map(x => '<li><b>Cambia ' + escapeHtml(x.campos.join(', ')) + ':</b> ' + escapeHtml(corto(t.preguntas[x.i].enunciado)) + '</li>').join('') +
+        c.quitadas.map(v => '<li><span class="imp-aviso">Ya no está:</span> ' + escapeHtml(corto(v.enunciado)) + '</li>').join('') +
+        '</ul></details>');
+    });
+    const hay = nuevosTests.length || nNuevas || nCambiadas || nQuitadas || nOrden;
+    const nPregs = n => n + (n === 1 ? ' pregunta' : ' preguntas');
+    const cifra = (n, uno, varios) => '<b>' + n + '</b> ' + (n === 1 ? uno : varios);
+    cuerpo.innerHTML =
+      '<p>' + plan.length + ' tests de tutorbomberos comparados con pj.fire.</p>' +
+      (hay ? '<ul class="imp-resumen">' +
+          (nuevosTests.length ? '<li>' + cifra(nuevosTests.length, 'test nuevo', 'tests nuevos') + ' (' + nPregs(nuevosTests.reduce((n, t) => n + t.preguntas.length, 0)) + ')</li>' : '') +
+          (nNuevas ? '<li>' + cifra(nNuevas, 'pregunta nueva', 'preguntas nuevas') + ' en tests que ya tienes</li>' : '') +
+          (nCambiadas ? '<li>' + cifra(nCambiadas, 'pregunta cambiada', 'preguntas cambiadas') + '</li>' : '') +
+          (nQuitadas ? '<li>' + cifra(nQuitadas, 'pregunta ya no está', 'preguntas ya no están') + ' en tutorbomberos</li>' : '') +
+          (nOrden ? '<li>' + cifra(nOrden, 'pregunta cambia', 'preguntas cambian') + ' solo de orden</li>' : '') +
+        '</ul>' + detalle.join('')
+        : '<p class="imp-ok">✓ Todo está al día: no hay nada nuevo ni cambiado.</p>') +
+      (desaparecidos.length ? '<details class="imp-detalles"><summary>' + desaparecidos.length + (desaparecidos.length === 1 ? ' test tuyo ya no está' : ' tests tuyos ya no están') + ' en tutorbomberos</summary><ul class="imp-resumen">' +
+        desaparecidos.map(x => '<li>' + escapeHtml(x.titulo) + ' <span class="imp-nota">(' + escapeHtml(temaDe(x.tema)) + ')</span></li>').join('') + '</ul><p class="imp-nota">No se tocan: si quieres quitarlos, hazlo en Administración › Específico.</p></details>' : '') +
+      notasLote(fuera) +
+      (nQuitadas ? '<label class="imp-check"><input type="checkbox" id="impBorrarQuitadas"> <span>Borrar también de pj.fire ' + (nQuitadas === 1 ? 'la pregunta que ya no está' : 'las ' + nQuitadas + ' preguntas que ya no están') + ' en tutorbomberos</span></label>' : '') +
+      '<div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">' + (hay ? 'Cancelar' : 'Cerrar') + '</button>' +
+        (hay ? '<button type="button" class="imp-btn primario" data-imp="aplicar">Aplicar cambios</button>' : '') + '</div>';
+  }
+  async function aplicarRevision(bg){
+    const cuerpo = bg.querySelector('.imp-cuerpo');
+    const borrar = !!(bg.querySelector('#impBorrarQuitadas') || {}).checked;
+    const fallos = [];
+    let hechos = 0;
+    guardando = true;
+    // Solo se descargan las imágenes de lo que se va a escribir.
+    const escribir = [];
+    plan.forEach(t => {
+      if(!t.id) escribir.push(...t.preguntas);
+      else { t.cambios.nuevas.forEach(i => escribir.push(t.preguntas[i])); t.cambios.cambiadas.forEach(x => escribir.push(t.preguntas[x.i])); }
+    });
+    const sinImg = await incrustarExternas(escribir, txt => { cuerpo.innerHTML = '<p>' + escapeHtml(txt) + '</p><p class="imp-nota">No cierres esta pestaña.</p>'; });
+    const conCambios = plan.filter(t => !t.id || t.cambios.nuevas.length || t.cambios.cambiadas.length || t.cambios.orden.length || (borrar && t.cambios.quitadas.length));
+    for(let k = 0; k < conCambios.length; k++){
+      const t = conCambios[k];
+      cuerpo.innerHTML = '<p>Aplicando ' + (k + 1) + ' de ' + conCambios.length + '…</p><p class="imp-nota">' + escapeHtml(t.titulo) + '</p>' +
+        '<div class="imp-barra"><span style="width:' + Math.round(k / conCambios.length * 100) + '%"></span></div><p class="imp-nota">No cierres esta pestaña.</p>';
+      try{
+        if(!t.id){
+          const orden = tests.filter(x => x.tema === t.clave).reduce((m, x) => Math.max(m, x.orden + 1), 0);
+          const { data, error } = await sb.from('especifico_tests').insert({ tema: t.clave, titulo: t.titulo, orden }).select('id,tema,titulo,orden').single();
+          if(error) throw error;
+          tests.push(data);
+          t.id = data.id;
+          await volcar(t.id, t.preguntas, lote.origen, true);
+        } else {
+          const c = t.cambios;
+          if(borrar && c.quitadas.length){
+            const { error } = await sb.from('especifico_preguntas').delete().in('id', c.quitadas.map(v => v.id));
+            if(error) throw error;
+          }
+          // Lo que en tutorbomberos llega vacío no pisa lo que ya hay.
+          const fila = (q, i, v) => ({ orden: i, enunciado: q.enunciado, opciones: q.opciones,
+            correcta: q.correcta || (v && v.correcta) || '', confirmada: q.correcta ? q.confirmada : !!(v && v.correcta),
+            explicacion: q.explicacion || (v && v.explicacion) || '', dificultad: q.dificultad || (v && v.dificultad) || '' });
+          const updates = c.cambiadas.map(x => ({ id: x.v.id, cambio: fila(t.preguntas[x.i], x.i, x.v) }))
+            .concat(c.orden.map(o => ({ id: o.id, cambio: { orden: o.orden } })));
+          for(let j = 0; j < updates.length; j += 5){
+            const rs = await Promise.all(updates.slice(j, j + 5).map(u => sb.from('especifico_preguntas').update(u.cambio).eq('id', u.id)));
+            const r = rs.find(x => x.error);
+            if(r) throw r.error;
+          }
+          let tanda = [], peso = 0;
+          const enviar = async () => {
+            if(!tanda.length) return;
+            const { error } = await sb.from('especifico_preguntas').insert(tanda);
+            if(error) throw error;
+            tanda = []; peso = 0;
+          };
+          for(const i of c.nuevas){
+            const f = Object.assign({ test_id: t.id, origen: lote.origen || null }, fila(t.preguntas[i], i, null));
+            const p = JSON.stringify(f).length;
+            if(tanda.length && peso + p > 1500000) await enviar();
+            tanda.push(f); peso += p;
+          }
+          await enviar();
+        }
+        hechos++;
+      }catch(e){ fallos.push('«' + t.titulo + '»: ' + (e.message || e)); }
+    }
+    lote = null;
+    guardando = false;
+    if(fallos.length || sinImg){
+      cuerpo.innerHTML = '<p>Aplicados los cambios de ' + hechos + ' de ' + conCambios.length + ' tests.' + (fallos.length ? ' <span class="imp-aviso">Fallaron ' + fallos.length + ':</span>' : '') + '</p>' +
+        (fallos.length ? '<ul class="imp-resumen">' + fallos.map(f => '<li>' + escapeHtml(f) + '</li>').join('') + '</ul><p class="imp-nota">Vuelve a pasar el marcador «Revisar cambios» para terminar.</p>' : '') +
+        (sinImg ? '<p class="imp-aviso">' + sinImg + (sinImg === 1 ? ' imagen no se pudo descargar' : ' imágenes no se pudieron descargar') + ' (la web de origen no responde).</p>' : '') +
+        '<div class="imp-botones"><button type="button" class="imp-btn primario" data-imp="cerrar">Cerrar</button></div>';
+    } else {
+      uiToast('Cambios aplicados en ' + hechos + (hechos === 1 ? ' test' : ' tests'), 'success');
       cerrar();
     }
     plan = null;
@@ -371,7 +569,7 @@ const IMP = (function(){
         lote = l;
         try{ e.source.postMessage({ tipo: 'pjfire-recibido' }, e.origin); }catch(err){}
         cerrar();   // por si estaba abierta la ventana de «Pegar»
-        cuandoAdmin(mostrarLote);
+        cuandoAdmin(lote.modo === 'revisar' ? mostrarRevision : mostrarLote);
         return;
       }
       if(e.data.tipo !== 'pjfire-preguntas') return;
