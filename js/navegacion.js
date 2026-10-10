@@ -69,8 +69,8 @@ function showScreen(id){
   const headerNav = document.querySelector('.header-nav');
   if(headerNav) headerNav.classList.toggle('hidden', !isTopLevel);
   const headerUser = document.getElementById('headerUser');
-  if(headerUser) headerUser.classList.toggle('hidden', id === 'screen-quiz' || id === 'screen-review');
-  if(id === 'screen-quiz' || id === 'screen-review'){
+  if(headerUser) headerUser.classList.toggle('hidden', id === 'screen-quiz' || id === 'screen-review' || id === 'screen-pru');
+  if(id === 'screen-quiz' || id === 'screen-review' || id === 'screen-pru'){
     if(typeof observeActiveQuizHead === 'function') observeActiveQuizHead();
   } else if(quizHeadObserver){
     quizHeadObserver.disconnect();

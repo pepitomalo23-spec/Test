@@ -27,7 +27,7 @@
     -webkit-transform: translateZ(0);
     will-change: transform;
   }
-  #screen-quiz, #screen-review{ padding-top: calc(var(--quiz-head-h, 60px) + 10px); }
+  #screen-quiz, #screen-review, #screen-pru{ padding-top: calc(var(--quiz-head-h, 60px) + 10px); }
   .back-link{ display:flex; align-items:center; gap:7px; font-size:13px; color: var(--muted); cursor:pointer; }
   .back-link svg{ width:14px; height:14px; }
   .quiz-head-right{ display:flex; align-items:center; gap:12px; }
@@ -50,12 +50,12 @@
   /* Vista tarjeta de Estudio/Fallos: recuadro más visible (fondo más gris y
      borde más marcado sobre el negro de fondo), más estrecha y con letra
      algo más pequeña que en el resto de la app. */
-  #quizCardView{ max-width:600px; margin:0 auto; padding-bottom:76px; }
-  #quizCardView .quiz-card{
+  #quizCardView, .pru-card-view{ max-width:600px; margin:0 auto; padding-bottom:76px; }
+  #quizCardView .quiz-card, .pru-card-view .quiz-card{
     background: var(--study-card-bg); border:1px solid var(--study-card-border);
   }
-  #quizCardView .question{ font-size:17px; }
-  #quizCardView .option{ font-size:13px; }
+  #quizCardView .question, .pru-card-view .question{ font-size:17px; }
+  #quizCardView .option, .pru-card-view .option{ font-size:13px; }
 
   .article-tag{
     display:inline-flex; gap:7px; align-items:center;
@@ -609,8 +609,9 @@
   .pru-modos{ margin-bottom:18px; }
   .pru-modos .mode-card.disabled{ opacity:.5; pointer-events:none; }
   .pru-marcadas{ margin-bottom:6px; }
-  #screen-pru .quiz-nav-btn[data-pru="ant"]{ left:22px; }
-  #screen-pru .quiz-nav-btn[data-pru="sig"], #screen-pru .quiz-nav-btn[data-pru="terminar"]{ right:22px; }
-  #screen-pru .quiz-card + .quiz-bottombar, #screen-pru .pru-exp + .quiz-bottombar{ margin-top:0; }
-  #pruCuerpo:has(.quiz-bottombar){ padding-bottom:96px; }
+  #screen-pru .pru-ant{ left:22px; }
+  #screen-pru .pru-sig{ right:22px; }
+  .pru-fallada{ cursor:default; }
+  .article-tag .pru-dot{ width:8px; height:8px; margin-left:2px; }
   .pru-cargando{ color: var(--muted); font-style: italic; }
+  .pru-card-view .explain-text img{ display:block; max-width:100%; height:auto; margin:8px 0; background:#fff; border-radius:6px; }

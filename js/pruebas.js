@@ -79,9 +79,11 @@ const PRU = (function(){
       estado[id] = (!a.some(x => !x) || racha >= 3) ? 'green' : racha >= 1 ? 'yellow' : 'red';
     });
     // En Fallos: las rojas, menos las quitadas que no se han vuelto a fallar después.
+    const fallos = {};
+    Object.keys(intentos).forEach(id => { fallos[id] = intentos[id].filter(x => !x).length; });
     const enFallos = id => estado[id] === 'red' && !(quitada[id] && (!ultimo[id] || new Date(quitada[id]) >= new Date(ultimo[id])));
     meta = {
-      tests, estado, enFallos,
+      tests, estado, enFallos, fallos,
       preg: preg.filter(p => tests[p.test_id]).map(p => ({ id: p.id, test_id: p.test_id, tema: tests[p.test_id].tema, dif: p.dificultad || '' }))
     };
     return meta;
@@ -357,8 +359,9 @@ const PRU = (function(){
   function itemEsp(p, tests){
     // Las del Específico no se barajan: muchas dicen «a y b son correctas».
     const ops = p.opciones || [], t = tests[p.test_id];
-    return { k: 'e', id: p.id, html: sinNumero(p.enunciado), opciones: ops.map(o => o.html), correcta: ops.findIndex(o => o.l === p.correcta),
-      tema: t ? temaEsp(t.tema).replace(/^\d+\.\s*/, '') + ' · ' + t.titulo : '', dif: p.dificultad || '', explicacion: p.tiene_explicacion ? null : '' };   // null: se pide al abrirla (ESPT.explicacion)
+    const nt = t ? ESP.temas().findIndex(x => x.clave === t.tema) + 1 : 0;
+    return { k: 'e', id: p.id, html: sinNumero(p.enunciado), etiquetaTema: t ? 'Tema ' + nt + ' › ' + t.titulo : '', opciones: ops.map(o => o.html), correcta: ops.findIndex(o => o.l === p.correcta),
+      tema: t ? temaEsp(t.tema).replace(/^\d+\.\s*/, '') + ' · ' + t.titulo : '', dif: p.dificultad || '', fallos: meta && meta.fallos ? meta.fallos[p.id] || 0 : 0, explicacion: p.tiene_explicacion ? null : '' };   // null: se pide al abrirla (ESPT.explicacion)
   }
   // Elige al azar del Específico respetando cuántas de cada dificultad.
   function elegirEsp(pool, n, dif){
@@ -395,7 +398,7 @@ const PRU = (function(){
   function guardar(){
     if(!clave() || !est || est.terminado || est.revision) return;
     try{
-      localStorage.setItem(clave(), JSON.stringify({ v: 2, modo: est.modo, inicio: est.inicio, fin: est.fin, i: est.i, resp: est.resp, vistas: est.vistas,
+      localStorage.setItem(clave(), JSON.stringify({ v: 2, modo: est.modo, inicio: est.inicio, fin: est.fin, i: est.i, resp: est.resp, vistas: est.vistas, blancas: est.blancas || null,
         items: est.items.map(it => it.k === 'l' ? { k: 'l', id: it.id, orden: it.orden } : { k: 'e', id: it.id }) }));
     }catch(e){}
   }
@@ -435,7 +438,7 @@ const PRU = (function(){
       const keep = rehechos.map((it, i) => it ? i : -1).filter(i => i >= 0);   // las que ya no existen se quitan
       if(!keep.length){ borrarGuardado(); uiToast('Las preguntas de esa prueba ya no existen.', 'info'); return; }
       est = { modo: g.modo, items: keep.map(i => rehechos[i]), resp: keep.map(i => g.resp[i] == null ? null : g.resp[i]),
-        vistas: keep.map(i => !!(g.vistas && g.vistas[i])), i: Math.min(g.i || 0, keep.length - 1), inicio: g.inicio, fin: g.fin, terminado: false };
+        vistas: keep.map(i => !!(g.vistas && g.vistas[i])), blancas: keep.map(i => !!(g.blancas && g.blancas[i])), i: Math.min(g.i || 0, keep.length - 1), inicio: g.inicio, fin: g.fin, terminado: false };
       mostrar();
       if(est.fin && Date.now() >= est.fin) terminar(true);
     }catch(e){ uiToast('No se pudo recuperar: ' + (e.message || e), 'error'); }
@@ -469,10 +472,11 @@ const PRU = (function(){
     showScreen('screen-pru');
     $('pruCabecera').classList.remove('hidden');
     $('pruTiempo').classList.toggle('hidden', !est.fin);
+    $('pruCabecera').querySelector('[data-pru="terminar"]').classList.remove('ready');
     if(MODOS[est.modo].vista === 'tarjeta') pintarTarjeta();
     else {
       $('pruCuerpo').innerHTML = est.items.map((it, i) =>
-        '<div class="quiz-list-item simc-item" data-i="' + i + '">' + etiqueta(it) +
+        '<div class="quiz-list-item simc-item" data-i="' + i + '">' + (MODOS[est.modo].legis ? etiqueta(it) : '') +
           '<div class="question">' + (i + 1) + '. ' + enunciado(it) + '</div>' +
           '<div class="options">' + it.opciones.map((_, j) =>
             '<div class="option' + (est.resp[i] === j ? ' selected' : '') + '" role="button" tabindex="0" data-pru-r="' + i + '" data-j="' + j + '">' +
@@ -483,32 +487,61 @@ const PRU = (function(){
     }
     contador();
     arrancarReloj();
+    if(typeof observeActiveQuizHead === 'function') observeActiveQuizHead();   // hueco de la cabecera fija
   }
   function arriba(){ const a = $('app'); if(a) a.scrollTop = 0; }
-  // Estudio y Fallos: una a una, y al responder se ve si está bien y la explicación.
+  // Estudio y Fallos: una a una, igual que en Legislación (js/test.js,
+  // renderQuestion): al responder se marca bien/mal; «En blanco» la da por no
+  // sabida; la explicación queda plegada hasta «Mostrar explicación»; para
+  // seguir hay que responder; en la última se ilumina «Finalizar».
+  const FLECHA_IZQ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,6 9,12 15,18"/></svg>';
+  const FLECHA_DER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg>';
+  function metaExplicacion(it, falladaAhora){
+    const tag = it.k === 'l' ? (it.art || it.tema) : (it.etiquetaTema || it.tema);
+    const n = (it.fallos || 0) + (falladaAhora ? 1 : 0);
+    return '<div class="explain-meta">' +
+        '<div class="article-tag">' + ICONS.seal + '<span>' + escapeHtml(tag || 'Específico') + '</span>' +
+          (it.dif ? '<i class="pru-dot ' + it.dif + '" title="Dificultad ' + it.dif + '"></i>' : '') + '</div>' +
+        '<div class="fail-history-toggle pru-fallada"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 1 2.3 5.6"/><polyline points="4,17 4,12 9,12"/></svg>' +
+          '<span>Fallada <b>' + n + '</b> ' + (n === 1 ? 'vez' : 'veces') + '</span></div>' +
+      '</div><hr class="explain-divider">';
+  }
+  function cuerpoExplicacion(it){
+    return '<div class="explain-body"><div class="explain-section-head"><div class="explain-section-label"><span class="explain-icon-badge">' + ICONS.bulb + '</span><span>Explicación</span></div></div>' +
+      '<div class="explain-text">' + (explicacion(it) || 'Sin explicación.') + '</div></div>';
+  }
   function pintarTarjeta(){
-    const i = est.i, it = est.items[i], r = est.resp[i], hecha = r != null;
+    const i = est.i, it = est.items[i], n = est.items.length;
+    if(!est.blancas) est.blancas = new Array(n).fill(false);
+    const r = est.resp[i], blanco = !!est.blancas[i], hecha = r != null || blanco, ultima = i === n - 1;
     est.vistas[i] = true;
     $('pruCuerpo').innerHTML =
-      '<div class="quiz-card simc-item">' + etiqueta(it) +
-        '<div class="question">' + enunciado(it) + '</div>' +
-        '<div class="options">' + it.opciones.map((_, j) => {
-          const cls = !hecha ? '' : j === it.correcta ? ' correct' : j === r ? ' incorrect' : '';
-          return '<div class="option' + cls + '" role="button" tabindex="0" data-pru-r="' + i + '" data-j="' + j + '">' +
-            '<span class="opt-badge">' + LETRAS[j] + '</span><span class="opt-text">' + opcion(it, j) + '</span><span class="opt-result">' +
-            (hecha && j === it.correcta ? ICONS.check : hecha && j === r ? ICONS.cross : '') + '</span></div>';
-        }).join('') + '</div></div>' +
-      (hecha ? '<div class="explain show pru-exp">' + (explicacion(it) || '<span class="pru-sin-exp">Sin explicación.</span>') + (it.art ? '<div class="simc-art">' + escapeHtml(it.art) + '</div>' : '') + '</div>' : '') +
-      '<div class="quiz-bottombar">' +
-        '<button class="quiz-nav-btn" data-pru="ant" aria-label="Anterior"' + (i ? '' : ' disabled') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,6 9,12 15,18"/></svg></button>' +
-        '<span class="quiz-pill">' + (i + 1) + ' de ' + est.items.length + '</span>' +
-        (i < est.items.length - 1
-          ? '<button class="quiz-nav-btn" data-pru="sig" aria-label="Siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg></button>'
-          : '<button class="quiz-nav-btn pru-fin" data-pru="terminar" aria-label="Finalizar">✓</button>') +
+      '<div class="pru-card-view">' +
+        '<div class="quiz-card">' + (MODOS[est.modo].legis ? etiqueta(it) : '') +
+          '<div class="question">' + enunciado(it) + '</div>' +
+          '<div class="options">' + it.opciones.map((_, j) => {
+            const cls = !hecha ? '' : j === it.correcta ? ' correct' + (blanco ? ' blank-correct' : '') : j === r ? ' incorrect' : '';
+            return '<div class="option' + cls + '" role="button" tabindex="0"' + (hecha ? '' : ' data-pru-r="' + i + '" data-j="' + j + '"') + '>' +
+              '<span class="opt-badge">' + LETRAS[j] + '</span><span class="opt-text">' + opcion(it, j) + '</span><span class="opt-result">' +
+              (hecha && j === it.correcta ? ICONS.check : hecha && j === r ? ICONS.cross : '') + '</span></div>';
+          }).join('') + '</div></div>' +
+        '<div class="explain' + (hecha && est.expAbierta ? ' show' : '') + '">' + (hecha ? metaExplicacion(it, r !== it.correcta) + cuerpoExplicacion(it) : '') + '</div>' +
+        '<div class="quiz-bottombar">' +
+          '<button class="quiz-nav-btn pru-ant" data-pru="ant" aria-label="Anterior"' + (i ? '' : ' disabled') + '>' + FLECHA_IZQ + '</button>' +
+          (hecha
+            ? '<span class="quiz-pill clickable' + (est.expAbierta ? ' open' : '') + '" role="button" tabindex="0" data-pru="exp">' + (est.expAbierta ? 'Ocultar explicación' : 'Mostrar explicación') + '<span class="chev">' + ICONS.chevron + '</span></span>'
+            : '<span class="quiz-pill clickable" role="button" tabindex="0" data-pru="blanco">En blanco</span>') +
+          (ultima ? '' : '<button class="quiz-nav-btn pru-sig" data-pru="sig" aria-label="Siguiente"' + (hecha ? '' : ' disabled') + '>' + FLECHA_DER + '</button>') +
+        '</div>' +
       '</div>';
+    $('pruContador').textContent = (i + 1) + ' / ' + n;
+    $('pruCabecera').querySelector('[data-pru="terminar"]').classList.toggle('ready', ultima && hecha);
     guardar();
   }
-  function contador(){ $('pruContador').textContent = est.resp.filter(r => r != null).length + ' / ' + est.items.length; }
+  function contador(){
+    if(MODOS[est.modo].vista === 'tarjeta'){ $('pruContador').textContent = (est.i + 1) + ' / ' + est.items.length; return; }
+    $('pruContador').textContent = est.resp.filter(r => r != null).length + ' / ' + est.items.length;
+  }
   function arrancarReloj(){
     clearInterval(reloj);
     if(!est.fin) return;
@@ -525,8 +558,9 @@ const PRU = (function(){
   function responder(i, j){
     if(!est || est.terminado || est.revision) return;
     if(MODOS[est.modo].vista === 'tarjeta'){
-      if(est.resp[i] != null) return;   // una sola respuesta
+      if(est.resp[i] != null || (est.blancas && est.blancas[i])) return;   // una sola respuesta
       est.resp[i] = j;
+      est.expAbierta = false;
       pintarTarjeta();
     } else {
       est.resp[i] = est.resp[i] === j ? null : j;   // tocar otra vez la elegida la deja en blanco
@@ -537,7 +571,7 @@ const PRU = (function(){
   }
   async function pedirTerminar(){
     const tarjeta = MODOS[est.modo].vista === 'tarjeta';
-    const quedan = tarjeta ? est.items.length - est.resp.filter(r => r != null).length : est.resp.filter(r => r == null).length;
+    const quedan = tarjeta ? est.items.filter((_, i) => est.resp[i] == null && !(est.blancas && est.blancas[i])).length : est.resp.filter(r => r == null).length;
     const ok = await uiConfirm(!quedan ? '¿Terminar?' : tarjeta
       ? 'Te quedan ' + quedan + (quedan === 1 ? ' pregunta' : ' preguntas') + ' por responder. ¿Terminar ya?\n\nSolo cuentan las que has visto.'
       : 'Te quedan ' + quedan + (quedan === 1 ? ' pregunta en blanco' : ' preguntas en blanco') + '. ¿Finalizar?', { ok: 'Terminar' });
@@ -694,6 +728,7 @@ const PRU = (function(){
   function pintarResultado(){
     showScreen('screen-pru');
     $('pruCabecera').classList.add('hidden');
+    if(typeof updateQuizHeadHeightVar === 'function') updateQuizHeadHeightVar();
     const r = est.res, M = MODOS[est.modo];
     const caja = (tit, x, clase) => x && x.total ? '<div class="simc-parte ' + clase + '"><div class="simc-parte-tit">' + tit + '</div>' +
       '<div class="simc-parte-nota">' + formatNota(x.nota) + '</div>' +
@@ -778,8 +813,12 @@ const PRU = (function(){
     const M = est ? MODOS[est.modo] : MODOS.conjunto;
     switch(b.dataset.pru){
       case 'terminar': pedirTerminar(); break;
-      case 'ant': if(est.i > 0){ est.i--; pintarTarjeta(); arriba(); } break;
-      case 'sig': if(est.i < est.items.length - 1){ est.i++; pintarTarjeta(); arriba(); } break;
+      case 'ant': if(est.i > 0){ est.i--; est.expAbierta = false; pintarTarjeta(); arriba(); } break;
+      case 'sig': if(est.i < est.items.length - 1){ est.i++; est.expAbierta = false; pintarTarjeta(); arriba(); } break;
+      case 'exp': est.expAbierta = !est.expAbierta; pintarTarjeta(); break;
+      case 'blanco':
+        if(!est.blancas) est.blancas = new Array(est.items.length).fill(false);
+        est.blancas[est.i] = true; est.expAbierta = false; pintarTarjeta(); contador(); break;
       case 'salir': showScreen(M.volver); break;   // queda guardada: se sigue después
       case 'volver': { const v = M.volver; est = null; showScreen(v); break; }
       case 'otro': { const modo = est.modo, v = M.volver; est = null; showScreen(v); abrirConfig(modo); break; }
