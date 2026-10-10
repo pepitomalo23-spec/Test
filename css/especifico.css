@@ -74,9 +74,12 @@
 .espt-etiqueta + .espt-campo + .espt-etiqueta{ margin-top:12px; }
 .espt-campo{ background: var(--espt-campo); color: var(--espt-campo-txt); border:1px solid rgba(0,0,0,.25); border-radius:2px; padding:7px 9px; font-size:14.5px; max-width:560px; }
 .espt-lista{ display:flex; flex-direction:column; gap:42px; }
-.espt-preg{ position:relative; background: var(--espt-card); border:1px solid var(--espt-borde); border-left:5px solid #5cb85c; padding:14px 14px 14px 12px; color: var(--espt-texto);
+.espt-preg{ position:relative; background: var(--espt-card); border:1px solid var(--espt-borde); border-left:5px solid #9e9e9e; padding:14px 14px 14px 12px; color: var(--espt-texto);
   font-family: Helvetica, Arial, sans-serif; }
-.espt-preg.fallada{ border-left-color:#f5d10f; }
+/* Franja izquierda = dificultad de la pregunta */
+.espt-preg.dif-facil{ border-left-color:#5cb85c; }
+.espt-preg.dif-media{ border-left-color:#f5d10f; }
+.espt-preg.dif-dificil{ border-left-color:#e0261b; }
 .espt-estrella{ position:absolute; left:6px; top:5px; width:15px; height:15px; }
 .espt-estrella svg{ width:100%; height:100%; display:block; }
 .espt-iconos{ float:right; display:flex; gap:5px; margin:-6px -6px 4px 8px; }
@@ -94,6 +97,15 @@
 .espt-tick.mal{ color:#e0261b; }
 .espt-letra{ flex-shrink:0; width:20px; height:20px; margin-top:1px; border-radius:50%; background:#f7d78f; color:#5a4310; font-weight:700; font-size:13px; line-height:20px; text-align:center; }
 .espt-op-txt{ flex:1; min-width:0; }
+.espt-op.acierto .espt-op-txt, .espt-op.era .espt-op-txt{ font-weight:700; }
+.espt-op.era .espt-op-txt{ color:#3c9a2e; }
+.espt-op.fallo .espt-op-txt{ color:#e0261b; text-decoration: line-through; text-decoration-thickness:1px; }
+.espt-correcta{ margin:8px 0 0 26px; font-size:14.5px; color:#3c9a2e; }
+.espt-cab-txt{ color:#fff; font-size:14.5px; line-height:1.45; }
+.espt-grupo{ margin-bottom:-24px; }
+.espt-grupo-tema{ font-family:'Roboto Slab', serif; font-weight:700; font-size:19px; line-height:1.3; color: var(--esp-titulo); margin:0 0 6px; }
+.espt-grupo-test{ font-size:15px; color: var(--muted); }
+.espt-grupo-test b{ color: var(--text); }
 .espt-exp{ margin-top:10px; background: var(--espt-exp-bg); border:1px solid var(--espt-borde); padding:12px 10px; font-size:15px; line-height:1.6; color: var(--espt-texto); }
 .espt-preg img{ max-width:100%; height:auto; margin:8px 0; background:#fff; }
 .espt-pie{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; margin:30px 0 10px; font-size:14px; color: var(--muted); }
@@ -104,3 +116,13 @@
   .espt-enunciado{ font-size:15.5px; }
   .espt-op{ font-size:15px; }
 }
+
+/* Acceso a Preguntas marcadas (lista de temas) */
+.esp-marcadas{ display:flex; align-items:center; gap:14px; width:100%; margin:6px 0 4px; padding:14px 16px; text-align:left; font:inherit; color: var(--text);
+  background: var(--card); border:1px solid var(--esp-borde); border-left:5px solid #f5c518; border-radius:4px; cursor:pointer; }
+.esp-marcadas:hover{ background: var(--card-hi); }
+.esp-marcadas-ico{ font-size:26px; color:#f5c518; line-height:1; }
+.esp-marcadas-txt{ flex:1; display:flex; flex-direction:column; gap:2px; }
+.esp-marcadas-txt b{ font-family:'Roboto Slab', serif; font-size:18px; color: var(--esp-titulo); }
+.esp-marcadas-txt span{ font-size:13px; color: var(--muted); }
+.esp-marcadas-flecha{ font-size:24px; color: var(--muted); }

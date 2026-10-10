@@ -393,6 +393,7 @@ function onLoggedOut(){
   currentUserIsProfesor = false;
   if(typeof CJ !== 'undefined') CJ.reiniciar();
   if(typeof CJP !== 'undefined') CJP.reiniciar();
+  if(typeof ESPT !== 'undefined') ESPT.reiniciar();
   if(adminPollInterval){ clearInterval(adminPollInterval); adminPollInterval = null; }
   const adminBtn = document.getElementById('headerAdminBtn');
   if(adminBtn) adminBtn.classList.add('hidden');
