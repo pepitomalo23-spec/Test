@@ -59,11 +59,33 @@ const ESP = (function(){
         : '<div class="esp-vacio">' + (cargando ? 'Cargando…' : 'Todavía no hay tests en este tema.') + '</div>') +
       '</div>';
   }
+  /* Dos vistas: «Tests de tutorbomberos» (los temas y sus tests, con el diseño
+     de tutorbomberos) y «Panel pj.fire» (como Legislación: Estudio, Fallos,
+     Simulacro y Examen con preguntas del Específico; lo pinta PRU, en
+     js/pruebas.js). Se recuerda la elegida en el dispositivo. */
+  const VISTA = 'pj_esp_vista';
+  function vista(){
+    if(typeof PRU === 'undefined') return 'tb';
+    try{ return localStorage.getItem(VISTA) === 'pj' ? 'pj' : 'tb'; }catch(e){ return 'tb'; }
+  }
+  function cambiarVista(v){
+    try{ localStorage.setItem(VISTA, v); }catch(e){}
+    pintar();
+    if(v === 'pj') PRU.cargarPanel();
+  }
+  function selectorVista(v){
+    if(typeof PRU === 'undefined') return '';
+    return '<div class="stats-tabs esp-vistas" role="tablist" aria-label="Cómo ver el Específico">' +
+      '<button type="button" class="stats-tab' + (v === 'pj' ? ' active' : '') + '" role="tab" aria-selected="' + (v === 'pj') + '" data-esp-vista="pj">Panel pj.fire</button>' +
+      '<button type="button" class="stats-tab' + (v === 'tb' ? ' active' : '') + '" role="tab" aria-selected="' + (v === 'tb') + '" data-esp-vista="tb">Tests de tutorbomberos</button></div>';
+  }
   function pintar(){
     const root = document.getElementById('espRoot');
     if(!root) return;
+    const v = vista();
+    if(v === 'pj'){ root.innerHTML = selectorVista(v) + PRU.panelHtml(); return; }
     const nm = typeof ESPT !== 'undefined' ? ESPT.numMarcadas() : null;
-    root.innerHTML = '<button type="button" class="esp-marcadas" data-marcadas="1">' +
+    root.innerHTML = selectorVista(v) + '<button type="button" class="esp-marcadas" data-marcadas="1">' +
         '<span class="esp-marcadas-ico">★</span><span class="esp-marcadas-txt"><b>Preguntas marcadas</b>' +
         '<span>' + (nm == null ? 'Las que guardas con la estrella' : nm ? nm + (nm === 1 ? ' pregunta guardada' : ' preguntas guardadas') : 'Todavía no has guardado ninguna') + '</span></span>' +
         '<span class="esp-marcadas-flecha">›</span></button>' +
@@ -88,7 +110,10 @@ const ESP = (function(){
     if(root && !root.dataset.listo){
       root.dataset.listo = '1';
       root.addEventListener('click', e => {
+        const cv = e.target.closest('[data-esp-vista]');
+        if(cv){ cambiarVista(cv.dataset.espVista); return; }
         if(e.target.closest('[data-marcadas]')){ ESPT.abrirMarcadas(); return; }
+        if(vista() === 'pj' && PRU.onPanelClick(e)) return;
         const ft = e.target.closest('[data-test]');
         if(ft){ abrirTest(ft.dataset.test); return; }
         const cab = e.target.closest('.esp-cab');
@@ -98,9 +123,11 @@ const ESP = (function(){
       });
       root.addEventListener('keydown', e => {
         if(e.key === 'Enter' && e.target.dataset && e.target.dataset.test) abrirTest(e.target.dataset.test);
+        if(vista() === 'pj') PRU.onKey(e);
       });
     }
     pintar();
+    if(vista() === 'pj') PRU.cargarPanel();
     cargar();
     if(typeof ESPT !== 'undefined') ESPT.cargarMarcadas().then(pintar);
   }
@@ -115,5 +142,5 @@ const ESP = (function(){
       if(!data || data.length < 1000) return n;
     }
   }
-  return { abrir, contarPreguntas, temas: () => TEMAS.map(([k, t]) => ({ clave: k, titulo: t })) };
+  return { abrir, repintar: pintar, contarPreguntas, temas: () => TEMAS.map(([k, t]) => ({ clave: k, titulo: t })) };
 })();

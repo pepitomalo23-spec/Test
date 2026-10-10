@@ -110,7 +110,7 @@ function renderHistory(){
    selector con cada tipo de test presente (y cuántos hay); debajo, la
    lista completa (limitada a lo que ya se ha cargado del backend) según
    el filtro elegido. */
-const HISTORIAL_TIPO_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', conjunto:'Simulacro conjunto', fallos:'Fallos' };
+const HISTORIAL_TIPO_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos' };
 let historialTipoFilter = 'todas';
 function openHistorialTodo(){
   historialTipoFilter = 'todas';
@@ -202,7 +202,7 @@ async function deleteHistoryItem(h, btnEl){
 }
 
 /* ---------- load session history for the logged-in user ---------- */
-// «conjunto»: la parte de Legislación de un Simulacro conjunto (la del Específico va a sus estadísticas).
+// «conjunto»: la parte de Legislación de un Simulacro conjunto (no sale en este historial: tiene el suyo).
 const HISTORY_MODE_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', conjunto:'Simulacro conjunto (Legislación)', fallos:'Fallos', inteligente:'Test Inteligente' };
 function mapSessionRowToHistoryEntry(row){
   return {
@@ -219,7 +219,8 @@ function mapSessionRowToHistoryEntry(row){
 async function loadHistory(){
   if(!currentUser){ HISTORY = []; SMART_HISTORY = []; renderHistory(); renderSmartHistory(); return; }
   const [{ data, error }, { data: smartData, error: smartError }] = await Promise.all([
-    sb.from('test_sessions').select('*').eq('user_id', currentUser.id).neq('mode', 'inteligente')
+    // El Simulacro conjunto («conjunto») tiene su propio historial (js/pruebas.js): aquí no sale.
+    sb.from('test_sessions').select('*').eq('user_id', currentUser.id).not('mode', 'in', '(inteligente,conjunto)')
       .order('created_at', { ascending: false }).limit(50),
     sb.from('test_sessions').select('*').eq('user_id', currentUser.id).eq('mode', 'inteligente')
       .order('created_at', { ascending: false }).limit(30)

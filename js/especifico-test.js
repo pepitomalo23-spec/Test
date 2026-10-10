@@ -196,7 +196,7 @@ const ESPT = (function(){
     enviando = false;
   }
   function guardarRespuesta(id, acierto){ registrar([{ pregunta_id: id, acierto }]); }
-  // También las usa el Simulacro conjunto (js/simulacro-conjunto.js).
+  // También las usan las pruebas de js/pruebas.js (Simulacro conjunto y modos del Específico).
   function registrar(lista){
     if(!claveCola() || !lista.length) return;
     const c = leerCola(), ahora = new Date().toISOString();

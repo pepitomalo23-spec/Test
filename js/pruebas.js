@@ -1,0 +1,709 @@
+/* Pruebas con preguntas del Específico (y de Legislación en el conjunto):
+   - Simulacro conjunto (Inicio): Legislación + Específico, con el % de cada
+     parte, los temas de cada una, cuántas preguntas, tiempo y cuántas de cada
+     dificultad del Específico (verde fácil, amarilla media, roja difícil).
+   - Panel de pj.fire del Específico (Estudio › Específico, vista «pj.fire»):
+     Estudio y Fallos (una a una, corrección al momento) y Simulacro y Examen
+     (todas seguidas, con tiempo y corrección al final), como en Legislación.
+   La puntuación es la de los simulacros (acierto +1, fallo −1/(opciones−1),
+   en blanco 0). Al terminar, cada parte se guarda en su sitio, sin mezclar:
+   Legislación como sesión «conjunto» (sus estadísticas, Fallos y Repaso), el
+   Específico en especifico_respuestas (ESPT.registrar) y la prueba entera en
+   historial_pruebas, que es el historial propio de cada una. Una prueba a
+   medias se guarda en el dispositivo y se continúa desde donde se empezó. */
+const PRU = (function(){
+  const N_SIM = [20, 30, 40, 50, 60, 80, 100];
+  const N_EST = [10, 20, 30, 40, 0];        // 0 = todas
+  const MINUTOS = [15, 30, 45, 60, 90, 120];
+  const MODOS = {
+    'conjunto':      { titulo: 'Simulacro conjunto', corto: 'Simulacro conjunto', legis: true, vista: 'lista', tiempo: true, temas: true, cuantas: N_SIM, def: 40, flags: ['especifico', 'simulacro'], volver: 'screen-inicio' },
+    'esp-estudio':   { titulo: 'Estudio del Específico', corto: 'Estudio', vista: 'tarjeta', tiempo: false, temas: true, cuantas: N_EST, def: 20, flags: ['especifico'], volver: 'screen-especifico' },
+    'esp-fallos':    { titulo: 'Fallos del Específico', corto: 'Fallos', vista: 'tarjeta', tiempo: false, temas: true, falladas: true, cuantas: N_EST, def: 0, flags: ['especifico', 'fallos'], volver: 'screen-especifico' },
+    'esp-simulacro': { titulo: 'Simulacro del Específico', corto: 'Simulacro', vista: 'lista', tiempo: true, temas: false, cuantas: N_SIM, def: 40, flags: ['especifico', 'simulacro'], volver: 'screen-especifico' },
+    'esp-examen':    { titulo: 'Examen del Específico', corto: 'Examen', vista: 'lista', tiempo: true, temas: true, cuantas: N_SIM, def: 40, flags: ['especifico', 'examen'], volver: 'screen-especifico' }
+  };
+  const DIFS = [['facil', 'Fácil', 'verde'], ['media', 'Media', 'amarilla'], ['dificil', 'Difícil', 'roja']];
+  const PLURAL = { facil: ['fácil', 'fáciles'], media: ['media', 'medias'], dificil: ['difícil', 'difíciles'] };
+  const LETRAS = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const cfg = { modo: 'conjunto', legis: new Set(), esp: new Set(), cuantas: 40, minutos: 60, pct: 50, dif: 'cualquiera', difPct: { facil: 40, media: 40, dificil: 20 } };
+  let meta = null;          // { tests: {id: {tema, titulo}}, preg: [{id, test_id, tema, dif}], estado: {id: 'green'|'yellow'|'red'} }
+  let est = null;           // prueba en curso o en revisión
+  let reloj = null, filtro = 'todas';
+  let historial = null;     // filas de historial_pruebas
+  const $ = id => document.getElementById(id);
+  const clave = () => currentUser ? 'pj_prueba:' + currentUser.id : null;
+  const espHtml = h => (typeof IMP !== 'undefined' && IMP.limpiar) ? IMP.limpiar(h) : escapeHtml(h);
+  const barajar = a => shuffleArray(a);
+  const temaEsp = k => { const i = ESP.temas().findIndex(x => x.clave === k); return i >= 0 ? (i + 1) + '. ' + ESP.temas()[i].titulo : ''; };
+  const permitido = modo => !!currentUser && MODOS[modo].flags.every(f => featureEnabled(f));
+  const el = (t, html) => { const d = document.createElement(t); d.innerHTML = html; return d; };
+
+  /* ---------- datos del Específico ---------- */
+  async function todas(consulta){
+    let out = [];
+    for(let desde = 0; ; desde += 1000){
+      const { data, error } = await consulta().range(desde, desde + 999);
+      if(error) throw error;
+      out = out.concat(data || []);
+      if(!data || data.length < 1000) return out;
+    }
+  }
+  // Qué preguntas hay (sin el texto) y cómo las llevas (mismas reglas que Estadísticas).
+  async function cargarMeta(){
+    const [rt, preg, resp] = await Promise.all([
+      sb.from('especifico_tests').select('id,tema,titulo'),
+      todas(() => sb.from('especifico_preguntas').select('id,test_id,dificultad').order('id')),
+      todas(() => sb.from('especifico_respuestas').select('pregunta_id,acierto').eq('user_id', currentUser.id).order('id'))
+    ]);
+    if(rt.error) throw rt.error;
+    const tests = {};
+    (rt.data || []).forEach(t => { tests[t.id] = { tema: t.tema, titulo: t.titulo }; });
+    const intentos = {};
+    resp.forEach(r => { (intentos[r.pregunta_id] = intentos[r.pregunta_id] || []).push(r.acierto); });
+    const estado = {};
+    Object.keys(intentos).forEach(id => {
+      const a = intentos[id];
+      let racha = 0;
+      for(let i = a.length - 1; i >= 0 && a[i]; i--) racha++;
+      estado[id] = (!a.some(x => !x) || racha >= 3) ? 'green' : racha >= 1 ? 'yellow' : 'red';
+    });
+    meta = {
+      tests, estado,
+      preg: preg.filter(p => tests[p.test_id]).map(p => ({ id: p.id, test_id: p.test_id, tema: tests[p.test_id].tema, dif: p.dificultad || '' }))
+    };
+    return meta;
+  }
+  async function preguntasEsp(ids){
+    const out = [];
+    for(let i = 0; i < ids.length; i += 100){
+      const { data, error } = await sb.from('especifico_preguntas').select('id,test_id,enunciado,opciones,correcta,explicacion,dificultad').in('id', ids.slice(i, i + 100));
+      if(error) throw error;
+      out.push(...(data || []));
+    }
+    const orden = new Map(ids.map((id, i) => [id, i]));
+    return out.sort((a, b) => orden.get(a.id) - orden.get(b.id));
+  }
+
+  /* ---------- configuración ---------- */
+  function legisTemas(){
+    const n = {};
+    QUESTIONS_POOL.forEach(q => { if(q.topic_id) n[q.topic_id] = (n[q.topic_id] || 0) + 1; });
+    return TOPICS.filter(t => t.enabled && n[t.id]).map(t => ({ id: t.id, nombre: t.name, n: n[t.id] }));
+  }
+  const m = () => MODOS[cfg.modo];
+  // Preguntas del Específico que entran con la configuración actual.
+  function poolEsp(){
+    if(!meta) return [];
+    return meta.preg.filter(p => (!m().temas || cfg.esp.has(p.tema)) && (!m().falladas || meta.estado[p.id] === 'red'));
+  }
+  function espTemas(){
+    if(!meta) return [];
+    const n = {};
+    meta.preg.forEach(p => { if(!m().falladas || meta.estado[p.id] === 'red') n[p.tema] = (n[p.tema] || 0) + 1; });
+    return ESP.temas().map((t, i) => ({ id: t.clave, nombre: (i + 1) + '. ' + t.titulo, n: n[t.clave] || 0 })).filter(t => t.n);
+  }
+  // Cuántas de cada dificultad, según los % elegidos y lo que hay. Lo que no
+  // llega de un color sale de los demás (primero de las que no tienen dato).
+  function repartoDif(n, pool){
+    const hay = { facil: 0, media: 0, dificil: 0, '': 0 };
+    pool.forEach(p => { hay[p.dif in hay ? p.dif : '']++; });
+    const r = { facil: 0, media: 0, dificil: 0, '': 0 };
+    if(cfg.dif !== 'elegir'){ return null; }
+    let quedan = n;
+    DIFS.forEach(([k]) => { r[k] = Math.min(hay[k], Math.round(n * cfg.difPct[k] / 100)); });
+    quedan = n - r.facil - r.media - r.dificil;
+    if(quedan < 0){ r.facil += quedan; quedan = 0; }   // por el redondeo
+    const rellenar = k => { const x = Math.min(quedan, hay[k] - r[k]); r[k] += x; quedan -= x; };
+    rellenar(''); DIFS.forEach(([k]) => rellenar(k));
+    return r;
+  }
+  function plan(){
+    const pe = poolEsp();
+    const pl = m().legis ? QUESTIONS_POOL.filter(q => cfg.legis.has(q.topic_id)) : [];
+    const ne = pe.length, nl = pl.length;
+    let total = cfg.cuantas || (ne + nl);
+    let l = 0;
+    if(m().legis){
+      l = nl && ne ? Math.round(total * cfg.pct / 100) : nl ? total : 0;
+    }
+    let e = total - l;
+    if(l > nl){ e += l - nl; l = nl; }
+    if(e > ne){ l = Math.min(nl, l + e - ne); e = ne; }
+    return { l, e, nl, ne, pe, pl, dif: repartoDif(e, pe) };
+  }
+  async function abrirConfig(modo){
+    modo = modo || 'conjunto';
+    if(!permitido(modo)) return;
+    // Solo una prueba a medias a la vez: la misma se continúa; otra, solo si se descarta la anterior.
+    const g = guardado();
+    if(g){
+      if(g.modo === modo){ continuar(); return; }
+      if(!(await uiConfirm('Tienes un «' + MODOS[g.modo].corto + '» a medias.\n\n¿Lo descartas para empezar este? Si no, puedes seguirlo desde «Continuar».', { ok: 'Descartar y empezar', danger: true }))) return;
+      borrarGuardado();
+    }
+    if(m().legis !== MODOS[modo].legis || cfg.modo !== modo){ cfg.cuantas = MODOS[modo].def; }
+    cfg.modo = modo;
+    if(MODOS[modo].legis && whenAppDataReady(() => abrirConfig(modo))) return;
+    $('pruTitulo').textContent = MODOS[modo].titulo;
+    $('pruConfig').innerHTML = '<div class="simc-cargando">Cargando temas…</div>';
+    pintarPie();
+    openOverlay('screen-pru-config');
+    try{
+      await cargarMeta();   // cada vez: por si hay preguntas nuevas o has respondido más
+      if(m().falladas && !cfg.esp.size) espTemas().forEach(t => cfg.esp.add(t.id));
+      pintarConfig();
+      cargarHistorial().then(pintarConfig).catch(() => {});
+    }catch(e){
+      $('pruConfig').innerHTML = '<div class="tree-empty">No se pudieron cargar las preguntas del Específico: ' + escapeHtml(e.message || String(e)) + '</div>';
+    }
+  }
+  function cerrarConfig(){ $('screen-pru-config').classList.remove('active'); }
+  const fila = (sel, id, nombre, n, parte) =>
+    '<div class="topic-row' + (sel ? ' selected' : '') + '" role="checkbox" aria-checked="' + sel + '" tabindex="0" data-pru-tema="' + parte + '" data-id="' + escapeHtml(id) + '">' +
+      '<span class="topic-check">' + ICONS.check + '</span>' +
+      '<span class="topic-text"><span class="topic-name">' + escapeHtml(nombre) + '</span></span><span class="simc-n">' + n + '</span></div>';
+  const todosBtn = (parte, lista) => {
+    const on = lista.length && lista.every(t => cfg[parte].has(t.id));
+    return '<span class="switch-row" role="button" tabindex="0" data-pru-todos="' + parte + '"><span class="switch' + (on ? ' on' : '') + '"><span class="knob"></span></span><span class="switch-label">Todos</span></span>';
+  };
+  const opciones = (que, lista, fmt) => '<div class="param-options">' + lista.map(v =>
+    '<span class="param-opt' + (String(cfg[que]) === String(v) ? ' selected' : '') + '" role="button" tabindex="0" data-pru-opt="' + que + '" data-v="' + v + '">' + fmt(v) + '</span>').join('') + '</div>';
+  const paso = (que, txt, v, clase) =>
+    '<div class="pru-paso ' + (clase || '') + '"><span class="pru-paso-txt">' + txt + '</span>' +
+      '<button type="button" class="pru-paso-btn" data-pru-paso="' + que + '" data-d="-1" aria-label="Menos">−</button>' +
+      '<span class="pru-paso-v">' + v + '%</span>' +
+      '<button type="button" class="pru-paso-btn" data-pru-paso="' + que + '" data-d="1" aria-label="Más">+</button></div>';
+  function pintarConfig(){
+    const M = m(), p = plan();
+    let h = '';
+    h += '<div class="config-block"><div class="config-block-head"><div class="config-block-label">Preguntas</div></div>' + opciones('cuantas', M.cuantas, v => v ? v + ' preguntas' : 'Todas') + '</div>';
+    if(M.tiempo) h += '<div class="config-block"><div class="config-block-head"><div class="config-block-label">Tiempo</div></div>' + opciones('minutos', MINUTOS, v => v + ' min') + '</div>';
+    if(M.legis){
+      h += '<div class="config-block"><div class="config-block-head"><div class="config-block-label">Cuánto de cada parte</div></div>' +
+        '<div class="pru-reparto"><div class="pru-barra"><i class="legis" style="width:' + cfg.pct + '%"></i><i class="esp" style="width:' + (100 - cfg.pct) + '%"></i></div>' +
+        paso('pct', 'Legislación', cfg.pct, 'legis') +
+        '<div class="pru-paso esp"><span class="pru-paso-txt">Específico</span><span class="pru-paso-v solo">' + (100 - cfg.pct) + '%</span></div>' +
+        '<div class="param-options pru-atajos">' + [[50, 'Mitad y mitad'], [70, '70 / 30'], [30, '30 / 70'], ['prop', 'Según las preguntas de cada parte']].map(([v, t]) =>
+          '<span class="param-opt" role="button" tabindex="0" data-pru-pct="' + v + '">' + t + '</span>').join('') + '</div></div></div>';
+    }
+    h += '<div class="config-block"><div class="config-block-head"><div class="config-block-label">Dificultad' + (M.legis ? ' del Específico' : '') + '</div></div>' +
+      opciones('dif', ['cualquiera', 'elegir'], v => v === 'cualquiera' ? 'Al azar' : 'Elegir cuántas de cada color') +
+      (cfg.dif === 'elegir' ? '<div class="pru-difs">' + DIFS.map(([k, t, c]) => paso(k, '<span class="pru-dot ' + k + '"></span>' + t + ' <span class="pru-dif-c">(' + c + ')</span>', cfg.difPct[k], k)).join('') +
+        (p.dif ? '<div class="pru-dif-plan">Saldrán ' + DIFS.map(([k]) => '<b>' + p.dif[k] + '</b> ' + PLURAL[k][p.dif[k] === 1 ? 0 : 1]).join(', ') + (p.dif[''] ? ' y <b>' + p.dif[''] + '</b> sin dato' : '') + '.</div>' : '') + '</div>' : '') + '</div>';
+    if(M.legis){
+      const lt = legisTemas();
+      h += '<div class="config-block"><div class="config-block-head"><div class="config-block-label">Temas de Legislación</div>' + todosBtn('legis', lt) + '</div>' +
+        (lt.length ? '<div class="topics-card">' + lt.map(t => fila(cfg.legis.has(t.id), t.id, t.nombre, t.n, 'legis')).join('') + '</div>' : '<div class="tree-empty">No hay temas de Legislación con preguntas.</div>') + '</div>';
+    }
+    if(M.temas){
+      const et = espTemas();
+      h += '<div class="config-block"><div class="config-block-head"><div class="config-block-label">Temas del Específico' + (M.falladas ? ' (con fallos)' : '') + '</div>' + todosBtn('esp', et) + '</div>' +
+        (et.length ? '<div class="topics-card">' + et.map(t => fila(cfg.esp.has(t.id), t.id, t.nombre, t.n, 'esp')).join('') + '</div>'
+          : '<div class="tree-empty">' + (M.falladas ? 'No tienes preguntas falladas en el Específico. 👌' : 'Todavía no hay preguntas en el Específico.') + '</div>') + '</div>';
+    }
+    h += historialHtml();
+    $('pruConfig').innerHTML = h;
+    pintarPie();
+  }
+  function pintarPie(){
+    const b = $('pruEmpezar');
+    if(!b) return;
+    if(!meta){ b.disabled = true; b.textContent = 'Cargando…'; return; }
+    const p = plan(), n = p.l + p.e;
+    b.disabled = !n;
+    const partes = m().legis ? p.l + ' de Legislación + ' + p.e + ' del Específico' : n + (n === 1 ? ' pregunta' : ' preguntas');
+    b.textContent = !n ? (m().legis ? 'Elige temas de Legislación o del Específico' : m().falladas ? 'No hay falladas con esa selección' : 'Elige algún tema')
+      : 'Comenzar (' + partes + (m().tiempo ? ', ' + cfg.minutos + ' min' : '') + ')';
+  }
+  function cambiarPaso(que, d){
+    if(que === 'pct'){ cfg.pct = Math.max(0, Math.min(100, cfg.pct + d * 10)); return; }
+    // Dificultad: lo que sube un color lo pierden los otros (siempre suman 100).
+    const v = Math.max(0, Math.min(100, cfg.difPct[que] + d * 10));
+    let resto = v - cfg.difPct[que];
+    cfg.difPct[que] = v;
+    const otros = DIFS.map(([k]) => k).filter(k => k !== que);
+    while(resto !== 0){
+      const k = resto > 0 ? otros.filter(x => cfg.difPct[x] > 0).sort((a, b) => cfg.difPct[b] - cfg.difPct[a])[0]
+                          : otros.sort((a, b) => cfg.difPct[a] - cfg.difPct[b])[0];
+      if(!k) break;
+      const x = resto > 0 ? -Math.min(10, cfg.difPct[k], resto) : Math.min(10, -resto);
+      cfg.difPct[k] += x; resto += x;
+    }
+  }
+  function onConfigClick(e){
+    const t = e.target.closest('[data-pru-tema],[data-pru-todos],[data-pru-opt],[data-pru-paso],[data-pru-pct],[data-pru-hist],[data-pru-borrar]');
+    if(!t) return;
+    if(t.dataset.pruBorrar){ e.stopPropagation(); borrarHistorial(t.dataset.pruBorrar); return; }
+    if(t.dataset.pruHist){ revisarHistorial(t.dataset.pruHist); return; }
+    if(t.dataset.pruTema){
+      const s = cfg[t.dataset.pruTema], id = t.dataset.id;
+      s.has(id) ? s.delete(id) : s.add(id);
+    } else if(t.dataset.pruTodos){
+      const parte = t.dataset.pruTodos, s = cfg[parte];
+      const ids = (parte === 'legis' ? legisTemas() : espTemas()).map(x => x.id);
+      const on = ids.length && ids.every(id => s.has(id));
+      ids.forEach(id => on ? s.delete(id) : s.add(id));
+    } else if(t.dataset.pruPaso){
+      cambiarPaso(t.dataset.pruPaso, Number(t.dataset.d));
+    } else if(t.dataset.pruPct){
+      if(t.dataset.pruPct === 'prop'){
+        const p = plan();
+        cfg.pct = p.nl + p.ne ? Math.round(p.nl / (p.nl + p.ne) * 100) : 50;
+      } else cfg.pct = Number(t.dataset.pruPct);
+    } else {
+      const q = t.dataset.pruOpt;
+      cfg[q] = q === 'dif' ? t.dataset.v : Number(t.dataset.v);
+    }
+    pintarConfig();
+  }
+
+  /* ---------- preparar la prueba ---------- */
+  function itemLegis(q, orden){
+    const b = orden ? Object.assign({}, q, { options: orden.map(i => q.options[i]), correct: orden.indexOf(q.correct), _optionOrder: orden }) : shuffleQuestionOptions(q);
+    const tema = TOPICS.find(t => t.id === q.topic_id);
+    return { k: 'l', id: q.id, texto: q.q, opciones: b.options, correcta: b.correct, orden: b._optionOrder || null,
+      tema: tema ? tema.name : '', art: q.art || '', explicacion: q.explain || '' };
+  }
+  function itemEsp(p, tests){
+    // Las del Específico no se barajan: muchas dicen «a y b son correctas».
+    const ops = p.opciones || [], t = tests[p.test_id];
+    return { k: 'e', id: p.id, html: p.enunciado, opciones: ops.map(o => o.html), correcta: ops.findIndex(o => o.l === p.correcta),
+      tema: t ? temaEsp(t.tema).replace(/^\d+\.\s*/, '') + ' · ' + t.titulo : '', dif: p.dificultad || '', explicacion: p.explicacion || '' };
+  }
+  // Elige al azar del Específico respetando cuántas de cada dificultad.
+  function elegirEsp(pool, n, dif){
+    if(!dif) return barajar(pool).slice(0, n);
+    const out = [];
+    ['facil', 'media', 'dificil', ''].forEach(k => {
+      out.push(...barajar(pool.filter(p => (DIFS.some(([d]) => d === p.dif) ? p.dif : '') === k)).slice(0, dif[k]));
+    });
+    return out;
+  }
+  async function empezar(){
+    const b = $('pruEmpezar');
+    const p = plan();
+    if(!p.l && !p.e) return;
+    b.disabled = true; b.textContent = 'Preparando…';
+    try{
+      const legis = barajar(p.pl).slice(0, p.l);
+      const ids = elegirEsp(p.pe, p.e, p.dif).map(x => x.id);
+      const esp = ids.length ? await preguntasEsp(ids) : [];
+      let items = legis.map(q => itemLegis(q)).concat(esp.filter(x => (x.opciones || []).length).map(x => itemEsp(x, meta.tests)));
+      items = barajar(items);
+      const M = m();
+      est = { modo: cfg.modo, items, resp: new Array(items.length).fill(null), vistas: new Array(items.length).fill(false), i: 0,
+        inicio: Date.now(), fin: M.tiempo ? Date.now() + cfg.minutos * 60000 : null, terminado: false };
+      guardar();
+      cerrarConfig();
+      mostrar();
+    }catch(e){
+      uiToast('No se pudo preparar: ' + (e.message || e), 'error');
+      pintarPie();
+    }
+  }
+
+  /* ---------- prueba a medias (en el dispositivo) ---------- */
+  function guardar(){
+    if(!clave() || !est || est.terminado || est.revision) return;
+    try{
+      localStorage.setItem(clave(), JSON.stringify({ v: 2, modo: est.modo, inicio: est.inicio, fin: est.fin, i: est.i, resp: est.resp, vistas: est.vistas,
+        items: est.items.map(it => it.k === 'l' ? { k: 'l', id: it.id, orden: it.orden } : { k: 'e', id: it.id }) }));
+    }catch(e){}
+  }
+  function guardado(){
+    try{
+      const g = clave() ? JSON.parse(localStorage.getItem(clave()) || 'null') : null;
+      return g && MODOS[g.modo] ? g : null;
+    }catch(e){ return null; }
+  }
+  function borrarGuardado(){ try{ if(clave()) localStorage.removeItem(clave()); }catch(e){} }
+  // Rehace las preguntas a partir de sus ids (para continuar o revisar).
+  async function rehacer(lista){
+    const ids = lista.filter(x => x.k === 'e').map(x => x.id);
+    let esp = [], tests = meta ? meta.tests : null;
+    if(ids.length){
+      if(!tests){
+        const { data, error } = await sb.from('especifico_tests').select('id,tema,titulo');
+        if(error) throw error;
+        tests = {};
+        (data || []).forEach(t => { tests[t.id] = { tema: t.tema, titulo: t.titulo }; });
+      }
+      esp = await preguntasEsp(ids);
+    }
+    return lista.map(x => {
+      if(x.k === 'l'){ const q = QUESTIONS_POOL.find(y => y.id === x.id); return q ? itemLegis(q, x.orden) : null; }
+      const p = esp.find(y => y.id === x.id);
+      return p ? itemEsp(p, tests) : null;
+    });
+  }
+  async function continuar(){
+    const g = guardado();
+    if(!g) return;
+    if(est && !est.terminado && !est.revision && est.modo === g.modo){ mostrar(); return; }
+    if(g.items.some(x => x.k === 'l') && whenAppDataReady(continuar)) return;
+    try{
+      const rehechos = await rehacer(g.items);
+      const keep = rehechos.map((it, i) => it ? i : -1).filter(i => i >= 0);   // las que ya no existen se quitan
+      if(!keep.length){ borrarGuardado(); uiToast('Las preguntas de esa prueba ya no existen.', 'info'); return; }
+      est = { modo: g.modo, items: keep.map(i => rehechos[i]), resp: keep.map(i => g.resp[i] == null ? null : g.resp[i]),
+        vistas: keep.map(i => !!(g.vistas && g.vistas[i])), i: Math.min(g.i || 0, keep.length - 1), inicio: g.inicio, fin: g.fin, terminado: false };
+      mostrar();
+      if(est.fin && Date.now() >= est.fin) terminar(true);
+    }catch(e){ uiToast('No se pudo recuperar: ' + (e.message || e), 'error'); }
+  }
+  function aMedias(modos){
+    const g = guardado();
+    if(!g || !permitido(g.modo) || (modos && !modos.includes(g.modo))) return null;
+    return { modo: g.modo, titulo: MODOS[g.modo].titulo, hechas: (g.resp || []).filter(r => r != null).length, total: (g.items || []).length };
+  }
+
+  /* ---------- hacer la prueba ---------- */
+  function etiqueta(it){
+    return '<div class="simc-etiqueta ' + (it.k === 'l' ? 'legis' : 'esp') + '">' + (it.k === 'l' ? 'Legislación' : 'Específico') +
+      (it.dif ? '<i class="pru-dot ' + it.dif + '" title="Dificultad ' + it.dif + '"></i>' : '') +
+      (it.tema ? '<span> · ' + escapeHtml(it.tema) + '</span>' : '') + '</div>';
+  }
+  const enunciado = it => it.k === 'l' ? escapeHtml(it.texto) : espHtml(it.html);
+  const opcion = (it, j) => it.k === 'l' ? escapeHtml(it.opciones[j]) : espHtml(it.opciones[j]);
+  const explicacion = it => it.explicacion ? (it.k === 'l' ? escapeHtml(it.explicacion) : espHtml(it.explicacion)) : '';
+  function mostrar(){
+    showScreen('screen-pru');
+    $('pruCabecera').classList.remove('hidden');
+    $('pruTiempo').classList.toggle('hidden', !est.fin);
+    if(MODOS[est.modo].vista === 'tarjeta') pintarTarjeta();
+    else {
+      $('pruCuerpo').innerHTML = est.items.map((it, i) =>
+        '<div class="quiz-list-item simc-item" data-i="' + i + '">' + etiqueta(it) +
+          '<div class="question">' + (i + 1) + '. ' + enunciado(it) + '</div>' +
+          '<div class="options">' + it.opciones.map((_, j) =>
+            '<div class="option' + (est.resp[i] === j ? ' selected' : '') + '" role="button" tabindex="0" data-pru-r="' + i + '" data-j="' + j + '">' +
+              '<span class="opt-badge">' + LETRAS[j] + '</span><span class="opt-text">' + opcion(it, j) + '</span><span class="opt-result"></span></div>').join('') +
+          '</div></div>').join('') +
+        '<div class="quiz-list-footer"><button class="btn btn-primary" data-pru="terminar">Finalizar</button></div>';
+      arriba();
+    }
+    contador();
+    arrancarReloj();
+  }
+  function arriba(){ const a = $('app'); if(a) a.scrollTop = 0; }
+  // Estudio y Fallos: una a una, y al responder se ve si está bien y la explicación.
+  function pintarTarjeta(){
+    const i = est.i, it = est.items[i], r = est.resp[i], hecha = r != null;
+    est.vistas[i] = true;
+    $('pruCuerpo').innerHTML =
+      '<div class="quiz-card simc-item">' + etiqueta(it) +
+        '<div class="question">' + enunciado(it) + '</div>' +
+        '<div class="options">' + it.opciones.map((_, j) => {
+          const cls = !hecha ? '' : j === it.correcta ? ' correct' : j === r ? ' incorrect' : '';
+          return '<div class="option' + cls + '" role="button" tabindex="0" data-pru-r="' + i + '" data-j="' + j + '">' +
+            '<span class="opt-badge">' + LETRAS[j] + '</span><span class="opt-text">' + opcion(it, j) + '</span><span class="opt-result">' +
+            (hecha && j === it.correcta ? ICONS.check : hecha && j === r ? ICONS.cross : '') + '</span></div>';
+        }).join('') + '</div></div>' +
+      (hecha ? '<div class="explain show pru-exp">' + (explicacion(it) || '<span class="pru-sin-exp">Sin explicación.</span>') + (it.art ? '<div class="simc-art">' + escapeHtml(it.art) + '</div>' : '') + '</div>' : '') +
+      '<div class="quiz-bottombar">' +
+        '<button class="quiz-nav-btn" data-pru="ant" aria-label="Anterior"' + (i ? '' : ' disabled') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,6 9,12 15,18"/></svg></button>' +
+        '<span class="quiz-pill">' + (i + 1) + ' de ' + est.items.length + '</span>' +
+        (i < est.items.length - 1
+          ? '<button class="quiz-nav-btn" data-pru="sig" aria-label="Siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,6 15,12 9,18"/></svg></button>'
+          : '<button class="quiz-nav-btn pru-fin" data-pru="terminar" aria-label="Finalizar">✓</button>') +
+      '</div>';
+    guardar();
+  }
+  function contador(){ $('pruContador').textContent = est.resp.filter(r => r != null).length + ' / ' + est.items.length; }
+  function arrancarReloj(){
+    clearInterval(reloj);
+    if(!est.fin) return;
+    const tic = () => {
+      if(!est || est.terminado || est.revision){ clearInterval(reloj); return; }
+      const s = Math.max(0, Math.round((est.fin - Date.now()) / 1000));
+      $('pruReloj').textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+      $('pruTiempo').classList.toggle('urgent', s <= 60);
+      if(!s){ clearInterval(reloj); terminar(true); }
+    };
+    tic();
+    reloj = setInterval(tic, 1000);
+  }
+  function responder(i, j){
+    if(!est || est.terminado || est.revision) return;
+    if(MODOS[est.modo].vista === 'tarjeta'){
+      if(est.resp[i] != null) return;   // una sola respuesta
+      est.resp[i] = j;
+      pintarTarjeta();
+    } else {
+      est.resp[i] = est.resp[i] === j ? null : j;   // tocar otra vez la elegida la deja en blanco
+      document.querySelectorAll('[data-pru-r="' + i + '"]').forEach(x => x.classList.toggle('selected', Number(x.dataset.j) === est.resp[i]));
+      guardar();
+    }
+    contador();
+  }
+  async function pedirTerminar(){
+    const tarjeta = MODOS[est.modo].vista === 'tarjeta';
+    const quedan = tarjeta ? est.items.length - est.resp.filter(r => r != null).length : est.resp.filter(r => r == null).length;
+    const ok = await uiConfirm(!quedan ? '¿Terminar?' : tarjeta
+      ? 'Te quedan ' + quedan + (quedan === 1 ? ' pregunta' : ' preguntas') + ' por responder. ¿Terminar ya?\n\nSolo cuentan las que has visto.'
+      : 'Te quedan ' + quedan + (quedan === 1 ? ' pregunta en blanco' : ' preguntas en blanco') + '. ¿Finalizar?', { ok: 'Terminar' });
+    if(ok) terminar(false);
+  }
+
+  /* ---------- corrección y guardado ---------- */
+  function puntos(items, resp){
+    let p = 0, bien = 0, mal = 0, blanco = 0;
+    items.forEach((it, i) => {
+      const r = resp[i];
+      if(r == null){ blanco++; return; }
+      if(r === it.correcta){ bien++; p += 1; }
+      else { mal++; const n = it.opciones.length || 4; p -= n > 1 ? 1 / (n - 1) : 0; }
+    });
+    return { total: items.length, bien, mal, blanco, nota: items.length ? Math.max(0, p / items.length * 10) : 0 };
+  }
+  async function terminar(porTiempo){
+    if(!est || est.terminado) return;
+    est.terminado = true;
+    clearInterval(reloj);
+    borrarGuardado();
+    // En Estudio y Fallos solo cuentan las que se han llegado a ver.
+    if(MODOS[est.modo].vista === 'tarjeta'){
+      const k = est.items.map((_, i) => i).filter(i => est.vistas[i] || est.resp[i] != null);
+      est.items = k.map(i => est.items[i]); est.resp = k.map(i => est.resp[i]);
+    }
+    const segundos = Math.round((Math.min(Date.now(), est.fin || Date.now()) - est.inicio) / 1000);
+    const parte = k => { const idx = est.items.map((_, i) => i).filter(i => est.items[i].k === k); return { items: idx.map(i => est.items[i]), resp: idx.map(i => est.resp[i]) }; };
+    const L = parte('l'), E = parte('e');
+    est.res = { todo: puntos(est.items, est.resp), l: puntos(L.items, L.resp), e: puntos(E.items, E.resp), segundos };
+    if(porTiempo) uiToast('Se acabó el tiempo: corregido.', 'info');
+    filtro = 'todas';
+    pintarResultado();
+    if(!est.items.length) return;
+    // Específico: a sus estadísticas (en blanco cuenta como fallada, igual que en Legislación).
+    if(E.items.length) ESPT.registrar(E.items.map((it, j) => ({ pregunta_id: it.id, acierto: E.resp[j] === it.correcta })));
+    if(typeof ESTE !== 'undefined') ESTE.invalidar();
+    guardarHistorial({ modo: est.modo, nota: Number(est.res.todo.nota.toFixed(2)), segundos,
+      resumen: { todo: est.res.todo, l: est.res.l, e: est.res.e },
+      preguntas: est.items.map(it => it.k === 'l' ? { k: 'l', id: it.id, orden: it.orden } : { k: 'e', id: it.id }), respuestas: est.resp });
+    // Legislación: una sesión «conjunto» con solo sus preguntas (para sus estadísticas y Fallos).
+    if(L.items.length && currentUser) await guardarLegis(L, est.res.l, segundos);
+  }
+  async function guardarLegis(L, r, segundos){
+    const sesion = { user_id: currentUser.id, mode: 'conjunto', score: Number(r.nota.toFixed(2)), total: r.total, ok: r.bien, bad: r.mal, pending: r.blanco, time_seconds: segundos };
+    const filas = sid => L.items.map((it, j) => {
+      const a = L.resp[j];
+      return { session_id: sid, user_id: currentUser.id, question_id: it.id,
+        selected_index: a == null ? null : (it.orden ? it.orden[a] : a), is_correct: a === it.correcta, answer_order: j };
+    });
+    try{
+      if(typeof NQ !== 'undefined' && NQ.addFailedQuestion) L.items.forEach((it, j) => { if(L.resp[j] !== it.correcta) NQ.addFailedQuestion(it.id); });
+    }catch(e){}
+    let sid = null;
+    try{
+      if(!navigator.onLine) throw new Error('offline');
+      const { data, error } = await sb.from('test_sessions').insert(sesion).select('id').single();
+      if(error) throw error;
+      sid = data.id;
+      const { error: e2 } = await sb.from('session_answers').insert(filas(sid));
+      if(e2) throw e2;
+    }catch(err){
+      const red = !navigator.onLine || /offline|fetch|network|load failed|conexi|timeout/i.test(String(err && (err.message || err)));
+      if(red){
+        queuePendingResult(sid ? { sessionId: sid, answers: filas(sid) } : { session: sesion, answers: filas(null) });
+        uiToast('Sin conexión: la parte de Legislación se guardará en cuanto vuelva internet.', 'info');
+      } else {
+        uiToast('No se pudo guardar la parte de Legislación: ' + (err.message || err), 'error');
+        try{ reportClientError('pruebas', 'No se pudo guardar: ' + (err && (err.message || err))); }catch(e){}
+      }
+      return;
+    }
+    try{ await loadAppData(); await refreshGlobalStats(); }catch(e){}
+  }
+
+  /* ---------- historial propio ---------- */
+  const PENDIENTES = 'pj_historial_pruebas_pendientes:';
+  function leerPend(){ try{ return JSON.parse(localStorage.getItem(PENDIENTES + currentUser.id) || '[]'); }catch(e){ return []; } }
+  function escribirPend(l){ try{ l.length ? localStorage.setItem(PENDIENTES + currentUser.id, JSON.stringify(l)) : localStorage.removeItem(PENDIENTES + currentUser.id); }catch(e){} }
+  async function guardarHistorial(fila){
+    fila.created_at = new Date().toISOString();
+    if(historial) historial.unshift(Object.assign({ id: 'local-' + Date.now() }, fila));
+    escribirPend(leerPend().concat([fila]));
+    await subirPendientes();
+  }
+  let subiendo = false;
+  async function subirPendientes(){
+    if(subiendo || !currentUser) return;
+    const l = leerPend();
+    if(!l.length) return;
+    subiendo = true;
+    try{
+      const { error } = await sb.from('historial_pruebas').insert(l);
+      if(!error){ escribirPend(leerPend().slice(l.length)); subiendo = false; cargarHistorial().catch(() => {}); return; }
+    }catch(e){}
+    subiendo = false;
+  }
+  addEventListener('online', () => { subirPendientes(); });
+  async function cargarHistorial(){
+    await subirPendientes();
+    const { data, error } = await sb.from('historial_pruebas').select('id,modo,nota,segundos,resumen,created_at').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(60);
+    if(error) throw error;
+    // Las que aún no se han podido subir, también.
+    historial = leerPend().map((f, i) => Object.assign({ id: 'local-' + i }, f)).reverse().concat(data || []);
+    return historial;
+  }
+  function historialHtml(modos, limite){
+    if(!featureEnabled('historial')) return '';
+    modos = modos || (cfg.modo === 'conjunto' ? ['conjunto'] : [cfg.modo]);
+    const lista = (historial || []).filter(h => modos.includes(h.modo));
+    const cab = '<div class="section-row pru-hist-cab"><div class="section-title">' + (modos.length > 1 ? 'Historial' : 'Tu historial de ' + MODOS[modos[0]].corto.toLowerCase()) + '</div><div class="section-rule"></div></div>';
+    if(!historial) return cab + '<div class="skel-list"><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:60%"></span></span></div></div>';
+    if(!lista.length) return cab + '<div class="tree-empty">Todavía no has hecho ninguno.</div>';
+    return cab + '<div class="history">' + lista.slice(0, limite || 20).map(h => {
+      const r = h.resumen || {}, t = r.todo || {};
+      const partes = h.modo === 'conjunto' ? '<span class="pru-hist-partes">Legislación <b>' + formatNota((r.l || {}).nota || 0) + '</b> · Específico <b>' + formatNota((r.e || {}).nota || 0) + '</b></span>' : '';
+      return '<div class="hist-date">' + escapeHtml(formatRelativeDate(h.created_at)) + '</div>' +
+        '<div class="hist-item t-' + (h.modo === 'conjunto' || h.modo === 'esp-simulacro' ? 'simulacro' : h.modo.replace('esp-', '')) + '" role="button" tabindex="0" data-pru-hist="' + h.id + '">' +
+          '<div class="hist-icon">' + (ICONS[h.modo === 'conjunto' ? 'simulacro' : h.modo.replace('esp-', '')] || ICONS.simulacro) + '</div>' +
+          '<div class="hist-content"><div class="hist-top"><div class="hist-title">' + MODOS[h.modo].corto + partes + '</div>' +
+            '<div class="hist-top-right"><div class="hist-score">Nota <b>' + formatNota(Number(h.nota)) + '</b></div>' +
+            (String(h.id).startsWith('local-') ? '' : '<button class="hist-delete-btn" type="button" aria-label="Borrar" title="Borrar" data-pru-borrar="' + h.id + '">' + ICONS.trash + '</button>') + '</div></div>' +
+          '<div class="hist-bottom"><div class="hist-meta">' + ICONS.clock + formatMMSS(h.segundos) + '</div>' +
+            '<div class="hist-counts"><span class="c-ok">' + ICONS.ok + (t.bien || 0) + '</span><span class="c-bad">' + ICONS.bad + (t.mal || 0) + '</span><span class="c-pending">' + ICONS.pending + (t.blanco || 0) + '</span></div></div>' +
+          '</div></div>';
+    }).join('') + '</div>';
+  }
+  async function revisarHistorial(id){
+    if(String(id).startsWith('local-')){ uiToast('Esta aún se está guardando; podrás revisarla en cuanto se suba.', 'info'); return; }
+    try{
+      const { data, error } = await sb.from('historial_pruebas').select('*').eq('id', id).single();
+      if(error) throw error;
+      if((data.preguntas || []).some(x => x.k === 'l') && whenAppDataReady(() => revisarHistorial(id))) return;
+      const rehechos = await rehacer(data.preguntas || []);
+      const keep = rehechos.map((it, i) => it ? i : -1).filter(i => i >= 0);
+      est = { modo: data.modo, items: keep.map(i => rehechos[i]), resp: keep.map(i => (data.respuestas || [])[i] ?? null), terminado: true, revision: true,
+        res: Object.assign({}, data.resumen, { segundos: data.segundos }), fecha: data.created_at };
+      if(keep.length < rehechos.length) uiToast((rehechos.length - keep.length) + ' preguntas ya no existen y no se muestran.', 'info');
+      cerrarConfig();
+      filtro = 'todas';
+      pintarResultado();
+    }catch(e){ uiToast('No se pudo abrir: ' + (e.message || e), 'error'); }
+  }
+  async function borrarHistorial(id){
+    if(!(await uiConfirm('¿Borrar esta prueba de tu historial?\n\nTus respuestas siguen contando en las estadísticas.', { ok: 'Borrar', danger: true }))) return;
+    const { error } = await sb.from('historial_pruebas').delete().eq('id', id);
+    if(error){ uiToast('No se pudo borrar: ' + error.message, 'error'); return; }
+    historial = (historial || []).filter(h => h.id !== id);
+    if($('screen-pru-config').classList.contains('active')) pintarConfig();
+    if(typeof ESP !== 'undefined' && $('screen-especifico').classList.contains('active')) ESP.repintar();
+  }
+
+  function pintarResultado(){
+    showScreen('screen-pru');
+    $('pruCabecera').classList.add('hidden');
+    const r = est.res, M = MODOS[est.modo];
+    const caja = (tit, x, clase) => x && x.total ? '<div class="simc-parte ' + clase + '"><div class="simc-parte-tit">' + tit + '</div>' +
+      '<div class="simc-parte-nota">' + formatNota(x.nota) + '</div>' +
+      '<div class="simc-parte-datos"><span class="ok">' + x.bien + ' bien</span><span class="mal">' + x.mal + ' mal</span><span>' + x.blanco + ' en blanco</span><span>de ' + x.total + '</span></div></div>' : '';
+    const todo = r.todo || { total: 0, bien: 0, mal: 0, blanco: 0, nota: 0 };
+    const filtros = [['todas', 'Todas'], ['mal', 'Falladas'], ['blanco', 'En blanco']].concat(M.legis ? [['legis', 'Legislación'], ['esp', 'Específico']] : []);
+    $('pruCuerpo').innerHTML =
+      '<div class="result-hero"><div class="result-label">' + M.titulo + ' · ' + (est.fecha ? escapeHtml(formatRelativeDate(est.fecha)) + ' · ' : '') + formatMMSS(r.segundos || 0) + '</div>' +
+        '<div class="result-score">' + formatNota(todo.nota) + '<span>/10</span></div>' +
+        '<div class="simc-sub">' + todo.bien + ' aciertos · ' + todo.mal + ' fallos · ' + todo.blanco + ' en blanco</div></div>' +
+      (M.legis ? '<div class="simc-partes">' + caja('Legislación', r.l, 'legis') + caja('Específico', r.e, 'esp') + '</div>' : '') +
+      (est.items.length ? '<div class="simc-filtros">' + filtros.map(([k, t]) =>
+        '<button type="button" class="admin-tab' + (filtro === k ? ' active' : '') + '" data-pru-filtro="' + k + '">' + t + '</button>').join('') + '</div>' +
+        '<div>' + revision() + '</div>' : '<div class="tree-empty">No llegaste a ver ninguna pregunta: no se guarda nada.</div>') +
+      '<div class="simc-botones"><button class="btn btn-ghost" data-pru="volver">' + (M.volver === 'screen-inicio' ? 'Volver al inicio' : 'Volver al Específico') + '</button>' +
+        (permitido(est.modo) ? '<button class="btn btn-primary" data-pru="otro">' + (est.revision ? 'Hacer otro' : 'Otro igual') + '</button>' : '') + '</div>';
+    arriba();
+  }
+  function revision(){
+    const lista = est.items.map((it, i) => ({ it, i, r: est.resp[i] })).filter(({ it, r }) =>
+      filtro === 'todas' || (filtro === 'mal' && r != null && r !== it.correcta) || (filtro === 'blanco' && r == null) ||
+      (filtro === 'legis' && it.k === 'l') || (filtro === 'esp' && it.k === 'e'));
+    if(!lista.length) return '<div class="tree-empty">No hay preguntas con este filtro.</div>';
+    return lista.map(({ it, i, r }) =>
+      '<div class="quiz-list-item simc-item">' + etiqueta(it) +
+        '<div class="question">' + (i + 1) + '. ' + enunciado(it) + '</div>' +
+        '<div class="options">' + it.opciones.map((_, j) => {
+          const cls = j === it.correcta ? ' correct' + (r == null ? ' blank-correct' : '') : j === r ? ' incorrect' : '';
+          return '<div class="option' + cls + '"><span class="opt-badge">' + LETRAS[j] + '</span><span class="opt-text">' + opcion(it, j) + '</span><span class="opt-result">' +
+            (j === it.correcta ? ICONS.check : j === r ? ICONS.cross : '') + '</span></div>';
+        }).join('') + '</div>' +
+        (r == null ? '<div class="simc-blanco">En blanco</div>' : '') +
+        (it.explicacion ? '<details class="simc-exp"><summary>Explicación</summary><div>' + explicacion(it) + '</div></details>' : '') +
+        (it.k === 'l' && it.art ? '<div class="simc-art">' + escapeHtml(it.art) + '</div>' : '') +
+      '</div>').join('');
+  }
+
+  /* ---------- panel de pj.fire del Específico (lo pinta ESP) ---------- */
+  const ICO_MODO = { 'esp-estudio': 'estudio', 'esp-fallos': 'fallos', 'esp-simulacro': 'simulacro', 'esp-examen': 'examen' };
+  let panelMeta = null;
+  function panelHtml(){
+    const nFallos = panelMeta ? panelMeta.preg.filter(p => panelMeta.estado[p.id] === 'red').length : null;
+    const sub = { 'esp-estudio': 'Elige tus temas', 'esp-fallos': nFallos == null ? '<span class="skel skel-inline"></span>' : nFallos ? nFallos + ' pendientes' : 'Sin fallos 👌',
+      'esp-simulacro': 'Tiempo y preguntas', 'esp-examen': 'Temas, tiempo y preguntas' };
+    const cards = Object.keys(ICO_MODO).filter(permitido).map(k =>
+      '<div class="mode-card ' + ICO_MODO[k] + (k === 'esp-fallos' && nFallos === 0 ? ' disabled' : '') + '" role="button" tabindex="0" data-pru-modo="' + k + '">' +
+        '<div class="mode-emblem">' + ICONS[ICO_MODO[k]] + '</div>' +
+        '<div><div class="m-name">' + (k === 'esp-estudio' ? 'Modo estudio' : MODOS[k].corto) + '</div><div class="m-sub">' + sub[k] + '</div></div></div>').join('');
+    const g = aMedias(Object.keys(ICO_MODO));
+    const nm = typeof ESPT !== 'undefined' ? ESPT.numMarcadas() : null;
+    return (g ? '<button type="button" class="ini-continuar" data-pru="continuar"><span class="ini-continuar-txt"><b>Continuar ' + escapeHtml(MODOS[g.modo].corto.toLowerCase()) + '</b><span>' + g.hechas + ' de ' + g.total + ' respondidas</span></span><span class="ini-flecha">›</span></button>' : '') +
+      '<div class="modes pru-modos">' + cards + '</div>' +
+      '<button type="button" class="esp-marcadas pru-marcadas" data-marcadas="1"><span class="esp-marcadas-ico">★</span><span class="esp-marcadas-txt"><b>Preguntas marcadas</b><span>' +
+        (nm == null ? 'Las que guardas con la estrella' : nm ? nm + (nm === 1 ? ' pregunta guardada' : ' preguntas guardadas') : 'Todavía no has guardado ninguna') + '</span></span><span class="esp-marcadas-flecha">›</span></button>' +
+      historialHtml(Object.keys(ICO_MODO), 10);
+  }
+  async function cargarPanel(){
+    if(!currentUser) return;
+    try{
+      await Promise.all([cargarMeta().then(x => { panelMeta = x; }), cargarHistorial()]);
+    }catch(e){}
+    if(typeof ESP !== 'undefined') ESP.repintar();
+  }
+  function onPanelClick(e){
+    const t = e.target.closest('[data-pru-modo],[data-pru-hist],[data-pru-borrar],[data-pru="continuar"]');
+    if(!t) return false;
+    if(t.dataset.pruBorrar){ e.stopPropagation(); borrarHistorial(t.dataset.pruBorrar); return true; }
+    if(t.dataset.pruHist){ revisarHistorial(t.dataset.pruHist); return true; }
+    if(t.dataset.pru === 'continuar'){ continuar(); return true; }
+    if(t.classList.contains('disabled')) return true;
+    abrirConfig(t.dataset.pruModo);
+    return true;
+  }
+
+  function onClick(e){
+    const r = e.target.closest('[data-pru-r]');
+    if(r){ responder(Number(r.dataset.pruR), Number(r.dataset.j)); return; }
+    const f = e.target.closest('[data-pru-filtro]');
+    if(f){ filtro = f.dataset.pruFiltro; pintarResultado(); return; }
+    const b = e.target.closest('[data-pru]');
+    if(!b || b.disabled) return;
+    const M = est ? MODOS[est.modo] : MODOS.conjunto;
+    switch(b.dataset.pru){
+      case 'terminar': pedirTerminar(); break;
+      case 'ant': if(est.i > 0){ est.i--; pintarTarjeta(); arriba(); } break;
+      case 'sig': if(est.i < est.items.length - 1){ est.i++; pintarTarjeta(); arriba(); } break;
+      case 'salir': showScreen(M.volver); break;   // queda guardada: se sigue después
+      case 'volver': { const v = M.volver; est = null; showScreen(v); break; }
+      case 'otro': { const modo = est.modo, v = M.volver; est = null; showScreen(v); abrirConfig(modo); break; }
+    }
+  }
+  function onKey(e){
+    if(e.key !== 'Enter' && e.key !== ' ') return;
+    const r = e.target.closest('[data-pru-r],[data-pru-tema],[data-pru-todos],[data-pru-opt],[data-pru-hist],[data-pru-modo]');
+    if(r){ e.preventDefault(); r.click(); }
+  }
+  function enganchar(){
+    const s = $('screen-pru'), c = $('screen-pru-config');
+    if(s){ s.addEventListener('click', onClick); s.addEventListener('keydown', onKey); }
+    if(c){ c.addEventListener('click', onConfigClick); c.addEventListener('keydown', onKey); }
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', enganchar); else enganchar();
+  document.addEventListener('visibilitychange', () => {
+    if(!document.hidden && est && !est.terminado && est.fin && Date.now() >= est.fin) terminar(true);
+  });
+  function reiniciar(){ clearInterval(reloj); est = null; meta = null; panelMeta = null; historial = null; cfg.legis.clear(); cfg.esp.clear(); }
+  return {
+    conjuntoDisponible: () => permitido('conjunto'),
+    abrirConfig, cerrarConfig, empezar, continuar, aMedias, reiniciar,
+    panelHtml, cargarPanel, onPanelClick, onKey
+  };
+})();
