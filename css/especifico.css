@@ -59,3 +59,39 @@
 .imp-btn{ padding:11px 16px; border-radius:10px; border:1px solid var(--line); background:none; color: var(--text); font:inherit; font-size:14.5px; font-weight:600; cursor:pointer; }
 .imp-btn.primario{ background: var(--esp-naranja); border-color: var(--esp-naranja); color:#fff; }
 .imp-btn:disabled{ opacity:.6; }
+
+/* Hacer un test (js/especifico-test.js) */
+.espt-volver{ background:none; border:none; padding:0; margin-bottom:12px; font:inherit; font-size:13px; }
+.espt-titulo{ font-size:21px; margin-bottom:14px; }
+.espt-progreso{ display:flex; justify-content:space-between; font-size:13px; color: var(--muted); margin-bottom:6px; }
+.espt-progreso b{ color: var(--text); }
+.espt-barra{ height:5px; border-radius:99px; background: var(--line); overflow:hidden; margin-bottom:14px; }
+.espt-barra i{ display:block; height:100%; background: var(--esp-naranja); transition: width .3s; }
+.espt-card{ background: var(--card); border:1px solid var(--esp-borde); border-radius:16px; padding:18px; }
+:root[data-theme="light"] .espt-card{ background:#fff; }
+.espt-enunciado{ font-size:17px; line-height:1.5; margin-bottom:16px; }
+.espt-card img{ max-width:100%; height:auto; border-radius:8px; margin:8px 0; background:#fff; }
+.espt-ops{ display:flex; flex-direction:column; gap:10px; }
+.espt-op{ display:flex; align-items:flex-start; gap:12px; width:100%; text-align:left; padding:13px 14px; border-radius:12px; border:1.5px solid var(--esp-borde);
+  background: var(--card-hi); color: var(--text); font:inherit; font-size:15.5px; line-height:1.45; cursor:pointer; transition: border-color .15s, background .15s; }
+.espt-op:hover:not(:disabled){ border-color: var(--esp-naranja); }
+.espt-op:disabled{ cursor:default; }
+.espt-letra{ flex-shrink:0; width:26px; height:26px; border-radius:50%; border:1.5px solid currentColor; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; text-transform:uppercase; opacity:.8; }
+.espt-op-txt{ flex:1; min-width:0; }
+.espt-op.bien{ border-color: var(--esp-verde); background: rgba(108,179,63,.15); }
+.espt-op.bien .espt-letra{ background: var(--esp-verde); border-color: var(--esp-verde); color:#fff; opacity:1; }
+.espt-op.mal{ border-color: var(--coral); background: rgba(242,102,92,.13); }
+.espt-op.mal .espt-letra{ background: var(--coral); border-color: var(--coral); color:#fff; opacity:1; }
+.espt-op.apagada{ opacity:.55; }
+.espt-resultado{ margin-top:14px; font-weight:700; font-size:15px; }
+.espt-resultado.bien{ color: var(--esp-verde); }
+.espt-resultado.mal{ color: var(--coral); }
+.espt-exp-btn{ margin-top:12px; background:none; border:none; padding:0; color: var(--esp-naranja); font:inherit; font-weight:700; font-size:14.5px; cursor:pointer; }
+.espt-exp{ margin-top:10px; padding-top:12px; border-top:1px solid var(--esp-borde); font-size:15px; line-height:1.55; color: var(--text); }
+.espt-nav{ display:flex; gap:10px; margin-top:16px; }
+.espt-btn{ flex:1; padding:13px; border-radius:12px; border:1px solid var(--line); background:none; color: var(--text); font:inherit; font-size:15px; font-weight:700; cursor:pointer; }
+.espt-btn:disabled{ opacity:.35; cursor:default; }
+.espt-btn.primario{ background: var(--esp-naranja); border-color: var(--esp-naranja); color:#fff; }
+.espt-fin{ text-align:center; }
+.espt-nota{ font-family: var(--title); font-size:56px; color: var(--esp-naranja); line-height:1.1; }
+.espt-fin-sub{ color: var(--muted); margin:6px 0 4px; }

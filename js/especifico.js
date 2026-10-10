@@ -1,7 +1,7 @@
 /* Específico: temario de bombero. Cada tema se despliega y muestra sus
    tests (filas con el tick verde, tabla especifico_tests). Los tests los
    añade, ordena y quita el administrador desde su panel (js/admin/
-   especifico.js); aquí solo se ven. Copia en el dispositivo para pintar al
+   especifico.js); aquí se ven y, al tocar uno, se hace (js/especifico-test.js). Copia en el dispositivo para pintar al
    momento y sin conexión. */
 const ESP = (function(){
   // [clave (no cambiarla: la usa la base de datos), título, icono (trazos SVG de 24×24)]
@@ -74,19 +74,24 @@ const ESP = (function(){
     }).join('') + '</ul>';
   }
 
+  function abrirTest(id){
+    const t = tests.find(x => x.id === id);
+    if(t) ESPT.abrir(t);
+  }
   function abrir(){
     const root = document.getElementById('espRoot');
     if(root && !root.dataset.listo){
       root.dataset.listo = '1';
       root.addEventListener('click', e => {
-        if(e.target.closest('[data-test]')){ uiToast('Los tests llegarán muy pronto.', 'info'); return; }
+        const ft = e.target.closest('[data-test]');
+        if(ft){ abrirTest(ft.dataset.test); return; }
         const cab = e.target.closest('.esp-cab');
         if(!cab) return;
         abierto = abierto === cab.dataset.tema ? null : cab.dataset.tema;
         pintar();
       });
       root.addEventListener('keydown', e => {
-        if(e.key === 'Enter' && e.target.dataset && e.target.dataset.test) uiToast('Los tests llegarán muy pronto.', 'info');
+        if(e.key === 'Enter' && e.target.dataset && e.target.dataset.test) abrirTest(e.target.dataset.test);
       });
     }
     pintar();
