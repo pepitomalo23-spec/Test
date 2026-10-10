@@ -56,6 +56,7 @@ function showScreen(id){
   if(id === 'screen-inicio' && typeof INICIO !== 'undefined') INICIO.abrir();
   if(id === 'screen-calendario' && typeof CAL !== 'undefined') CAL.abrir();
   if(id === 'screen-especifico' && typeof ESP !== 'undefined') ESP.abrir();
+  if(id === 'screen-stats' && typeof ESTE !== 'undefined') ESTE.abrir();
   const isTopLevel = TOP_LEVEL_SCREENS.includes(id);
   // Recordamos la última pantalla visitada, para poder volver a ella (o a
   // su pantalla padre, ver SCREEN_RESTORE_TARGET) si la app se recarga

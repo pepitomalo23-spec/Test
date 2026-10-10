@@ -321,11 +321,12 @@ function renderMasteryBar(){
   if(elBluePct) elBluePct.textContent = total ? '(' + formatPctExact(pct(notSeen)) + ')' : '';
   if(elDonutPct) elDonutPct.textContent = total ? formatPctExact(pct(green)) : formatPctExact(0);
 
-  if(!svg) return;
-  if(!total){
-    svg.innerHTML = '<path d="' + masteryDonutSegPath(110, 110, 100, 62, 180, 0) + '" fill="#1E1E1E"></path>';
-    return;
-  }
+  if(svg) svg.innerHTML = masteryDonutSvg(green, yellow, red, notSeen);
+}
+/* Contenido del medio-donut de dominio (también lo usa Estadísticas › Específico). */
+function masteryDonutSvg(green, yellow, red, notSeen){
+  const total = green + yellow + red + notSeen;
+  if(!total) return '<path d="' + masteryDonutSegPath(110, 110, 100, 62, 180, 0) + '" fill="#1E1E1E"></path>';
 
   const segments = [
     { value: green, color: '#34D399' },
@@ -355,7 +356,7 @@ function renderMasteryBar(){
       html += '<text class="mastery-donut-pctlabel" x="' + lx + '" y="' + ly + '" text-anchor="middle" dominant-baseline="middle">' + formatPctExact(seg.value / total * 100) + '</text>';
     }
   });
-  svg.innerHTML = html;
+  return html;
 }
 
 function escapeHtml(str){

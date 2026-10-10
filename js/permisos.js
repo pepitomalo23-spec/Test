@@ -83,6 +83,7 @@ function applyFeatureVisibility(){
   const active = document.querySelector('.screen.active');
   if(active && SCREEN_FEATURE[active.id] && !featureEnabled(SCREEN_FEATURE[active.id])) showScreen('screen-home');
   if(typeof INICIO !== 'undefined') INICIO.pintar();
+  if(typeof ESTE !== 'undefined') ESTE.aplicarPestana();   // la pestaña Específico de Estadísticas
 }
 
 /* Los permisos se vuelven a leer al volver a la app y cada minuto: así, si

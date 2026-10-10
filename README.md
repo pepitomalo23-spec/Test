@@ -26,7 +26,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   dispositivo.js     identificación del dispositivo e intentos de acceso
   datos.js           datos en memoria, utilidades comunes, test en curso guardado
   temario.js         utilidades del árbol del temario (alumno y admin)
-  estadisticas.js    pantalla de entrada y Estadísticas
+  estadisticas.js    pantalla de entrada y Estadísticas (pestaña Legislación)
   contenido.js       carga de temas, árbol y preguntas (con copia en el dispositivo)
   historial.js       historial de tests
   navegacion.js      navegación entre pantallas
@@ -51,6 +51,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   calendario.js      Calendario: tareas de estudio de cada día
   especifico.js      Específico: temas del temario de bombero
   especifico-test.js hacer un test del Específico y ver las Preguntas marcadas (diseño de tutorbomberos)
+  estadisticas-especifico.js  Estadísticas › pestaña Específico
   importar-especifico.js  recibe las preguntas que envía el marcador de tutorbomberos.es
   inicio.js          Inicio: lo de hoy, test a medias, accesos rápidos y progreso
   arranque.js        escucha la sesión y arranca la app (siempre el último)
@@ -346,6 +347,12 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   la pregunta en «Preguntas marcadas» (tabla `especifico_marcadas`, privada de cada usuario; migración
   `20261014_especifico_dificultad_marcadas.sql`). Al reimportar sustituyendo, las preguntas con el mismo
   enunciado se actualizan en su sitio, para no perder sus marcas.
+  Cada respuesta (en un test o en «Preguntas marcadas») se guarda en `especifico_respuestas` (privada de cada
+  usuario; migración `20261015_especifico_respuestas.sql`): primero en una cola del dispositivo y de ahí a
+  Supabase, así sin conexión no se pierde. Estadísticas tiene dos pestañas, Legislación y Específico (esta solo
+  con el Específico activado), cada una con lo suyo y sin mezclar: `js/estadisticas-especifico.js` (ESTE)
+  calcula el dominio con las mismas reglas que Legislación, la nota, el ranking de temas y los tests que más
+  fallas (estos dos, con «Estadísticas avanzadas»).
 - Permisos por función (`js/permisos.js`): lo que depende de un permiso va en `index.html` con `class="hidden"` y
   `data-feature="clave"`, y solo se enseña cuando se conocen los permisos del usuario (los últimos recibidos se
   guardan en el dispositivo, `pj_permisos_v1:<usuario>`). Si internet tarda o falla, no se ve nada que no tenga.
