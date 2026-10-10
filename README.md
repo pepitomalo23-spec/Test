@@ -42,7 +42,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   cuenta.js          inicio de sesión, registro y entrada en la app
   tema.js            tema claro / oscuro
   admin/             panel de administración (panel, actividad, usuarios,
-                     copias, errores, boe, temario, importar-ia, callejero)
+                     copias, errores, boe, temario, importar-ia, especifico, callejero)
   normativas.js      Normativas (fichas estilo Quizlet)
   callejero.js       Callejero: mapa, modos de juego, modo estudio, tareas y modo selección
   callejero-temario.js   Callejero: temario de la academia (fichas, en el mapa, preguntas y planos)
@@ -308,7 +308,7 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 - `screen-especifico` (`js/especifico.js`, `css/especifico.css`): los 21 temas del específico; cada uno se
   despliega y muestra sus tests (filas con tick verde). Tabla `especifico_tests` (migración
   `20261011_especifico_tests.sql`): la leen los usuarios aprobados y la cambia solo el administrador, que
-  añade y quita tests desde la propia pantalla. `tema` es la clave fija de cada tema en `TEMAS`.
+  añade, ordena y quita tests en Administración › Específico (`js/admin/especifico.js`). `tema` es la clave fija de cada tema en `TEMAS`.
 
 ## Calendario
 

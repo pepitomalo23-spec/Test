@@ -1,7 +1,8 @@
 /* Específico: temario de bombero. Cada tema se despliega y muestra sus
    tests (filas con el tick verde, tabla especifico_tests). Los tests los
-   añade y quita el administrador desde aquí mismo; los ven todos. Copia en
-   el dispositivo para pintar al momento y sin conexión. */
+   añade, ordena y quita el administrador desde su panel (js/admin/
+   especifico.js); aquí solo se ven. Copia en el dispositivo para pintar al
+   momento y sin conexión. */
 const ESP = (function(){
   // [clave (no cambiarla: la usa la base de datos), título, icono (trazos SVG de 24×24)]
   const TEMAS = [
@@ -30,10 +31,8 @@ const ESP = (function(){
   const CACHE = 'pj_especifico_tests_v1';
   const svg = d => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
   const TICK = '<svg class="esp-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="19" height="19" rx="1.5"/><path d="m7 12.5 3.5 3.5L17 8.5"/></svg>';
-  const X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
   let abierto = null, tests = [], cargando = null;
   try{ tests = JSON.parse(localStorage.getItem(CACHE) || '[]'); }catch(e){ tests = []; }
-  const admin = () => typeof currentUserIsAdmin !== 'undefined' && currentUserIsAdmin;
   const delTema = k => tests.filter(t => t.tema === k).sort((a, b) => a.orden - b.orden || String(a.created_at).localeCompare(String(b.created_at)));
 
   async function cargar(){
@@ -51,7 +50,6 @@ const ESP = (function(){
   function filaTest(t){
     return '<div class="esp-test" role="button" tabindex="0" data-test="' + t.id + '">' + TICK +
       '<span class="esp-test-txt"><span class="esp-test-tipo">Test - </span><b>' + escapeHtml(t.titulo) + '</b></span>' +
-      (admin() ? '<button type="button" class="esp-borrar" data-borrar="' + t.id + '" aria-label="Quitar test">' + X + '</button>' : '') +
       '</div>';
   }
   function cuerpo(k){
@@ -59,14 +57,11 @@ const ESP = (function(){
     return '<div class="esp-cuerpo">' +
       (lista.length ? '<div class="esp-tests">' + lista.map(filaTest).join('') + '</div>'
         : '<div class="esp-vacio">' + (cargando ? 'Cargando…' : 'Todavía no hay tests en este tema.') + '</div>') +
-      (admin() ? '<form class="esp-anadir" data-tema="' + k + '" autocomplete="off"><input name="titulo" maxlength="300" placeholder="Nombre del test" aria-label="Nombre del test">' +
-        '<button type="submit">Añadir test</button></form>' : '') +
       '</div>';
   }
   function pintar(){
     const root = document.getElementById('espRoot');
     if(!root) return;
-    const foco = document.activeElement && document.activeElement.name === 'titulo' ? document.activeElement.value : null;
     root.innerHTML = '<ul class="esp-lista">' + TEMAS.map(([k, t, i]) => {
       const n = delTema(k).length;
       return '<li class="esp-tema' + (k === abierto ? ' abierto' : '') + '">' +
@@ -78,32 +73,6 @@ const ESP = (function(){
         (k === abierto ? cuerpo(k) : '') +
       '</li>';
     }).join('') + '</ul>';
-    if(foco !== null){ const inp = root.querySelector('.esp-anadir input'); if(inp){ inp.value = foco; inp.focus(); } }
-  }
-
-  async function anadir(form){
-    const titulo = form.titulo.value.trim();
-    if(!titulo){ form.titulo.focus(); return; }
-    const tema = form.dataset.tema;
-    const orden = delTema(tema).reduce((m, t) => Math.max(m, t.orden + 1), 0);
-    const btn = form.querySelector('button'); btn.disabled = true;
-    const { data, error } = await sb.from('especifico_tests').insert({ tema, titulo, orden }).select('id,tema,titulo,orden,created_at').single();
-    btn.disabled = false;
-    if(error){ uiToast('No se pudo añadir: ' + error.message, 'error'); return; }
-    tests.push(data);
-    try{ localStorage.setItem(CACHE, JSON.stringify(tests)); }catch(e){}
-    form.titulo.value = '';
-    pintar();
-    const inp = document.querySelector('#espRoot .esp-anadir input'); if(inp) inp.focus();
-  }
-  async function borrar(id){
-    const t = tests.find(x => x.id === id);
-    if(!t || !(await uiConfirm('¿Quitar «' + t.titulo + '» de este tema?', { ok: 'Quitar', danger: true }))) return;
-    const { error } = await sb.from('especifico_tests').delete().eq('id', id);
-    if(error){ uiToast('No se pudo quitar: ' + error.message, 'error'); return; }
-    tests = tests.filter(x => x.id !== id);
-    try{ localStorage.setItem(CACHE, JSON.stringify(tests)); }catch(e){}
-    pintar();
   }
 
   function abrir(){
@@ -111,8 +80,6 @@ const ESP = (function(){
     if(root && !root.dataset.listo){
       root.dataset.listo = '1';
       root.addEventListener('click', e => {
-        const b = e.target.closest('[data-borrar]');
-        if(b){ borrar(b.dataset.borrar); return; }
         if(e.target.closest('[data-test]')){ uiToast('Los tests llegarán muy pronto.', 'info'); return; }
         const cab = e.target.closest('.esp-cab');
         if(!cab) return;
@@ -122,10 +89,9 @@ const ESP = (function(){
       root.addEventListener('keydown', e => {
         if(e.key === 'Enter' && e.target.dataset && e.target.dataset.test) uiToast('Los tests llegarán muy pronto.', 'info');
       });
-      root.addEventListener('submit', e => { e.preventDefault(); anadir(e.target); });
     }
     pintar();
     cargar();
   }
-  return { abrir };
+  return { abrir, temas: () => TEMAS.map(([k, t]) => ({ clave: k, titulo: t })) };
 })();

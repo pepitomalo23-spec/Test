@@ -55,13 +55,13 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&family=Roboto+Slab:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- Estilos de la app. El ?v= lo pone scripts/versionar.mjs (no editar a mano). -->
 <link rel="stylesheet" href="css/base.css?v=d38ea13f39">
-<link rel="stylesheet" href="css/admin.css?v=21dc5eb58b">
+<link rel="stylesheet" href="css/admin.css?v=b98b3a858a">
 <link rel="stylesheet" href="css/pantallas.css?v=f7e366d19f">
 <link rel="stylesheet" href="css/test.css?v=06abd3d71a">
 <link rel="stylesheet" href="css/normativas.css?v=fa9397f080">
 <link rel="stylesheet" href="css/callejero.css?v=8032527378">
 <link rel="stylesheet" href="css/calendario.css?v=6b699957ab">
-<link rel="stylesheet" href="css/especifico.css?v=42bcbb255c">
+<link rel="stylesheet" href="css/especifico.css?v=57e5e5082a">
 <link rel="stylesheet" href="css/inicio.css?v=3d16a3424a">
 <link rel="stylesheet" href="css/mnemotecnia.css?v=7933e62382">
 </head>
@@ -640,6 +640,7 @@
         <div class="admin-tab" id="adminTabBtn-activity" onclick="switchAdminTab('activity')">Actividad</div>
         <div class="admin-tab" id="adminTabBtn-boe" onclick="switchAdminTab('boe')">BOE / IA</div>
         <div class="admin-tab" id="adminTabBtn-callejero" onclick="switchAdminTab('callejero')">Callejero <span class="admin-tab-count hidden" id="adminCallejeroCount">0</span></div>
+        <div class="admin-tab" id="adminTabBtn-especifico" onclick="switchAdminTab('especifico')">Específico</div>
         <div class="admin-tab" id="adminTabBtn-backups" onclick="switchAdminTab('backups')">Copias</div>
         <div class="admin-tab" id="adminTabBtn-errors" onclick="switchAdminTab('errors')">Errores <span class="admin-tab-count hidden" id="adminErrorsCount">0</span></div>
       </div>
@@ -847,6 +848,18 @@
         <div class="admin-card-meta" style="margin-bottom:12px;">Cada noche se guarda automáticamente una copia de toda la base de datos (temas, estructura, preguntas, usuarios, historial, normativas y avance). Se conservan los últimos 14 días. Si alguna vez se borra algo por error, descarga la copia del día anterior y se puede recuperar a partir de ella.</div>
         <button class="btn btn-light" style="margin-bottom:14px;" id="backupNowBtn" onclick="adminBackupNow()">Hacer copia ahora</button>
         <div id="adminList-backups"></div>
+      </div>
+
+      <!-- ESPECÍFICO: tests de cada tema (js/admin/especifico.js) -->
+      <div class="admin-section" id="adminSection-especifico">
+        <div class="admin-card-title" style="margin-bottom:10px;">Tests del Específico</div>
+        <div class="admin-card-meta" style="margin-bottom:12px;">Los tests que añadas aquí aparecen dentro de cada tema en Estudio › Específico, con el tick verde y en este mismo orden. Los alumnos solo los ven.</div>
+        <div class="tree-toolbar"><select id="adminEspTema" onchange="adminEspCambiarTema(this.value)" aria-label="Tema"></select></div>
+        <form class="admin-esp-anadir" onsubmit="adminEspAnadir(event)" autocomplete="off">
+          <input id="adminEspTitulo" maxlength="300" placeholder="Nombre del test (p. ej. Productos de la combustión)" aria-label="Nombre del test">
+          <button type="submit" class="btn btn-light" id="adminEspAnadirBtn">Añadir test</button>
+        </form>
+        <div id="adminEspLista"></div>
       </div>
 
       <!-- CALLEJERO -->
@@ -1127,7 +1140,7 @@
 <script src="js/examen-revision.js?v=ab52662d16"></script>
 <script src="js/cuenta.js?v=f91060fe9c"></script>
 <script src="js/tema.js?v=e96fc2a4ed"></script>
-<script src="js/admin/panel.js?v=b4cb620616"></script>
+<script src="js/admin/panel.js?v=9e8ff5b7b8"></script>
 <script src="js/admin/actividad.js?v=7e043c23e6"></script>
 <script src="js/admin/usuarios.js?v=e34ab50f6e"></script>
 <script src="js/admin/copias.js?v=b2d3baa792"></script>
@@ -1135,6 +1148,7 @@
 <script src="js/admin/boe.js?v=4449c02dde"></script>
 <script src="js/admin/temario.js?v=45b68f00ea"></script>
 <script src="js/admin/importar-ia.js?v=fc5e42e6f8"></script>
+<script src="js/admin/especifico.js?v=15254c0315"></script>
 <script src="js/admin/callejero.js?v=5d85c58ac1"></script>
 <script src="js/normativas.js?v=af0393b916"></script>
 <script src="js/callejero.js?v=ebcc226418"></script>
@@ -1142,7 +1156,7 @@
 <script src="js/callejero-profesor.js?v=55890007ea"></script>
 <script src="js/mnemotecnia.js?v=c08acd5057"></script>
 <script src="js/calendario.js?v=4d1c0bbcaa"></script>
-<script src="js/especifico.js?v=ce60e59d83"></script>
+<script src="js/especifico.js?v=1ccc404bd3"></script>
 <script src="js/inicio.js?v=026a9b7daf"></script>
 <script src="js/arranque.js?v=838162d6bd"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
