@@ -11,7 +11,7 @@ const IMP = (function(){
   const origenValido = o => /^https:\/\/([a-z0-9-]+\.)*tutorbomberos\.es$/.test(o);
   let paquete = null, abierto = false;
 
-  /* ---------- HTML de las preguntas: solo <br>, <b>, <i> e <img> ---------- */
+  /* ---------- HTML de las preguntas: solo <br>, <b>, <i>, <u>, <sub>, <sup> e <img> ---------- */
   function limpiar(html){
     const doc = new DOMParser().parseFromString('<body>' + String(html || '') + '</body>', 'text/html');
     let out = '';
@@ -27,7 +27,7 @@ const IMP = (function(){
         }
         else if(t === 'SCRIPT' || t === 'STYLE') {}
         else {
-          const tg = (t === 'B' || t === 'STRONG') ? 'b' : (t === 'I' || t === 'EM') ? 'i' : '';
+          const tg = (t === 'B' || t === 'STRONG') ? 'b' : (t === 'I' || t === 'EM') ? 'i' : (t === 'U' || t === 'SUB' || t === 'SUP') ? t.toLowerCase() : '';
           if(tg) out += '<' + tg + '>';
           walk(c);
           if(tg) out += '</' + tg + '>';
@@ -107,6 +107,39 @@ const IMP = (function(){
     fila.classList.toggle('hidden', !n);
     fila.querySelector('span').textContent = 'Sustituir las ' + n + ' preguntas que ya tiene (si no, se añaden detrás)';
   }
+  /* Imágenes que el marcador no pudo incrustar (de otras webs, sin permiso
+     para leerlas desde tutorbomberos): las descarga el servidor
+     (supabase/functions/imagen-externa) y se meten en el texto. Sin esto no
+     se verían: la CSP de pj.fire no deja cargar imágenes de fuera.
+     Devuelve cuántas no se pudieron incrustar. */
+  const RE_EXT = /src="(https:[^"]+)"/g;
+  async function incrustarExternas(preguntas, aviso){
+    const campos = q => [q.enunciado, q.explicacion, ...q.opciones.map(o => o.html)];
+    const urls = new Set();
+    preguntas.forEach(q => campos(q).forEach(h => { for(const m of String(h || '').matchAll(RE_EXT)) urls.add(m[1]); }));
+    if(!urls.size) return 0;
+    const lista = [...urls], datos = {};
+    const desc = h => h.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    for(let i = 0; i < lista.length; i += 10){
+      if(aviso) aviso('Descargando imágenes ' + Math.min(i + 10, lista.length) + ' de ' + lista.length + '…');
+      const trozo = lista.slice(i, i + 10);
+      try{
+        const { data, error } = await sb.functions.invoke('imagen-externa', { body: { urls: trozo.map(desc) } });
+        if(!error && data && data.imagenes) trozo.forEach(u => {
+          const d = data.imagenes[desc(u)];
+          if(typeof d === 'string' && /^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=]+$/i.test(d)) datos[u] = d;
+        });
+      }catch(e){}
+    }
+    const cambiar = h => String(h || '').replace(RE_EXT, (m, u) => datos[u] ? 'src="' + datos[u] + '"' : m);
+    preguntas.forEach(q => {
+      q.enunciado = cambiar(q.enunciado);
+      q.explicacion = cambiar(q.explicacion);
+      q.opciones.forEach(o => { o.html = cambiar(o.html); });
+    });
+    return lista.filter(u => !datos[u]).length;
+  }
+
   /* Guarda unas preguntas ya normalizadas en un test. Con «sustituir» se
      actualizan en su sitio las que ya estaban (mismo enunciado): así no se
      pierden las estrellas que les hayan puesto los alumnos; las que ya no
@@ -164,9 +197,12 @@ const IMP = (function(){
     const btn = bg.querySelector('[data-imp="guardar"]');
     btn.disabled = true; btn.textContent = 'Guardando…';
     try{
+      const sinImg = await incrustarExternas(paquete.preguntas, t => { btn.textContent = t; });
+      btn.textContent = 'Guardando…';
       await volcar(testId, paquete.preguntas, paquete.origen, sustituir);
       const t = tests.find(x => x.id === testId);
-      uiToast(paquete.preguntas.length + ' preguntas guardadas en «' + (t ? t.titulo : 'el test') + '»', 'success');
+      uiToast(paquete.preguntas.length + ' preguntas guardadas en «' + (t ? t.titulo : 'el test') + '»' +
+        (sinImg ? '. ' + sinImg + (sinImg === 1 ? ' imagen no se pudo' : ' imágenes no se pudieron') + ' descargar.' : ''), sinImg ? 'info' : 'success');
       paquete = null;
       cerrar();
       showScreen('screen-especifico');
@@ -206,20 +242,25 @@ const IMP = (function(){
     10: 'hidraulica', 11: 'gases', 12: 'electricidad', 13: 'mercancias', 14: 'radio', 15: 'socorrismo', 16: 'forestales',
     17: 'intervenciones', 18: 'construccion', 19: 'cte', 800: 'rseiei', 20: 'prl', 21: 'ascensores', 419: 'himenopteros' };
   let lote = null, plan = null, guardando = false;
-  const claveTitulo = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/^\s*test\s*-\s*/i, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const claveTitulo = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^\s*test\s*-\s*/i, '').replace(/\s+/g, ' ').trim().toLowerCase();
   function normalizarLote(p){
     if(!p || p.tipo !== 'pjfire-lote' || !Array.isArray(p.tests)) return null;
     const origen = String(p.origen || '').slice(0, 500);
     const ts = p.tests.map(t => {
       const n = t && normalizar({ tipo: 'pjfire-preguntas', preguntas: t.preguntas });
+      const llegan = t && Array.isArray(t.preguntas) ? t.preguntas.length : 0, quedan = n ? n.preguntas.length : 0;
+      const avisos = (t && Array.isArray(t.avisos) ? t.avisos : []).map(a => String(a).slice(0, 200)).slice(0, 10);
+      if(quedan < llegan) avisos.push((llegan - quedan) + ' sin opciones (no se guardan)');
       return {
         clave: TEMAS_TB[String(t && t.temaId)] || '',
         temaTb: String((t && t.tema) || 'Tema ' + (t && t.temaId)).slice(0, 200),
         titulo: String((t && t.titulo) || '').replace(/^\s*test\s*-\s*/i, '').trim().slice(0, 200),
+        avisos,
         preguntas: n ? n.preguntas : []
       };
     }).filter(t => t.titulo && t.preguntas.length);
-    return ts.length ? { origen, tests: ts } : null;
+    const total = Number.isInteger(p.total) ? p.total : p.tests.length;
+    return ts.length ? { origen, total, tests: ts } : null;
   }
   async function mostrarLote(){
     if(abierto) return;
@@ -257,11 +298,15 @@ const IMP = (function(){
         (nuevos ? ' <span class="imp-nuevo">(' + (nuevos === ts.length ? (nuevos === 1 ? 'nuevo' : 'todos nuevos') : nuevos + (nuevos === 1 ? ' nuevo' : ' nuevos')) + ')</span>' : '') + '</li>';
     }).join('');
     const omitidos = Object.keys(fuera);
+    const conAvisos = plan.filter(t => t.avisos.length);
     cuerpo.innerHTML = plan.length
       ? '<p><b>' + plan.length + ' tests</b> con <b>' + nPreg + ' preguntas</b>.</p>' +
         '<ul class="imp-resumen">' + filas + '</ul>' +
         '<p class="imp-nota">Los tests que ya tienes con el mismo título se actualizan (sin perder las preguntas marcadas); los demás se crean al final de su tema.</p>' +
         (omitidos.length ? '<p class="imp-nota">Se dejan fuera (ese tema no está en pj.fire): ' + omitidos.map(k => '«' + escapeHtml(k) + '» (' + fuera[k] + ')').join(', ') + '.</p>' : '') +
+        (lote.total > lote.tests.length ? '<p class="imp-aviso">Faltan ' + (lote.total - lote.tests.length) + ' de los ' + lote.total + ' tests de tutorbomberos (no se pudieron sacar o se paró antes): vuelve a pasar el marcador después.</p>' : '') +
+        (conAvisos.length ? '<details class="imp-detalles"><summary>Revisa ' + conAvisos.length + (conAvisos.length === 1 ? ' test' : ' tests') + '</summary><ul class="imp-resumen">' +
+          conAvisos.map(t => '<li><b>' + escapeHtml(t.titulo) + '</b>: ' + escapeHtml(t.avisos.join(', ')) + '</li>').join('') + '</ul></details>' : '') +
         '<div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">Cancelar</button><button type="button" class="imp-btn primario" data-imp="lote">Importar todo</button></div>'
       : '<p>Ninguno de los tests es de un tema de pj.fire.</p><div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">Cerrar</button></div>';
   }
@@ -270,6 +315,8 @@ const IMP = (function(){
     const fallos = [];
     let hechos = 0, nPreg = 0;
     guardando = true;
+    const todas = plan.reduce((a, t) => a.concat(t.preguntas), []);
+    const sinImg = await incrustarExternas(todas, txt => { cuerpo.innerHTML = '<p>' + escapeHtml(txt) + '</p><p class="imp-nota">No cierres esta pestaña.</p>'; });
     for(let i = 0; i < plan.length; i++){
       const t = plan[i];
       cuerpo.innerHTML = '<p>Guardando ' + (i + 1) + ' de ' + plan.length + '…</p><p class="imp-nota">' + escapeHtml(t.titulo) + '</p>' +
@@ -288,10 +335,12 @@ const IMP = (function(){
     }
     lote = null;
     guardando = false;
-    if(fallos.length){
-      cuerpo.innerHTML = '<p>Guardados ' + hechos + ' de ' + plan.length + ' tests. <span class="imp-aviso">Fallaron ' + fallos.length + ':</span></p>' +
-        '<ul class="imp-resumen">' + fallos.map(f => '<li>' + escapeHtml(f) + '</li>').join('') + '</ul>' +
-        '<p class="imp-nota">Vuelve a pasar el marcador para reintentarlos: los que ya estén se actualizan, no se duplican.</p>' +
+    if(fallos.length || sinImg){
+      cuerpo.innerHTML = '<p>Guardados ' + hechos + ' de ' + plan.length + ' tests (' + nPreg + ' preguntas).' +
+          (fallos.length ? ' <span class="imp-aviso">Fallaron ' + fallos.length + ':</span>' : '') + '</p>' +
+        (fallos.length ? '<ul class="imp-resumen">' + fallos.map(f => '<li>' + escapeHtml(f) + '</li>').join('') + '</ul>' +
+          '<p class="imp-nota">Vuelve a pasar el marcador para reintentarlos: los que ya estén se actualizan, no se duplican.</p>' : '') +
+        (sinImg ? '<p class="imp-aviso">' + sinImg + (sinImg === 1 ? ' imagen no se pudo descargar' : ' imágenes no se pudieron descargar') + ' (la web de origen no responde).</p>' : '') +
         '<div class="imp-botones"><button type="button" class="imp-btn primario" data-imp="cerrar">Cerrar</button></div>';
     } else {
       uiToast(hechos + ' tests y ' + nPreg + ' preguntas guardados', 'success');

@@ -131,3 +131,6 @@
 .imp-nota{ color: var(--muted); font-size:13px !important; }
 .imp-barra{ height:8px; border-radius:4px; background: var(--line); overflow:hidden; margin:4px 0 12px; }
 .imp-barra span{ display:block; height:100%; background: var(--esp-naranja); transition: width .3s; }
+.imp-detalles{ margin:0 0 12px; font-size:14px; }
+.imp-detalles summary{ cursor:pointer; color: var(--coral); font-weight:600; margin-bottom:6px; }
+.espt-preg sub, .espt-preg sup{ font-size:.75em; line-height:0; }

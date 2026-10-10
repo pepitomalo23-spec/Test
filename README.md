@@ -326,6 +326,11 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   responder, y manda todos juntos (`tipo: 'pjfire-lote'`). La web los reparte por el id de tema de tutorbomberos
   (`TEMAS_TB` en `js/importar-especifico.js`; los temas que no están, como la ordenanza de Málaga, se dejan fuera),
   actualiza el test que ya tenga el mismo título (sin distinguir mayúsculas ni tildes) y crea los demás al final de su tema.
+  El marcador comprueba cada test (tantas preguntas como ids trae su botón, correcta, opciones con texto,
+  explicación, dificultad, imágenes incrustadas) y la web enseña esos avisos antes de importar. Las imágenes que
+  el marcador no puede leer (de otras webs, por CORS) las descarga `supabase/functions/imagen-externa` (solo
+  administradores) y se incrustan: la CSP no deja mostrar imágenes externas. En el texto se guardan `<b>`, `<i>`,
+  `<u>`, `<sub>`, `<sup>`, `<br>` e `<img>` (data: o https:).
 
 - Al hacer un test (`js/especifico-test.js`) cada entrada empieza de cero; una sola respuesta por pregunta (si se
   falla, se señala la correcta). La franja izquierda es la dificultad (`especifico_preguntas.dificultad`: verde,

@@ -84,7 +84,7 @@
             } else if (t === "I" && /fa/.test(c.className)) {
             } else {
               const b = /^(DIV|P|LI|TR|UL|OL|TABLE|H[1-6])$/.test(t),
-                tg = /^(STRONG|B)$/.test(t) ? "b" : t === "EM" ? "i" : "";
+                tg = /^(STRONG|B)$/.test(t) ? "b" : /^(EM|I)$/.test(t) ? "i" : /^(U|SUB|SUP)$/.test(t) ? t.toLowerCase() : "";
               if (b) nl();
               if (tg) h += "<" + tg + ">";
               await walk(c);
