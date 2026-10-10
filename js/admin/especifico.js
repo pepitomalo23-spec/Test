@@ -5,7 +5,7 @@
 let adminEspTests = [];
 let adminEspTema = null;
 let adminEspPreguntas = {};   // test_id → cuántas preguntas tiene
-let adminEspMarcador = '';
+let adminEspMarcador = { uno: '', todo: '' };
 
 async function adminLoadEspecifico(){
   const el = document.getElementById('adminEspLista');
@@ -13,9 +13,10 @@ async function adminLoadEspecifico(){
   const temas = ESP.temas();
   if(!adminEspTema) adminEspTema = temas[0].clave;
   el.innerHTML = skelList(3);
-  if(!adminEspMarcador){
-    // Se trae ya, para que «Copiar marcador» copie al momento (Safari solo deja copiar dentro del toque).
-    fetch('datos/marcador-tutorbomberos.txt?v=23cf16d1dd').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador = t.trim(); }).catch(() => {});
+  if(!adminEspMarcador.uno || !adminEspMarcador.todo){
+    // Se traen ya, para que «Copiar marcador» copie al momento (Safari solo deja copiar dentro del toque).
+    fetch('datos/marcador-tutorbomberos.txt?v=23cf16d1dd').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.uno = t.trim(); }).catch(() => {});
+    fetch('datos/marcador-tutorbomberos-todo.txt?v=a83b98f1a1').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.todo = t.trim(); }).catch(() => {});
   }
   const [rt, rp] = await Promise.all([
     sb.from('especifico_tests').select('id,tema,titulo,orden,created_at').order('orden').order('created_at'),
@@ -88,15 +89,16 @@ async function adminEspBorrar(id){
   adminPintarEspecifico();
 }
 
-/* Marcador de tutorbomberos.es (datos/marcador-tutorbomberos.txt, generado
-   con node scripts/marcador.mjs): se copia para pegarlo como dirección de un
-   marcador del navegador. */
-function adminEspCopiarMarcador(){
-  if(!adminEspMarcador){ uiToast('El marcador aún se está cargando; vuelve a pulsar en un momento.', 'info'); return; }
+/* Marcadores de tutorbomberos.es (datos/marcador-tutorbomberos*.txt, generados
+   con node scripts/marcador.mjs): se copian para pegarlos como dirección de
+   un marcador del navegador. tipo: 'uno' (el test abierto) o 'todo'. */
+function adminEspCopiarMarcador(tipo){
+  const txt = adminEspMarcador[tipo === 'todo' ? 'todo' : 'uno'];
+  if(!txt){ uiToast('El marcador aún se está cargando; vuelve a pulsar en un momento.', 'info'); return; }
   let ok = false;
   try{
     const t = document.createElement('textarea');
-    t.value = adminEspMarcador;
+    t.value = txt;
     t.setAttribute('readonly', '');
     t.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
     document.body.appendChild(t);
@@ -104,6 +106,6 @@ function adminEspCopiarMarcador(){
     ok = document.execCommand('copy');
     t.remove();
   }catch(e){}
-  if(!ok && navigator.clipboard){ navigator.clipboard.writeText(adminEspMarcador).then(() => uiToast('Marcador copiado', 'success'), () => uiToast('No se pudo copiar el marcador', 'error')); return; }
+  if(!ok && navigator.clipboard){ navigator.clipboard.writeText(txt).then(() => uiToast('Marcador copiado', 'success'), () => uiToast('No se pudo copiar el marcador', 'error')); return; }
   uiToast(ok ? 'Marcador copiado' : 'No se pudo copiar el marcador', ok ? 'success' : 'error');
 }
