@@ -295,13 +295,20 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 
 ## Barra superior e Inicio
 
-- La barra tiene tres pestañas: **Inicio** (`screen-inicio`), **Estudio** (`screen-estudio`: recuadros grandes
-  de Legislación, Normativas, Callejero y Específico) y **Estadísticas**. Esas cuatro pantallas marcan Estudio;
+- La barra tiene tres pestañas, en este orden: **Estudio** (`screen-estudio`: recuadros grandes
+  de Legislación, Normativas, Callejero y Específico) **Inicio** (`screen-inicio`) y **Estadísticas**. Esas cuatro pantallas marcan Estudio;
   el calendario marca Inicio.
 - Inicio (`js/inicio.js`, `css/inicio.css`) es la pantalla de entrada: saludo, el test a medias (para
   continuarlo), las tareas de hoy del calendario (se marcan ahí mismo; tocando el recuadro se abre el calendario
   completo para editar), accesos rápidos (Test Inteligente, fallos, fichas que tocan hoy, Callejero) y el
   porcentaje del temario dominado. Se repinta cuando cambian el calendario, las estadísticas o las fichas.
+
+## Específico
+
+- `screen-especifico` (`js/especifico.js`, `css/especifico.css`): los 21 temas del específico; cada uno se
+  despliega y muestra sus tests (filas con tick verde). Tabla `especifico_tests` (migración
+  `20261011_especifico_tests.sql`): la leen los usuarios aprobados y la cambia solo el administrador, que
+  añade y quita tests desde la propia pantalla. `tema` es la clave fija de cada tema en `TEMAS`.
 
 ## Calendario
 
