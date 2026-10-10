@@ -50,12 +50,14 @@ js/                  código, en orden de carga (ver el final de index.html)
   mnemotecnia.js     Mnemotecnia: calculadora del código fonético de Ramón Campayo
   calendario.js      Calendario: tareas de estudio de cada día
   especifico.js      Específico: temas del temario de bombero
+  importar-especifico.js  recibe las preguntas que envía el marcador de tutorbomberos.es
   inicio.js          Inicio: lo de hoy, test a medias, accesos rápidos y progreso
   arranque.js        escucha la sesión y arranca la app (siempre el último)
 datos/               datos que la app descarga cuando hacen falta (callejero-temario.json,
                      mnemotecnia.json y su licencia, mnemotecnia-LICENCIA.txt)
 sw.js                service worker: app sin conexión y actualizaciones
 scripts/versionar.mjs  pone el ?v= de cada css/js en index.html
+scripts/marcador.mjs   genera datos/marcador-tutorbomberos.txt desde scripts/marcador/tutorbomberos.js
 supabase/            migraciones de la base de datos y funciones (Edge Functions)
 assets/              iconos, logo y vídeo
 ```
@@ -308,7 +310,15 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 - `screen-especifico` (`js/especifico.js`, `css/especifico.css`): los 21 temas del específico; cada uno se
   despliega y muestra sus tests (filas con tick verde). Tabla `especifico_tests` (migración
   `20261011_especifico_tests.sql`): la leen los usuarios aprobados y la cambia solo el administrador, que
-  añade, ordena y quita tests en Administración › Específico (`js/admin/especifico.js`). `tema` es la clave fija de cada tema en `TEMAS`.
+  añade, ordena y quita tests en Administración › Específico (`js/admin/especifico.js`).
+- Preguntas de cada test: tabla `especifico_preguntas` (migración `20261012_especifico_preguntas.sql`; mismas
+  reglas: leen los aprobados, escribe el administrador; se borran con su test). Llegan con el marcador de
+  tutorbomberos.es (`scripts/marcador/tutorbomberos.js`; tras cambiarlo, `node scripts/marcador.mjs` y
+  `node scripts/versionar.mjs`). El marcador abre la web con `#importar-especifico` y le pasa las preguntas por
+  `postMessage` (solo se aceptan de `*.tutorbomberos.es`); si no puede, las deja en el portapapeles y se pegan con
+  un botón. `js/importar-especifico.js` limpia el HTML (solo `<br>`, `<b>`, `<i>` e `<img>`) y pregunta en qué
+  test guardarlas (sustituyendo o añadiendo). El botón «Copiar marcador» de Administración › Específico copia
+  `datos/marcador-tutorbomberos.txt` para pegarlo como dirección de un marcador. `tema` es la clave fija de cada tema en `TEMAS`.
 
 ## Calendario
 

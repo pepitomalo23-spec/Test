@@ -4,6 +4,8 @@
 
 let adminEspTests = [];
 let adminEspTema = null;
+let adminEspPreguntas = {};   // test_id → cuántas preguntas tiene
+let adminEspMarcador = '';
 
 async function adminLoadEspecifico(){
   const el = document.getElementById('adminEspLista');
@@ -11,9 +13,19 @@ async function adminLoadEspecifico(){
   const temas = ESP.temas();
   if(!adminEspTema) adminEspTema = temas[0].clave;
   el.innerHTML = skelList(3);
-  const { data, error } = await sb.from('especifico_tests').select('id,tema,titulo,orden,created_at').order('orden').order('created_at');
+  if(!adminEspMarcador){
+    // Se trae ya, para que «Copiar marcador» copie al momento (Safari solo deja copiar dentro del toque).
+    fetch('datos/marcador-tutorbomberos.txt?v=28813194a9').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador = t.trim(); }).catch(() => {});
+  }
+  const [rt, rp] = await Promise.all([
+    sb.from('especifico_tests').select('id,tema,titulo,orden,created_at').order('orden').order('created_at'),
+    sb.from('especifico_preguntas').select('test_id')
+  ]);
+  const error = rt.error || rp.error;
   if(error){ el.innerHTML = '<div class="admin-empty">No se pudieron cargar los tests: ' + escapeHtml(error.message) + '</div>'; return; }
-  adminEspTests = data || [];
+  adminEspTests = rt.data || [];
+  adminEspPreguntas = {};
+  (rp.data || []).forEach(r => { adminEspPreguntas[r.test_id] = (adminEspPreguntas[r.test_id] || 0) + 1; });
   adminPintarEspecifico();
 }
 function adminEspDelTema(k){ return adminEspTests.filter(t => t.tema === k).sort((a, b) => a.orden - b.orden || String(a.created_at).localeCompare(String(b.created_at))); }
@@ -28,7 +40,8 @@ function adminPintarEspecifico(){
   const lista = adminEspDelTema(adminEspTema);
   el.innerHTML = lista.length ? lista.map((t, i) =>
     '<div class="admin-card admin-esp-fila">' +
-      '<span class="admin-esp-titulo"><span class="admin-esp-tipo">Test - </span>' + escapeHtml(t.titulo) + '</span>' +
+      '<span class="admin-esp-titulo"><span class="admin-esp-tipo">Test - </span>' + escapeHtml(t.titulo) +
+        '<span class="admin-esp-preguntas">' + (adminEspPreguntas[t.id] ? adminEspPreguntas[t.id] + ' preguntas' : 'Sin preguntas') + '</span></span>' +
       '<button type="button" class="admin-esp-btn" title="Subir"' + (i ? '' : ' disabled') + ' onclick="adminEspMover(\'' + t.id + '\', -1)">↑</button>' +
       '<button type="button" class="admin-esp-btn" title="Bajar"' + (i < lista.length - 1 ? '' : ' disabled') + ' onclick="adminEspMover(\'' + t.id + '\', 1)">↓</button>' +
       '<button type="button" class="admin-esp-btn peligro" title="Quitar" onclick="adminEspBorrar(\'' + t.id + '\')">✕</button>' +
@@ -67,9 +80,30 @@ async function adminEspMover(id, d){
 }
 async function adminEspBorrar(id){
   const t = adminEspTests.find(x => x.id === id);
-  if(!t || !(await uiConfirm('¿Quitar «' + t.titulo + '» de este tema?', { ok: 'Quitar', danger: true }))) return;
+  const n = adminEspPreguntas[id] || 0;
+  if(!t || !(await uiConfirm('¿Quitar «' + t.titulo + '» de este tema?' + (n ? '\n\nSe borrarán también sus ' + n + ' preguntas.' : ''), { ok: 'Quitar', danger: true }))) return;
   const { error } = await sb.from('especifico_tests').delete().eq('id', id);
   if(error){ uiToast('No se pudo quitar: ' + error.message, 'error'); return; }
   adminEspTests = adminEspTests.filter(x => x.id !== id);
   adminPintarEspecifico();
+}
+
+/* Marcador de tutorbomberos.es (datos/marcador-tutorbomberos.txt, generado
+   con node scripts/marcador.mjs): se copia para pegarlo como dirección de un
+   marcador del navegador. */
+function adminEspCopiarMarcador(){
+  if(!adminEspMarcador){ uiToast('El marcador aún se está cargando; vuelve a pulsar en un momento.', 'info'); return; }
+  let ok = false;
+  try{
+    const t = document.createElement('textarea');
+    t.value = adminEspMarcador;
+    t.setAttribute('readonly', '');
+    t.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
+    document.body.appendChild(t);
+    t.select(); t.setSelectionRange(0, t.value.length);
+    ok = document.execCommand('copy');
+    t.remove();
+  }catch(e){}
+  if(!ok && navigator.clipboard){ navigator.clipboard.writeText(adminEspMarcador).then(() => uiToast('Marcador copiado', 'success'), () => uiToast('No se pudo copiar el marcador', 'error')); return; }
+  uiToast(ok ? 'Marcador copiado' : 'No se pudo copiar el marcador', ok ? 'success' : 'error');
 }
