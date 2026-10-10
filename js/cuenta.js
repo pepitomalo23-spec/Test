@@ -129,6 +129,7 @@ async function onLoggedIn(user, isFreshSignIn){
   restoreQuizProgress();
   // Mientras llegan los permisos, solo lo que ya se sabía que tiene (o nada).
   loadCachedFeatureFlags(user.id);
+  if(typeof ESPT !== 'undefined') ESPT.enviarRespuestas();   // respuestas del Específico que quedaran sin enviar
 
   // Cargamos el perfil primero para saber si la cuenta ya está
   // aprobada por un administrador (sustituye a la confirmación por
@@ -394,6 +395,7 @@ function onLoggedOut(){
   if(typeof CJ !== 'undefined') CJ.reiniciar();
   if(typeof CJP !== 'undefined') CJP.reiniciar();
   if(typeof ESPT !== 'undefined') ESPT.reiniciar();
+  if(typeof ESTE !== 'undefined') ESTE.reiniciar();
   if(adminPollInterval){ clearInterval(adminPollInterval); adminPollInterval = null; }
   const adminBtn = document.getElementById('headerAdminBtn');
   if(adminBtn) adminBtn.classList.add('hidden');

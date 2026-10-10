@@ -49,6 +49,7 @@ const ESPT = (function(){
   /* ---------- abrir ---------- */
   function empezar(m){
     modo = m; preguntas = []; resp = {}; abiertas = new Set(); error = '';
+    enviarRespuestas();   // las que quedaran pendientes de otra vez
     showScreen('screen-esp-test');
     arriba();
   }
@@ -169,12 +170,47 @@ const ESPT = (function(){
     if(pieEl) pieEl.outerHTML = pie();
   }
 
+  /* Cada respuesta se guarda para Estadísticas › Específico (tabla
+     especifico_respuestas). Primero va a una cola en el dispositivo y de ahí
+     a Supabase: sin conexión no se pierde, se envía en cuanto se pueda. */
+  const COLA = 'pj_esp_respuestas_pendientes:';
+  const claveCola = () => currentUser ? COLA + currentUser.id : null;
+  function leerCola(){ try{ return JSON.parse(localStorage.getItem(claveCola()) || '[]'); }catch(e){ return []; } }
+  function escribirCola(c){
+    try{ c.length ? localStorage.setItem(claveCola(), JSON.stringify(c.slice(-5000))) : localStorage.removeItem(claveCola()); }catch(e){}
+  }
+  let enviando = false;
+  async function enviarRespuestas(){
+    if(enviando || !currentUser) return;
+    const c = leerCola();
+    if(!c.length) return;
+    enviando = true;
+    try{
+      const { error } = await sb.from('especifico_respuestas').insert(c);
+      // Si alguna pregunta ya no existe (la borró el administrador), esa tanda no vale: se descarta.
+      if(!error || error.code === '23503'){
+        escribirCola(leerCola().slice(c.length));
+        if(typeof ESTE !== 'undefined') ESTE.invalidar();
+      }
+    }catch(e){}
+    enviando = false;
+  }
+  function guardarRespuesta(id, acierto){
+    if(!claveCola()) return;
+    const c = leerCola();
+    c.push({ pregunta_id: id, acierto, created_at: new Date().toISOString() });
+    escribirCola(c);
+    enviarRespuestas();
+  }
+  addEventListener('online', enviarRespuestas);
+
   function onClick(e){
     const op = e.target.closest('[data-op]');
     if(op && !op.disabled){
       const p = preguntas.find(x => x.id === op.dataset.p);
       if(!p || resp[p.id]) return;   // una sola respuesta: no se cambia
       resp[p.id] = op.dataset.op;
+      guardarRespuesta(p.id, op.dataset.op === p.correcta);
       repintar(p.id);
       return;
     }
@@ -193,5 +229,5 @@ const ESPT = (function(){
 
   // Al cambiar de cuenta, nada de la anterior.
   function reiniciar(){ marcadas = new Set(); marcadasCargadas = false; cache.clear(); }
-  return { abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar };
+  return { abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas };
 })();
