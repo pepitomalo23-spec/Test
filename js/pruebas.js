@@ -351,10 +351,13 @@ const PRU = (function(){
     return { k: 'l', id: q.id, texto: q.q, opciones: b.options, correcta: b.correct, orden: b._optionOrder || null,
       tema: tema ? tema.name : '', art: q.art || '', explicacion: q.explain || '' };
   }
+  // Las preguntas de tutorbomberos empiezan por su número en el test («<b>44ª- …»):
+  // aquí salen mezcladas, así que ese número se quita (en sus tests sí se ve).
+  const sinNumero = h => String(h || '').replace(/^(\s*<b>)?\s*\d+\s*[ªº]\s*[-–]\s*/, '$1');
   function itemEsp(p, tests){
     // Las del Específico no se barajan: muchas dicen «a y b son correctas».
     const ops = p.opciones || [], t = tests[p.test_id];
-    return { k: 'e', id: p.id, html: p.enunciado, opciones: ops.map(o => o.html), correcta: ops.findIndex(o => o.l === p.correcta),
+    return { k: 'e', id: p.id, html: sinNumero(p.enunciado), opciones: ops.map(o => o.html), correcta: ops.findIndex(o => o.l === p.correcta),
       tema: t ? temaEsp(t.tema).replace(/^\d+\.\s*/, '') + ' · ' + t.titulo : '', dif: p.dificultad || '', explicacion: p.tiene_explicacion ? null : '' };   // null: se pide al abrirla (ESPT.explicacion)
   }
   // Elige al azar del Específico respetando cuántas de cada dificultad.
