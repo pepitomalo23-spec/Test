@@ -34,15 +34,7 @@
 .esp-tick{ width:30px; height:30px; flex-shrink:0; color: var(--esp-verde); }
 .esp-test-txt{ flex:1; min-width:0; font-size:16px; line-height:1.4; color: var(--esp-tipo); }
 .esp-test-txt b{ font-weight:700; color: var(--esp-test); }
-.esp-borrar{ width:30px; height:30px; flex-shrink:0; border:none; border-radius:50%; background:none; color: var(--muted-2); cursor:pointer; display:flex; align-items:center; justify-content:center; }
-.esp-borrar:hover{ color: var(--coral); background: var(--card-hi); }
-.esp-borrar svg{ width:16px; height:16px; }
 .esp-vacio{ padding:12px 2px; font-size:14px; color: var(--muted); }
-.esp-anadir{ display:flex; gap:8px; margin-top:10px; }
-.esp-anadir input{ flex:1; min-width:0; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background: var(--card); color: var(--text); font:inherit; font-size:14px; }
-.esp-anadir input:focus{ outline:none; border-color: var(--esp-naranja); }
-.esp-anadir button{ padding:10px 14px; border-radius:10px; border:none; background: var(--esp-naranja); color:#fff; font:inherit; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap; }
-.esp-anadir button:disabled{ opacity:.6; }
 @media (max-width:640px){
   .esp-cab{ padding-left:60px; }
   .esp-caja{ width:44px; height:44px; }

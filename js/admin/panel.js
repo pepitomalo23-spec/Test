@@ -21,7 +21,7 @@ async function adminLoadAllData(){
   refreshTreeTopicSelect();
 }
 function switchAdminTab(name){
-  ['topics','articles','users','activity','boe','callejero','backups','errors'].forEach(t => {
+  ['topics','articles','users','activity','boe','callejero','especifico','backups','errors'].forEach(t => {
     document.getElementById('adminTabBtn-'+t).classList.toggle('active', t===name);
     document.getElementById('adminSection-'+t).classList.toggle('active', t===name);
   });
@@ -36,6 +36,9 @@ function switchAdminTab(name){
   }
   if(name === 'callejero'){
     adminLoadCallejero();
+  }
+  if(name === 'especifico'){
+    adminLoadEspecifico();
   }
   if(name === 'activity'){
     startActivityLive();
