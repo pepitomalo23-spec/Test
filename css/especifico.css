@@ -1,7 +1,7 @@
 /* Específico: lista de temas con el estilo del temario de bombero
    (iconos naranjas, títulos en Roboto Slab, recuadro a la izquierda). */
-:root{ --esp-naranja: #f07611; --esp-titulo: #ffa037; --esp-borde: var(--line); }
-:root[data-theme="light"]{ --esp-borde: #e5e5e5; }
+:root{ --esp-naranja: #f07611; --esp-titulo: #ffa037; --esp-borde: var(--line); --esp-verde: #6cb33f; --esp-tipo: var(--muted); --esp-test: var(--text); }
+:root[data-theme="light"]{ --esp-borde: #e5e5e5; --esp-tipo: #555; --esp-test: #333; }
 
 /* Logo del recuadro de Estudio: el dibujo del bombero en naranja (máscara
    incrustada para que se vea también sin conexión y en cualquier origen) */
@@ -22,11 +22,34 @@
 .esp-ico{ width:40px; flex-shrink:0; margin-right:10px; display:flex; justify-content:center; color: var(--esp-naranja); }
 .esp-ico svg{ width:22px; height:22px; }
 .esp-titulo{ font-family:'Roboto Slab', serif; font-weight:700; font-size:20px; line-height:1.4; color: var(--esp-titulo); }
-.esp-cuerpo{ margin:6px 0 0 70px; padding:12px 14px; font-size:14px; line-height:1.6; color: var(--muted); border-left:2px solid var(--esp-naranja); }
+.esp-num{ font-family: var(--sans); font-weight:600; font-size:12px; color: var(--muted); margin-left:6px; white-space:nowrap; }
+.esp-cuerpo{ margin:8px 0 0; padding-left:14px; border-left:3px solid var(--esp-naranja); }
+.esp-tests{ display:flex; flex-direction:column; }
+/* Fila de test: como en el temario de la academia (tick verde, «Test -» y el nombre en negrita) */
+.esp-test{ display:flex; align-items:center; gap:14px; padding:14px 16px; background: var(--card); border:1px solid var(--esp-borde); cursor:pointer; transition: background .15s; }
+.esp-test + .esp-test{ border-top:none; }
+.esp-test:hover{ background: var(--card-hi); }
+:root[data-theme="light"] .esp-test{ background:#fff; }
+:root[data-theme="light"] .esp-test:hover{ background:#fafafa; }
+.esp-tick{ width:30px; height:30px; flex-shrink:0; color: var(--esp-verde); }
+.esp-test-txt{ flex:1; min-width:0; font-size:16px; line-height:1.4; color: var(--esp-tipo); }
+.esp-test-txt b{ font-weight:700; color: var(--esp-test); }
+.esp-borrar{ width:30px; height:30px; flex-shrink:0; border:none; border-radius:50%; background:none; color: var(--muted-2); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.esp-borrar:hover{ color: var(--coral); background: var(--card-hi); }
+.esp-borrar svg{ width:16px; height:16px; }
+.esp-vacio{ padding:12px 2px; font-size:14px; color: var(--muted); }
+.esp-anadir{ display:flex; gap:8px; margin-top:10px; }
+.esp-anadir input{ flex:1; min-width:0; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background: var(--card); color: var(--text); font:inherit; font-size:14px; }
+.esp-anadir input:focus{ outline:none; border-color: var(--esp-naranja); }
+.esp-anadir button{ padding:10px 14px; border-radius:10px; border:none; background: var(--esp-naranja); color:#fff; font:inherit; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.esp-anadir button:disabled{ opacity:.6; }
 @media (max-width:640px){
   .esp-cab{ padding-left:60px; }
   .esp-caja{ width:44px; height:44px; }
   .esp-ico{ width:30px; margin-right:8px; }
   .esp-titulo{ font-size:17px; }
-  .esp-cuerpo{ margin-left:60px; }
+  .esp-cuerpo{ padding-left:10px; }
+  .esp-test{ padding:12px; gap:10px; }
+  .esp-tick{ width:26px; height:26px; }
+  .esp-test-txt{ font-size:14.5px; }
 }
