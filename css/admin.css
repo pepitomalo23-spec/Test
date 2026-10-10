@@ -139,3 +139,4 @@
   .admin-esp-btn:disabled{ opacity:.3; cursor:default; }
   .admin-esp-btn.peligro:hover{ color: var(--coral); border-color: var(--coral); }
   #adminEspTema{ width:100%; background: var(--card-hi); border:1px solid var(--line); color: var(--text); font-family: var(--sans); font-size:13.5px; padding:11px 13px; border-radius:10px; }
+  .admin-esp-preguntas{ display:block; margin-top:2px; font-size:12px; font-weight:400; color: var(--muted); }

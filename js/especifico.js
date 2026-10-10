@@ -63,12 +63,11 @@ const ESP = (function(){
     const root = document.getElementById('espRoot');
     if(!root) return;
     root.innerHTML = '<ul class="esp-lista">' + TEMAS.map(([k, t, i]) => {
-      const n = delTema(k).length;
       return '<li class="esp-tema' + (k === abierto ? ' abierto' : '') + '">' +
         '<button type="button" class="esp-cab" data-tema="' + k + '" aria-expanded="' + (k === abierto) + '">' +
           '<span class="esp-caja" aria-hidden="true"></span>' +
           '<span class="esp-ico">' + svg(i) + '</span>' +
-          '<span class="esp-titulo">' + escapeHtml(t) + (n ? ' <span class="esp-num">' + n + (n === 1 ? ' test' : ' tests') + '</span>' : '') + '</span>' +
+          '<span class="esp-titulo">' + escapeHtml(t) + '</span>' +
         '</button>' +
         (k === abierto ? cuerpo(k) : '') +
       '</li>';

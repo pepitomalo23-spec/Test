@@ -55,13 +55,13 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&family=Roboto+Slab:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- Estilos de la app. El ?v= lo pone scripts/versionar.mjs (no editar a mano). -->
 <link rel="stylesheet" href="css/base.css?v=d38ea13f39">
-<link rel="stylesheet" href="css/admin.css?v=b98b3a858a">
+<link rel="stylesheet" href="css/admin.css?v=f2c8e427a7">
 <link rel="stylesheet" href="css/pantallas.css?v=f7e366d19f">
 <link rel="stylesheet" href="css/test.css?v=06abd3d71a">
 <link rel="stylesheet" href="css/normativas.css?v=fa9397f080">
 <link rel="stylesheet" href="css/callejero.css?v=8032527378">
 <link rel="stylesheet" href="css/calendario.css?v=6b699957ab">
-<link rel="stylesheet" href="css/especifico.css?v=57e5e5082a">
+<link rel="stylesheet" href="css/especifico.css?v=f79a5477c3">
 <link rel="stylesheet" href="css/inicio.css?v=3d16a3424a">
 <link rel="stylesheet" href="css/mnemotecnia.css?v=7933e62382">
 </head>
@@ -860,6 +860,11 @@
           <button type="submit" class="btn btn-light" id="adminEspAnadirBtn">Añadir test</button>
         </form>
         <div id="adminEspLista"></div>
+        <div class="admin-card" style="margin-top:18px;">
+          <div class="admin-card-title">Marcador de tutorbomberos.es</div>
+          <div class="admin-card-meta" style="margin-bottom:12px;">Con un test abierto en tutorbomberos.es, el marcador saca todas las preguntas (con la correcta, la explicación y las imágenes) y las envía aquí: se abre pj.fire y te pregunta en qué test guardarlas. Para instalarlo, copia el marcador, crea un marcador cualquiera en Safari y pega lo copiado como su dirección.</div>
+          <button class="btn btn-light" onclick="adminEspCopiarMarcador()">Copiar marcador</button>
+        </div>
       </div>
 
       <!-- CALLEJERO -->
@@ -1148,7 +1153,7 @@
 <script src="js/admin/boe.js?v=4449c02dde"></script>
 <script src="js/admin/temario.js?v=45b68f00ea"></script>
 <script src="js/admin/importar-ia.js?v=fc5e42e6f8"></script>
-<script src="js/admin/especifico.js?v=15254c0315"></script>
+<script src="js/admin/especifico.js?v=225518cc52"></script>
 <script src="js/admin/callejero.js?v=5d85c58ac1"></script>
 <script src="js/normativas.js?v=af0393b916"></script>
 <script src="js/callejero.js?v=ebcc226418"></script>
@@ -1156,7 +1161,8 @@
 <script src="js/callejero-profesor.js?v=55890007ea"></script>
 <script src="js/mnemotecnia.js?v=c08acd5057"></script>
 <script src="js/calendario.js?v=4d1c0bbcaa"></script>
-<script src="js/especifico.js?v=1ccc404bd3"></script>
+<script src="js/especifico.js?v=1f6d9400e4"></script>
+<script src="js/importar-especifico.js?v=44c7edb911"></script>
 <script src="js/inicio.js?v=026a9b7daf"></script>
 <script src="js/arranque.js?v=838162d6bd"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">

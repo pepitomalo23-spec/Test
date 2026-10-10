@@ -22,7 +22,6 @@
 .esp-ico{ width:40px; flex-shrink:0; margin-right:10px; display:flex; justify-content:center; color: var(--esp-naranja); }
 .esp-ico svg{ width:22px; height:22px; }
 .esp-titulo{ font-family:'Roboto Slab', serif; font-weight:700; font-size:20px; line-height:1.4; color: var(--esp-titulo); }
-.esp-num{ font-family: var(--sans); font-weight:600; font-size:12px; color: var(--muted); margin-left:6px; white-space:nowrap; }
 .esp-cuerpo{ margin:8px 0 0; padding-left:14px; border-left:3px solid var(--esp-naranja); }
 .esp-tests{ display:flex; flex-direction:column; }
 /* Fila de test: como en el temario de la academia (tick verde, «Test -» y el nombre en negrita) */
@@ -45,3 +44,18 @@
   .esp-tick{ width:26px; height:26px; }
   .esp-test-txt{ font-size:14.5px; }
 }
+
+/* Importar preguntas (js/importar-especifico.js) */
+.imp-bg{ position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:16px; }
+.imp-panel{ width:100%; max-width:520px; max-height:90vh; overflow:auto; background: var(--bg); color: var(--text); border:1px solid var(--line); border-radius:18px; padding:20px; }
+.imp-panel h2{ font-family: var(--title); font-weight:400; font-size:22px; margin:0 0 12px; }
+.imp-cuerpo p{ font-size:14.5px; line-height:1.5; margin:0 0 12px; }
+.imp-aviso{ color: var(--coral); font-weight:600; }
+.imp-label{ display:block; font-size:13px; color: var(--muted); margin:4px 0 6px; }
+.imp-cuerpo select{ width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--line); background: var(--card); color: var(--text); font:inherit; font-size:14.5px; }
+.imp-check{ display:flex; gap:8px; align-items:flex-start; margin-top:12px; font-size:14px; line-height:1.4; }
+.imp-check.hidden{ display:none; }
+.imp-botones{ display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }
+.imp-btn{ padding:11px 16px; border-radius:10px; border:1px solid var(--line); background:none; color: var(--text); font:inherit; font-size:14.5px; font-weight:600; cursor:pointer; }
+.imp-btn.primario{ background: var(--esp-naranja); border-color: var(--esp-naranja); color:#fff; }
+.imp-btn:disabled{ opacity:.6; }
