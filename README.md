@@ -50,6 +50,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   mnemotecnia.js     Mnemotecnia: calculadora del código fonético de Ramón Campayo
   calendario.js      Calendario: tareas de estudio de cada día
   especifico.js      Específico: temas del temario de bombero
+  especifico-test.js hacer un test del Específico (una pregunta cada vez, explicación, nota)
   importar-especifico.js  recibe las preguntas que envía el marcador de tutorbomberos.es
   inicio.js          Inicio: lo de hoy, test a medias, accesos rápidos y progreso
   arranque.js        escucha la sesión y arranca la app (siempre el último)
