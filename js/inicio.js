@@ -22,6 +22,7 @@ const INICIO = (function(){
     fallos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 7-6 6"/><path d="M20 17H6.5a1 1 0 000 5H19a1 1 0 001-1V3a1 1 0 00-1-1H6.5A2.5 2.5 0 004 4.5v15"/><path d="m9 7 6 6"/></svg>',
     fichas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="16" x="7" y="5" rx="2"/><path d="M3 15V5a2 2 0 0 1 2-2h10"/></svg>',
     callejero: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg>',
+    conjunto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M8 14v2.2l1.6 1"/><circle cx="8" cy="16" r="6"/></svg>',
     reanudar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>'
   };
   const MAX_TAREAS = 5;
@@ -47,6 +48,24 @@ const INICIO = (function(){
       '<span class="ini-continuar-txt"><b>Continuar ' + esc(MODOS[quizState.mode] || 'test') + '</b>' +
         '<span>' + (total ? hechas + ' de ' + total + ' respondidas' : 'Tienes un test a medias') + '</span>' +
         (total ? '<span class="ini-barra"><i style="width:' + pct + '%"></i></span>' : '') + '</span>' +
+      '<span class="ini-flecha">' + FLECHA + '</span></button>';
+  }
+
+  // Simulacro conjunto (Legislación + Específico): solo con las dos cosas activadas.
+  function conjunto(){
+    if(typeof SIMC === 'undefined' || !SIMC.disponible()) return '';
+    const m = SIMC.aMedias();
+    if(m){
+      const pct = m.total ? Math.round(m.hechas / m.total * 100) : 0;
+      return '<button type="button" class="ini-continuar" data-ini="conjunto">' +
+        '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
+        '<span class="ini-continuar-txt"><b>Continuar simulacro conjunto</b><span>' + m.hechas + ' de ' + m.total + ' respondidas</span>' +
+          '<span class="ini-barra"><i style="width:' + pct + '%"></i></span></span>' +
+        '<span class="ini-flecha">' + FLECHA + '</span></button>';
+    }
+    return '<button type="button" class="ini-conjunto" data-ini="conjunto">' +
+      '<span class="ini-conjunto-ico">' + ICO.conjunto + '</span>' +
+      '<span class="ini-conjunto-txt"><b>Simulacro conjunto</b><span>Legislación + Específico · tú eliges los temas</span></span>' +
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }
 
@@ -134,7 +153,7 @@ const INICIO = (function(){
   function pintar(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
-    root.innerHTML = saludo() + continuar() + hoy() + rapidos() + progreso();
+    root.innerHTML = saludo() + continuar() + conjunto() + hoy() + rapidos() + progreso();
   }
 
   function onClick(e){
@@ -145,6 +164,7 @@ const INICIO = (function(){
       case 'nueva': e.stopPropagation(); CAL.nueva(); break;
       case 'calendario': showScreen('screen-calendario'); break;
       case 'reanudar': resumeQuiz(); break;
+      case 'conjunto': SIMC.abrirConfig(); break;
       case 'inteligente': openInteligente(); break;
       case 'fallos': openFallos(); break;
       case 'fichas':

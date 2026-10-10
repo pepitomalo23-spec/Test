@@ -534,3 +534,33 @@
   .quiz-list-item .option.selected{ border-color: var(--purple); border-width:1.5px; background: rgba(140,125,245,0.16); }
   .quiz-list-item .option.selected .opt-badge{ border-color: var(--purple); color:#fff; background: var(--purple); font-weight:700; }
   .quiz-list-footer{ display:flex; justify-content:center; margin: 10px 0 4px; }
+  /* Simulacro conjunto (js/simulacro-conjunto.js) */
+  #screen-simc .quiz-head.hidden{ display:none; }
+  .simc-cargando{ padding:24px 0; color: var(--muted); text-align:center; }
+  .simc-n{ margin-left:auto; padding-left:10px; font-family: var(--mono); font-size:12px; color: var(--muted); }
+  .simc-etiqueta{ display:inline-block; font-size:11.5px; font-weight:700; letter-spacing:.02em; text-transform:uppercase; margin-bottom:6px; }
+  .simc-etiqueta span{ font-weight:500; text-transform:none; letter-spacing:0; color: var(--muted); }
+  .simc-etiqueta.legis{ color: var(--purple); }
+  .simc-etiqueta.esp{ color:#f07611; }
+  .simc-item .question img, .simc-item .opt-text img, .simc-exp img{ display:block; max-width:100%; height:auto; margin:8px 0; background:#fff; border-radius:6px; }
+  .simc-item .question sub, .simc-item .question sup, .simc-item .opt-text sub, .simc-item .opt-text sup{ font-size:.75em; line-height:0; }
+  .simc-sub{ margin-top:8px; font-size:13.5px; color: var(--muted); }
+  .simc-partes{ display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:12px; margin:22px 0 18px; }
+  .simc-parte{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; }
+  .simc-parte.legis{ border-top:3px solid var(--purple); }
+  .simc-parte.esp{ border-top:3px solid #f07611; }
+  .simc-parte-tit{ font-size:12px; color: var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
+  .simc-parte-nota{ font-family: var(--mono); font-size:30px; font-weight:700; margin:4px 0 6px; }
+  .simc-parte-datos{ display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12.5px; color: var(--muted); }
+  .simc-parte-datos .ok{ color: var(--green); font-weight:600; }
+  .simc-parte-datos .mal{ color: var(--coral); font-weight:600; }
+  .simc-filtros{ display:flex; gap:6px; overflow-x:auto; margin:8px 0 14px; padding-bottom:2px; }
+  .simc-blanco{ font-size:12.5px; color: var(--amber); font-weight:600; margin-top:6px; }
+  .simc-exp{ margin-top:10px; font-size:14px; line-height:1.5; }
+  .simc-exp summary{ cursor:pointer; color: var(--purple); font-weight:600; }
+  .simc-exp > div{ margin-top:6px; color: var(--text); }
+  .simc-art{ margin-top:8px; font-size:12px; color: var(--muted); }
+  .simc-botones{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin:26px 0 10px; }
+  #simcRelojCaja{ display:flex; }
+  #screen-simc-config .param-opt.selected{ border-color: var(--teal); background: rgba(47,191,174,0.1); color: var(--teal); }
+  #screen-simc-config .topic-row{ cursor:pointer; }

@@ -110,7 +110,7 @@ function renderHistory(){
    selector con cada tipo de test presente (y cuántos hay); debajo, la
    lista completa (limitada a lo que ya se ha cargado del backend) según
    el filtro elegido. */
-const HISTORIAL_TIPO_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos' };
+const HISTORIAL_TIPO_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', conjunto:'Simulacro conjunto', fallos:'Fallos' };
 let historialTipoFilter = 'todas';
 function openHistorialTodo(){
   historialTipoFilter = 'todas';
@@ -202,7 +202,8 @@ async function deleteHistoryItem(h, btnEl){
 }
 
 /* ---------- load session history for the logged-in user ---------- */
-const HISTORY_MODE_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', fallos:'Fallos', inteligente:'Test Inteligente' };
+// «conjunto»: la parte de Legislación de un Simulacro conjunto (la del Específico va a sus estadísticas).
+const HISTORY_MODE_LABELS = { examen:'Examen', estudio:'Estudio', simulacro:'Simulacro', conjunto:'Simulacro conjunto (Legislación)', fallos:'Fallos', inteligente:'Test Inteligente' };
 function mapSessionRowToHistoryEntry(row){
   return {
     id: row.id,

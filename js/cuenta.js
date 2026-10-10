@@ -396,6 +396,7 @@ function onLoggedOut(){
   if(typeof CJP !== 'undefined') CJP.reiniciar();
   if(typeof ESPT !== 'undefined') ESPT.reiniciar();
   if(typeof ESTE !== 'undefined') ESTE.reiniciar();
+  if(typeof SIMC !== 'undefined') SIMC.reiniciar();
   if(adminPollInterval){ clearInterval(adminPollInterval); adminPollInterval = null; }
   const adminBtn = document.getElementById('headerAdminBtn');
   if(adminBtn) adminBtn.classList.add('hidden');
