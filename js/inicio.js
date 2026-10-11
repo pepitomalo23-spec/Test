@@ -51,25 +51,16 @@ const INICIO = (function(){
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }
 
-  // Simulacro conjunto (Legislación + Específico): solo con las dos cosas activadas.
-  // Si hay una prueba de js/pruebas.js a medias (el conjunto o un modo del Específico), se sigue desde aquí.
-  function conjunto(){
+  // Una prueba de js/pruebas.js a medias (el Simulacro conjunto o un modo del Específico).
+  function pruebaAMedias(){
     if(typeof PRU === 'undefined') return '';
     const m = PRU.aMedias();
-    if(m){
-      const pct = m.total ? Math.round(m.hechas / m.total * 100) : 0;
-      return '<button type="button" class="ini-continuar" data-ini="prueba">' +
-        '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
-        '<span class="ini-continuar-txt"><b>Continuar ' + esc(m.titulo.charAt(0).toLowerCase() + m.titulo.slice(1)) + '</b><span>' + m.hechas + ' de ' + m.total + ' respondidas</span>' +
-          '<span class="ini-barra"><i style="width:' + pct + '%"></i></span></span>' +
-        '<span class="ini-flecha">' + FLECHA + '</span></button>' + (PRU.conjuntoDisponible() && m.modo !== 'conjunto' ? tarjetaConjunto() : '');
-    }
-    return PRU.conjuntoDisponible() ? tarjetaConjunto() : '';
-  }
-  function tarjetaConjunto(){
-    return '<button type="button" class="ini-conjunto" data-ini="conjunto">' +
-      '<span class="ini-conjunto-ico">' + ICO.conjunto + '</span>' +
-      '<span class="ini-conjunto-txt"><b>Simulacro conjunto</b><span>Legislación + Específico · tú eliges temas, % y dificultad</span></span>' +
+    if(!m) return '';
+    const pct = m.total ? Math.round(m.hechas / m.total * 100) : 0;
+    return '<button type="button" class="ini-continuar" data-ini="prueba">' +
+      '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
+      '<span class="ini-continuar-txt"><b>Continuar ' + esc(m.titulo.charAt(0).toLowerCase() + m.titulo.slice(1)) + '</b><span>' + m.hechas + ' de ' + m.total + ' respondidas</span>' +
+        '<span class="ini-barra"><i style="width:' + pct + '%"></i></span></span>' +
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }
 
@@ -116,6 +107,7 @@ const INICIO = (function(){
     const listos = datosListos();
     const enCurso = quizState && quizState.mode;
     const tiles = [];
+    if(typeof PRU !== 'undefined' && PRU.conjuntoDisponible()) tiles.push(rapido('conjunto', 'var(--teal)', 'Simulacro conjunto', 'Legislación + Específico'));
     if(featureEnabled('inteligente')){
       const n = listos ? smartUrgentCount() : null;
       tiles.push(rapido('inteligente', 'var(--amber)', 'Test Inteligente', n == null ? SKEL_INLINE : n + ' recomendadas', enCurso && enCurso !== 'inteligente'));
@@ -128,36 +120,48 @@ const INICIO = (function(){
       const n = NQ.pendientesHoy();
       tiles.push(rapido('fichas', 'var(--purple)', 'Repaso de fichas', n == null ? 'Tus fichas' : n ? n + ' para hoy' : 'Al día ✓'));
     }
+    // El Callejero se abre desde Estudio; aquí solo sale cuando tiene avisos nuevos.
     if(featureEnabled('callejero')){
       const aviso = document.getElementById('navCallejeroAviso');
       const n = aviso && !aviso.classList.contains('hidden') ? aviso.textContent : '';
-      tiles.push(rapido('callejero', 'var(--teal)', 'Callejero', n ? n + ' avisos nuevos' : 'Mapa y juego'));
+      if(n) tiles.push(rapido('callejero', 'var(--teal)', 'Callejero', n + ' avisos nuevos'));
     }
     if(!tiles.length) return '';
-    return '<div class="section-row"><div class="section-title">Para hoy</div><div class="section-rule"></div></div>' +
+    return '<div class="section-row"><div class="section-title">Practicar</div><div class="section-rule"></div></div>' +
       '<div class="ini-rapidos">' + tiles.join('') + '</div>';
   }
 
+  // Cómo vas: Legislación y, si lo tienes, el Específico, cada uno con su barra
+  // de dominio (verde, amarillo, rojo; azul lo no visto). Pulsar abre su pestaña de Estadísticas.
+  function filaProgreso(clave, nombre, r){
+    if(!r) return '<div class="ini-prog-fila"><div class="ini-prog-cab"><span class="ini-prog-nombre">' + nombre + '</span></div>' +
+      '<div class="skel-list"><div class="skel-row"><span class="skel-lines"><span class="skel skel-line" style="width:70%"></span></span></div></div></div>';
+    const p = n => r.total ? (n / r.total * 100).toFixed(2) : 0;
+    return '<button type="button" class="ini-prog-fila" data-ini="' + clave + '">' +
+      '<div class="ini-prog-cab"><span class="ini-prog-nombre">' + nombre + '</span>' +
+        '<span class="ini-prog-pct">' + formatPctExact(r.total ? r.verde / r.total * 100 : 0) + '</span><span class="ini-flecha">' + FLECHA + '</span></div>' +
+      '<div class="ini-dominio"><i class="v" style="width:' + p(r.verde) + '%"></i><i class="a" style="width:' + p(r.amarillo) + '%"></i><i class="r" style="width:' + p(r.rojo) + '%"></i></div>' +
+      '<div class="ini-progreso-datos"><span><b>' + r.vistas + '</b> de ' + r.total + ' vistas</span><span><b>' + r.verde + '</b> dominadas</span></div>' +
+      '</button>';
+  }
   function progreso(){
     if(!featureEnabled('estadisticas')) return '';
     const cab = '<div class="section-row"><div class="section-title">Tu progreso</div><div class="section-rule"></div></div>';
-    if(!datosListos()) return cab + '<div class="ini-progreso"><div class="skel-list"><div class="skel-row"><span class="skel-lines"><span class="skel skel-line" style="width:70%"></span><span class="skel skel-line" style="width:40%;opacity:.7"></span></span></div></div></div>';
-    const pool = QUESTIONS_POOL, total = pool.length;
-    const cuenta = st => pool.filter(q => q.masteryStatus === st).length;
-    const verde = cuenta('green'), amarillo = cuenta('yellow'), rojo = cuenta('red'), vistas = total - cuenta(null);
-    const p = n => (n / total * 100).toFixed(2);
-    return cab + '<button type="button" class="ini-progreso" data-ini="stats">' +
-      '<div class="ini-progreso-cab"><div><div class="ini-progreso-pct">' + formatPctExact(verde / total * 100) + '</div>' +
-        '<div class="ini-progreso-s">del temario dominado</div></div><span class="ini-flecha">' + FLECHA + '</span></div>' +
-      '<div class="ini-dominio"><i class="v" style="width:' + p(verde) + '%"></i><i class="a" style="width:' + p(amarillo) + '%"></i><i class="r" style="width:' + p(rojo) + '%"></i></div>' +
-      '<div class="ini-progreso-datos"><span><b>' + vistas + '</b> de ' + total + ' preguntas vistas</span><span><b>' + verde + '</b> dominadas</span></div>' +
-      '</button>';
+    let legis = null;
+    if(datosListos()){
+      const pool = QUESTIONS_POOL, cuenta = st => pool.filter(q => q.masteryStatus === st).length;
+      legis = { total: pool.length, verde: cuenta('green'), amarillo: cuenta('yellow'), rojo: cuenta('red') };
+      legis.vistas = legis.verde + legis.amarillo + legis.rojo;
+    }
+    const conEsp = featureEnabled('especifico') && typeof ESTE !== 'undefined';
+    return cab + '<div class="ini-progreso">' + filaProgreso('stats-legis', 'Legislación', legis) +
+      (conEsp ? filaProgreso('stats-esp', 'Específico', ESTE.resumen()) : '') + '</div>';
   }
 
   function pintar(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
-    root.innerHTML = saludo() + continuar() + conjunto() + hoy() + rapidos() + progreso();
+    root.innerHTML = saludo() + continuar() + pruebaAMedias() + hoy() + rapidos() + progreso();
   }
 
   function onClick(e){
@@ -178,6 +182,9 @@ const INICIO = (function(){
         break;
       case 'callejero': showScreen('screen-callejero'); break;
       case 'stats': showScreen('screen-stats'); break;
+      case 'stats-legis': case 'stats-esp':
+        try{ localStorage.setItem('pj_stats_pestana', el.dataset.ini === 'stats-esp' ? 'esp' : 'legis'); }catch(err){}
+        showScreen('screen-stats'); break;
     }
   }
 
