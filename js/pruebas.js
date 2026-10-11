@@ -26,6 +26,9 @@ const PRU = (function(){
     'esp-simulacro': { titulo: 'Configura tu simulacro', corto: 'Simulacro', largo: 'Simulacro del Específico', vista: 'lista', flags: ['especifico', 'simulacro'], volver: 'screen-especifico',
                        sub: 'Preguntas de todo el Específico. Elige cuántas quieres y de cuánto tiempo dispones.',
                        cuantas: COUNT_OPTIONS.concat([60, 80, 100]), minutos: TIME_OPTIONS.concat([90, 120]), def: [COUNT_OPTIONS[1] || 20, TIME_OPTIONS[1] || 30] },
+    // Los tests de la vista de tutorbomberos (js/especifico-test.js): solo historial.
+    'esp-tb':        { titulo: 'Test de tutorbomberos', corto: 'Test de tutorbomberos', largo: 'Test de tutorbomberos', vista: 'lista', soloHistorial: true, flags: ['especifico'], volver: 'screen-especifico',
+                       cuantas: [0], minutos: [0], def: [0, 0] },
     'esp-examen':    { titulo: 'Configura tu examen', corto: 'Examen', largo: 'Examen del Específico', vista: 'lista', temas: true, flags: ['especifico', 'examen'], volver: 'screen-especifico',
                        sub: 'Elige los temas, cuántas preguntas quieres y de cuánto tiempo dispones.',
                        cuantas: COUNT_OPTIONS.concat([60, 80, 100]), minutos: TIME_OPTIONS.concat([90, 120]), def: [COUNT_OPTIONS[1] || 20, TIME_OPTIONS[1] || 30] }
@@ -747,6 +750,20 @@ const PRU = (function(){
   const PENDIENTES = 'pj_historial_pruebas_pendientes:';
   function leerPend(){ try{ return JSON.parse(localStorage.getItem(PENDIENTES + currentUser.id) || '[]'); }catch(e){ return []; } }
   function escribirPend(l){ try{ l.length ? localStorage.setItem(PENDIENTES + currentUser.id, JSON.stringify(l)) : localStorage.removeItem(PENDIENTES + currentUser.id); }catch(e){} }
+  // Una prueba de la vista de tutorbomberos: se guarda (o se actualiza) con cada respuesta.
+  function guardarSesion(fila){
+    if(!currentUser) return;
+    const l = leerPend(), i = l.findIndex(f => f.id === fila.id);
+    if(i >= 0) l[i] = fila; else l.push(fila);
+    escribirPend(l);
+    if(historial){ const j = historial.findIndex(h => h.id === fila.id); if(j >= 0) historial[j] = Object.assign({}, fila); else historial.unshift(Object.assign({}, fila)); }
+    clearTimeout(guardarSesion.t);
+    guardarSesion.t = setTimeout(subirPendientes, 1500);
+  }
+  function repintarListas(){
+    if($('screen-pru-config') && $('screen-pru-config').classList.contains('active')) pintarConfig();
+    if(typeof ESP !== 'undefined' && $('screen-especifico') && $('screen-especifico').classList.contains('active')) ESP.repintar();
+  }
   async function guardarHistorial(fila){
     fila.created_at = new Date().toISOString();
     if(historial) historial.unshift(Object.assign({}, fila));
@@ -761,7 +778,13 @@ const PRU = (function(){
     subiendo = true;
     try{
       const { error } = await sb.from('historial_pruebas').upsert(l, { onConflict: 'id' });
-      if(!error){ escribirPend(leerPend().slice(l.length)); subiendo = false; cargarHistorial().catch(() => {}); return; }
+      if(!error){
+        const subido = new Map(l.map(f => [f.id, JSON.stringify(f)]));
+        const quedan = leerPend().filter(f => subido.get(f.id) !== JSON.stringify(f));
+        escribirPend(quedan); subiendo = false;
+        if(quedan.length) subirPendientes(); else cargarHistorial().then(repintarListas).catch(() => {});
+        return;
+      }
     }catch(e){}
     subiendo = false;
   }
@@ -785,10 +808,10 @@ const PRU = (function(){
     if(!lista.length) return cab + '<div class="tree-empty">Todavía no has hecho ninguno.</div>';
     return cab + '<div class="history">' + lista.slice(0, limite || 20).map(h => {
       const r = h.resumen || {}, t = r.todo || {};
-      const partes = h.modo === 'conjunto' ? '<span class="pru-hist-partes">Legislación <b>' + formatNota((r.l || {}).nota || 0) + '</b> · Específico <b>' + formatNota((r.e || {}).nota || 0) + '</b></span>' : '';
+      const partes = h.modo === 'esp-tb' && r.titulo ? '<span class="pru-hist-partes">' + escapeHtml(r.titulo) + '</span>' : h.modo === 'conjunto' ? '<span class="pru-hist-partes">Legislación <b>' + formatNota((r.l || {}).nota || 0) + '</b> · Específico <b>' + formatNota((r.e || {}).nota || 0) + '</b></span>' : '';
       return '<div class="hist-date">' + escapeHtml(formatRelativeDate(h.created_at)) + '</div>' +
-        '<div class="hist-item t-' + (h.modo === 'conjunto' || h.modo === 'esp-simulacro' ? 'simulacro' : h.modo.replace('esp-', '')) + '" role="button" tabindex="0" data-pru-hist="' + h.id + '">' +
-          '<div class="hist-icon">' + (ICONS[h.modo === 'conjunto' ? 'simulacro' : h.modo.replace('esp-', '')] || ICONS.simulacro) + '</div>' +
+        '<div class="hist-item t-' + (h.modo === 'conjunto' || h.modo === 'esp-simulacro' ? 'simulacro' : h.modo === 'esp-tb' ? 'estudio' : h.modo.replace('esp-', '')) + '" role="button" tabindex="0" data-pru-hist="' + h.id + '">' +
+          '<div class="hist-icon">' + (ICONS[h.modo === 'conjunto' ? 'simulacro' : h.modo === 'esp-tb' ? 'doc' : h.modo.replace('esp-', '')] || ICONS.simulacro) + '</div>' +
           '<div class="hist-content"><div class="hist-top"><div class="hist-title">' + MODOS[h.modo].corto + partes + '</div>' +
             '<div class="hist-top-right"><div class="hist-score">Nota <b>' + formatNota(Number(h.nota)) + '</b></div>' +
             (String(h.id).startsWith('local-') ? '' : '<button class="hist-delete-btn" type="button" aria-label="Borrar" title="Borrar" data-pru-borrar="' + h.id + '">' + ICONS.trash + '</button>') + '</div></div>' +
@@ -862,7 +885,7 @@ const PRU = (function(){
         '<button type="button" class="admin-tab' + (filtro === k ? ' active' : '') + '" data-pru-filtro="' + k + '">' + t + '</button>').join('') + '</div>' +
         '<div>' + revision() + '</div>' : '<div class="tree-empty">No llegaste a ver ninguna pregunta: no se guarda nada.</div>') +
       '<div class="simc-botones"><button class="btn btn-ghost" data-pru="volver">' + (M.volver === 'screen-inicio' ? 'Volver al inicio' : 'Volver al Específico') + '</button>' +
-        (permitido(est.modo) ? '<button class="btn btn-primary" data-pru="otro">' + (est.revision ? 'Hacer otro' : 'Otro igual') + '</button>' : '') + '</div>';
+        (permitido(est.modo) && !MODOS[est.modo].soloHistorial ? '<button class="btn btn-primary" data-pru="otro">' + (est.revision ? 'Hacer otro' : 'Otro igual') + '</button>' : '') + '</div>';
     arriba();
   }
   function revision(){
@@ -901,7 +924,7 @@ const PRU = (function(){
       '<div class="modes pru-modos">' + cards + '</div>' +
       '<button type="button" class="esp-marcadas pru-marcadas" data-marcadas="1"><span class="esp-marcadas-ico"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17l-5.9 3.3 1.3-6.5L2.5 9.3l6.6-.8z"/></svg></span><span class="esp-marcadas-txt"><b>Preguntas marcadas</b><span>' +
         (nm == null ? 'Las que guardas con la estrella' : nm ? nm + (nm === 1 ? ' pregunta guardada' : ' preguntas guardadas') : 'Todavía no has guardado ninguna') + '</span></span><span class="esp-marcadas-flecha">›</span></button>' +
-      historialHtml(Object.keys(ICO_MODO), 10);
+      historialHtml(Object.keys(ICO_MODO).concat('esp-tb'), 10);
   }
   async function cargarPanel(){
     if(!currentUser) return;
@@ -972,6 +995,7 @@ const PRU = (function(){
   return {
     conjuntoDisponible: () => permitido('conjunto'),
     abrirConfig, cerrarConfig, empezar, quitarFallos, continuar, aMedias, reiniciar, precargar,
+    guardarSesion, historialHtml, nuevoId, cargarHistorialTb: () => cargarHistorial().then(repintarListas).catch(() => {}),
     panelHtml, cargarPanel, onPanelClick, onKey
   };
 })();

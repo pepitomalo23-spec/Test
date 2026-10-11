@@ -1,8 +1,9 @@
 /* Específico: hacer un test (preguntas de especifico_preguntas) y ver las
    preguntas marcadas, con el diseño del aula virtual de tutorbomberos:
    cabecera naranja y todas las preguntas seguidas.
-   - Cada vez que se entra, el test empieza de cero (las respuestas no se
-     guardan).
+   - Cada vez que se entra, el test empieza de cero. Lo que se responde va
+     a Estadísticas y, como una prueba más, al historial del Específico
+     (modo 'esp-tb' de js/pruebas.js), desde donde se revisa o se borra.
    - Una sola respuesta por pregunta: queda fija, con ✓ si es la correcta o
      ✗ y, además, la correcta señalada.
    - La franja de la izquierda es la dificultad: verde (fácil), amarilla
@@ -12,6 +13,7 @@
 const ESPT = (function(){
   let modo = 'test', test = null, preguntas = [], resp = {}, abiertas = new Set(), cargando = false, error = '';
   let marcadas = new Set(), marcadasCargadas = false;
+  let sesion = null;         // la prueba de historial de esta vez: { id, inicio, created_at }
   const cache = new Map();   // test_id → preguntas (para no volver a descargarlas)
   const DIF = { facil: 'Fácil', media: 'Media', dificil: 'Difícil' };
 
@@ -48,7 +50,7 @@ const ESPT = (function(){
 
   /* ---------- abrir ---------- */
   function empezar(m){
-    modo = m; preguntas = []; resp = {}; abiertas = new Set(); error = '';
+    modo = m; preguntas = []; resp = {}; abiertas = new Set(); error = ''; sesion = null;
     enviarRespuestas();   // las que quedaran pendientes de otra vez
     showScreen('screen-esp-test');
     arriba();
@@ -195,7 +197,26 @@ const ESPT = (function(){
     }catch(e){}
     enviando = false;
   }
-  function guardarRespuesta(id, acierto){ registrar([{ pregunta_id: id, acierto }]); }
+  function guardarRespuesta(id, acierto){
+    const pru = typeof PRU !== 'undefined';
+    if(pru && !sesion) sesion = { id: PRU.nuevoId(), inicio: Date.now(), created_at: new Date().toISOString() };
+    registrar([{ pregunta_id: id, acierto, prueba_id: sesion ? sesion.id : null }]);
+    if(pru) guardarSesion();
+  }
+  // El historial: las respondidas, en el orden del test, con su nota (como en las pruebas).
+  function guardarSesion(){
+    const hechas = preguntas.filter(p => resp[p.id]);
+    let pts = 0, bien = 0, mal = 0;
+    hechas.forEach(p => {
+      if(resp[p.id] === p.correcta){ bien++; pts++; }
+      else { mal++; const n = (p.opciones || []).length || 4; pts -= n > 1 ? 1 / (n - 1) : 0; }
+    });
+    const n = hechas.length, nota = n ? Math.max(0, pts / n * 10) : 0;
+    const todo = { total: n, bien, mal, blanco: 0, nota };
+    PRU.guardarSesion({ id: sesion.id, modo: 'esp-tb', nota: Number(nota.toFixed(2)), segundos: Math.round((Date.now() - sesion.inicio) / 1000), created_at: sesion.created_at,
+      resumen: { todo, l: { total: 0, bien: 0, mal: 0, blanco: 0, nota: 0 }, e: todo, titulo: modo === 'marcadas' ? 'Preguntas marcadas' : (test ? test.titulo : '') },
+      preguntas: hechas.map(p => ({ k: 'e', id: p.id })), respuestas: hechas.map(p => (p.opciones || []).findIndex(o => o.l === resp[p.id])) });
+  }
   // También las usan las pruebas de js/pruebas.js (Simulacro conjunto y modos del Específico).
   function registrar(lista){
     if(!claveCola() || !lista.length) return;
@@ -246,7 +267,7 @@ const ESPT = (function(){
         if(!expl.has(id)) explicacion(id).then(() => { if(abiertas.has(id)) repintar(id); });
         break;
       case 'marca': alternarMarca(id); break;
-      case 'reiniciar': resp = {}; abiertas = new Set(); pintar(); arriba(); break;
+      case 'reiniciar': resp = {}; abiertas = new Set(); sesion = null; pintar(); arriba(); break;
     }
   }
   const enganchar = () => { const r = root(); if(r) r.addEventListener('click', onClick); };

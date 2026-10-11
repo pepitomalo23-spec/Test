@@ -72,7 +72,7 @@ const ESP = (function(){
   function cambiarVista(v){
     try{ localStorage.setItem(VISTA, v); }catch(e){}
     pintar();
-    if(v === 'pj') PRU.cargarPanel();
+    if(v === 'pj') PRU.cargarPanel(); else PRU.cargarHistorialTb();
   }
   // Un botón pequeño junto al título cambia de una vista a la otra.
   const ICO_CAMBIO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>';
@@ -104,7 +104,9 @@ const ESP = (function(){
         '</button>' +
         (k === abierto ? cuerpo(k) : '') +
       '</li>';
-    }).join('') + '</ul>';
+    }).join('') + '</ul>' +
+      // Los tests hechos aquí, para revisarlos o borrarlos.
+      (typeof PRU !== 'undefined' ? PRU.historialHtml(['esp-tb'], 10) : '');
   }
 
   function abrirTest(id){
@@ -117,7 +119,7 @@ const ESP = (function(){
       root.dataset.listo = '1';
       root.addEventListener('click', e => {
         if(e.target.closest('[data-marcadas]')){ ESPT.abrirMarcadas(); return; }
-        if(vista() === 'pj' && PRU.onPanelClick(e)) return;
+        if(typeof PRU !== 'undefined' && PRU.onPanelClick(e)) return;
         const ft = e.target.closest('[data-test]');
         if(ft){ abrirTest(ft.dataset.test); return; }
         const cab = e.target.closest('.esp-cab');
@@ -127,11 +129,11 @@ const ESP = (function(){
       });
       root.addEventListener('keydown', e => {
         if(e.key === 'Enter' && e.target.dataset && e.target.dataset.test) abrirTest(e.target.dataset.test);
-        if(vista() === 'pj') PRU.onKey(e);
+        if(typeof PRU !== 'undefined') PRU.onKey(e);
       });
     }
     pintar();
-    if(vista() === 'pj') PRU.cargarPanel();
+    if(vista() === 'pj') PRU.cargarPanel(); else if(typeof PRU !== 'undefined') PRU.cargarHistorialTb();
     cargar();
     if(typeof ESPT !== 'undefined') ESPT.cargarMarcadas().then(pintar);
   }
