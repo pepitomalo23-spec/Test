@@ -190,9 +190,30 @@ const ESTE = (function(){
   // Al entrar en Estadísticas, al cambiar los permisos y al guardar respuestas nuevas.
   function abrir(){ aplicarPestana(); }
   function invalidar(){
-    sucio = true;
+    sucio = true; ultimoIntento = 0;
     if(enPantalla() && pestana() === 'esp') refrescar();
   }
-  function reiniciar(){ datos = null; sucio = true; fallo = ''; }
-  return { abrir, aplicarPestana, invalidar, reiniciar };
+  function reiniciar(){ datos = null; sucio = true; fallo = ''; ultimoIntento = 0; }
+  // Para «Tu progreso» de Inicio: cuántas dominadas, en progreso, suspendidas
+  // y vistas. Si aún no se ha cargado, lo carga por detrás y repinta Inicio.
+  let ultimoIntento = 0;
+  function resumen(){
+    if(!currentUser) return null;
+    if((sucio || !datos) && !cargando && Date.now() - ultimoIntento > 60000){
+      ultimoIntento = Date.now();   // si falla, no se reintenta en bucle
+      cargando = cargar()
+        .then(() => { sucio = false; fallo = ''; })
+        .catch(e => { fallo = e.message || String(e); })
+        .finally(() => {
+          cargando = null;
+          if(enPantalla() && pestana() === 'esp') pintar();
+          if(typeof INICIO !== 'undefined') INICIO.pintar();
+        });
+    }
+    if(!datos) return null;
+    const n = { green: 0, yellow: 0, red: 0 };
+    datos.preguntas.forEach(p => { const e = datos.estado[p.id]; if(e) n[e]++; });
+    return { total: datos.preguntas.length, verde: n.green, amarillo: n.yellow, rojo: n.red, vistas: n.green + n.yellow + n.red };
+  }
+  return { abrir, aplicarPestana, invalidar, reiniciar, resumen };
 })();
