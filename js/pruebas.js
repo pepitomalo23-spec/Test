@@ -46,6 +46,8 @@ const PRU = (function(){
   const barajar = a => shuffleArray(a);
   const temaEsp = k => { const i = ESP.temas().findIndex(x => x.clave === k); return i >= 0 ? (i + 1) + '. ' + ESP.temas()[i].titulo : ''; };
   const permitido = modo => !!currentUser && MODOS[modo].flags.every(f => featureEnabled(f));
+  const nuevoId = () => (self.crypto && crypto.randomUUID) ? crypto.randomUUID() :
+    'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
   const el = (t, html) => { const d = document.createElement(t); d.innerHTML = html; return d; };
 
   /* ---------- datos del Específico ---------- */
@@ -697,18 +699,20 @@ const PRU = (function(){
     filtro = 'todas';
     pintarResultado();
     if(!est.items.length) return;
+    // Todo lo que guarda la prueba lleva su id, para que al borrarla del historial se vaya con ella.
+    const pid = nuevoId();
     // Específico: a sus estadísticas (en blanco cuenta como fallada, igual que en Legislación).
-    if(E.items.length) ESPT.registrar(E.items.map((it, j) => ({ pregunta_id: it.id, acierto: E.resp[j] === it.correcta })));
+    if(E.items.length) ESPT.registrar(E.items.map((it, j) => ({ pregunta_id: it.id, acierto: E.resp[j] === it.correcta, prueba_id: pid })));
     if(typeof ESTE !== 'undefined') ESTE.invalidar();
     if(meta) meta.t = 0;
-    guardarHistorial({ modo: est.modo, nota: Number(est.res.todo.nota.toFixed(2)), segundos,
+    guardarHistorial({ id: pid, modo: est.modo, nota: Number(est.res.todo.nota.toFixed(2)), segundos,
       resumen: { todo: est.res.todo, l: est.res.l, e: est.res.e },
       preguntas: est.items.map(it => it.k === 'l' ? { k: 'l', id: it.id, orden: it.orden } : { k: 'e', id: it.id }), respuestas: est.resp });
     // Legislación: una sesión «conjunto» con solo sus preguntas (para sus estadísticas y Fallos).
-    if(L.items.length && currentUser) await guardarLegis(L, est.res.l, segundos);
+    if(L.items.length && currentUser) await guardarLegis(L, est.res.l, segundos, pid);
   }
-  async function guardarLegis(L, r, segundos){
-    const sesion = { user_id: currentUser.id, mode: 'conjunto', score: Number(r.nota.toFixed(2)), total: r.total, ok: r.bien, bad: r.mal, pending: r.blanco, time_seconds: segundos };
+  async function guardarLegis(L, r, segundos, pid){
+    const sesion = { user_id: currentUser.id, prueba_id: pid, mode: 'conjunto', score: Number(r.nota.toFixed(2)), total: r.total, ok: r.bien, bad: r.mal, pending: r.blanco, time_seconds: segundos };
     const filas = sid => L.items.map((it, j) => {
       const a = L.resp[j];
       return { session_id: sid, user_id: currentUser.id, question_id: it.id,
@@ -745,7 +749,7 @@ const PRU = (function(){
   function escribirPend(l){ try{ l.length ? localStorage.setItem(PENDIENTES + currentUser.id, JSON.stringify(l)) : localStorage.removeItem(PENDIENTES + currentUser.id); }catch(e){} }
   async function guardarHistorial(fila){
     fila.created_at = new Date().toISOString();
-    if(historial) historial.unshift(Object.assign({ id: 'local-' + Date.now() }, fila));
+    if(historial) historial.unshift(Object.assign({}, fila));
     escribirPend(leerPend().concat([fila]));
     await subirPendientes();
   }
@@ -756,7 +760,7 @@ const PRU = (function(){
     if(!l.length) return;
     subiendo = true;
     try{
-      const { error } = await sb.from('historial_pruebas').insert(l);
+      const { error } = await sb.from('historial_pruebas').upsert(l, { onConflict: 'id' });
       if(!error){ escribirPend(leerPend().slice(l.length)); subiendo = false; cargarHistorial().catch(() => {}); return; }
     }catch(e){}
     subiendo = false;
@@ -767,7 +771,9 @@ const PRU = (function(){
     const { data, error } = await sb.from('historial_pruebas').select('id,modo,nota,segundos,resumen,created_at').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(60);
     if(error) throw error;
     // Las que aún no se han podido subir, también.
-    historial = leerPend().map((f, i) => Object.assign({ id: 'local-' + i }, f)).reverse().concat(data || []);
+    const pend = leerPend().map((f, i) => Object.assign({ id: 'local-' + i, pendiente: true }, f));
+    const ids = new Set(pend.map(f => f.id));
+    historial = pend.reverse().concat((data || []).filter(h => !ids.has(h.id)));
     return historial;
   }
   function historialHtml(modos, limite){
@@ -792,7 +798,7 @@ const PRU = (function(){
     }).join('') + '</div>';
   }
   async function revisarHistorial(id){
-    if(String(id).startsWith('local-')){ uiToast('Esta aún se está guardando; podrás revisarla en cuanto se suba.', 'info'); return; }
+    if(String(id).startsWith('local-') || leerPend().some(f => f.id === id)){ uiToast('Esta aún se está guardando; podrás revisarla en cuanto se suba.', 'info'); return; }
     try{
       const { data, error } = await sb.from('historial_pruebas').select('*').eq('id', id).single();
       if(error) throw error;
@@ -807,10 +813,31 @@ const PRU = (function(){
       pintarResultado();
     }catch(e){ uiToast('No se pudo abrir: ' + (e.message || e), 'error'); }
   }
+  // Borrar una prueba quita todo lo que metió: sus respuestas del Específico
+  // (Estadísticas y Fallos) y la sesión de su parte de Legislación.
   async function borrarHistorial(id){
-    if(!(await uiConfirm('¿Borrar esta prueba de tu historial?\n\nTus respuestas siguen contando en las estadísticas.', { ok: 'Borrar', danger: true }))) return;
-    const { error } = await sb.from('historial_pruebas').delete().eq('id', id);
-    if(error){ uiToast('No se pudo borrar: ' + error.message, 'error'); return; }
+    if(!(await uiConfirm('¿Borrar esta prueba de tu historial?\n\nTambién se quitarán sus respuestas de Estadísticas y de Fallos. No se puede deshacer.', { ok: 'Borrar', danger: true }))) return;
+    const yo = currentUser.id;
+    try{
+      ESPT.olvidarPrueba(id);
+      escribirPend(leerPend().filter(f => f.id !== id));
+      let r = await sb.from('especifico_respuestas').delete().eq('user_id', yo).eq('prueba_id', id);
+      if(r.error) throw r.error;
+      r = await sb.from('test_sessions').select('id').eq('user_id', yo).eq('prueba_id', id);
+      if(r.error) throw r.error;
+      const ses = (r.data || []).map(x => x.id);
+      if(ses.length){
+        r = await sb.from('session_answers').delete().eq('user_id', yo).in('session_id', ses);
+        if(r.error) throw r.error;
+        r = await sb.from('test_sessions').delete().eq('user_id', yo).in('id', ses);
+        if(r.error) throw r.error;
+      }
+      r = await sb.from('historial_pruebas').delete().eq('user_id', yo).eq('id', id);
+      if(r.error) throw r.error;
+      if(ses.length) try{ await loadAppData(); await refreshGlobalStats(); }catch(e){}
+    }catch(e){ uiToast('No se pudo borrar: ' + (e.message || e), 'error'); return; }
+    if(typeof ESTE !== 'undefined') ESTE.invalidar();
+    if(meta) meta.t = 0;
     historial = (historial || []).filter(h => h.id !== id);
     if($('screen-pru-config').classList.contains('active')) pintarConfig();
     if(typeof ESP !== 'undefined' && $('screen-especifico').classList.contains('active')) ESP.repintar();
