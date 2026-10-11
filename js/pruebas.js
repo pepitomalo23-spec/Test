@@ -216,8 +216,9 @@ const PRU = (function(){
     const on = lista.length && lista.every(t => cfg[parte].has(t.id));
     return '<span class="switch-row" role="button" tabindex="0" data-pru-todos="' + parte + '"><span class="switch' + (on ? ' on' : '') + '"><span class="knob"></span></span><span class="switch-label">' + txt + '</span></span>';
   };
-  const chips = (que, lista, fmt) => '<div class="param-options">' + lista.map(v =>
-    '<span class="param-opt' + (String(cfg[que]) === String(v) ? ' selected' : '') + '" role="button" tabindex="0" data-pru-opt="' + que + '" data-v="' + v + '">' + fmt(v) + '</span>').join('') + '</div>';
+  // Una fila de botones, como en el Examen de Legislación (el número; la unidad la dice el título).
+  const chips = (que, lista, fmt, aria) => '<div class="param-options param-seg">' + lista.map(v =>
+    '<span class="param-opt' + (String(cfg[que]) === String(v) ? ' selected' : '') + '" role="button" tabindex="0" aria-label="' + aria(v) + '" data-pru-opt="' + que + '" data-v="' + v + '">' + fmt(v) + '</span>').join('') + '</div>';
   const bloque = (label, cuerpo, extra) => '<div class="config-block"><div class="config-block-head"><div class="config-block-label">' + label + '</div>' + (extra || '') + '</div>' + cuerpo + '</div>';
   const paso = (que, txt, v, clase) =>
     '<div class="pru-paso ' + (clase || '') + '"><span class="pru-paso-txt">' + txt + '</span>' +
@@ -325,7 +326,7 @@ const PRU = (function(){
       h += '<div class="config-block"><div class="settings-list">' + ['minutos', 'cuantas', 'dif'].map(filaAjuste).join('') + '</div>' + difPasos(p) + '</div>';
     } else {
       // Como Examen de Legislación: botones de número de preguntas y tiempo.
-      h += bloque('Número de preguntas', chips('cuantas', M.cuantas, v => v + ' preguntas')) + bloque('Tiempo', chips('minutos', M.minutos, v => v + ' min'));
+      h += bloque('Número de preguntas', chips('cuantas', M.cuantas, v => v, v => v + ' preguntas')) + bloque('Tiempo (minutos)', chips('minutos', M.minutos, v => v + '′', v => v + ' minutos'));
       if(M.legis){
         h += bloque('Cuánto de cada parte', '<div class="pru-reparto"><div class="pru-barra"><i class="legis" style="width:' + cfg.pct + '%"></i><i class="esp" style="width:' + (100 - cfg.pct) + '%"></i></div>' +
           paso('pct', 'Legislación', cfg.pct, 'legis') +

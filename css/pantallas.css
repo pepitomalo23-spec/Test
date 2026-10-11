@@ -342,9 +342,9 @@
   .topic-row-chevron.open{ transform: rotate(90deg); }
 
   /* examen accent = blue, simulacro accent = teal */
-  #screen-config[data-mode="examen"] .topic-row.selected{ background: rgba(78,155,247,0.06); }
-  #screen-config[data-mode="examen"] .topic-row.selected .topic-check{ background: var(--blue); border-color: var(--blue); }
-  #screen-config[data-mode="examen"] .topic-check.indeterminate{ background: var(--blue); border-color: var(--blue); }
+  #screen-config[data-mode="examen"] .topic-row.selected, #screen-pru-config[data-mode="esp-examen"] .topic-row.selected{ background: rgba(78,155,247,0.06); }
+  #screen-config[data-mode="examen"] .topic-row.selected .topic-check, #screen-pru-config[data-mode="esp-examen"] .topic-row.selected .topic-check{ background: var(--blue); border-color: var(--blue); }
+  #screen-config[data-mode="examen"] .topic-check.indeterminate, #screen-pru-config[data-mode="esp-examen"] .topic-check.indeterminate{ background: var(--blue); border-color: var(--blue); }
 
   .param-options{ display:flex; flex-wrap:wrap; gap:8px; }
   .param-opt{
@@ -353,8 +353,13 @@
     border-radius:9px; cursor:pointer; transition: all .12s;
   }
   .param-opt:hover{ border-color: var(--muted-2); }
-  #screen-config[data-mode="examen"] .param-opt.selected{ border-color: var(--blue); background: rgba(78,155,247,0.1); color: var(--blue); }
-  #screen-config[data-mode="simulacro"] .param-opt.selected{ border-color: var(--teal); background: rgba(47,191,174,0.1); color: var(--teal); }
+  /* Fila de botones de igual ancho (preguntas y tiempo del Examen) */
+  .param-seg{ display:flex; flex-wrap:nowrap; gap:3px; padding:3px; border-radius:12px; background: var(--card); border:1px solid var(--line); }
+  .param-seg .param-opt{ flex:1; min-width:0; text-align:center; padding:9px 2px; border-radius:9px; border-color:transparent; background:none;
+    font-size:14px; font-weight:600; font-variant-numeric: tabular-nums; white-space:nowrap; }
+  .param-seg .param-opt:hover{ border-color:transparent; color: var(--text); }
+  #screen-config[data-mode="examen"] .param-opt.selected, #screen-pru-config[data-mode="esp-examen"] .param-opt.selected{ border-color: var(--blue); background: rgba(78,155,247,0.1); color: var(--blue); }
+  #screen-config[data-mode="simulacro"] .param-opt.selected, #screen-pru-config[data-mode="esp-simulacro"] .param-opt.selected{ border-color: var(--teal); background: rgba(47,191,174,0.1); color: var(--teal); }
 
   .modal-footer{ position:sticky; bottom:0; background: var(--card); padding:18px 0 4px; margin-top:4px; }
 
@@ -362,80 +367,80 @@
      Diseño: recuadro con esquinas redondeadas, cabecera fija con línea divisoria,
      cuerpo con scroll propio y botón principal fijo abajo en forma de píldora.
      Tarjetas redondeadas, filas sin divisores en Ajustes y casillas cuadradas. */
-  #screen-config.screen.overlay, #screen-fallos.screen.overlay, #screen-inteligente.screen.overlay{
+  #screen-config.screen.overlay, #screen-fallos.screen.overlay, #screen-inteligente.screen.overlay, #screen-pru-config.screen.overlay{
     padding:56px 14px 30px; align-items:center;
   }
-  #screen-config .modal-panel, #screen-fallos .modal-panel, #screen-inteligente .modal-panel{
+  #screen-config .modal-panel, #screen-fallos .modal-panel, #screen-inteligente .modal-panel, #screen-pru-config .modal-panel{
     display:flex; flex-direction:column; padding:0; margin:0 auto; overflow:hidden;
     max-width:640px; max-height:calc(100dvh - 86px);
     background: var(--bg); border:1px solid var(--line); border-radius:20px;
   }
   #screen-config .modal-panel{ height:min(calc(100dvh - 86px), 820px); }
-  #screen-config .modal-head, #screen-fallos .modal-head, #screen-inteligente .modal-head{
+  #screen-config .modal-head, #screen-fallos .modal-head, #screen-inteligente .modal-head, #screen-pru-config .modal-head{
     flex-shrink:0; margin:0; padding:0 20px; min-height:57px; border-bottom:1px solid var(--line);
   }
-  #screen-config .modal-head h1, #screen-fallos .modal-head h1, #screen-inteligente .modal-head h1{ font-size:20px; }
-  #screen-config .modal-close, #screen-fallos .modal-close, #screen-inteligente .modal-close{
+  #screen-config .modal-head h1, #screen-fallos .modal-head h1, #screen-inteligente .modal-head h1, #screen-pru-config .modal-head h1{ font-size:20px; }
+  #screen-config .modal-close, #screen-fallos .modal-close, #screen-inteligente .modal-close, #screen-pru-config .modal-close{
     border:none; background:transparent; width:32px; height:32px; color: var(--text);
   }
-  #screen-config .modal-body, #screen-fallos .modal-body, #screen-inteligente .modal-body{
+  #screen-config .modal-body, #screen-fallos .modal-body, #screen-inteligente .modal-body, #screen-pru-config .modal-body{
     flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
     padding:14px 14px 22px;
   }
-  #screen-config .modal-footer, #screen-fallos .modal-footer, #screen-inteligente .modal-footer{
+  #screen-config .modal-footer, #screen-fallos .modal-footer, #screen-inteligente .modal-footer, #screen-pru-config .modal-footer{
     flex-shrink:0; position:static; margin:0; padding:12px 14px 14px; background: var(--bg);
     display:flex; flex-direction:column; gap:8px;
   }
-  #screen-config .modal-footer .btn, #screen-fallos .modal-footer .btn, #screen-inteligente .modal-footer .btn{
+  #screen-config .modal-footer .btn, #screen-fallos .modal-footer .btn, #screen-inteligente .modal-footer .btn, #screen-pru-config .modal-footer .btn{
     border-radius:999px; padding:13px 20px; font-size:15px; font-weight:500; margin:0 !important;
   }
-  #screen-config .modal-footer .btn-ghost, #screen-fallos .modal-footer .btn-ghost, #screen-inteligente .modal-footer .btn-ghost{
+  #screen-config .modal-footer .btn-ghost, #screen-fallos .modal-footer .btn-ghost, #screen-inteligente .modal-footer .btn-ghost, #screen-pru-config .modal-footer .btn-ghost{
     background:transparent; border:1px solid var(--line);
   }
-  #screen-config .modal-footer .btn-primary:disabled{ opacity:.45; }
+  /* Botón aún no disponible: se lee, pero claramente apagado */
+  #screen-config .modal-footer .btn-primary:disabled, #screen-pru-config .modal-footer .btn-primary:disabled{ opacity:1; background: var(--card-hi); color: var(--muted-2); border-color: var(--line); }
 
   /* Ajustes: tarjeta redondeada, sin divisores entre filas */
-  #screen-config .settings-list{ background:transparent; border:1px solid var(--line); border-radius:18px; padding:6px 0; }
-  #screen-config .settings-row{ padding:11px 16px; border-bottom:none; }
-  #screen-config .settings-row-label, #screen-config .settings-row-value{ color: var(--muted); font-weight:500; }
+  #screen-config .settings-list, #screen-pru-config .settings-list{ background:transparent; border:1px solid var(--line); border-radius:18px; padding:6px 0; }
+  #screen-config .settings-row, #screen-pru-config .settings-row{ padding:11px 16px; border-bottom:none; }
+  #screen-config .settings-row-label, #screen-config .settings-row-value, #screen-pru-config .settings-row-label, #screen-pru-config .settings-row-value{ color: var(--muted); font-weight:500; }
 
   /* Temas: cabecera "Temas" + interruptor, y tarjeta con filas separadas por líneas interiores */
-  #screen-config .config-block{ margin-bottom:24px; }
-  #screen-config .config-block:last-child{ margin-bottom:0; }
+  #screen-config .config-block, #screen-pru-config .config-block{ margin-bottom:24px; }
+  #screen-config .config-block:last-child, #screen-pru-config .config-block:last-child{ margin-bottom:0; }
   #screen-config #configSettingsBlock{ margin-bottom:28px; }
-  #screen-config .config-block-head{ padding:0 4px; margin-bottom:12px; }
-  #screen-config .config-block-label{ font-size:14px; font-weight:500; }
-  #screen-config .switch-label{ font-size:14px; }
-  #screen-config .topics-card{ background:transparent; border:1px solid var(--line); border-radius:18px; padding:0 14px; }
-  #screen-config .topic-row{ padding:11px 0; border-bottom:1px solid var(--line); }
-  #screen-config .topic-row:hover{ background:transparent; }
-  #screen-config .topic-row.selected{ background:transparent; }
-  #screen-config .topic-check{ width:17px; height:17px; border:2px solid var(--text); border-radius:3px; }
-  #screen-config .topic-check svg{ width:11px; height:11px; }
-  #screen-config .topic-row.selected .topic-check, #screen-config .topic-check.indeterminate{ border-color: var(--purple); }
-  #screen-config[data-mode="examen"] .topic-row.selected .topic-check,
-  #screen-config[data-mode="examen"] .topic-check.indeterminate{ border-color: var(--blue); }
-  #screen-config .config-sub{ max-width:none; }
+  #screen-config .config-block-head, #screen-pru-config .config-block-head{ padding:0 4px; margin-bottom:12px; }
+  #screen-config .config-block-label, #screen-pru-config .config-block-label{ font-size:14px; font-weight:500; }
+  #screen-config .switch-label, #screen-pru-config .switch-label{ font-size:14px; }
+  #screen-config .topics-card, #screen-pru-config .topics-card{ background:transparent; border:1px solid var(--line); border-radius:18px; padding:0 14px; }
+  #screen-config .topic-row, #screen-pru-config .topic-row{ padding:11px 0; border-bottom:1px solid var(--line); }
+  #screen-config .topic-row:hover, #screen-pru-config .topic-row:hover{ background:transparent; }
+  #screen-config .topic-row.selected, #screen-pru-config .topic-row.selected{ background:transparent; }
+  #screen-config .topic-check, #screen-pru-config .topic-check{ width:17px; height:17px; border:2px solid var(--text); border-radius:3px; }
+  #screen-config .topic-check svg, #screen-pru-config .topic-check svg{ width:11px; height:11px; }
+  #screen-config .topic-row.selected .topic-check, #screen-config .topic-check.indeterminate, #screen-pru-config .topic-row.selected .topic-check, #screen-pru-config .topic-check.indeterminate{ border-color: var(--purple); }
+  #screen-config[data-mode="examen"] .topic-row.selected .topic-check, #screen-config[data-mode="examen"] .topic-check.indeterminate, #screen-pru-config[data-mode="esp-examen"] .topic-row.selected .topic-check, #screen-pru-config[data-mode="esp-examen"] .topic-check.indeterminate{ border-color: var(--blue); }
+  #screen-config .config-sub, #screen-pru-config .config-sub{ max-width:none; }
 
   /* Desplegable de un tema (Estudio/Examen): filas planas, sin recuadros, con la casilla sangrada */
-  #screen-config .topic-row:has(+ .topic-detail-inline){ border-bottom:none; }
-  #screen-config .topic-detail-inline{ padding:0 0 6px; background:transparent; border-bottom:1px solid var(--line); }
-  #screen-config .topic-detail-inline.inactive{ opacity:1; }
-  #screen-config .article-list{ gap:0; }
-  #screen-config .article-row{
+  #screen-config .topic-row:has(+ .topic-detail-inline), #screen-pru-config .topic-row:has(+ .topic-detail-inline){ border-bottom:none; }
+  #screen-config .topic-detail-inline, #screen-pru-config .topic-detail-inline{ padding:0 0 6px; background:transparent; border-bottom:1px solid var(--line); }
+  #screen-config .topic-detail-inline.inactive, #screen-pru-config .topic-detail-inline.inactive{ opacity:1; }
+  #screen-config .article-list, #screen-pru-config .article-list{ gap:0; }
+  #screen-config .article-row, #screen-pru-config .article-row{
     padding:11px 0 11px 15px; border:none; border-radius:0; background:transparent; gap:14px;
   }
-  #screen-config .article-row:hover, #screen-config .article-row.selected{ background:transparent; border:none; }
-  #screen-config .article-check{ width:17px; height:17px; border:2px solid var(--text); border-radius:3px; }
-  #screen-config .article-check svg{ width:11px; height:11px; }
-  #screen-config .article-row.selected .article-check{ background: var(--purple); border-color: var(--purple); }
-  #screen-config[data-mode="examen"] .article-row.selected .article-check{ background: var(--blue); border-color: var(--blue); }
-  #screen-config .article-name{ font-size:14.5px; }
+  #screen-config .article-row:hover, #screen-config .article-row.selected, #screen-pru-config .article-row:hover, #screen-pru-config .article-row.selected{ background:transparent; border:none; }
+  #screen-config .article-check, #screen-pru-config .article-check{ width:17px; height:17px; border:2px solid var(--text); border-radius:3px; }
+  #screen-config .article-check svg, #screen-pru-config .article-check svg{ width:11px; height:11px; }
+  #screen-config .article-row.selected .article-check, #screen-pru-config .article-row.selected .article-check{ background: var(--purple); border-color: var(--purple); }
+  #screen-config[data-mode="examen"] .article-row.selected .article-check, #screen-pru-config[data-mode="esp-examen"] .article-row.selected .article-check{ background: var(--blue); border-color: var(--blue); }
+  #screen-config .article-name, #screen-pru-config .article-name{ font-size:14.5px; }
 
   @media (max-width:640px){
-    #screen-config.screen.overlay, #screen-fallos.screen.overlay, #screen-inteligente.screen.overlay{ padding:56px 8px 16px; }
+    #screen-config.screen.overlay, #screen-fallos.screen.overlay, #screen-inteligente.screen.overlay, #screen-pru-config.screen.overlay{ padding:56px 8px 16px; }
     #screen-config .modal-panel{ height:calc(100dvh - 72px); }
-    #screen-config .modal-panel, #screen-fallos .modal-panel, #screen-inteligente .modal-panel{ max-height:calc(100dvh - 72px); }
+    #screen-config .modal-panel, #screen-fallos .modal-panel, #screen-inteligente .modal-panel, #screen-pru-config .modal-panel{ max-height:calc(100dvh - 72px); }
   }
 
   /* Aviso propio al finalizar un test con preguntas sin responder */
@@ -453,20 +458,20 @@
   .fin-confirm-actions .btn{ flex:1; }
 
   /* Simulacro: solo dos botones desplegables (Minutos / Preguntas), todo centrado */
-  #screen-config[data-mode="simulacro"] .modal-body{
+  #screen-config[data-mode="simulacro"] .modal-body, #screen-pru-config[data-mode="esp-simulacro"] .modal-body{
     display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;
   }
-  #screen-config[data-mode="simulacro"] .config-sub{ text-align:center; margin:0 auto 22px; max-width:320px; }
+  #screen-config[data-mode="simulacro"] .config-sub, #screen-pru-config[data-mode="esp-simulacro"] .config-sub{ text-align:center; margin:0 auto 22px; max-width:320px; }
   #screen-config[data-mode="simulacro"] #configSettingsBlock{ width:100%; max-width:340px; margin:0 auto; }
-  #screen-config[data-mode="simulacro"] .settings-list{
+  #screen-config[data-mode="simulacro"] .settings-list, #screen-pru-config[data-mode="esp-simulacro"] .settings-list{
     background:transparent; border:none; padding:0; display:flex; flex-direction:column; gap:12px;
   }
-  #screen-config[data-mode="simulacro"] .settings-row{
+  #screen-config[data-mode="simulacro"] .settings-row, #screen-pru-config[data-mode="esp-simulacro"] .settings-row{
     justify-content:center; gap:10px; padding:16px 18px;
     border:1px solid var(--line); border-radius:16px;
   }
-  #screen-config[data-mode="simulacro"] .settings-row-label{ flex:none; color: var(--text); font-weight:600; }
-  #screen-config[data-mode="simulacro"] .settings-row-value{ color: var(--teal); font-weight:600; }
+  #screen-config[data-mode="simulacro"] .settings-row-label, #screen-pru-config[data-mode="esp-simulacro"] .settings-row-label{ flex:none; color: var(--text); font-weight:600; }
+  #screen-config[data-mode="simulacro"] .settings-row-value, #screen-pru-config[data-mode="esp-simulacro"] .settings-row-value{ color: var(--teal); font-weight:600; }
 
   /* ---------- option sheet (Minutos / Preguntas / Dificultad / Ayuda / Repaso) ---------- */
   .sheet-overlay{
@@ -637,12 +642,12 @@
     display:flex; align-items:center; justify-content:space-between; padding:13px 16px;
     border:1px solid var(--line); border-radius:11px; background: var(--card);
   }
-  .fallos-row-name{ font-family: var(--title); font-weight:400; font-size:14.5px; letter-spacing:.2px; }
+  .fallos-row-name{ font-family: var(--sans); font-weight:600; font-size:14.5px; line-height:1.35; }
   .smart-dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:8px; vertical-align:1px; }
   .smart-dot.red{ background: var(--coral); }
   .smart-dot.yellow{ background: var(--amber); }
   .smart-dot.green{ background: var(--green); }
-  .fallos-row-count{ white-space:nowrap;  font-family: var(--mono); font-size:12px; color: var(--coral); }
+  .fallos-row-count{ white-space:nowrap; flex-shrink:0; margin-left:12px; font-size:12.5px; font-weight:600; color: var(--coral); font-variant-numeric: tabular-nums; }
   /* Estadísticas: pestañas Legislación / Específico */
   .stats-tabs{ display:flex; gap:4px; padding:4px; margin:-6px 0 22px; background: var(--card); border:1px solid var(--line); border-radius:12px; }
   .stats-tabs.hidden{ display:none; }
