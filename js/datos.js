@@ -85,6 +85,32 @@ function formatNota(n){
 // Porcentaje EXACTO (sin redondear a entero): se muestran los decimales
 // que hagan falta (hasta 2), quitando ceros sobrantes. Ej: 66.666...% -> "66,67%"
 // solo redondea al 2º decimal para no mostrar infinitos decimales, nunca al entero.
+/* Todas las filas de una consulta de Supabase (devuelve como mucho 1000 por
+   petición). La primera página trae además cuántas hay en total, y el resto
+   de páginas se piden a la vez, no una detrás de otra. `construir(opciones)`
+   devuelve la consulta, con `opciones` pasado a .select(), sin .range(). */
+async function supabaseTodas(construir){
+  const PAG = 1000;
+  const { data, error, count } = await construir({ count: 'exact' }).range(0, PAG - 1);
+  if(error) throw error;
+  let out = data || [];
+  if(count == null){
+    // Sin recuento: página a página, como siempre.
+    for(let desde = PAG; out.length === desde; desde += PAG){
+      const r = await construir().range(desde, desde + PAG - 1);
+      if(r.error) throw r.error;
+      out = out.concat(r.data || []);
+    }
+    return out;
+  }
+  const resto = [];
+  for(let desde = PAG; desde < count; desde += PAG) resto.push(construir().range(desde, desde + PAG - 1));
+  for(const r of await Promise.all(resto)){
+    if(r.error) throw r.error;
+    out = out.concat(r.data || []);
+  }
+  return out;
+}
 function formatPctExact(n){
   if(n === null || n === undefined || isNaN(n)) return '—';
   const rounded = Math.round(n * 100) / 100; // redondeo a 2 decimales, no a entero

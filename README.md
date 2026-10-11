@@ -376,6 +376,10 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   borrar. Sin conexión, el historial espera en el dispositivo y se sube después. Una prueba a medias se guarda
   en el dispositivo (`pj_prueba:<usuario>`, solo una a la vez) y se sigue desde Inicio o desde el panel; el
   reloj cuenta hasta una hora fija.
+  Qué preguntas hay y cómo las llevas (miles de filas) se piden con `supabaseTodas` (js/datos.js: la primera
+  página trae el recuento y el resto se piden a la vez) y se guardan en el dispositivo (`pj_esp_meta_v1:<usuario>`):
+  la configuración se pinta al momento con lo último que había y se actualiza por detrás; Inicio y el panel del
+  Específico lo precargan (`PRU.precargar`).
 - Permisos por función (`js/permisos.js`): lo que depende de un permiso va en `index.html` con `class="hidden"` y
   `data-feature="clave"`, y solo se enseña cuando se conocen los permisos del usuario (los últimos recibidos se
   guardan en el dispositivo, `pj_permisos_v1:<usuario>`). Si internet tarda o falla, no se ve nada que no tenga.
