@@ -16,7 +16,20 @@ const CAL = (function(){
     ['repaso', 'Repaso', 'var(--amber)'],
     ['otro', 'Otro', 'var(--muted)']
   ];
-  const ICONO = { normativas: '📘', legislacion: '⚖️', callejero: '🗺️', especifico: '🔥', test: '📝', fisico: '🏃', repaso: '🔁', otro: '✨' };
+  // Iconos dibujados (mismo trazo que el resto de la app), en el color de su categoría.
+  const svg = d => '<svg class="cal-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  const ICONO = {
+    normativas: svg('<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>'),
+    legislacion: svg('<path d="M12 3v18"/><path d="M7 21h10"/><path d="M3 7h18"/><path d="m6 7-3 7a3 3 0 0 0 6 0Z"/><path d="m18 7-3 7a3 3 0 0 0 6 0Z"/>'),
+    callejero: svg('<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2Z"/><path d="M9 4v14"/><path d="M15 6v14"/>'),
+    especifico: svg('<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/>'),
+    test: svg('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>'),
+    fisico: svg('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'),
+    repaso: svg('<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M8 16H3v5"/>'),
+    otro: svg('<circle cx="12" cy="12" r="3.5"/>')
+  };
+  const LLAMA = ICONO.especifico.replace('cal-ico', 'cal-ico llama');
+  const CALEND = svg('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>');
   const LAPIZ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
   const CAT = Object.fromEntries(CATS.map(([k, n, c]) => [k, { n, c }]));
   // Desde la tarea se puede saltar a su apartado.
@@ -108,7 +121,7 @@ const CAL = (function(){
     const h = hoy(), lista = delDia(h), hechas = lista.filter(t => t.hecho).length, r = racha();
     const proximas = tareas.filter(t => t.fecha > h && t.fecha <= masDias(h, 7) && !t.hecho).length;
     const msg = !lista.length ? 'Hoy no tienes nada apuntado.'
-      : hechas === lista.length ? '¡Todo hecho por hoy! 🎉'
+      : hechas === lista.length ? '¡Todo hecho por hoy!'
       : 'Te queda' + (lista.length - hechas === 1 ? ' 1 cosa' : 'n ' + (lista.length - hechas) + ' cosas') + ' por hacer.';
     return '<div class="cal-hero">' +
       '<div class="cal-hero-anillo">' + anillo(hechas, lista.length) + '</div>' +
@@ -116,7 +129,7 @@ const CAL = (function(){
         '<div class="cal-hero-msg">' + msg + '</div>' +
         '<div class="cal-hero-chips">' +
           '<span class="cal-chip-dato"><b>' + hechas + '/' + lista.length + '</b> hoy</span>' +
-          '<span class="cal-chip-dato' + (r ? ' fuego' : '') + '">🔥 <b>' + r + '</b> ' + (r === 1 ? 'día' : 'días') + ' de racha</span>' +
+          '<span class="cal-chip-dato' + (r ? ' fuego' : '') + '">' + LLAMA + '<b>' + r + '</b> ' + (r === 1 ? 'día' : 'días') + ' de racha</span>' +
           '<span class="cal-chip-dato"><b>' + proximas + '</b> en 7 días</span>' +
         '</div></div></div>';
   }
@@ -167,7 +180,7 @@ const CAL = (function(){
         '<div class="cal-dia-sub">' + (lista.length ? hechas + ' de ' + lista.length + ' hechas' : 'Sin tareas') + '</div></div>' +
         '<button class="cal-anadir" data-cal="nueva"><span>+</span> Añadir</button></div>' +
       (lista.length ? '<div class="cal-lista">' + lista.map(t => tarjeta(t)).join('') + '</div>'
-        : '<button class="cal-vacio" data-cal="nueva"><span class="cal-vacio-ico">✨</span><span>' + frase + '</span><b>Toca para añadir</b></button>');
+        : '<button class="cal-vacio" data-cal="nueva"><span class="cal-vacio-ico">' + CALEND + '</span><span>' + frase + '</span><b>Toca para añadir</b></button>');
   }
   function bloqueAtrasadas(){
     const at = atrasadas();
@@ -255,13 +268,13 @@ const CAL = (function(){
   function pintarHoja(f){
     const c = CAT[h.cat], hh = hoy();
     f.style.setProperty('--c', c.c);
-    f.querySelector('[data-ico]').textContent = ICONO[h.cat];
+    f.querySelector('[data-ico]').innerHTML = ICONO[h.cat];
     f.querySelector('[data-sub]').textContent = c.n + ' · ' + nombreDia(h.fecha);
     f.querySelectorAll('.cal-cat-op').forEach(b => b.classList.toggle('on', b.dataset.cat === h.cat));
     const rapidos = [[hh, 'Hoy'], [masDias(hh, 1), 'Mañana'], [masDias(hh, 2), 'Pasado']];
     const otro = !rapidos.some(r => r[0] === h.fecha);
     f.querySelector('[data-dias]').innerHTML = rapidos.map(([d, n]) => '<button type="button" class="cal-seg' + (d === h.fecha ? ' on' : '') + '" data-dia="' + d + '">' + n + '</button>').join('') +
-      '<label class="cal-seg cal-seg-fecha' + (otro ? ' on' : '') + '">📅 ' + (otro ? esc(nombreDia(h.fecha, true)) : 'Otro día') + '<input type="date" name="otroDia" value="' + h.fecha + '"></label>';
+      '<label class="cal-seg cal-seg-fecha' + (otro ? ' on' : '') + '">' + CALEND + ' ' + (otro ? esc(nombreDia(h.fecha, true)) : 'Otro día') + '<input type="date" name="otroDia" value="' + h.fecha + '"></label>';
     const alc = f.querySelector('[data-alcance]');
     if(alc){
       const n = siguientes(h.t).length;
@@ -277,7 +290,7 @@ const CAL = (function(){
     f.querySelector('[data-hasta]').innerHTML = h.rep ?
       '<div class="cal-hasta-fila"><span>Hasta</span>' + [[6, '1 semana'], [13, '2 semanas'], [27, '4 semanas']].map(([n, txt]) =>
         '<button type="button" class="cal-chip' + (h.hasta === masDias(h.fecha, n) ? ' on' : '') + '" data-hasta-n="' + n + '">' + txt + '</button>').join('') +
-        '<label class="cal-chip cal-chip-fecha">📅 ' + esc(nombreDia(h.hasta, true)) + '<input type="date" name="hasta" value="' + h.hasta + '" min="' + h.fecha + '"></label></div>' +
+        '<label class="cal-chip cal-chip-fecha">' + CALEND + ' ' + esc(nombreDia(h.hasta, true)) + '<input type="date" name="hasta" value="' + h.hasta + '" min="' + h.fecha + '"></label></div>' +
       '<div class="cal-hasta-res">Se apuntará en <b>' + fechas.length + '</b> ' + (fechas.length === 1 ? 'día' : 'días') + '</div>' : '';
   }
   function teclaHoja(e){ if(e.key === 'Escape'){ e.stopPropagation(); cerrarHoja(); } }
@@ -362,7 +375,7 @@ const CAL = (function(){
   function marcar(t){
     if(!t) return;
     t.hecho = !t.hecho;
-    if(t.hecho && t.fecha === hoy() && delDia(t.fecha).every(x => x.hecho)) uiToast('¡Todo hecho por hoy! 🎉', 'success');
+    if(t.hecho && t.fecha === hoy() && delDia(t.fecha).every(x => x.hecho)) uiToast('¡Todo hecho por hoy!', 'success');
     enviar(sb.from('calendario_tareas').update({ hecho: t.hecho, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo marcar');
   }
   function onClick(e){

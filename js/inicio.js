@@ -19,6 +19,7 @@ const INICIO = (function(){
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>';
   const ICO = {
     conjunto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M8 14v2.2l1.6 1"/><circle cx="8" cy="16" r="6"/></svg>',
+    llama: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/></svg>',
     reanudar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>'
   };
   const MAX_TAREAS = 5;
@@ -69,17 +70,17 @@ const INICIO = (function(){
         '<div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:45%"></span></span></div></div>';
     } else {
       const n = r.lista.length, pct = n ? Math.round(r.hechas / n * 100) : 0;
-      const msg = !n ? 'Nada apuntado para hoy' : r.hechas === n ? '¡Todo hecho! 🎉' : 'Te queda' + (n - r.hechas === 1 ? ' 1 cosa' : 'n ' + (n - r.hechas) + ' cosas');
+      const msg = !n ? 'Nada apuntado para hoy' : r.hechas === n ? '¡Todo hecho!' : 'Te queda' + (n - r.hechas === 1 ? ' 1 cosa' : 'n ' + (n - r.hechas) + ' cosas');
       // Primero lo pendiente, para que se vea lo que falta.
       const orden = r.lista.slice().sort((a, b) => a.hecho - b.hecho);
       const filas = orden.slice(0, MAX_TAREAS).map(t =>
         '<div class="ini-tarea' + (t.hecho ? ' hecha' : '') + '" style="--c:' + t.color + '">' +
           '<button type="button" class="ini-check" data-ini="marcar" data-id="' + esc(t.id) + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' + CHECK + '</button>' +
           '<span class="ini-tarea-txt"><span class="ini-tarea-t">' + esc(t.titulo) + '</span>' +
-            '<span class="ini-tarea-cat">' + t.icono + ' ' + esc(t.cat) + (t.nota ? ' · ' + esc(t.nota) : '') + '</span></span>' +
+            '<span class="ini-tarea-cat">' + t.icono + esc(t.cat) + (t.nota ? ' · ' + esc(t.nota) : '') + '</span></span>' +
         '</div>').join('');
       const chips = [
-        r.racha ? '<span class="ini-chip fuego">🔥 <b>' + r.racha + '</b> ' + (r.racha === 1 ? 'día' : 'días') + ' de racha</span>' : '',
+        r.racha ? '<span class="ini-chip fuego">' + ICO.llama + '<b>' + r.racha + '</b> ' + (r.racha === 1 ? 'día' : 'días') + ' de racha</span>' : '',
         r.atrasadas ? '<span class="ini-chip aviso"><b>' + r.atrasadas + '</b> ' + (r.atrasadas === 1 ? 'atrasada' : 'atrasadas') + '</span>' : '',
         '<span class="ini-chip">Mañana: <b>' + r.manana + '</b></span>'
       ].join('');

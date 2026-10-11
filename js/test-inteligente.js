@@ -94,7 +94,7 @@ function smartUrgentCount(){
   return QUESTIONS_POOL.filter(q => !!smartClassify(q)).length;
 }
 const SMART_CAT_LABELS = {
-  red: '🔴 Fallos', yellow: '🟠 Progreso', memory: '🟢 Acertadas'
+  red: '<i class="smart-dot red"></i>Fallos', yellow: '<i class="smart-dot yellow"></i>Progreso', memory: '<i class="smart-dot green"></i>Acertadas'
 };
 function renderSmartIntro(){
   if(!currentUser || !QUESTIONS_POOL.length) return;

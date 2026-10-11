@@ -166,7 +166,7 @@ async function refreshBoeGeminiStatus(){
   if(!statusEl) return;
   const { data, error } = await sb.rpc('admin_app_secret_status', { p_name: 'gemini_api_key' });
   if(error){ statusEl.textContent = 'No se pudo comprobar'; return; }
-  statusEl.textContent = data ? '✅ Configurada' : 'No configurada';
+  statusEl.textContent = data ? 'Configurada' : 'No configurada';
   statusEl.className = data ? 'admin-badge admin' : 'admin-badge';
 }
 

@@ -451,7 +451,7 @@ const NQ = (function(){
     if(aiBusy[c.id]) return '<div class="nq-trampas"><span class="nq-spin"></span>Generando opciones parecidas con IA…</div>';
     const list = cardTrampas(set, i);
     if(list.length >= 3){
-      return '<div class="nq-trampas"><div class="nq-trampas-head"><span>🔥 Opciones difíciles (IA)</span><button class="nq-mini" data-act="regen" data-i="' + i + '">Regenerar</button></div>' +
+      return '<div class="nq-trampas"><div class="nq-trampas-head"><span>Opciones difíciles (IA)</span><button class="nq-mini" data-act="regen" data-i="' + i + '">Regenerar</button></div>' +
         '<div class="nq-trampas-list">' + list.map(x => '<span>' + esc(x) + '</span>').join('') + '</div></div>';
     }
     return '<div class="nq-trampas muted"><div class="nq-trampas-head"><span>Sin opciones difíciles todavía (se generan solas al estudiar)</span><button class="nq-mini" data-act="regen" data-i="' + i + '">Generar ahora</button></div></div>';
@@ -785,7 +785,7 @@ const NQ = (function(){
       rows += '<div class="nq-cfg-row"><span>Responder con</span><select class="nq-select" data-opt="answerWith"><option value="def"' + (o.answerWith === 'def' ? ' selected' : '') + '>Normativa</option><option value="term"' + (o.answerWith === 'term' ? ' selected' : '') + '>Término</option><option value="words"' + (o.answerWith === 'words' ? ' selected' : '') + '>Mis palabras (mnemotecnia)</option></select></div>' +
         (o.answerWith === 'words' ? '<div class="nq-hint" style="text-align:left;margin:-4px 0 8px">Te pregunto las palabras que asociaste al número de cada normativa. Solo entran las tarjetas que las tienen (se apuntan en la lista de términos, con la bombilla).</div>' : '');
       if(study.mode === 'learn') rows += tog('written', 'Preguntas escritas (2ª vuelta)', o.written);
-      rows += tog('aiHard', '🔥 Opciones difíciles con IA cuando ya te lo sabes', o.aiHard && o.answerWith === 'def', o.answerWith !== 'def');
+      rows += tog('aiHard', 'Opciones difíciles con IA cuando ya te lo sabes', o.aiHard && o.answerWith === 'def', o.answerWith !== 'def');
     }
     return '<div class="nq-sheet-bg" data-act="sheet-bg"><div class="nq-sheet"><div class="nq-sheet-grip"></div><h3>Opciones</h3>' +
       '<p>Al cambiar una opción se reinicia la sesión actual.</p>' + rows +
@@ -955,7 +955,7 @@ const NQ = (function(){
     if(!it){
       const { later } = srsItems();
       return studyHeader('Repaso', false) +
-        '<div class="nq-sum"><div class="nq-sum-emoji">🧠</div>' +
+        '<div class="nq-sum">' +
         '<div class="nq-sum-title">' + (st.total ? '¡Repaso de hoy completado!' : 'Nada que repasar') + '</div>' +
         '<div class="nq-sum-sub">' + (st.total ? 'Has repasado ' + st.done + ' tarjeta' + (st.done === 1 ? '' : 's') + '. ' : '') +
           (later.length ? 'El próximo repaso es ' + fmtWhen(later[0].when) + '.' : '') + '</div>' +
@@ -982,7 +982,7 @@ const NQ = (function(){
       const exp = st.shown && q.explain ? '<div class="nq-srsq-exp">' + esc(String(q.explain).slice(0, 900)) + (String(q.explain).length > 900 ? '…' : '') + '</div>' : '';
       return studyHeader('Repaso · ' + left + ' restante' + (left === 1 ? '' : 's'), false) +
         '<div class="nq-pbar"><i style="width:' + (st.total ? st.done / st.total * 100 : 0) + '%"></i></div>' +
-        '<div class="nq-srsq"><div class="nq-srsq-head"><span class="nq-srs-set">❌ Fallada en un test</span>' + (q.art ? '<span class="nq-srsq-art">' + esc(q.art) + '</span>' : '') + '</div>' +
+        '<div class="nq-srsq"><div class="nq-srsq-head"><span class="nq-srs-set">Fallada en un test</span>' + (q.art ? '<span class="nq-srsq-art">' + esc(q.art) + '</span>' : '') + '</div>' +
           '<div class="nq-srsq-text">' + esc(q.q) + '</div><div class="nq-srsq-opts">' + opts2 + '</div>' + exp + '</div>' +
         (st.shown ? rateBtns
           : '<div class="nq-srs-btns one"><button class="nq-btn block" data-act="srs-show">Mostrar respuesta</button></div>' +
@@ -1017,7 +1017,6 @@ const NQ = (function(){
       const k = st.known.length, l = st.learning.length;
       return studyHeader('Fichas', true) +
         '<div class="nq-sum">' +
-          '<div class="nq-sum-emoji">' + (l === 0 ? '🏆' : '💪') + '</div>' +
           '<div class="nq-sum-title">' + (l === 0 ? '¡Te las sabes todas!' : '¡Buen trabajo!') + '</div>' +
           '<div class="nq-sum-sub">Has repasado las ' + n + ' fichas. ' + (l ? 'Sigue practicando las que aún tienes en progreso.' : 'Pasa a Aprender para dominarlas del todo.') + '</div>' +
           '<div class="nq-sum-stats"><div class="nq-stat"><b class="nq-c-green">' + k + '</b><span>Conocidas</span></div><div class="nq-stat"><b class="nq-c-orange">' + l + '</b><span>En progreso</span></div></div>' +
@@ -1213,7 +1212,7 @@ const NQ = (function(){
 
     if(st.finished){
       return studyHeader('Aprender', true) + prog +
-        '<div class="nq-sum"><div class="nq-sum-emoji">🎉</div><div class="nq-sum-title">¡Lo has conseguido!</div>' +
+        '<div class="nq-sum"><div class="nq-sum-title">¡Lo has conseguido!</div>' +
         '<div class="nq-sum-sub">Has dominado los ' + st.terms.length + ' términos de «' + esc(set.title) + '». Repásalos de vez en cuando para no olvidarlos.</div>' +
         '<div class="nq-sum-actions"><button class="nq-btn block" data-act="study" data-mode="test">Hacer una prueba</button>' +
         '<button class="nq-btn ghost block" data-act="learn-reset">Reiniciar Aprender</button>' +
@@ -1269,7 +1268,7 @@ const NQ = (function(){
 
     return studyHeader('Ronda ' + st.round, true) + prog +
       '<div class="nq-q">' +
-        ((cur.retry || cur.hard) ? '<div class="nq-q-tags">' + (cur.retry ? '<span class="nq-q-tag">Vuelve a intentarlo</span>' : '') + (cur.hard ? '<span class="nq-q-tag hard">🔥 Nivel difícil · opciones parecidas</span>' : '') + '</div>' : '') +
+        ((cur.retry || cur.hard) ? '<div class="nq-q-tags">' + (cur.retry ? '<span class="nq-q-tag">Vuelve a intentarlo</span>' : '') + (cur.hard ? '<span class="nq-q-tag hard">Nivel difícil · opciones parecidas</span>' : '') + '</div>' : '') +
         '<div class="nq-q-lbl">' + (opts(set).answerWith === 'term' ? 'Normativa' : 'Término') + '</div>' +
         '<div class="nq-q-prompt">' + esc(cur.prompt) + '</div>' +
         body +
@@ -1382,7 +1381,7 @@ const NQ = (function(){
         (review && !q.answer ? '<div class="nq-answer-box good" style="margin-top:12px"><small>Respuesta correcta</small>' + esc(q.correctText) + '</div>' : '');
     }
     const status = review ? (tsCorrect(q, a) ? '<span class="nq-c-green">Correcta</span>' : '<span class="nq-c-orange">' + (a === undefined ? 'Sin responder' : 'Incorrecta') + '</span>') : (q.type === 'tf' ? 'Verdadero o falso' : 'Elige la respuesta');
-    return '<div class="nq-test-q"><div class="nq-test-head"><span>' + lbl + (q.hard ? ' · <span class="nq-c-orange">🔥 Difícil</span>' : '') + '</span><span>' + status + ' · ' + (k + 1) + ' de ' + total + '</span></div>' +
+    return '<div class="nq-test-q"><div class="nq-test-head"><span>' + lbl + (q.hard ? ' · <span class="nq-c-orange">Difícil</span>' : '') + '</span><span>' + status + ' · ' + (k + 1) + ' de ' + total + '</span></div>' +
       '<div class="nq-test-prompt">' + esc(q.prompt) + '</div>' + body + '</div>';
   }
 
@@ -1401,7 +1400,7 @@ const NQ = (function(){
       const p = sp(st.set);
       const best = p.bestMatch;
       return studyHeader('Combinar', true) +
-        '<div class="nq-sum"><div class="nq-sum-emoji">⚡</div><div class="nq-sum-title">¡' + t.toFixed(1) + ' segundos!</div>' +
+        '<div class="nq-sum"><div class="nq-sum-title">¡' + t.toFixed(1) + ' segundos!</div>' +
         '<div class="nq-sum-sub">' + (st.newRecord ? '¡Nuevo récord personal!' : 'Tu récord es de ' + best.toFixed(1) + ' s. ¿Puedes batirlo?') + '</div>' +
         '<div class="nq-sum-actions"><button class="nq-btn block" data-act="restart">Jugar otra vez</button>' +
         '<button class="nq-btn ghost block" data-act="close">Volver a la unidad</button></div></div>';

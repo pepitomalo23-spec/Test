@@ -254,7 +254,7 @@ function renderIAPreview(){
       '</div>' +
       (collapsed ? '<div class="ia-preview-summary" onclick="iaToggleCollapse('+i+')">'+esc(previewText)+'</div>' : '') +
       (collapsed ? '' :
-      (q.saveError ? '<div class="ia-issue-box"><div class="ia-warn" style="margin-bottom:2px;">⛔ '+esc(q.saveError)+'</div></div>' : '') +
+      (q.saveError ? '<div class="ia-issue-box"><div class="ia-warn" style="margin-bottom:2px;">'+esc(q.saveError)+'</div></div>' : '') +
       (q.warnings && q.warnings.length ? '<div class="ia-issue-box">' + q.warnings.map(w => '<div class="ia-warn" style="margin-bottom:2px;">⚠ '+esc(w)+'</div>').join('') + '</div>' : '') +
       '<label>Pregunta</label>' +
       '<textarea onchange="iaPreviewData['+i+'].question=this.value">'+esc(q.question)+'</textarea>' +
@@ -269,7 +269,7 @@ function renderIAPreview(){
       '<label>Explicación</label>' +
       '<textarea onchange="iaPreviewData['+i+'].explain=this.value">'+esc(q.explain)+'</textarea>' +
       '<label>Número de artículo</label>' +
-      (q.autoDetected && !noLoc ? '<div class="ia-notreviewed" style="color:var(--green);">📍 Detectado automáticamente del texto — revisa que sea correcto.</div>' : '') +
+      (q.autoDetected && !noLoc ? '<div class="ia-notreviewed" style="color:var(--green);">Detectado automáticamente del texto — revisa que sea correcto.</div>' : '') +
       (needsAttention ? '<div class="ia-warn">⚠ No se ha detectado el número de artículo para esta pregunta. Indícalo abajo o márcala como general a propósito.</div>' : '') +
       '<div class="ia-loc-row">' +
         '<input placeholder="Número de artículo" value="'+esc(q.location.articulo ? q.location.articulo.numero : '')+'" '+iaLocField(i,'articulo','numero')+'>' +

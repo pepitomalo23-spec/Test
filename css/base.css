@@ -94,6 +94,13 @@
   #app{ position:fixed; inset:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; background: var(--bg); }
   svg{ display:block; }
   :focus-visible{ outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
+  /* Superficies del navegador con los colores de la app */
+  ::selection{ background: color-mix(in srgb, var(--coral) 35%, transparent); color: var(--text); }
+  input, textarea{ caret-color: var(--coral); }
+  *{ scrollbar-color: var(--line) transparent; scrollbar-width: thin; }
+  /* Las cifras no bailan al cambiar (contadores, notas, porcentajes) */
+  .stat-value, .mastery-donut-pct, .ini-prog-pct, .ini-hoy-num, .result-score, .simc-parte-nota, .fallos-count,
+  .quiz-progress, .quiz-timer, .hist-counts, .topic-count, .ranking-sub, .mastery-total, .pru-paso-v{ font-variant-numeric: tabular-nums; }
 
   /* ---------- topbar ---------- */
   header{
