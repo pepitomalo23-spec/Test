@@ -255,7 +255,8 @@ function renderParamOptions(){
     const b = document.createElement('span');
     b.className = 'param-opt' + (configState.count === n ? ' selected' : '');
     b.setAttribute('role','button'); b.setAttribute('tabindex','0');
-    b.textContent = n + ' preguntas';
+    b.textContent = n;
+    b.setAttribute('aria-label', n + ' preguntas');
     b.onclick = () => { configState.count = n; renderParamOptions(); };
     countEl.appendChild(b);
   });
@@ -266,7 +267,8 @@ function renderParamOptions(){
     const b = document.createElement('span');
     b.className = 'param-opt' + (configState.time === m ? ' selected' : '');
     b.setAttribute('role','button'); b.setAttribute('tabindex','0');
-    b.textContent = m + ' min';
+    b.textContent = m + '′';
+    b.setAttribute('aria-label', m + ' minutos');
     b.onclick = () => { configState.time = m; renderParamOptions(); };
     timeEl.appendChild(b);
   });

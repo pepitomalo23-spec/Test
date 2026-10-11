@@ -583,14 +583,7 @@
   .pru-card-view .explain-text img{ display:block; max-width:100%; height:auto; margin:8px 0; background:#fff; border-radius:6px; }
 
   /* ---------- Simulacro conjunto: configuración ---------- */
-  #screen-pru-config[data-mode="conjunto"] .modal-panel{ display:flex; flex-direction:column; padding:0; margin:0 auto; overflow:hidden;
-    max-width:640px; max-height:calc(100dvh - 86px); background: var(--bg); border:1px solid var(--line); border-radius:20px; }
-  #screen-pru-config[data-mode="conjunto"] .modal-head{ flex-shrink:0; margin:0; padding:0 20px; min-height:57px; border-bottom:1px solid var(--line); }
-  #screen-pru-config[data-mode="conjunto"] .modal-head h1{ font-size:20px; }
-  #screen-pru-config[data-mode="conjunto"] .modal-close{ border:none; background:transparent; color: var(--text); }
-  #screen-pru-config[data-mode="conjunto"] .modal-body{ flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px 14px 22px; }
-  #screen-pru-config[data-mode="conjunto"] .modal-footer{ flex-shrink:0; position:static; margin:0; padding:12px 14px 14px; background: var(--bg); border-top:1px solid var(--line); }
-  #screen-pru-config[data-mode="conjunto"] .modal-footer .btn{ border-radius:999px; padding:13px 20px; font-size:15px; font-weight:600; margin:0; }
+  /* La ventana (cabecera, cuerpo con scroll y botón fijo) es la de Legislación: css/pantallas.css */
   .sc-resumen{ padding:18px 18px 16px; margin-bottom:12px; border-radius:18px; background: var(--card); border:1px solid var(--line); }
   .sc-resumen-cifras{ display:flex; gap:28px; margin-bottom:14px; }
   .sc-resumen-cifras div{ display:flex; align-items:baseline; gap:7px; }
@@ -630,8 +623,8 @@
   .sc-temas.abierto .sc-chev{ transform: rotate(90deg); }
   .sc-temas .switch-label{ display:none; }
   .sc-temas-lista{ border-top:1px solid var(--line); }
-  .sc-temas-lista .topic-row{ padding:12px 14px; }
-  .sc-temas-lista .topic-row:last-child{ border-bottom:0; }
+  #screen-pru-config .sc-temas-lista .topic-row{ padding:12px 14px; border-bottom:1px solid var(--line); }
+  #screen-pru-config .sc-temas-lista .topic-row:last-child{ border-bottom:0; }
   #screen-pru-config[data-mode="conjunto"] .switch.on{ background: var(--teal); border-color: var(--teal); }
 
   .sc-reparto-pct{ display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px; color: var(--muted); }
