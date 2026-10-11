@@ -148,5 +148,5 @@ const ESP = (function(){
       if(!data || data.length < 1000) return n;
     }
   }
-  return { abrir, repintar: pintar, contarPreguntas, temas: () => TEMAS.map(([k, t]) => ({ clave: k, titulo: t })) };
+  return { abrir, repintar: pintar, contarPreguntas, temas: () => TEMAS.map(([k, t, i]) => ({ clave: k, titulo: t, icono: svg(i) })) };
 })();
