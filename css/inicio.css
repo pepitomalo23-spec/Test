@@ -49,18 +49,6 @@
 .ini-hoy-pie{ display:flex; align-items:center; justify-content:flex-end; gap:2px; margin-top:12px; font-size:13px; font-weight:600; color: var(--coral); }
 .ini-hoy-pie svg{ width:16px; height:16px; }
 
-/* Accesos rápidos */
-.ini-rapidos{ display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:12px; margin-bottom:8px; }
-@media (max-width:640px){ .ini-rapidos{ grid-template-columns: repeat(2, 1fr); } }
-.ini-rapido{ display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding:16px; min-height:120px; text-align:left; font:inherit; color: var(--text);
-  background: var(--card); border:1px solid var(--line); border-radius:16px; cursor:pointer; transition: border-color .15s, background .15s, transform .15s; }
-.ini-rapido:hover:not(:disabled){ border-color: var(--muted-2); background: var(--card-hi); transform: translateY(-1px); }
-.ini-rapido:disabled{ opacity:.45; cursor:not-allowed; }
-.ini-rapido-ico{ color: var(--c); margin-bottom:auto; padding-bottom:12px; }
-.ini-rapido-ico svg{ width:30px; height:30px; }
-.ini-rapido-t{ font-family: var(--title); font-size:16px; letter-spacing:.2px; }
-.ini-rapido-s{ font-size:12px; color: var(--muted); }
-
 /* Progreso: una fila por parte (Legislación y Específico) */
 .ini-progreso{ display:flex; flex-direction:column; padding:6px; margin-bottom:8px;
   background: var(--card); border:1px solid var(--line); border-radius:18px; }
@@ -80,3 +68,11 @@ button.ini-prog-fila:hover{ background: var(--card-hi); }
 
 /* Volver desde el calendario */
 .cal-volver{ margin-bottom:14px; width:max-content; }
+
+/* Simulacro conjunto: una fila dentro de un recuadro como el de «Tu progreso» */
+.ini-conjunto{ display:flex; align-items:center; gap:12px; }
+.ini-conjunto-ico{ width:40px; height:40px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color: var(--teal); }
+.ini-conjunto-ico svg{ width:30px; height:30px; }
+.ini-conjunto-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.ini-conjunto-txt b{ font-family: var(--title); font-size:17px; font-weight:400; letter-spacing:.2px; }
+.ini-conjunto-txt span{ font-size:12.5px; color: var(--muted); }

@@ -1,7 +1,7 @@
 /* Inicio: de un vistazo, lo que toca hoy (tareas del calendario, que se
    pueden marcar aquí mismo; tocando el recuadro se abre el calendario en
-   grande para editarlo todo), el test a medias, accesos rápidos a lo
-   pendiente y cómo vas. Todo se calcula con datos que ya hay en memoria. */
+   grande para editarlo todo), el test a medias, el Simulacro conjunto y cómo
+   vas en Legislación y en el Específico. */
 const INICIO = (function(){
   const MODOS = { estudio: 'Modo estudio', fallos: 'Fallos', inteligente: 'Test Inteligente', simulacro: 'Simulacro', examen: 'Examen' };
   const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -18,10 +18,6 @@ const INICIO = (function(){
   const FLECHA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>';
   const ICO = {
-    inteligente: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>',
-    fallos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 7-6 6"/><path d="M20 17H6.5a1 1 0 000 5H19a1 1 0 001-1V3a1 1 0 00-1-1H6.5A2.5 2.5 0 004 4.5v15"/><path d="m9 7 6 6"/></svg>',
-    fichas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="16" x="7" y="5" rx="2"/><path d="M3 15V5a2 2 0 0 1 2-2h10"/></svg>',
-    callejero: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg>',
     conjunto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M8 14v2.2l1.6 1"/><circle cx="8" cy="16" r="6"/></svg>',
     reanudar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>'
   };
@@ -98,37 +94,15 @@ const INICIO = (function(){
       '<div class="ini-hoy-pie">Ver calendario completo ' + FLECHA + '</div></div>';
   }
 
-  function rapido(clave, color, titulo, sub, desactivado){
-    return '<button type="button" class="ini-rapido" data-ini="' + clave + '" style="--c:' + color + '"' + (desactivado ? ' disabled' : '') + '>' +
-      '<span class="ini-rapido-ico">' + ICO[clave] + '</span>' +
-      '<span class="ini-rapido-t">' + titulo + '</span><span class="ini-rapido-s">' + sub + '</span></button>';
-  }
-  function rapidos(){
-    const listos = datosListos();
-    const enCurso = quizState && quizState.mode;
-    const tiles = [];
-    if(typeof PRU !== 'undefined' && PRU.conjuntoDisponible()) tiles.push(rapido('conjunto', 'var(--teal)', 'Simulacro conjunto', 'Legislación + Específico'));
-    if(featureEnabled('inteligente')){
-      const n = listos ? smartUrgentCount() : null;
-      tiles.push(rapido('inteligente', 'var(--amber)', 'Test Inteligente', n == null ? SKEL_INLINE : n + ' recomendadas', enCurso && enCurso !== 'inteligente'));
-    }
-    if(featureEnabled('fallos')){
-      const n = listos ? QUESTIONS_POOL.filter(q => q.masteryStatus === 'red' && !q.fallosHidden).length : null;
-      tiles.push(rapido('fallos', 'var(--coral)', 'Repasar fallos', n == null ? SKEL_INLINE : n ? n + ' pendientes' : 'Sin fallos 👌', (listos && !n) || (enCurso && enCurso !== 'fallos')));
-    }
-    if(featureEnabled('normativas') && typeof NQ !== 'undefined'){
-      const n = NQ.pendientesHoy();
-      tiles.push(rapido('fichas', 'var(--purple)', 'Repaso de fichas', n == null ? 'Tus fichas' : n ? n + ' para hoy' : 'Al día ✓'));
-    }
-    // El Callejero se abre desde Estudio; aquí solo sale cuando tiene avisos nuevos.
-    if(featureEnabled('callejero')){
-      const aviso = document.getElementById('navCallejeroAviso');
-      const n = aviso && !aviso.classList.contains('hidden') ? aviso.textContent : '';
-      if(n) tiles.push(rapido('callejero', 'var(--teal)', 'Callejero', n + ' avisos nuevos'));
-    }
-    if(!tiles.length) return '';
+
+  // El Simulacro conjunto (Legislación + Específico): una fila con el mismo estilo que «Tu progreso».
+  function conjunto(){
+    if(typeof PRU === 'undefined' || !PRU.conjuntoDisponible()) return '';
     return '<div class="section-row"><div class="section-title">Practicar</div><div class="section-rule"></div></div>' +
-      '<div class="ini-rapidos">' + tiles.join('') + '</div>';
+      '<div class="ini-progreso"><button type="button" class="ini-prog-fila ini-conjunto" data-ini="conjunto">' +
+        '<span class="ini-conjunto-ico">' + ICO.conjunto + '</span>' +
+        '<span class="ini-conjunto-txt"><b>Simulacro conjunto</b><span>Legislación + Específico, a tu medida</span></span>' +
+        '<span class="ini-flecha">' + FLECHA + '</span></button></div>';
   }
 
   // Cómo vas: Legislación y, si lo tienes, el Específico, cada uno con su barra
@@ -161,7 +135,7 @@ const INICIO = (function(){
   function pintar(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
-    root.innerHTML = saludo() + continuar() + pruebaAMedias() + hoy() + rapidos() + progreso();
+    root.innerHTML = saludo() + continuar() + pruebaAMedias() + hoy() + conjunto() + progreso();
   }
 
   function onClick(e){
@@ -174,13 +148,6 @@ const INICIO = (function(){
       case 'reanudar': resumeQuiz(); break;
       case 'conjunto': PRU.abrirConfig('conjunto'); break;
       case 'prueba': PRU.continuar(); break;
-      case 'inteligente': openInteligente(); break;
-      case 'fallos': openFallos(); break;
-      case 'fichas':
-        showScreen('screen-normativas');
-        if(NQ.pendientesHoy()) NQ.startReview();
-        break;
-      case 'callejero': showScreen('screen-callejero'); break;
       case 'stats': showScreen('screen-stats'); break;
       case 'stats-legis': case 'stats-esp':
         try{ localStorage.setItem('pj_stats_pestana', el.dataset.ini === 'stats-esp' ? 'esp' : 'legis'); }catch(err){}
