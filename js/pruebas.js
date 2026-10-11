@@ -799,7 +799,7 @@ const PRU = (function(){
   let panelMeta = null;
   function panelHtml(){
     const nFallos = panelMeta ? panelMeta.preg.filter(p => panelMeta.enFallos(p.id)).length : null;
-    const sub = { 'esp-estudio': 'Elige tus temas', 'esp-fallos': nFallos == null ? '<span class="skel skel-inline"></span>' : nFallos ? nFallos + ' pendientes' : 'Sin fallos 👌',
+    const sub = { 'esp-estudio': 'Elige tus temas', 'esp-fallos': nFallos == null ? '<span class="skel skel-inline"></span>' : nFallos ? nFallos + ' pendientes' : 'Sin fallos',
       'esp-simulacro': 'Tiempo y preguntas', 'esp-examen': 'Temas, tiempo y preguntas' };
     const cards = Object.keys(ICO_MODO).filter(permitido).map(k =>
       '<div class="mode-card ' + ICO_MODO[k] + (k === 'esp-fallos' && nFallos === 0 ? ' disabled' : '') + '" role="button" tabindex="0" data-pru-modo="' + k + '">' +
@@ -809,7 +809,7 @@ const PRU = (function(){
     const nm = typeof ESPT !== 'undefined' ? ESPT.numMarcadas() : null;
     return (g ? '<button type="button" class="ini-continuar" data-pru="continuar"><span class="ini-continuar-txt"><b>Continuar ' + escapeHtml(MODOS[g.modo].corto.toLowerCase()) + '</b><span>' + g.hechas + ' de ' + g.total + ' respondidas</span></span><span class="ini-flecha">›</span></button>' : '') +
       '<div class="modes pru-modos">' + cards + '</div>' +
-      '<button type="button" class="esp-marcadas pru-marcadas" data-marcadas="1"><span class="esp-marcadas-ico">★</span><span class="esp-marcadas-txt"><b>Preguntas marcadas</b><span>' +
+      '<button type="button" class="esp-marcadas pru-marcadas" data-marcadas="1"><span class="esp-marcadas-ico"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17l-5.9 3.3 1.3-6.5L2.5 9.3l6.6-.8z"/></svg></span><span class="esp-marcadas-txt"><b>Preguntas marcadas</b><span>' +
         (nm == null ? 'Las que guardas con la estrella' : nm ? nm + (nm === 1 ? ' pregunta guardada' : ' preguntas guardadas') : 'Todavía no has guardado ninguna') + '</span></span><span class="esp-marcadas-flecha">›</span></button>' +
       historialHtml(Object.keys(ICO_MODO), 10);
   }

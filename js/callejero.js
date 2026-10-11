@@ -1885,7 +1885,7 @@ const CJ = (function(){
     const texto = nuevas.length === 1
       ? '«' + t.titulo + '»\n\n' + describirTarea(t).que + (t.mensaje ? '\n\n' + t.mensaje : '')
       : nuevas.map(x => '· ' + x.titulo).join('\n');
-    uiConfirm(texto, { title: nuevas.length === 1 ? '📍 Tu profesor te ha mandado algo para estudiar' : '📍 Tu profesor te ha mandado ' + nuevas.length + ' cosas para estudiar',
+    uiConfirm(texto, { title: nuevas.length === 1 ? 'Tu profesor te ha mandado algo para estudiar' : 'Tu profesor te ha mandado ' + nuevas.length + ' cosas para estudiar',
       ok: nuevas.length === 1 ? 'Estudiar esto' : 'Ver', cancel: 'Luego', danger: false })
       .then(ok => { if(ok) setTimeout(() => CJT.abrirTarea(t.id), 0); });
   }

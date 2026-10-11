@@ -136,7 +136,7 @@ async function openReminderSheet(){
         actions = '<button type="button" class="ui-confirm-cancel" data-r="close">Ahora no</button><button type="button" class="ui-confirm-ok" data-r="on">Activar</button>';
       }
     }
-    bg.innerHTML = '<div class="ui-confirm" role="dialog" aria-modal="true" aria-label="Recordatorio diario"><h3>🔔 Recordatorio diario</h3>' + body +
+    bg.innerHTML = '<div class="ui-confirm" role="dialog" aria-modal="true" aria-label="Recordatorio diario"><h3>Recordatorio diario</h3>' + body +
       '<div class="ui-confirm-actions">' + actions + '</div></div>';
   };
   bg.addEventListener('click', async e => {

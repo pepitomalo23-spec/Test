@@ -20,7 +20,7 @@ async function adminLoadErrors(){
   el.innerHTML = skelList(4);
   const { data, error } = await sb.from('client_errors').select('*').order('created_at', { ascending: false }).limit(150);
   if(error){ el.innerHTML = '<div class="admin-empty">No se pudieron cargar los errores: ' + escapeHtml(error.message) + '</div>'; return; }
-  if(!data || !data.length){ el.innerHTML = '<div class="admin-empty">Ningún error registrado. ¡Todo en orden! ✨</div>'; return; }
+  if(!data || !data.length){ el.innerHTML = '<div class="admin-empty">Ningún error registrado. Todo en orden.</div>'; return; }
   el.innerHTML = data.map(r =>
     '<div class="admin-card err-card' + (r.seen ? '' : ' unseen') + '">' +
       '<div class="err-head"><span class="admin-badge' + (r.kind === 'atasco' ? ' over' : '') + '">' + escapeHtml(r.kind) + '</span>' +

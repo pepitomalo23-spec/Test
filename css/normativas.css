@@ -179,7 +179,6 @@
 
   /* Resúmenes */
   .nq-sum{ flex:1; display:flex; flex-direction:column; justify-content:center; padding: 24px 0; }
-  .nq-sum-emoji{ font-size:44px; margin-bottom:10px; }
   .nq-sum-title{ font-family: var(--title); font-weight:400; font-size:30px; letter-spacing:.3px; margin-bottom:8px; }
   .nq-sum-sub{ color: var(--muted); font-size:14px; margin-bottom:22px; line-height:1.5; }
   .nq-sum-stats{ display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; margin-bottom:22px; }
@@ -276,7 +275,7 @@
   @keyframes nq-spin{ to{ transform: rotate(360deg); } }
   .nq-q-tags{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
   .nq-q-tags .nq-q-tag{ margin-bottom:0; }
-  .nq-q-tag.hard{ color: #fff; background: linear-gradient(90deg, #F2665C, #FF7A3D); }
+  .nq-q-tag.hard{ color: #fff; background: var(--coral); }
 
   /* Repaso estilo Anki */
   .nq-srsq{ background: var(--card); border:1px solid var(--line); border-radius:20px; padding:18px 18px 20px; }
