@@ -13,6 +13,7 @@
 const ESPT = (function(){
   let modo = 'test', test = null, preguntas = [], resp = {}, abiertas = new Set(), cargando = false, error = '';
   let marcadas = new Set(), marcadasCargadas = false;
+  let todasMarcadas = [], filtro = null;   // Preguntas marcadas: todas las cargadas y lo elegido ('todas' o un tema; null = elegir)
   let sesion = null;         // la prueba de historial de esta vez: { id, inicio, created_at }
   const cache = new Map();   // test_id → preguntas (para no volver a descargarlas)
   const DIF = { facil: 'Fácil', media: 'Media', dificil: 'Difícil' };
@@ -72,7 +73,7 @@ const ESPT = (function(){
     pintar();
   }
   async function abrirMarcadas(){
-    empezar('marcadas'); test = null;
+    empezar('marcadas'); test = null; filtro = null; todasMarcadas = [];
     cargando = true; pintar();
     const { data, error: e } = await sb.from('especifico_marcadas')
       .select('created_at, especifico_preguntas(id,orden,enunciado,opciones,correcta,tiene_explicacion,dificultad,test_id,especifico_tests(id,titulo,tema,orden))');
@@ -86,17 +87,42 @@ const ESPT = (function(){
       || a.especifico_tests.orden - b.especifico_tests.orden
       || String(a.especifico_tests.titulo).localeCompare(String(b.especifico_tests.titulo))
       || a.orden - b.orden);
-    preguntas = filas;
+    todasMarcadas = filas; filtro = null; preguntas = [];
     pintar();
+  }
+  // Dentro de Preguntas marcadas: todas juntas o solo las de un tema. Cada vez es una prueba nueva.
+  function elegirMarcadas(f){
+    filtro = f; resp = {}; abiertas = new Set(); sesion = null;
+    preguntas = f == null ? [] : todasMarcadas.filter(p => marcadas.has(p.id) && (f === 'todas' || p.especifico_tests.tema === f));
+    pintar(); arriba();
+  }
+  const nombreFiltro = () => filtro === 'todas' ? 'Todas juntas' : temaDe(filtro);
+  // El índice: «Todas juntas» y un recuadro por tema con cuántas tiene.
+  function indiceMarcadas(){
+    const vivas = todasMarcadas.filter(p => marcadas.has(p.id));
+    const n = {};
+    vivas.forEach(p => { n[p.especifico_tests.tema] = (n[p.especifico_tests.tema] || 0) + 1; });
+    const temas = ESP.temas().map((t, i) => Object.assign({ num: i + 1 }, t)).filter(t => n[t.clave]);
+    const fila = (f, ico, titulo, sub, cant) => '<button type="button" class="espm-fila" data-espt="filtro" data-f="' + f + '">' +
+      '<span class="espm-ico">' + ico + '</span><span class="espm-txt"><b>' + titulo + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</span>' +
+      '<span class="espm-n">' + cant + '</span><span class="espm-flecha">›</span></button>';
+    return '<button type="button" class="espm-todas" data-espt="filtro" data-f="todas"><span class="espm-todas-txt"><b>Hacer todas juntas</b>' +
+        '<span>' + vivas.length + (vivas.length === 1 ? ' pregunta' : ' preguntas') + ' de ' + temas.length + (temas.length === 1 ? ' tema' : ' temas') + ', ordenadas por tema</span></span><span class="espm-flecha">›</span></button>' +
+      '<h3 class="espm-sub">Por tema</h3>' +
+      '<div class="espm-lista">' + temas.map(t => fila(t.clave, t.icono, escapeHtml(t.titulo), 'Tema ' + t.num, n[t.clave])).join('') + '</div>';
   }
 
   /* ---------- pintar ---------- */
   function cabecera(){
     if(modo === 'marcadas'){
-      return '<nav class="espt-migas"><button type="button" data-espt="volver">Específico</button> <span>›</span> <b>Preguntas marcadas</b></nav>' +
+      if(filtro == null) return '<nav class="espt-migas"><button type="button" data-espt="volver">Específico</button> <span>›</span> <b>Preguntas marcadas</b></nav>' +
         '<h2 class="espt-h">Preguntas marcadas</h2>' +
         '<div class="espt-cab"><div class="espt-etiqueta">Tus preguntas guardadas</div>' +
-        '<div class="espt-cab-txt">Las que has marcado con la estrella, ordenadas por tema y test. Quita la marca cuando ya te las sepas.</div></div>';
+        '<div class="espt-cab-txt">Hazlas todas juntas o elige un tema. Quita la marca cuando ya te las sepas.</div></div>';
+      return '<nav class="espt-migas"><button type="button" data-espt="volver">Específico</button> <span>›</span> <button type="button" data-espt="filtro" data-f="">Preguntas marcadas</button> <span>›</span> <b>' + escapeHtml(nombreFiltro()) + '</b></nav>' +
+        '<h2 class="espt-h">Preguntas marcadas</h2>' +
+        '<div class="espt-cab"><div class="espt-etiqueta">' + (filtro === 'todas' ? 'Todas juntas' : 'Tema:') + '</div>' +
+        (filtro === 'todas' ? '<div class="espt-cab-txt">Todas tus preguntas marcadas, ordenadas por tema y test.</div>' : '<div class="espt-campo">' + escapeHtml(temaDe(filtro)) + '</div>') + '</div>';
     }
     return '<nav class="espt-migas"><button type="button" data-espt="volver">Específico</button> <span>›</span> <b>Preguntas</b></nav>' +
       '<h2 class="espt-h">Preguntas del test</h2>' +
@@ -143,7 +169,7 @@ const ESPT = (function(){
     preguntas.forEach(p => {
       const t = p.especifico_tests;
       let g = '';
-      if(t.tema !== tema){ tema = t.tema; testId = null; g += '<h3 class="espt-grupo-tema">' + escapeHtml(temaDe(t.tema)) + '</h3>'; }
+      if(t.tema !== tema){ tema = t.tema; testId = null; if(filtro === 'todas') g += '<h3 class="espt-grupo-tema">' + escapeHtml(temaDe(t.tema)) + '</h3>'; }
       if(t.id !== testId){ testId = t.id; g += '<div class="espt-grupo-test">Test - <b>' + escapeHtml(t.titulo) + '</b></div>'; }
       if(g) out += '<div class="espt-grupo">' + g + '</div>';
       out += tarjeta(p);
@@ -155,6 +181,7 @@ const ESPT = (function(){
     if(!r) return;
     if(cargando){ r.innerHTML = cabecera() + '<div class="esp-vacio">Cargando preguntas…</div>'; return; }
     if(error){ r.innerHTML = cabecera() + '<div class="esp-vacio">No se pudieron cargar las preguntas: ' + escapeHtml(error) + '</div>'; return; }
+    if(modo === 'marcadas' && filtro == null && todasMarcadas.some(p => marcadas.has(p.id))){ r.innerHTML = cabecera() + indiceMarcadas(); return; }
     if(!preguntas.length){
       r.innerHTML = cabecera() + '<div class="esp-vacio">' + (modo === 'marcadas'
         ? 'Todavía no has marcado ninguna pregunta. En un test, pulsa el botón rojo de la estrella para guardarla aquí.'
@@ -214,7 +241,7 @@ const ESPT = (function(){
     const n = hechas.length, nota = n ? Math.max(0, pts / n * 10) : 0;
     const todo = { total: n, bien, mal, blanco: 0, nota };
     PRU.guardarSesion({ id: sesion.id, modo: 'esp-tb', nota: Number(nota.toFixed(2)), segundos: Math.round((Date.now() - sesion.inicio) / 1000), created_at: sesion.created_at,
-      resumen: { todo, l: { total: 0, bien: 0, mal: 0, blanco: 0, nota: 0 }, e: todo, titulo: modo === 'marcadas' ? 'Preguntas marcadas' : (test ? test.titulo : '') },
+      resumen: { todo, l: { total: 0, bien: 0, mal: 0, blanco: 0, nota: 0 }, e: todo, titulo: modo === 'marcadas' ? 'Preguntas marcadas · ' + nombreFiltro() : (test ? test.titulo : '') },
       preguntas: hechas.map(p => ({ k: 'e', id: p.id })), respuestas: hechas.map(p => (p.opciones || []).findIndex(o => o.l === resp[p.id])) });
   }
   // También las usan las pruebas de js/pruebas.js (Simulacro conjunto y modos del Específico).
@@ -261,6 +288,7 @@ const ESPT = (function(){
     const id = b.dataset.p;
     switch(b.dataset.espt){
       case 'volver': showScreen('screen-especifico'); break;
+      case 'filtro': elegirMarcadas(b.dataset.f || null); break;
       case 'exp':
         if(abiertas.has(id)){ abiertas.delete(id); repintar(id); break; }
         abiertas.add(id); repintar(id);
