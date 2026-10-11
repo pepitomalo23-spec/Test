@@ -200,10 +200,13 @@ const ESPT = (function(){
   function registrar(lista){
     if(!claveCola() || !lista.length) return;
     const c = leerCola(), ahora = new Date().toISOString();
-    lista.forEach(r => c.push({ pregunta_id: r.pregunta_id, acierto: !!r.acierto, created_at: ahora }));
+    // prueba_id: la prueba de js/pruebas.js de la que salen (para poder borrarlas con ella).
+    lista.forEach(r => c.push({ pregunta_id: r.pregunta_id, acierto: !!r.acierto, created_at: ahora, prueba_id: r.prueba_id || null }));
     escribirCola(c);
     enviarRespuestas();
   }
+  // Las de una prueba que se borra y aún no habían salido del dispositivo.
+  function olvidarPrueba(id){ escribirCola(leerCola().filter(r => r.prueba_id !== id)); }
   addEventListener('online', enviarRespuestas);
 
   /* Las explicaciones (con sus imágenes) son casi todo el peso de las
@@ -251,5 +254,5 @@ const ESPT = (function(){
 
   // Al cambiar de cuenta, nada de la anterior.
   function reiniciar(){ marcadas = new Set(); marcadasCargadas = false; cache.clear(); expl.clear(); }
-  return { abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar, explicacion };
+  return { abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar, olvidarPrueba, explicacion };
 })();
