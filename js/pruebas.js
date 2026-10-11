@@ -48,22 +48,13 @@ const PRU = (function(){
   const el = (t, html) => { const d = document.createElement(t); d.innerHTML = html; return d; };
 
   /* ---------- datos del Específico ---------- */
-  async function todas(consulta){
-    let out = [];
-    for(let desde = 0; ; desde += 1000){
-      const { data, error } = await consulta().range(desde, desde + 999);
-      if(error) throw error;
-      out = out.concat(data || []);
-      if(!data || data.length < 1000) return out;
-    }
-  }
   // Qué preguntas hay (sin el texto) y cómo las llevas (mismas reglas que Estadísticas).
   async function cargarMeta(){
     const [rt, preg, resp, desc] = await Promise.all([
       sb.from('especifico_tests').select('id,tema,titulo'),
-      todas(() => sb.from('especifico_preguntas').select('id,test_id,dificultad').order('id')),
-      todas(() => sb.from('especifico_respuestas').select('pregunta_id,acierto,created_at').eq('user_id', currentUser.id).order('id')),
-      todas(() => sb.from('especifico_descartadas').select('pregunta_id,descartada_at').eq('user_id', currentUser.id).order('pregunta_id'))
+      supabaseTodas(o => sb.from('especifico_preguntas').select('id,test_id,dificultad', o).order('id')),
+      supabaseTodas(o => sb.from('especifico_respuestas').select('pregunta_id,acierto,created_at', o).eq('user_id', currentUser.id).order('id')),
+      supabaseTodas(o => sb.from('especifico_descartadas').select('pregunta_id,descartada_at', o).eq('user_id', currentUser.id).order('pregunta_id'))
     ]);
     if(rt.error) throw rt.error;
     const tests = {};
@@ -81,12 +72,43 @@ const PRU = (function(){
     // En Fallos: las rojas, menos las quitadas que no se han vuelto a fallar después.
     const fallos = {};
     Object.keys(intentos).forEach(id => { fallos[id] = intentos[id].filter(x => !x).length; });
-    const enFallos = id => estado[id] === 'red' && !(quitada[id] && (!ultimo[id] || new Date(quitada[id]) >= new Date(ultimo[id])));
-    meta = {
-      tests, estado, enFallos, fallos,
-      preg: preg.filter(p => tests[p.test_id]).map(p => ({ id: p.id, test_id: p.test_id, tema: tests[p.test_id].tema, dif: p.dificultad || '' }))
-    };
+    const enFallosIds = Object.keys(estado).filter(id => estado[id] === 'red' && !(quitada[id] && (!ultimo[id] || new Date(quitada[id]) >= new Date(ultimo[id]))));
+    meta = armarMeta({
+      t: Date.now(), tests, estado, fallos, enFallos: enFallosIds,
+      preg: preg.filter(p => tests[p.test_id]).map(p => [p.id, p.test_id, p.dificultad || ''])
+    });
+    try{ localStorage.setItem(claveMeta(), JSON.stringify(meta.crudo)); }catch(e){}
     return meta;
+  }
+  /* Lo de arriba tarda (miles de preguntas), así que se guarda en el
+     dispositivo: al abrir una configuración se pinta al momento con lo
+     último que había y se actualiza por detrás. */
+  const claveMeta = () => 'pj_esp_meta_v1:' + (currentUser ? currentUser.id : '');
+  function armarMeta(c){
+    const set = new Set(c.enFallos);
+    return {
+      crudo: c, t: c.t, tests: c.tests, estado: c.estado, fallos: c.fallos, enFallos: id => set.has(id),
+      preg: c.preg.filter(p => c.tests[p[1]]).map(p => ({ id: p[0], test_id: p[1], tema: c.tests[p[1]].tema, dif: p[2] }))
+    };
+  }
+  function metaYa(){
+    if(meta) return meta;
+    try{
+      const c = JSON.parse(localStorage.getItem(claveMeta()) || 'null');
+      if(c && c.preg && c.tests) meta = armarMeta(c);
+    }catch(e){}
+    return meta;
+  }
+  let cargandoMeta = null;
+  function refrescarMeta(){
+    if(!cargandoMeta) cargandoMeta = cargarMeta().finally(() => { cargandoMeta = null; });
+    return cargandoMeta;
+  }
+  // Se precarga al entrar en el Específico o en Inicio, para que al pulsar ya esté.
+  function precargar(){
+    if(!currentUser || !featureEnabled('especifico')) return;
+    metaYa();
+    if(!meta || Date.now() - meta.t > 120000) refrescarMeta().catch(() => {});
   }
   async function preguntasEsp(ids){
     const out = [];
@@ -164,12 +186,17 @@ const PRU = (function(){
     $('pruQuitar').classList.add('hidden');
     pintarPie();
     openOverlay('screen-pru-config');
+    // Al momento con lo que ya hay (memoria o dispositivo) y, por detrás, lo último.
+    const habia = !!metaYa();
+    const sigue = () => $('screen-pru-config').classList.contains('active') && cfg.modo === modo;
+    if(habia) pintarConfig();
+    if(modo === 'conjunto') cargarHistorial().then(() => { if(sigue()) pintarConfig(); }).catch(() => {});
     try{
-      await cargarMeta();   // cada vez: por si hay preguntas nuevas o has respondido más
-      pintarConfig();
-      if(modo === 'conjunto') cargarHistorial().then(pintarConfig).catch(() => {});
+      // Si falló la precarga (p. ej. se cortó la conexión), se vuelve a intentar una vez.
+      if(!habia || Date.now() - meta.t > 15000) await refrescarMeta().catch(() => refrescarMeta());
+      if(sigue()) pintarConfig();
     }catch(e){
-      $('pruConfig').innerHTML = '<div class="tree-empty">No se pudieron cargar las preguntas del Específico: ' + escapeHtml(e.message || String(e)) + '</div>';
+      if(!habia) $('pruConfig').innerHTML = '<div class="tree-empty">No se pudieron cargar las preguntas del Específico: ' + escapeHtml(e.message || String(e)) + '</div>';
     }
   }
   function cerrarConfig(){ $('screen-pru-config').classList.remove('active'); }
@@ -610,6 +637,7 @@ const PRU = (function(){
     // Específico: a sus estadísticas (en blanco cuenta como fallada, igual que en Legislación).
     if(E.items.length) ESPT.registrar(E.items.map((it, j) => ({ pregunta_id: it.id, acierto: E.resp[j] === it.correcta })));
     if(typeof ESTE !== 'undefined') ESTE.invalidar();
+    if(meta) meta.t = 0;
     guardarHistorial({ modo: est.modo, nota: Number(est.res.todo.nota.toFixed(2)), segundos,
       resumen: { todo: est.res.todo, l: est.res.l, e: est.res.e },
       preguntas: est.items.map(it => it.k === 'l' ? { k: 'l', id: it.id, orden: it.orden } : { k: 'e', id: it.id }), respuestas: est.resp });
@@ -788,7 +816,8 @@ const PRU = (function(){
   async function cargarPanel(){
     if(!currentUser) return;
     try{
-      await Promise.all([cargarMeta().then(x => { panelMeta = x; }), cargarHistorial()]);
+      if(metaYa()){ panelMeta = meta; if(typeof ESP !== 'undefined') ESP.repintar(); }
+      await Promise.all([refrescarMeta().then(x => { panelMeta = x; }), cargarHistorial()]);
     }catch(e){}
     if(typeof ESP !== 'undefined') ESP.repintar();
   }
@@ -845,10 +874,10 @@ const PRU = (function(){
   document.addEventListener('visibilitychange', () => {
     if(!document.hidden && est && !est.terminado && est.fin && Date.now() >= est.fin) terminar(true);
   });
-  function reiniciar(){ clearInterval(reloj); est = null; meta = null; panelMeta = null; historial = null; cfg.legis.clear(); cfg.esp.clear(); }
+  function reiniciar(){ clearInterval(reloj); est = null; meta = null; cargandoMeta = null; panelMeta = null; historial = null; cfg.legis.clear(); cfg.esp.clear(); }
   return {
     conjuntoDisponible: () => permitido('conjunto'),
-    abrirConfig, cerrarConfig, empezar, quitarFallos, continuar, aMedias, reiniciar,
+    abrirConfig, cerrarConfig, empezar, quitarFallos, continuar, aMedias, reiniciar, precargar,
     panelHtml, cargarPanel, onPanelClick, onKey
   };
 })();

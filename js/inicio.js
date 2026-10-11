@@ -136,6 +136,7 @@ const INICIO = (function(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
     root.innerHTML = saludo() + continuar() + pruebaAMedias() + hoy() + conjunto() + progreso();
+    if(typeof PRU !== 'undefined' && PRU.conjuntoDisponible()) PRU.precargar();   // que el Simulacro conjunto abra al momento
   }
 
   function onClick(e){

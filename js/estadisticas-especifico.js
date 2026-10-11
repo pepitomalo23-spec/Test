@@ -32,21 +32,12 @@ const ESTE = (function(){
   }
 
   /* ---------- datos ---------- */
-  async function todas(consulta){   // por páginas: Supabase devuelve como mucho 1000 filas
-    let out = [];
-    for(let desde = 0; ; desde += 1000){
-      const { data, error } = await consulta().range(desde, desde + 999);
-      if(error) throw error;
-      out = out.concat(data || []);
-      if(!data || data.length < 1000) return out;
-    }
-  }
   async function cargar(){
     const yo = currentUser.id;
     const [rt, preguntas, respuestas] = await Promise.all([
       sb.from('especifico_tests').select('id,tema,titulo,orden'),
-      todas(() => sb.from('especifico_preguntas').select('id,test_id').order('id')),
-      todas(() => sb.from('especifico_respuestas').select('pregunta_id,acierto').eq('user_id', yo).order('id'))
+      supabaseTodas(o => sb.from('especifico_preguntas').select('id,test_id', o).order('id')),
+      supabaseTodas(o => sb.from('especifico_respuestas').select('pregunta_id,acierto', o).eq('user_id', yo).order('id'))
     ]);
     if(rt.error) throw rt.error;
     // Estado de cada pregunta, con las mismas reglas que en Legislación:
