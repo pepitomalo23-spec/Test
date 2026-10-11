@@ -39,6 +39,7 @@ const PRU = (function(){
   let est = null;           // prueba en curso o en revisión
   let reloj = null, filtro = 'todas';
   let historial = null;     // filas de historial_pruebas
+  const abiertos = new Set();   // listas de temas desplegadas en el Simulacro conjunto
   const $ = id => document.getElementById(id);
   const clave = () => currentUser ? 'pj_prueba:' + currentUser.id : null;
   const espHtml = h => (typeof IMP !== 'undefined' && IMP.limpiar) ? IMP.limpiar(h) : escapeHtml(h);
@@ -251,9 +252,68 @@ const PRU = (function(){
     return '<div class="pru-difs">' + DIFS.map(([k, t, c]) => paso(k, '<span class="pru-dot ' + k + '"></span>' + t + ' <span class="pru-dif-c">(' + c + ')</span>', cfg.difPct[k], k)).join('') +
       (p.dif ? '<div class="pru-dif-plan">Saldrán ' + DIFS.map(([k]) => '<b>' + p.dif[k] + '</b> ' + PLURAL[k][p.dif[k] === 1 ? 0 : 1]).join(', ') + (p.dif[''] ? ' y <b>' + p.dif[''] + '</b> sin dato' : '') + '.</div>' : '') + '</div>';
   }
+  /* ---------- Simulacro conjunto: resumen arriba y ajustes en tarjetas ---------- */
+  // Botones de una fila que ocupan todo el ancho (preguntas, minutos, dificultad).
+  const segmentos = (attr, lista, actual) => '<div class="sc-seg">' + lista.map(([v, t]) =>
+    '<button type="button" class="sc-seg-op' + (String(actual) === String(v) ? ' on' : '') + '" ' + attr + '="' + v + '">' + t + '</button>').join('') + '</div>';
+  const tarjeta = (titulo, cuerpo, extra) => '<section class="sc-tarjeta"><div class="sc-tarjeta-cab"><h3>' + titulo + '</h3>' + (extra || '') + '</div>' + cuerpo + '</section>';
+  function resumenConjunto(p){
+    const n = p.l + p.e, pl = n ? p.l / n * 100 : 0;
+    return '<div class="sc-resumen">' +
+      '<div class="sc-resumen-cifras"><div><b data-sc="n">' + n + '</b><span>preguntas</span></div><div><b>' + cfg.minutos + '</b><span>minutos</span></div></div>' +
+      '<div class="sc-barra"><i class="legis" data-sc="bl" style="width:' + pl.toFixed(1) + '%"></i><i class="esp" style="flex:1"></i></div>' +
+      '<div class="sc-leyenda"><span><i class="legis"></i>Legislación <b data-sc="l">' + p.l + '</b></span><span><i class="esp"></i>Específico <b data-sc="e">' + p.e + '</b></span></div></div>';
+  }
+  function temasConjunto(parte, nombre, lista){
+    const sel = lista.filter(t => cfg[parte].has(t.id)), abierto = abiertos.has(parte);
+    const npreg = sel.reduce((a, t) => a + t.n, 0);
+    const sub = !lista.length ? 'Sin preguntas' : !sel.length ? 'Ningún tema elegido' :
+      (sel.length === lista.length ? 'Todos los temas' : sel.length + ' de ' + lista.length + ' temas') + ' · ' + npreg + ' preguntas';
+    return '<div class="sc-temas' + (abierto ? ' abierto' : '') + '">' +
+      '<div class="sc-temas-cab"><button type="button" class="sc-temas-abrir" data-pru-abrir="' + parte + '" aria-expanded="' + abierto + '">' +
+          '<span class="sc-punto ' + parte + '"></span><span class="sc-temas-txt"><b>' + nombre + '</b><span>' + sub + '</span></span>' +
+          '<span class="sc-chev">' + ICONS.chevron + '</span></button>' +
+        (lista.length ? todosBtn(parte, lista, 'Todos').replace('role="button"', 'role="button" aria-label="Todos los temas de ' + nombre + '"') : '') + '</div>' +
+      (abierto && lista.length ? '<div class="sc-temas-lista">' + lista.map(t => fila(cfg[parte].has(t.id), t.id, t.nombre, t.n, parte)).join('') + '</div>' : '') +
+      '</div>';
+  }
+  function conjuntoHtml(p){
+    const M = m();
+    const ambos = p.nl && p.ne;
+    const reparto = '<div class="sc-reparto' + (ambos ? '' : ' apagado') + '">' +
+        '<div class="sc-reparto-pct"><span class="legis"><b data-sc="pl">' + cfg.pct + '%</b> Legislación</span><span class="esp">Específico <b data-sc="pe">' + (100 - cfg.pct) + '%</b></span></div>' +
+        '<input type="range" class="sc-rango" min="0" max="100" step="10" value="' + cfg.pct + '" style="--p:' + cfg.pct + '%" data-pru-rango aria-label="Porcentaje de Legislación"' + (ambos ? '' : ' disabled') + '>' +
+        '<div class="sc-atajos">' + [[50, '50 / 50'], [70, '70 / 30'], [30, '30 / 70'], ['prop', 'Proporcional']].map(([v, t]) =>
+          '<button type="button" class="sc-atajo' + (String(cfg.pct) === String(v) ? ' on' : '') + '" data-pru-pct="' + v + '"' + (ambos ? '' : ' disabled') + '>' + t + '</button>').join('') + '</div>' +
+        (ambos ? '' : '<div class="sc-nota">Elige temas de las dos partes para repartirlas.</div>') + '</div>';
+    const difs = [['aleatoria', 'Al azar'], ['facil', 'Fácil'], ['media', 'Media'], ['dificil', 'Difícil'], ['elegir', 'Colores']];
+    const colores = cfg.dif !== 'elegir' ? '' : '<div class="sc-colores">' + DIFS.map(([k, t]) =>
+        '<div class="sc-color ' + k + '"><span class="sc-color-nom"><span class="pru-dot ' + k + '"></span>' + t + '</span>' +
+          '<div class="sc-color-ctrl"><button type="button" data-pru-paso="' + k + '" data-d="-1" aria-label="Menos ' + t + '">−</button><b>' + cfg.difPct[k] + '%</b>' +
+          '<button type="button" data-pru-paso="' + k + '" data-d="1" aria-label="Más ' + t + '">+</button></div>' +
+          (p.dif ? '<span class="sc-color-n">' + p.dif[k] + ' ' + (p.dif[k] === 1 ? 'pregunta' : 'preguntas') + '</span>' : '') + '</div>').join('') + '</div>';
+    return resumenConjunto(p) +
+      tarjeta('Temas', temasConjunto('legis', 'Legislación', legisTemas()) + temasConjunto('esp', 'Específico', espTemas())) +
+      tarjeta('Preguntas', segmentos('data-pru-opt="cuantas" data-v', M.cuantas.map(v => [v, v]), cfg.cuantas)) +
+      tarjeta('Tiempo', segmentos('data-pru-opt="minutos" data-v', M.minutos.map(v => [v, v + '′']), cfg.minutos)) +
+      tarjeta('Reparto', reparto) +
+      tarjeta('Dificultad del Específico', segmentos('data-pru-dif', difs, cfg.dif) + colores);
+  }
+  // Mientras se arrastra el reparto solo cambian las cifras (repintar cortaría el arrastre).
+  function moverRango(r){
+    cfg.pct = Number(r.value);
+    r.style.setProperty('--p', cfg.pct + '%');
+    const p = plan(), n = p.l + p.e, c = $('pruConfig');
+    const pon = (k, v) => { const x = c.querySelector('[data-sc="' + k + '"]'); if(x) x.textContent = v; };
+    pon('pl', cfg.pct + '%'); pon('pe', (100 - cfg.pct) + '%'); pon('l', p.l); pon('e', p.e); pon('n', n);
+    const b = c.querySelector('[data-sc="bl"]'); if(b) b.style.width = (n ? p.l / n * 100 : 0).toFixed(1) + '%';
+    c.querySelectorAll('.sc-atajo').forEach(a => a.classList.toggle('on', a.dataset.pruPct === String(cfg.pct)));
+    pintarPie();
+  }
   function pintarConfig(){
     const M = m(), modo = cfg.modo, p = plan();
     if(M.falladas){ pintarFallos(p); return; }
+    if(modo === 'conjunto'){ $('pruConfig').innerHTML = conjuntoHtml(p) + historialHtml(['conjunto']); pintarPie(); return; }
     let h = M.sub ? '<div class="config-sub">' + M.sub + '</div>' : '';
     if(modo === 'esp-estudio' || modo === 'esp-simulacro'){
       // Como Estudio y Simulacro de Legislación: filas que abren la hoja de opciones.
@@ -328,6 +388,7 @@ const PRU = (function(){
     if(modo === 'esp-estudio'){ b.textContent = n ? 'Iniciar test' : 'Selecciona un tema'; return; }
     if(modo === 'esp-examen' && !cfg.esp.size){ b.textContent = 'Selecciona un tema'; return; }
     if(!n){ b.textContent = m().legis ? 'Elige temas de Legislación o del Específico' : 'No hay preguntas con esa selección'; return; }
+    if(modo === 'conjunto'){ b.textContent = 'Comenzar simulacro · ' + n + ' preguntas'; return; }
     b.textContent = (modo === 'esp-examen' ? 'Comenzar examen (' : 'Comenzar simulacro (') +
       (m().legis ? p.l + ' de Legislación + ' + p.e + ' del Específico' : n + ' preguntas') + ', ' + cfg.minutos + ' min)';
   }
@@ -347,8 +408,10 @@ const PRU = (function(){
     }
   }
   function onConfigClick(e){
-    const t = e.target.closest('[data-pru-tema],[data-pru-todos],[data-pru-opt],[data-pru-paso],[data-pru-pct],[data-pru-hist],[data-pru-borrar],[data-pru-ajuste]');
-    if(!t) return;
+    const t = e.target.closest('[data-pru-tema],[data-pru-todos],[data-pru-opt],[data-pru-paso],[data-pru-pct],[data-pru-hist],[data-pru-borrar],[data-pru-ajuste],[data-pru-abrir],[data-pru-dif]');
+    if(!t || t.disabled) return;
+    if(t.dataset.pruAbrir){ const k = t.dataset.pruAbrir; abiertos.has(k) ? abiertos.delete(k) : abiertos.add(k); pintarConfig(); return; }
+    if(t.dataset.pruDif){ cfg.dif = t.dataset.pruDif; pintarConfig(); return; }
     if(t.dataset.pruBorrar){ e.stopPropagation(); borrarHistorial(t.dataset.pruBorrar); return; }
     if(t.dataset.pruHist){ revisarHistorial(t.dataset.pruHist); return; }
     if(t.dataset.pruAjuste){ hoja(t.dataset.pruAjuste); return; }
@@ -868,7 +931,11 @@ const PRU = (function(){
       const cuerpo = d.querySelector('.simc-exp-cuerpo'), it = est.items[Number(d.dataset.i)];
       if(cuerpo && it && !cuerpo.dataset.listo){ cuerpo.dataset.listo = '1'; cuerpo.innerHTML = explicacion(it) || 'Sin explicación.'; }
     }, true);
-    if(c){ c.addEventListener('click', onConfigClick); c.addEventListener('keydown', onKey); }
+    if(c){
+      c.addEventListener('click', onConfigClick); c.addEventListener('keydown', onKey);
+      c.addEventListener('input', e => { if(e.target.matches('[data-pru-rango]')) moverRango(e.target); });
+      c.addEventListener('change', e => { if(e.target.matches('[data-pru-rango]')) pintarConfig(); });
+    }
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', enganchar); else enganchar();
   document.addEventListener('visibilitychange', () => {
