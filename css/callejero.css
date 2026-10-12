@@ -884,3 +884,8 @@
 .cj-lamina-ctl{ display:none; }
 #screen-callejero.cj-libre .cj-lamina-ctl{ display:block; }
 .cj-grupo small{ display:block; margin-top:3px; font-size:12.5px; font-weight:400; color: var(--muted); }
+/* Barra de progreso mientras se dibuja una lámina grande */
+.cj-lamina-progreso{ position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:3000; width:min(92vw, 420px);
+  display:flex; flex-direction:column; gap:8px; padding:12px 14px; border-radius:14px; background: var(--card); border:1px solid var(--line); box-shadow: 0 10px 30px rgba(0,0,0,.35); font-size:13px; color: var(--text); }
+.cj-lamina-progreso i{ display:block; height:6px; border-radius:99px; background: var(--line); overflow:hidden; }
+.cj-lamina-progreso b{ display:block; height:100%; width:0; border-radius:inherit; background: var(--teal); transition: width .2s; }

@@ -979,11 +979,14 @@ const CJ = (function(){
   function areaLamina(){
     const m = marcadoValido();
     const bs = m ? barriosDeMarcado(m) : barriosDeZona();
-    if(bs.length) return { titulo: m ? nombreMarcado(m) : nombreZona(), barrios: bs, caja: L.latLngBounds(bs.flatMap(b => b.anillos.flat())).pad(0.04) };
+    const zd = m || (tareaDeZona() ? tareaDeZona().zona || '' : zona);
+    if(bs.length) return { titulo: m ? nombreMarcado(m) : nombreZona(), barrios: bs, distrito: zd && zd.startsWith('d:') ? zd.slice(2) : null,
+      caja: L.latLngBounds(bs.flatMap(b => b.anillos.flat())).pad(0.04) };
     return { titulo: 'Córdoba · lo que se ve en el mapa', barrios: null, caja: mapa.getBounds() };
   }
   function elegirLamina(){
     const a = areaLamina();
+    const med = medidasLamina(a);
     const bg = document.createElement('div');
     bg.className = 'cal-hoja-bg';
     bg.innerHTML = '<div class="cal-hoja cj-grupos" style="--c: var(--teal)" role="dialog" aria-modal="true" aria-label="Descargar lámina">' +
@@ -993,7 +996,8 @@ const CJ = (function(){
       '<div class="cal-hoja-cuerpo"><div class="cj-grupos-lista">' +
         '<button type="button" class="cj-grupo" data-l="si"><span>Con nombres<small>Para estudiar: calles y lugares con su nombre</small></span></button>' +
         '<button type="button" class="cj-grupo" data-l="no"><span>Sin nombres<small>Para practicar: escribe tú el nombre de cada calle</small></span></button>' +
-      '</div><div class="cal-hasta-res">' + (a.barrios ? 'Sale el barrio o distrito entero.' : 'Sale lo que ves ahora en el mapa. Para un barrio o distrito entero, márcalo con el botón de la chincheta.') + '</div></div></div>';
+      '</div><div class="cal-hasta-res">' + (a.barrios ? 'Sale el barrio o distrito entero' : 'Sale lo que ves ahora en el mapa (para un barrio o distrito entero, márcalo con el botón de la chincheta)') +
+        ', al detalle: ' + med.W.toLocaleString('es-ES') + ' × ' + med.H.toLocaleString('es-ES') + ' px, unos ' + String(Math.round(med.mPx * 100)) + ' cm por píxel. Amplíala y se ve todo nítido.</div></div></div>';
     const fin = () => { bg.remove(); document.removeEventListener('keydown', tecla, true); };
     const tecla = e => { if(e.key === 'Escape'){ e.stopPropagation(); fin(); } };
     bg.addEventListener('click', e => {
@@ -1007,140 +1011,277 @@ const CJ = (function(){
     document.body.appendChild(bg);
     requestAnimationFrame(() => bg.classList.add('on'));
   }
-  async function hacerLamina(a, conNombres){
-    uiToast('Preparando la lámina…', 'info');
-    try{ await cargarOsm(); }catch(e){ uiToast('No se pudo descargar el plano: ' + (e.message || e), 'error'); return; }
-    const W = 2400, CAB = 150, PIE = 70, MAXH = 3300;
+  // Tamaño de la lámina: unos 30 cm por píxel (más detalle que el zoom máximo
+  // del mapa), con un tope de píxeles para que se pueda abrir; lo que se ve
+  // (sin barrio), igual. Devuelve la caja en Mercator, la escala y el tamaño.
+  const LAMINA_M_PX = 0.3, LAMINA_MAX_PX = 150e6;
+  function medidasLamina(a){
     let x0 = mercX(a.caja.getWest()), x1 = mercX(a.caja.getEast()), y0 = mercY(a.caja.getNorth()), y1 = mercY(a.caja.getSouth());
-    let escala = W / (x1 - x0);
-    if((y1 - y0) * escala > MAXH){ escala = MAXH / (y1 - y0); const sobra = (W / escala - (x1 - x0)) / 2; x0 -= sobra; x1 += sobra; }
-    const H = Math.round((y1 - y0) * escala);
-    const z = Math.log2(escala / 256);
     const mPorU = 40075016.7 * Math.cos(CENTRO[0] * Math.PI / 180);   // metros por unidad de Mercator
-    const px = metros => metros * escala / mPorU;
+    let escala = mPorU / LAMINA_M_PX;
+    const area = (x1 - x0) * (y1 - y0) * escala * escala;
+    if(area > LAMINA_MAX_PX) escala *= Math.sqrt(LAMINA_MAX_PX / area);
+    const W = Math.round((x1 - x0) * escala), H = Math.round((y1 - y0) * escala);
+    return { x0, y0, escala, W, H, mPorU, mPx: mPorU / escala };
+  }
+  // Lo que se va haciendo, en una barra abajo (la lámina grande tarda unos segundos).
+  function progresoLamina(txt, f){
+    let d = document.getElementById('cjLaminaProgreso');
+    if(txt === null){ if(d) d.remove(); return; }
+    if(!d){ d = document.createElement('div'); d.id = 'cjLaminaProgreso'; d.className = 'cj-lamina-progreso'; d.innerHTML = '<span></span><i><b></b></i>'; document.body.appendChild(d); }
+    d.querySelector('span').textContent = txt;
+    d.querySelector('b').style.width = Math.round((f || 0) * 100) + '%';
+  }
+  // PNG por franjas: el móvil no deja un lienzo de más de ~16 megapíxeles, así
+  // que se pinta franja a franja y las filas se comprimen según salen
+  // (CompressionStream 'deflate' da el zlib que pide el PNG). Filtro «Up»:
+  // en un plano, cada fila se parece mucho a la de encima y comprime mucho.
+  const CRC_TABLA = (() => { const t = new Uint32Array(256); for(let n = 0; n < 256; n++){ let c = n; for(let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(partes){ let c = 0xffffffff; partes.forEach(b => { for(let i = 0; i < b.length; i++) c = CRC_TABLA[(c ^ b[i]) & 0xff] ^ (c >>> 8); }); return (c ^ 0xffffffff) >>> 0; }
+  function trozoPng(tipo, datos){
+    const cab = new Uint8Array(8), pie = new Uint8Array(4), t = new TextEncoder().encode(tipo);
+    new DataView(cab.buffer).setUint32(0, datos.length); cab.set(t, 4);
+    new DataView(pie.buffer).setUint32(0, crc32([t, datos]));
+    return [cab, datos, pie];
+  }
+  async function pngPorFranjas(W, H, pintarFranja, alAvanzar){
+    const FILAS = Math.max(64, Math.min(2048, Math.floor(12e6 / W)));
     const cv = document.createElement('canvas');
-    cv.width = W; cv.height = CAB + H + PIE;
-    const ctx = cv.getContext('2d');
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
-    // Mapa
-    ctx.save();
-    ctx.translate(0, CAB);
-    ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
-    ctx.fillStyle = '#f4efe6'; ctx.fillRect(0, 0, W, H);
-    pintarOsm(ctx, x0, y0, escala, W, H, Math.max(13, z));
+    cv.width = W; cv.height = FILAS;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    const cs = new CompressionStream('deflate'), w = cs.writable.getWriter();
+    const salida = [], lector = (async () => { const r = cs.readable.getReader(); for(;;){ const { value, done } = await r.read(); if(done) break; salida.push(value); } })();
+    const ihdr = new Uint8Array(13), dv = new DataView(ihdr.buffer);
+    dv.setUint32(0, W); dv.setUint32(4, H); ihdr[8] = 8; ihdr[9] = 2;   // 8 bits, RGB
+    let antes = new Uint8Array(W * 3);
+    for(let sy = 0; sy < H; sy += FILAS){
+      const h = Math.min(FILAS, H - sy);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, FILAS);
+      ctx.save(); ctx.translate(0, -sy); pintarFranja(ctx, sy, h); ctx.restore();
+      const px = ctx.getImageData(0, 0, W, h).data;
+      const buf = new Uint8Array(h * (1 + W * 3));
+      for(let y = 0, o = 0; y < h; y++){
+        buf[o++] = 2;   // filtro «Up»
+        const fila = new Uint8Array(W * 3);
+        for(let x = 0, i = y * W * 4; x < W; x++, i += 4){ const k = x * 3; fila[k] = px[i]; fila[k + 1] = px[i + 1]; fila[k + 2] = px[i + 2]; }
+        for(let k = 0; k < fila.length; k++) buf[o++] = (fila[k] - antes[k]) & 0xff;
+        antes = fila;
+      }
+      await w.write(buf);
+      alAvanzar(Math.min(1, (sy + h) / H));
+      await new Promise(r => setTimeout(r, 0));   // que se repinte la barra
+    }
+    await w.close(); await lector;
+    const partes = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), ...trozoPng('IHDR', ihdr)];
+    // Cada trozo comprimido, en su IDAT (de hasta ~1 MB).
+    let pend = [], n = 0;
+    const volcar = () => { if(!n) return; const d = new Uint8Array(n); let o = 0; pend.forEach(x => { d.set(x, o); o += x.length; }); partes.push(...trozoPng('IDAT', d)); pend = []; n = 0; };
+    salida.forEach(x => { pend.push(x); n += x.length; if(n > 1 << 20) volcar(); });
+    volcar();
+    partes.push(...trozoPng('IEND', new Uint8Array(0)));
+    return new Blob(partes, { type: 'image/png' });
+  }
+  async function hacerLamina(a, conNombres){
+    if(hacerLamina.ocupado) return;
+    hacerLamina.ocupado = true;
+    progresoLamina('Preparando la lámina…', 0);
+    try{ await cargarOsm(); }catch(e){ progresoLamina(null); hacerLamina.ocupado = false; uiToast('No se pudo descargar el plano: ' + (e.message || e), 'error'); return; }
+    try{ await laminaGrande(a, conNombres); }
+    catch(e){ uiToast('No se pudo crear la lámina: ' + (e.message || e), 'error'); }
+    finally{ progresoLamina(null); hacerLamina.ocupado = false; }
+  }
+  async function laminaGrande(a, conNombres){
+    const M = medidasLamina(a), { x0, y0, escala, W, H } = M;
+    const k = W / 2400;   // los textos de la cabecera, a escala de la lámina
+    const CAB = Math.round(150 * Math.max(1, k * 0.6)), PIE = Math.round(70 * Math.max(1, k * 0.6));
+    const ALTO = CAB + H + PIE;
+    const z = Math.log2(escala / 256);
+    const px = metros => metros / M.mPx;
     const P = ([la, ln]) => [(mercX(ln) - x0) * escala, (mercY(la) - y0) * escala];
-    const linea = (lineas, color, ancho) => {
-      ctx.strokeStyle = color; ctx.lineWidth = ancho; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      ctx.beginPath();
-      lineas.forEach(l => l.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }));
-      ctx.stroke();
-    };
-    if(datos.rio.length) linea(datos.rio, '#a9d4f2', Math.max(6, px(50)));
     const cajaV = a.caja.pad(0.05);
     const dentroCaja = v => !(v.caja.n < cajaV.getSouth() || v.caja.s > cajaV.getNorth() || v.caja.e < cajaV.getWest() || v.caja.o > cajaV.getEast());
     const vs = datos.vias.filter(dentroCaja);
-    const princ = vs.filter(v => TIPOS_PRINCIPALES.has(v.tipo)).flatMap(v => v.lineas), resto = vs.filter(v => !TIPOS_PRINCIPALES.has(v.tipo)).flatMap(v => v.lineas);
-    linea(resto, '#d6ccbb', Math.max(3.5, px(7)));
-    linea(princ, '#e0a463', Math.max(5, px(12)));
-    linea(resto, '#ffffff', Math.max(2, px(5)));
-    linea(princ, '#f8cf98', Math.max(3.5, px(9)));
-    // Fuera de la zona, atenuado; la zona, con su borde.
-    if(a.barrios){
-      ctx.beginPath(); ctx.rect(0, 0, W, H);
-      a.barrios.forEach(b => b.anillos.forEach(r => r.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); })));
-      ctx.fillStyle = 'rgba(255,255,255,0.62)'; ctx.fill('evenodd');
-      ctx.setLineDash([14, 10]);
-      a.barrios.forEach(b => linea(b.anillos, '#e2574c', 4));
-      ctx.setLineDash([]);
-    }
-    // Lugares: un punto (y su nombre, si van nombres).
+    // Cada línea ya en píxeles de la lámina, con su caja (para pintar en cada franja solo lo suyo).
+    const enPx = l => { const pts = l.map(P); let y0l = Infinity, y1l = -Infinity; pts.forEach(p => { if(p[1] < y0l) y0l = p[1]; if(p[1] > y1l) y1l = p[1]; }); return { pts, y0: y0l, y1: y1l }; };
+    const princ = vs.filter(v => TIPOS_PRINCIPALES.has(v.tipo)).flatMap(v => v.lineas).map(enPx);
+    const resto = vs.filter(v => !TIPOS_PRINCIPALES.has(v.tipo)).flatMap(v => v.lineas).map(enPx);
+    const rio = datos.rio.map(enPx);
+    const bordesBarrios = a.barrios ? a.barrios.flatMap(b => b.anillos).map(enPx) : [];
+    const contorno = a.distrito ? contornoDistrito(a.distrito).map(enPx) : bordesBarrios;
     const enArea = (la, ln) => !a.barrios || a.barrios.some(b => dentroDeBarrio(la, ln, b));
-    const lugs = datos.lugares.filter(l => a.caja.contains([l.lat, l.lng]) && enArea(l.lat, l.lng));
-    // Nombres: el de cada calle una vez, en su tramo más largo, sin taparse.
-    const ocupado = [];
-    const libre = r => !ocupado.some(o => r.x0 < o.x1 && r.x1 > o.x0 && r.y0 < o.y1 && r.y1 > o.y0) && r.x0 >= 0 && r.y0 >= 0 && r.x1 <= W && r.y1 <= H;
-    // Primero se reserva el sitio de los lugares (su punto y su nombre): tienen prioridad sobre los de las calles.
-    const tamL = Math.round(Math.max(13, Math.min(19, W / 140))), etiquetas = [];
-    lugs.forEach(l => {
-      const [x, y] = P([l.lat, l.lng]);
-      ocupado.push({ x0: x - 11, x1: x + 11, y0: y - 11, y1: y + 11 });
-      if(!conNombres) return;
-      ctx.font = '700 ' + tamL + 'px Inter, system-ui, sans-serif';
-      const w = ctx.measureText(l.nombre).width;
-      // A la derecha del punto o, si no cabe, a la izquierda.
-      for(const lado of [1, -1]){
-        const r = lado > 0 ? { x0: x + 12, x1: x + 16 + w, y0: y - tamL * 0.7, y1: y + tamL * 0.7 } : { x0: x - 16 - w, x1: x - 12, y0: y - tamL * 0.7, y1: y + tamL * 0.7 };
-        if(libre(r)){ ocupado.push(r); etiquetas.push({ nombre: l.nombre, x: lado > 0 ? x + 14 : x - 14, y, lado }); break; }
+    const lugs = datos.lugares.filter(l => a.caja.contains([l.lat, l.lng]) && enArea(l.lat, l.lng)).map(l => ({ l, p: P([l.lat, l.lng]) }));
+
+    // ---- Nombres: se colocan una vez para toda la lámina, sin taparse ----
+    const med = document.createElement('canvas').getContext('2d');
+    const FUENTE = 'Inter, system-ui, sans-serif';
+    const tamC = Math.round(Math.max(16, px(5.5))), tamP = Math.round(tamC * 1.2), tamL = Math.round(tamC * 0.95);
+    // Rectángulos girados: rejilla de cajas y, si las cajas se tocan, prueba exacta (ejes separados).
+    const CEL = 256, rejilla = new Map(), puestos = [];
+    const esquinas = r => { const c = Math.cos(r.ang), sn = Math.sin(r.ang), hw = r.w / 2, hh = r.h / 2;
+      return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([u, v]) => [r.cx + u * c - v * sn, r.cy + u * sn + v * c]); };
+    const separa = (A, B) => {
+      for(const Q of [A, B]) for(let i = 0; i < 4; i++){
+        const [ax, ay] = Q[i], [bx, by] = Q[(i + 1) % 4], nx = ay - by, ny = bx - ax;
+        let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+        A.forEach(([x, y]) => { const d = x * nx + y * ny; if(d < a0) a0 = d; if(d > a1) a1 = d; });
+        B.forEach(([x, y]) => { const d = x * nx + y * ny; if(d < b0) b0 = d; if(d > b1) b1 = d; });
+        if(a1 < b0 || b1 < a0) return true;
       }
-    });
+      return false;
+    };
+    function cabe(r){
+      r.esq = esquinas(r);
+      const xs = r.esq.map(p => p[0]), ys = r.esq.map(p => p[1]);
+      r.x0 = Math.min(...xs); r.x1 = Math.max(...xs); r.y0 = Math.min(...ys); r.y1 = Math.max(...ys);
+      if(r.x0 < 0 || r.y0 < 0 || r.x1 > W || r.y1 > H) return false;
+      for(let cx = Math.floor(r.x0 / CEL); cx <= Math.floor(r.x1 / CEL); cx++) for(let cy = Math.floor(r.y0 / CEL); cy <= Math.floor(r.y1 / CEL); cy++){
+        for(const o of rejilla.get(cx + ':' + cy) || []) if(r.x0 < o.x1 && r.x1 > o.x0 && r.y0 < o.y1 && r.y1 > o.y0 && !separa(r.esq, o.esq)) return false;
+      }
+      return true;
+    }
+    function poner(r){
+      puestos.push(r);
+      for(let cx = Math.floor(r.x0 / CEL); cx <= Math.floor(r.x1 / CEL); cx++) for(let cy = Math.floor(r.y0 / CEL); cy <= Math.floor(r.y1 / CEL); cy++){
+        const kk = cx + ':' + cy; if(!rejilla.has(kk)) rejilla.set(kk, []); rejilla.get(kk).push(r);
+      }
+    }
+    // Los puntos de los lugares y, si van nombres, sus nombres primero (tienen prioridad).
+    const R_PUNTO = Math.max(9, Math.round(tamL * 0.45));
+    lugs.forEach(({ p }) => poner({ cx: p[0], cy: p[1], w: R_PUNTO * 2 + 4, h: R_PUNTO * 2 + 4, ang: 0, punto: true }));
     if(conNombres){
-      const tam = Math.round(Math.max(15, Math.min(24, W / 110)));
+      med.font = '700 ' + tamL + 'px ' + FUENTE;
+      lugs.forEach(({ l, p }) => {
+        const w = med.measureText(l.nombre).width + 8, h = tamL * 1.3;
+        for(const lado of [1, -1]){
+          const r = { cx: p[0] + lado * (R_PUNTO + 6 + w / 2), cy: p[1], w, h, ang: 0, texto: l.nombre, lugar: true, alinea: lado > 0 ? 'left' : 'right', tx: p[0] + lado * (R_PUNTO + 8) };
+          if(cabe(r)){ poner(r); break; }
+        }
+      });
+      // Calles: cada nombre en sus tramos más largos, repetido a lo largo de las largas (separados).
       const porNombre = new Map();
       vs.forEach(v => { if(!porNombre.has(v.nombre)) porNombre.set(v.nombre, []); porNombre.get(v.nombre).push(v); });
-      const candidatos = [];
-      porNombre.forEach((lista, nombre) => {
-        let mejor = null;
-        lista.forEach(v => v.lineas.forEach(l => { for(let i = 0; i < l.length - 1; i++){
-          const [ax, ay] = P(l[i]), [bx, by] = P(l[i + 1]), d = Math.hypot(bx - ax, by - ay);
+      const lista = [...porNombre].map(([nombre, vv]) => {
+        const segs = [];
+        vv.forEach(v => v.lineas.forEach(l => { for(let i = 0; i < l.length - 1; i++){
           if(!enArea((l[i][0] + l[i + 1][0]) / 2, (l[i][1] + l[i + 1][1]) / 2)) continue;
-          if(!mejor || d > mejor.d) mejor = { d, ax, ay, bx, by };
+          const [ax, ay] = P(l[i]), [bx, by] = P(l[i + 1]);
+          segs.push({ ax, ay, bx, by, d: Math.hypot(bx - ax, by - ay) });
         } }));
-        if(mejor) candidatos.push(Object.assign(mejor, { nombre, princ: TIPOS_PRINCIPALES.has(lista[0].tipo), total: lista.reduce((n, v) => n + v.lineas.length, 0) }));
-      });
-      candidatos.sort((p, q) => (q.princ - p.princ) || (q.d - p.d));
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-      candidatos.forEach(c => {
-        const f = (c.princ ? 600 : 500) + ' ' + (c.princ ? tam + 2 : tam) + 'px Inter, system-ui, sans-serif';
-        ctx.font = f;
-        let ang = Math.atan2(c.by - c.ay, c.bx - c.ax);
+        return { nombre, princ: TIPOS_PRINCIPALES.has(vv[0].tipo), segs: segs.sort((p, q) => q.d - p.d), largo: segs.reduce((n, sg) => n + sg.d, 0) };
+      }).filter(x => x.segs.length).sort((p, q) => (q.princ - p.princ) || (q.largo - p.largo));
+      const SEPARACION = Math.max(900, W / 6);
+      // Primera pasada: un nombre en cada calle (las que caben a lo largo de un tramo);
+      // segunda: las que no caben, en horizontal; tercera: repeticiones en las largas.
+      const intentar = (c, sg, horizontal) => {
+        med.font = (c.princ ? '600 ' + tamP : '500 ' + tamC) + 'px ' + FUENTE;
+        const w = med.measureText(c.nombre).width + 6, h = (c.princ ? tamP : tamC) * 1.25;
+        if(!horizontal && sg.d < w * 0.95) return false;
+        let ang = horizontal ? 0 : Math.atan2(sg.by - sg.ay, sg.bx - sg.ax);
         if(ang > Math.PI / 2) ang -= Math.PI; if(ang < -Math.PI / 2) ang += Math.PI;
-        const w = ctx.measureText(c.nombre).width, h = tam * 1.2;
-        // Si no cabe a lo largo de su tramo, se escribe igual pero solo si no tapa nada (y en horizontal si el tramo es corto).
-        if(w > c.d * 1.6) ang = 0;
-        const cx = (c.ax + c.bx) / 2, cy = (c.ay + c.by) / 2;
-        const ex = Math.abs(Math.cos(ang)) * w / 2 + Math.abs(Math.sin(ang)) * h / 2, ey = Math.abs(Math.sin(ang)) * w / 2 + Math.abs(Math.cos(ang)) * h / 2;
-        const r = { x0: cx - ex, x1: cx + ex, y0: cy - ey, y1: cy + ey };
-        if(!libre(r)) return;
-        ocupado.push(r);
-        ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang);
-        ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.strokeText(c.nombre, 0, 0);
-        ctx.fillStyle = '#2f2a24'; ctx.fillText(c.nombre, 0, 0);
+        const r = { cx: (sg.ax + sg.bx) / 2, cy: (sg.ay + sg.by) / 2, w, h, ang, texto: c.nombre, princ: c.princ };
+        if(c.puestos && c.puestos.some(o => Math.hypot(o.cx - r.cx, o.cy - r.cy) < SEPARACION)) return false;
+        if(!cabe(r)) return false;
+        poner(r); (c.puestos = c.puestos || []).push(r);
+        return true;
+      };
+      lista.forEach(c => { c.segs.some(sg => intentar(c, sg, false)); });
+      lista.forEach(c => { if(!c.puestos) c.segs.slice(0, 6).some(sg => intentar(c, sg, true)); });
+      lista.forEach(c => { if(c.largo > SEPARACION * 1.5) c.segs.forEach(sg => { if(c.puestos.length < 8) intentar(c, sg, false); }); });
+    }
+
+    // ---- Pintar una franja (coordenadas de la lámina entera; el lienzo ya va desplazado) ----
+    const linea = (ctx, lineas, color, ancho, v0, v1) => {
+      ctx.strokeStyle = color; ctx.lineWidth = ancho; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      lineas.forEach(l => { if(l.y1 < v0 - ancho || l.y0 > v1 + ancho) return; l.pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); });
+      ctx.stroke();
+    };
+    const pintarFranja = (ctx, sy, sh) => {
+      // Cabecera y pie (si caen en esta franja)
+      if(sy < CAB){
+        ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#1d1b19';
+        const e = CAB / 150;
+        ctx.font = '800 ' + Math.round(58 * e) + 'px ' + FUENTE; ctx.fillText(a.titulo, 60 * e, 82 * e);
+        ctx.fillStyle = '#7a7268'; ctx.font = '500 ' + Math.round(30 * e) + 'px ' + FUENTE;
+        ctx.fillText(conNombres ? 'Callejero de Córdoba · con nombres' : 'Callejero de Córdoba · escribe el nombre de cada calle', 60 * e, 124 * e);
+      }
+      if(sy + sh > CAB + H){
+        const e = PIE / 70;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#7a7268'; ctx.font = '400 ' + Math.round(20 * e) + 'px ' + FUENTE;
+        ctx.fillText('pj.fire · Calles: CDAU, Junta de Andalucía (CC BY 4.0) · Lugares: DERA (IECA) y OpenStreetMap · Edificios, parques y agua: © colaboradores de OpenStreetMap (ODbL)', 60 * e, CAB + H + 44 * e);
+      }
+      // Mapa: las filas visibles en esta franja
+      const v0 = Math.max(0, sy - CAB), v1 = Math.min(H, sy + sh - CAB);
+      if(v1 <= v0) return;
+      ctx.save();
+      ctx.translate(0, CAB);
+      ctx.beginPath(); ctx.rect(0, v0, W, v1 - v0); ctx.clip();
+      ctx.fillStyle = '#f4efe6'; ctx.fillRect(0, v0, W, v1 - v0);
+      ctx.save(); ctx.translate(0, v0); pintarOsm(ctx, x0, y0 + v0 / escala, escala, W, v1 - v0, Math.max(17, z)); ctx.restore();
+      if(rio.length) linea(ctx, rio, '#a9d4f2', Math.max(6, px(50)), v0, v1);
+      linea(ctx, resto, '#d6ccbb', Math.max(3.5, px(7)), v0, v1);
+      linea(ctx, princ, '#e0a463', Math.max(5, px(12)), v0, v1);
+      linea(ctx, resto, '#ffffff', Math.max(2, px(5)), v0, v1);
+      linea(ctx, princ, '#f8cf98', Math.max(3.5, px(9)), v0, v1);
+      if(a.barrios){
+        ctx.beginPath(); ctx.rect(0, v0, W, v1 - v0);
+        a.barrios.forEach(b => b.anillos.forEach(r => r.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); })));
+        ctx.fillStyle = 'rgba(255,255,255,0.62)'; ctx.fill('evenodd');
+        // Un distrito: sus barrios, con una línea fina; el contorno, discontinuo. Un barrio: su contorno, discontinuo.
+        if(a.distrito) linea(ctx, bordesBarrios, 'rgba(226,87,76,0.45)', Math.max(2, px(0.7)), v0, v1);
+        ctx.setLineDash([px(6), px(4)].map(x => Math.max(10, x)));
+        linea(ctx, contorno, '#e2574c', Math.max(4, px(1.5)), v0, v1);
+        ctx.setLineDash([]);
+      }
+      const visible = r => r.y1 >= v0 - 4 && r.y0 <= v1 + 4;
+      lugs.forEach(({ p }) => {
+        if(p[1] < v0 - 20 || p[1] > v1 + 20) return;
+        ctx.beginPath(); ctx.arc(p[0], p[1], R_PUNTO, 0, Math.PI * 2);
+        ctx.fillStyle = '#14b8a6'; ctx.fill(); ctx.lineWidth = Math.max(3, R_PUNTO / 3); ctx.strokeStyle = '#fff'; ctx.stroke();
+      });
+      ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+      puestos.forEach(r => {
+        if(!r.texto || !visible(r)) return;
+        if(r.lugar){
+          ctx.font = '700 ' + tamL + 'px ' + FUENTE; ctx.textAlign = r.alinea;
+          ctx.lineWidth = Math.max(4, tamL / 4); ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.strokeText(r.texto, r.tx, r.cy);
+          ctx.fillStyle = '#0f766e'; ctx.fillText(r.texto, r.tx, r.cy);
+          return;
+        }
+        ctx.save(); ctx.translate(r.cx, r.cy); ctx.rotate(r.ang);
+        ctx.font = (r.princ ? '600 ' + tamP : '500 ' + tamC) + 'px ' + FUENTE; ctx.textAlign = 'center';
+        ctx.lineWidth = Math.max(4, tamC / 4); ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.strokeText(r.texto, 0, 0);
+        ctx.fillStyle = '#2f2a24'; ctx.fillText(r.texto, 0, 0);
         ctx.restore();
       });
-    }
-    lugs.forEach(l => {
-      const [x, y] = P([l.lat, l.lng]);
-      ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2);
-      ctx.fillStyle = '#14b8a6'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
-    });
-    ctx.font = '700 ' + tamL + 'px Inter, system-ui, sans-serif'; ctx.textBaseline = 'middle';
-    etiquetas.forEach(e => {
-      ctx.textAlign = e.lado > 0 ? 'left' : 'right';
-      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.strokeText(e.nombre, e.x, e.y);
-      ctx.fillStyle = '#0f766e'; ctx.fillText(e.nombre, e.x, e.y);
-    });
-    ctx.restore();
-    // Cabecera y pie
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#1d1b19'; ctx.font = '800 58px Inter, system-ui, sans-serif';
-    ctx.fillText(a.titulo, 60, 82);
-    ctx.fillStyle = '#7a7268'; ctx.font = '500 30px Inter, system-ui, sans-serif';
-    ctx.fillText(conNombres ? 'Callejero de Córdoba · con nombres' : 'Callejero de Córdoba · escribe el nombre de cada calle', 60, 124);
-    ctx.font = '400 20px Inter, system-ui, sans-serif';
-    ctx.fillText('pj.fire · Calles: CDAU, Junta de Andalucía (CC BY 4.0) · Lugares: DERA (IECA) y OpenStreetMap · Edificios, parques y agua: © colaboradores de OpenStreetMap (ODbL)', 60, CAB + H + 44);
+      ctx.restore();
+    };
+
     const nombreArchivo = 'lamina-' + normalizar(a.titulo).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + (conNombres ? '' : '-sin-nombres') + '.png';
-    const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
-    if(!blob){ uiToast('No se pudo crear la imagen.', 'error'); return; }
+    let blob;
+    if(typeof CompressionStream === 'undefined'){
+      // Navegador antiguo: de una vez, a lo que permita un lienzo.
+      const f = Math.min(1, Math.sqrt(16e6 / (W * ALTO)));
+      const cv = document.createElement('canvas'); cv.width = Math.round(W * f); cv.height = Math.round(ALTO * f);
+      const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.scale(f, f);
+      pintarFranja(ctx, 0, ALTO);
+      blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+    } else {
+      blob = await pngPorFranjas(W, ALTO, pintarFranja, f => progresoLamina('Dibujando la lámina (' + W.toLocaleString('es-ES') + ' × ' + ALTO.toLocaleString('es-ES') + ' px)… ' + Math.round(f * 100) + ' %', f));
+    }
+    if(!blob) throw new Error('el navegador no ha podido crear la imagen');
     const archivo = new File([blob], nombreArchivo, { type: 'image/png' });
-    // En el móvil, el menú de compartir (guardar en Fotos, imprimir…); si no, se descarga.
+    progresoLamina(null);
+    // En el móvil, el menú de compartir (guardar en Fotos, en Archivos, imprimir…); si no, se descarga.
     if(navigator.canShare && navigator.canShare({ files: [archivo] }) && matchMedia('(pointer: coarse)').matches){
       try{ await navigator.share({ files: [archivo], title: a.titulo }); return; }catch(e){ if(e && e.name === 'AbortError') return; }
     }
     const url = URL.createObjectURL(blob), enlace = document.createElement('a');
     enlace.href = url; enlace.download = nombreArchivo;
     document.body.appendChild(enlace); enlace.click(); enlace.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-    uiToast('Lámina descargada', 'success');
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+    uiToast('Lámina descargada (' + (blob.size / 1e6).toFixed(1).replace('.', ',') + ' MB)', 'success');
   }
 
   /* ---------- satélite ---------- */
