@@ -245,6 +245,10 @@ async function finishQuizInner(){
   else { HISTORY.unshift(entry); renderHistory(); }
   lastFinishedReviewId = entry.id;
 
+  // Test de una tarea del calendario: queda terminado (y la tarea, hecha).
+  if(quizState.tarea && typeof CAL !== 'undefined') CAL.terminarTestLegis(quizState.tarea, Number(notaNum.toFixed(2)));
+  volverTrasTest = quizState.volver || null;
+
   // el test ya ha terminado: se libera el bloqueo de las demás tarjetas de home
   quizState.mode = null;
   quizSecondsLeft = null;

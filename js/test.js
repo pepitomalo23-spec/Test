@@ -3,7 +3,14 @@
 
 /* ---------- quiz ---------- */
 const QUIZ_LIST_MODES = ['examen', 'simulacro']; // estas modalidades muestran todas las preguntas seguidas, sin corrección inmediata
+// Volver desde el test (o su resultado): adonde se abrió si vino de una tarea del calendario; si no, a Legislación.
+let volverTrasTest = null;
+function salirDelTest(){
+  const v = (quizState && quizState.mode) ? quizState.volver : volverTrasTest;
+  if(v && document.getElementById(v)) showScreen(v); else showHome();
+}
 function startQuiz(mode, questions, timeMinutes){
+  volverTrasTest = null;
   const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
   ACTIVE_QUESTIONS = shuffleArray(base).map(shuffleQuestionOptions); // el orden de las preguntas Y de sus opciones A/B/C/D es aleatorio en cada intento (salvo preguntas del tipo "A y B son correctas")
   const viewMode = QUIZ_LIST_MODES.includes(mode) ? 'list' : 'card';
