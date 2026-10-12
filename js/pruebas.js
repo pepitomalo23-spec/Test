@@ -642,15 +642,14 @@ const PRU = (function(){
     return '<article class="espt-preg dif-' + dif + '" id="pru-tb-' + i + '">' +
       (marcada ? '<span class="espt-estrella" title="Marcada">' + ICO_TB.estrella + '</span>' : '') +
       '<div class="espt-iconos">' +
-        (corregida && it.explicacion !== '' ? '<button type="button" data-pru-tb="exp" data-i="' + i + '" title="Ver explicación" aria-label="Ver explicación">' + ICO_TB.exp + '</button>' : '') +
+        (corregida && (it.explicacion !== '' || ESPT.tieneNota(it.id)) ? '<button type="button" data-pru-tb="exp" data-i="' + i + '" title="Ver explicación" aria-label="Ver explicación">' + ICO_TB.exp + '</button>' : '') +
         '<button type="button" data-pru-tb="marca" data-i="' + i + '" title="' + (marcada ? 'Quitar de Preguntas marcadas' : 'Guardar en Preguntas marcadas') + '" aria-label="Marcar pregunta">' + ICO_TB.marca + '</button>' +
         '<button type="button" data-pru-tb="nota" data-i="' + i + '" title="Tu nota (texto o imágenes)" aria-label="Tu nota">' + ICO_TB.nota + '</button>' +
       '</div>' +
       '<div class="espt-enunciado">' + (i + 1) + 'ª- ' + enunciado(it) + '</div>' +
       '<div class="espt-ops">' + ops + '</div>' +
       (corregida && r !== it.correcta ? '<div class="espt-correcta">La correcta es la <b>' + letraTb(it.correcta) + ')</b></div>' : '') +
-      (corregida ? ESPT.notaHtml(it.id) : '') +
-      (corregida && est.tbExp && est.tbExp[i] ? '<div class="espt-exp">' + (explicacion(it) || 'Sin explicación.') + '</div>' : '') +
+      (corregida && est.tbExp && est.tbExp[i] ? '<div class="espt-exp">' + (it.explicacion === '' ? '' : explicacion(it) || 'Sin explicación.') + ESPT.notaHtml(it.id) + '</div>' : '') +
       '</article>';
   }
   function pintarTb(quieto){
@@ -1048,7 +1047,7 @@ const PRU = (function(){
       const i = Number(tb.dataset.i), it = est.items[i];
       if(tb.dataset.pruTb === 'exp'){ est.tbExp = est.tbExp || {}; est.tbExp[i] = !est.tbExp[i]; repintarTb(i); }
       else if(tb.dataset.pruTb === 'marca') ESPT.alternarMarca(it.id).then(() => repintarTb(i));
-      else if(tb.dataset.pruTb === 'nota') ESPT.abrirNota(it.id, () => repintarTb(i));
+      else if(tb.dataset.pruTb === 'nota') ESPT.abrirNota(it.id, () => { if(ESPT.tieneNota(it.id) && est.resp[i] != null){ est.tbExp = est.tbExp || {}; est.tbExp[i] = true; } repintarTb(i); });
       return;
     }
     // La nota propia que se ve en una pregunta del Específico: editarla o ver sus imágenes.

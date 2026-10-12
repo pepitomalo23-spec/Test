@@ -286,15 +286,15 @@ const ESPT = (function(){
     return '<article class="espt-preg dif-' + dif + '" id="espt-' + p.id + '" title="Dificultad: ' + (DIF[p.dificultad] || 'sin dato') + '">' +
       (marcadas.has(p.id) ? '<span class="espt-estrella" title="Marcada">' + ICO.estrella + '</span>' : '') +
       '<div class="espt-iconos">' +
-        (p.tiene_explicacion ? '<button type="button" data-espt="exp" data-p="' + p.id + '" title="Ver explicación" aria-label="Ver explicación">' + ICO.exp + '</button>' : '') +
+        (p.tiene_explicacion || notas.has(p.id) ? '<button type="button" data-espt="exp" data-p="' + p.id + '" title="Ver explicación" aria-label="Ver explicación">' + ICO.exp + '</button>' : '') +
         '<button type="button" data-espt="marca" data-p="' + p.id + '" title="' + (marcadas.has(p.id) ? 'Quitar de Preguntas marcadas' : 'Guardar en Preguntas marcadas') + '" aria-label="Marcar pregunta">' + ICO.marca + '</button>' +
         '<button type="button" data-espt="nota" data-p="' + p.id + '" title="' + (notas.has(p.id) ? 'Ver o cambiar tu nota' : 'Añadir tu nota (texto o imágenes)') + '" aria-label="Tu nota">' + ICO.nota + '</button>' +
       '</div>' +
       '<div class="espt-enunciado">' + html(p.enunciado) + '</div>' +
       '<div class="espt-ops">' + ops + '</div>' +
       (elegida && elegida !== p.correcta ? '<div class="espt-correcta">La correcta es la <b>' + escapeHtml(p.correcta) + ')</b></div>' : '') +
-      (elegida ? notaHtml(p.id) : '') +
-      (abiertas.has(p.id) ? '<div class="espt-exp">' + (expl.has(p.id) ? html(expl.get(p.id)) : '<span class="espt-cargando">Cargando explicación…</span>') + '</div>' : '') +
+      // La explicación (al pulsar el «?») y, dentro, tu nota.
+      (abiertas.has(p.id) ? '<div class="espt-exp">' + (!p.tiene_explicacion ? '' : expl.has(p.id) ? html(expl.get(p.id)) : '<span class="espt-cargando">Cargando explicación…</span>') + notaHtml(p.id) + '</div>' : '') +
       '</article>';
   }
   function pie(){
@@ -435,10 +435,17 @@ const ESPT = (function(){
       case 'exp':
         if(abiertas.has(id)){ abiertas.delete(id); repintar(id); break; }
         abiertas.add(id); repintar(id);
-        if(!expl.has(id)) explicacion(id).then(() => { if(abiertas.has(id)) repintar(id); });
+        if(!expl.has(id) && (preguntas.find(x => x.id === id) || {}).tiene_explicacion) explicacion(id).then(() => { if(abiertas.has(id)) repintar(id); });
         break;
       case 'marca': alternarMarca(id); break;
-      case 'nota': abrirNota(id, () => repintar(id)); break;
+      case 'nota': abrirNota(id, () => {
+        // Al guardarla se abre la explicación, que es donde se ve la nota.
+        if(notas.has(id)){
+          abiertas.add(id);
+          if(!expl.has(id) && (preguntas.find(x => x.id === id) || {}).tiene_explicacion) explicacion(id).then(() => { if(abiertas.has(id)) repintar(id); });
+        }
+        repintar(id);
+      }); break;
       case 'reiniciar': resp = {}; abiertas = new Set(); sesion = null; avisarTarea(); pintar(); arriba(); break;
     }
   }
