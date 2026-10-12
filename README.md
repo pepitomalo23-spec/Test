@@ -305,8 +305,8 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   de Legislación, Normativas, Callejero y Específico) **Inicio** (`screen-inicio`) y **Estadísticas**. Esas cuatro pantallas marcan Estudio;
   el calendario marca Inicio.
 - Inicio (`js/inicio.js`, `css/inicio.css`) es la pantalla de entrada: saludo, el test a medias (para
-  continuarlo), las tareas de hoy del calendario (se marcan ahí mismo; tocando el recuadro se abre el calendario
-  completo para editar), accesos rápidos (Test Inteligente, fallos, fichas que tocan hoy, Callejero) y el
+  continuarlo), las tareas de hoy del calendario (se marcan ahí mismo; tocando una tarea se abre su ventanita
+  con la nota y sus tests, y el calendario completo tiene su propio botón), accesos rápidos (Test Inteligente, fallos, fichas que tocan hoy, Callejero) y el
   porcentaje del temario dominado. Se repinta cuando cambian el calendario, las estadísticas o las fichas.
 
 ## Específico
@@ -402,6 +402,11 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   entonces se rehacen las siguientes desde ese día (las ya hechas en un día que sigue, siguen hechas).
 - Copia en el dispositivo (`pj_calendario_v1:<usuario>`) para pintar al momento; los cambios se ven antes de
   que responda el servidor y, si fallan, se recarga lo del servidor.
+- Una tarea puede llevar uno o varios tests del Específico (o todos los de un tema): `test_ids` (migraciones
+  `20261021_calendario_test.sql` y `20261022_calendario_varios_tests.sql`). Cada test se ve con su barra de lo
+  hecho y lo que falta; al pulsarlo se abre ese test (`ESPT.abrir`) por donde se dejó. El avance va en la tarea
+  (`progreso.porTest[test_id]`: respuestas, total y la prueba del historial), así que sirve en cualquier
+  dispositivo; cuando están todos terminados, la tarea queda hecha.
 
 ## Mnemotecnia
 
