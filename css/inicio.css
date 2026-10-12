@@ -78,3 +78,10 @@ button.ini-prog-fila:hover{ background: var(--card-hi); }
 .ini-conjunto-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
 .ini-conjunto-txt b{ font-family: var(--title); font-size:17px; font-weight:400; letter-spacing:.2px; }
 .ini-conjunto-txt span{ font-size:12.5px; color: var(--muted); }
+
+/* Tarea con test: barrita de avance y botón para seguir */
+.ini-tarea-txt{ flex:1; }
+.ini-tarea-test{ display:flex; align-items:center; gap:8px; margin-top:5px; font-size:11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ini-tarea-test .ini-barra{ flex:1; height:4px; }
+.ini-tarea-test .ini-barra i{ background: var(--c); }
+.ini-tarea-ir{ flex-shrink:0; padding:7px 12px; border-radius:99px; border:1px solid var(--line); background: var(--card); color: var(--text); font:inherit; font-size:12.5px; font-weight:700; cursor:pointer; }

@@ -70,7 +70,7 @@ const CAL = (function(){
     cargando = (async () => {
       const filas = [];
       for(let desde = 0; ; desde += 1000){
-        const { data, error } = await sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,hecho,orden,serie,created_at')
+        const { data, error } = await sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,hecho,orden,serie,created_at,test_id,progreso,especifico_tests(id,titulo,tema)')
           .eq('user_id', yo()).order('fecha').order('orden').range(desde, desde + 999);
         if(error) throw error;
         filas.push(...data);
@@ -158,9 +158,48 @@ const CAL = (function(){
       '<div class="cal-semana">' + ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => '<span>' + x + '</span>').join('') + '</div>' +
       '<div class="cal-rejilla">' + celdas + '</div></div>';
   }
+  /* ---------- test del Específico en una tarea ---------- */
+  const conTests = () => typeof ESP !== 'undefined' && typeof ESPT !== 'undefined' && featureEnabled('especifico');
+  const testDe = t => t.test_id ? (t.especifico_tests || (conTests() ? ESP.tests().find(x => x.id === t.test_id) : null) || { id: t.test_id, titulo: 'Test', tema: '' }) : null;
+  // Cuánto lleva: { hechas, total } (total 0 si aún no se ha abierto nunca).
+  function avance(t){
+    const p = t.progreso || {};
+    return { hechas: Object.keys(p.resp || {}).length, total: p.total || 0 };
+  }
+  // La barra de la tarea: lo hecho y lo que falta; al pulsarla se sigue por donde se dejó.
+  function bloqueTest(t){
+    const x = testDe(t);
+    if(!x || !conTests()) return '';
+    const a = avance(t), pct = a.total ? Math.round(a.hechas / a.total * 100) : 0;
+    const accion = t.hecho && a.total && a.hechas >= a.total ? 'Repasar' : a.hechas ? 'Continuar' : 'Empezar';
+    return '<button type="button" class="cal-test" data-cal="test" data-id="' + t.id + '">' +
+      '<span class="cal-test-cab"><span class="cal-test-t">Test - <b>' + esc(x.titulo) + '</b></span><span class="cal-test-accion">' + accion + ' ›</span></span>' +
+      '<span class="cal-test-barra"><i style="width:' + pct + '%"></i></span>' +
+      '<span class="cal-test-n">' + (a.hechas ? a.hechas + ' de ' + a.total + ' respondidas · faltan ' + Math.max(0, a.total - a.hechas) : 'Sin empezar') + '</span>' +
+      '</button>';
+  }
+  function hacerTest(t){
+    const x = testDe(t);
+    if(!x || !conTests()) return;
+    const volver = (document.querySelector('.screen.active:not(.overlay)') || {}).id || 'screen-calendario';
+    ESPT.abrir(x, { tarea: t.id, progreso: t.progreso, volver });
+  }
+  // Lo guarda el test (js/especifico-test.js) con cada respuesta. Al terminarlo, la tarea queda hecha.
+  function guardarProgreso(id, progreso, terminado){
+    const t = tareas.find(x => x.id === id);
+    if(!t) return;
+    t.progreso = progreso;
+    const marca = terminado && !t.hecho;
+    if(marca){ t.hecho = true; uiToast('Test terminado: tarea hecha', 'success'); }
+    guardarCache();
+    clearTimeout(guardarProgreso.t);
+    const cambios = Object.assign({ progreso, updated_at: new Date().toISOString() }, marca ? { hecho: true } : {});
+    const enviarYa = () => sb.from('calendario_tareas').update(cambios).eq('id', id).then(({ error }) => { if(error) console.warn('No se pudo guardar el avance del test', error); });
+    if(marca) enviarYa(); else guardarProgreso.t = setTimeout(enviarYa, 800);
+  }
   function tarjeta(t, conFecha){
     const c = CAT[t.categoria];
-    return '<div class="cal-tarea' + (t.hecho ? ' hecha' : '') + '" style="--c:' + c.c + '">' +
+    return '<div class="cal-tarea' + (t.hecho ? ' hecha' : '') + (t.test_id && conTests() ? ' con-test' : '') + '" style="--c:' + c.c + '">' +
       '<button class="cal-check" data-cal="hecho" data-id="' + t.id + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></button>' +
       '<button class="cal-tarea-main" data-cal="editar" data-id="' + t.id + '">' +
@@ -169,8 +208,9 @@ const CAL = (function(){
         '<span class="cal-tarea-meta"><span class="cal-cat">' + esc(c.n) + '</span>' + (conFecha ? '<span class="cal-tarea-f">' + esc(nombreDia(t.fecha, true)) + '</span>' : '') + (t.serie ? '<span class="cal-rep" title="Se repite">↻</span>' : '') + '</span>' +
       '</button>' +
       (conFecha ? '<button class="cal-mini" data-cal="a-hoy" data-id="' + t.id + '">A hoy</button>'
-        : (IR[t.categoria] && !t.hecho ? '<button class="cal-ir" data-cal="ir" data-k="' + t.categoria + '" aria-label="Ir a ' + esc(c.n) + '">›</button>' : '') +
+        : (IR[t.categoria] && !t.hecho && !(t.test_id && conTests()) ? '<button class="cal-ir" data-cal="ir" data-k="' + t.categoria + '" aria-label="Ir a ' + esc(c.n) + '">›</button>' : '') +
           '<button class="cal-ir cal-lapiz" data-cal="editar" data-id="' + t.id + '" aria-label="Editar">' + LAPIZ + '</button>') +
+      bloqueTest(t) +
       '</div>';
   }
   function dia(){
@@ -219,7 +259,9 @@ const CAL = (function(){
     const base = t || { titulo: '', nota: '', categoria: ultimaCat, fecha: elegido };
     const serie = t && t.serie ? repDeSerie(t) : null;
     h = { t, cat: base.categoria, fecha: base.fecha, rep: serie ? serie.rep : '', hasta: serie ? serie.hasta : masDias(base.fecha, 27),
-          alcance: 'una', repIni: serie ? serie.rep : '', hastaIni: serie ? serie.hasta : null };
+          alcance: 'una', repIni: serie ? serie.rep : '', hastaIni: serie ? serie.hasta : null,
+          test: t ? testDe(t) : null, eligiendo: false, temaTest: '' };
+    if(conTests()) ESP.cargarTests();
     const bg = document.createElement('div');
     bg.className = 'cal-hoja-bg';
     bg.id = 'calHoja';
@@ -231,6 +273,7 @@ const CAL = (function(){
         '<input class="cal-titulo" name="titulo" maxlength="200" placeholder="¿Qué toca estudiar?" value="' + esc(base.titulo) + '">' +
         '<div class="cal-campo"><div class="cal-campo-t">Categoría</div><div class="cal-cats">' +
           CATS.map(([k, n, c]) => '<button type="button" class="cal-cat-op" data-cat="' + k + '" style="--c:' + c + '"><span>' + ICONO[k] + '</span>' + n + '</button>').join('') + '</div></div>' +
+        (conTests() ? '<div class="cal-campo"><div class="cal-campo-t">Test del Específico</div><div data-test-campo></div></div>' : '') +
         '<div class="cal-campo"><div class="cal-campo-t">Día</div><div class="cal-segs" data-dias></div></div>' +
         '<div class="cal-campo"><div class="cal-campo-t">Nota</div><textarea class="cal-in" name="nota" rows="2" maxlength="1000" placeholder="Páginas, artículos, cuántos tests…">' + esc(base.nota || '') + '</textarea></div>' +
         (t && t.serie && siguientes(t).length ? '<div class="cal-campo"><div class="cal-campo-t">Aplicar los cambios a</div><div class="cal-segs cal-segs-full" data-alcance></div></div>' : '') +
@@ -251,6 +294,9 @@ const CAL = (function(){
       else if(b.dataset.rep != null){ h.rep = b.dataset.rep; }
       else if(b.dataset.hastaN){ h.hasta = masDias(h.fecha, +b.dataset.hastaN); }
       else if(b.dataset.alc){ h.alcance = b.dataset.alc; }
+      else if(b.dataset.tst === 'elegir'){ h.eligiendo = true; }
+      else if(b.dataset.tst === 'quitar'){ h.test = null; h.eligiendo = false; }
+      else if(b.dataset.tst === 'cancelar'){ h.eligiendo = false; }
       else if(b.dataset.h === 'cerrar') return cerrarHoja();
       else if(b.dataset.h === 'borrar') return borrar(t);
       else return;
@@ -259,6 +305,17 @@ const CAL = (function(){
     bg.addEventListener('change', e => {
       if(e.target.name === 'otroDia' && e.target.value){ h.fecha = e.target.value; pintarHoja(f); }
       if(e.target.name === 'hasta' && e.target.value){ h.hasta = e.target.value; pintarHoja(f); }
+      if(e.target.name === 'temaTest'){ h.temaTest = e.target.value; pintarHoja(f); }
+      if(e.target.name === 'testId' && e.target.value){
+        const x = ESP.tests().find(y => y.id === e.target.value);
+        if(x){
+          h.test = { id: x.id, titulo: x.titulo, tema: x.tema }; h.eligiendo = false;
+          // Sin título aún: se pone el del test y la categoría Específico.
+          if(!f.titulo.value.trim()) f.titulo.value = 'Test: ' + x.titulo;
+          h.cat = 'especifico';
+        }
+        pintarHoja(f);
+      }
     });
     f.addEventListener('submit', e => { e.preventDefault(); guardar(f); });
     document.addEventListener('keydown', teclaHoja, true);
@@ -270,6 +327,8 @@ const CAL = (function(){
     f.style.setProperty('--c', c.c);
     f.querySelector('[data-ico]').innerHTML = ICONO[h.cat];
     f.querySelector('[data-sub]').textContent = c.n + ' · ' + nombreDia(h.fecha);
+    const ct = f.querySelector('[data-test-campo]');
+    if(ct) ct.innerHTML = campoTest();
     f.querySelectorAll('.cal-cat-op').forEach(b => b.classList.toggle('on', b.dataset.cat === h.cat));
     const rapidos = [[hh, 'Hoy'], [masDias(hh, 1), 'Mañana'], [masDias(hh, 2), 'Pasado']];
     const otro = !rapidos.some(r => r[0] === h.fecha);
@@ -293,6 +352,24 @@ const CAL = (function(){
         '<label class="cal-chip cal-chip-fecha">' + CALEND + ' ' + esc(nombreDia(h.hasta, true)) + '<input type="date" name="hasta" value="' + h.hasta + '" min="' + h.fecha + '"></label></div>' +
       '<div class="cal-hasta-res">Se apuntará en <b>' + fechas.length + '</b> ' + (fechas.length === 1 ? 'día' : 'días') + '</div>' : '';
   }
+  function campoTest(){
+    if(h.test && !h.eligiendo){
+      const tema = (ESP.temas().find(x => x.clave === h.test.tema) || {}).titulo;
+      return '<div class="cal-test-elegido"><span class="cal-test-elegido-txt"><b>' + esc(h.test.titulo) + '</b>' + (tema ? '<span>' + esc(tema) + '</span>' : '') + '</span>' +
+        '<button type="button" class="cal-chip" data-tst="elegir">Cambiar</button><button type="button" class="cal-chip" data-tst="quitar">Quitar</button></div>';
+    }
+    if(!h.eligiendo) return '<button type="button" class="cal-test-anadir" data-tst="elegir"><span>+</span> Añadir un test para hacer desde aquí</button>';
+    const todos = ESP.tests();
+    const temas = ESP.temas().map((x, i) => Object.assign({ n: i + 1 }, x)).filter(x => todos.some(y => y.tema === x.clave));
+    if(!temas.length) return '<div class="cal-hasta-res">Cargando los tests…</div>';
+    const lista = h.temaTest ? todos.filter(y => y.tema === h.temaTest).sort((a, b) => a.orden - b.orden) : [];
+    return '<div class="cal-test-elegir">' +
+      '<select class="cal-in" name="temaTest" aria-label="Tema"><option value="">Elige el tema…</option>' +
+        temas.map(x => '<option value="' + x.clave + '"' + (x.clave === h.temaTest ? ' selected' : '') + '>' + x.n + '. ' + esc(x.titulo) + '</option>').join('') + '</select>' +
+      (h.temaTest ? '<select class="cal-in" name="testId" aria-label="Test"><option value="">Elige el test…</option>' +
+        lista.map(y => '<option value="' + y.id + '">' + esc(y.titulo) + '</option>').join('') + '</select>' : '') +
+      '<button type="button" class="cal-chip" data-tst="cancelar">Cancelar</button></div>';
+  }
   function teclaHoja(e){ if(e.key === 'Escape'){ e.stopPropagation(); cerrarHoja(); } }
   function cerrarHoja(){
     const bg = document.getElementById('calHoja');
@@ -311,14 +388,17 @@ const CAL = (function(){
   }
   const ahora = () => new Date().toISOString();
   const fila = (fecha, d, serie, hecho) => ({ id: crypto.randomUUID(), user_id: yo(), fecha, titulo: d.titulo, nota: d.nota, categoria: d.categoria,
+    test_id: d.test_id || null, progreso: null, especifico_tests: h && h.test ? h.test : null,
     hecho: !!hecho, serie, orden: delDia(fecha).length, created_at: ahora() });
-  const sinMeta = r => { const { created_at, ...x } = r; return x; };
+  const sinMeta = r => { const { created_at, especifico_tests, ...x } = r; return x; };
   function irA(fecha){ elegido = fecha; const d = deIso(fecha); mes = [d.getFullYear(), d.getMonth()]; }
 
   async function guardar(f){
     const titulo = f.titulo.value.trim();
     if(!titulo){ f.titulo.classList.add('mal'); f.titulo.focus(); setTimeout(() => f.titulo.classList.remove('mal'), 600); return; }
     const d = { titulo, nota: f.nota.value.trim() || null, categoria: h.cat };
+    if(conTests()) d.test_id = h.test ? h.test.id : null;
+    const testNuevo = h.test;
     const { t, fecha, rep, hasta } = h;
     const alcance = t && t.serie && siguientes(t).length ? h.alcance : 'serie';
     cerrarHoja();
@@ -336,9 +416,15 @@ const CAL = (function(){
       // Mismos días: se cambian los datos (y, en la serie, también en las siguientes).
       const delta = Math.round((deIso(fecha) - deIso(t.fecha)) / 864e5);
       const grupo = alcance === 'serie' && t.serie ? [t, ...siguientes(t)] : [t];
-      grupo.forEach(x => { Object.assign(x, d); if(delta) x.fecha = masDias(x.fecha, delta); });
+      grupo.forEach(x => {
+        // Otro test: se empieza de cero.
+        const otro = 'test_id' in d && d.test_id !== (x.test_id || null);
+        Object.assign(x, d); if(delta) x.fecha = masDias(x.fecha, delta);
+        if('test_id' in d) x.especifico_tests = testNuevo;
+        if(otro) x.progreso = null;
+        ops.push(sb.from('calendario_tareas').update({ ...d, fecha: x.fecha, serie: x.serie, updated_at: ahora(), ...(otro ? { progreso: null } : {}) }).eq('id', x.id));
+      });
       if(alcance === 'una' && t.serie && rep !== h.repIni) t.serie = null;
-      grupo.forEach(x => ops.push(sb.from('calendario_tareas').update({ ...d, fecha: x.fecha, serie: x.serie, updated_at: ahora() }).eq('id', x.id)));
     } else {
       // Cambia la repetición: se rehacen las siguientes desde el nuevo día
       // (las que ya estaban hechas en un día que sigue, siguen hechas).
@@ -346,7 +432,9 @@ const CAL = (function(){
       const ids = new Set(viejas.map(x => x.id));
       tareas = tareas.filter(x => !ids.has(x.id));
       const fechas = fechasRepetidas(fecha, rep, hasta), serie = fechas.length > 1 ? (t.serie || crypto.randomUUID()) : null;
+      if('test_id' in d && d.test_id !== (t.test_id || null)){ t.progreso = null; d.progreso = null; }
       Object.assign(t, d, { fecha, serie });
+      if('test_id' in d) t.especifico_tests = testNuevo;
       const nuevas = fechas.slice(1).map(x => fila(x, d, serie, hechas.has(x)));
       tareas.push(...nuevas);
       if(ids.size) ops.push(sb.from('calendario_tareas').delete().in('id', [...ids]));
@@ -402,6 +490,7 @@ const CAL = (function(){
         break;
       }
       case 'ir': if(IR[el.dataset.k]) showScreen(IR[el.dataset.k]); break;
+      case 'test': if(t) hacerTest(t); break;
     }
   }
 
@@ -425,7 +514,8 @@ const CAL = (function(){
     if(!yo() || dueño !== yo() || (!cargado && !tareas.length && cargando)) return null;
     const h = hoy(), lista = delDia(h);
     return {
-      lista: lista.map(t => ({ id: t.id, titulo: t.titulo, nota: t.nota, hecho: t.hecho, cat: CAT[t.categoria].n, color: CAT[t.categoria].c, icono: ICONO[t.categoria] })),
+      lista: lista.map(t => ({ id: t.id, titulo: t.titulo, nota: t.nota, hecho: t.hecho, cat: CAT[t.categoria].n, color: CAT[t.categoria].c, icono: ICONO[t.categoria],
+        test: t.test_id && conTests() ? Object.assign({ titulo: testDe(t).titulo }, avance(t)) : null })),
       hechas: lista.filter(t => t.hecho).length,
       racha: racha(),
       atrasadas: atrasadas().length,
@@ -433,5 +523,6 @@ const CAL = (function(){
     };
   }
   function marcarId(id){ marcar(tareas.find(x => x.id === id)); }
-  return { abrir, recargar: cargar, asegurar, resumenHoy, marcar: marcarId, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
+  return { abrir, recargar: cargar, asegurar, resumenHoy, marcar: marcarId, guardarProgreso, bloqueTest,
+    hacerTest: id => { const t = tareas.find(x => x.id === id); if(t) hacerTest(t); }, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
 })();

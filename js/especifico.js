@@ -148,5 +148,6 @@ const ESP = (function(){
       if(!data || data.length < 1000) return n;
     }
   }
-  return { abrir, repintar: pintar, contarPreguntas, temas: () => TEMAS.map(([k, t, i]) => ({ clave: k, titulo: t, icono: svg(i) })) };
+  // Para elegir un test desde el calendario (js/calendario.js).
+  return { abrir, repintar: pintar, contarPreguntas, tests: () => tests, cargarTests: cargar, temas: () => TEMAS.map(([k, t, i]) => ({ clave: k, titulo: t, icono: svg(i) })) };
 })();
