@@ -20,9 +20,11 @@
 // Las preguntas del Específico (especifico_preguntas, con sus imágenes:
 // cientos de MB) no caben en la copia diaria: van aparte, un archivo por
 // test en especifico/<test_id>.json.gz. Cada vez se rehacen como mucho
-// ESP_POR_VEZ (primero los que falten y luego los más antiguos), así que en
-// unos días están todos y después se van renovando; se borran los de tests
-// que ya no existen. Siempre se guarda solo la última versión de cada test.
+// ESP_POR_VEZ (primero los que falten y luego los más antiguos) y hasta unos
+// ESP_MAX_BYTES (siempre al menos uno), así que en unos días están todos y
+// después se van renovando; se borran los de tests que ya no existen. Cada
+// test se comprime pregunta a pregunta, sin tenerlo entero en memoria.
+// Siempre se guarda solo la última versión de cada test.
 // =====================================================================
 
 import { createClient } from "jsr:@supabase/supabase-js@2.117.1";
@@ -52,18 +54,33 @@ const TABLES = [
 ];
 const ESP_DIR = "especifico";
 const ESP_POR_VEZ = 8;
+const ESP_MAX_BYTES = 12_000_000;
 
-// Las preguntas de un test, de 200 en 200 (cada una puede llevar imágenes).
-async function preguntasDeTest(sb: ReturnType<typeof createClient>, testId: string) {
-  const PAGE = 200;
-  let rows: unknown[] = [];
+// Un test comprimido: se piden sus preguntas de 25 en 25 (cada una puede
+// llevar imágenes) y se van metiendo en el gzip según llegan.
+async function testComprimido(sb: ReturnType<typeof createClient>, testId: string) {
+  const gz = new CompressionStream("gzip");
+  const w = gz.writable.getWriter();
+  const enc = new TextEncoder();
+  const salida = new Response(gz.readable).arrayBuffer();
+  let bytes = 0;
+  await w.write(enc.encode(`{"created_at":${JSON.stringify(new Date().toISOString())},"test_id":${JSON.stringify(testId)},"rows":[`));
+  const PAGE = 25;
+  let primera = true;
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await sb.from("especifico_preguntas").select("*").eq("test_id", testId).order("orden").range(from, from + PAGE - 1);
-    if (error) throw new Error(`especifico_preguntas ${testId}: ${error.message}`);
-    rows = rows.concat(data || []);
+    if (error) { await w.abort(); throw new Error(`especifico_preguntas ${testId}: ${error.message}`); }
+    for (const r of data || []) {
+      const t = JSON.stringify(r);
+      bytes += t.length;
+      await w.write(enc.encode((primera ? "" : ",") + t));
+      primera = false;
+    }
     if (!data || data.length < PAGE) break;
   }
-  return rows;
+  await w.write(enc.encode("]}"));
+  await w.close();
+  return { body: new Uint8Array(await salida), bytes };
 }
 async function copiaEspecifico(sb: ReturnType<typeof createClient>, tests: { id: string }[]) {
   const { data: files } = await sb.storage.from(BUCKET).list(ESP_DIR, { limit: 1000 });
@@ -72,16 +89,18 @@ async function copiaEspecifico(sb: ReturnType<typeof createClient>, tests: { id:
   // Primero los que faltan; luego los de copia más antigua.
   const orden = tests.map((t) => ({ id: t.id, fecha: hay.get(t.id + ".json.gz") ?? "" })).sort((a, b) => a.fecha.localeCompare(b.fecha));
   const hechos: string[] = [];
+  let total = 0;
   for (const t of orden.slice(0, ESP_POR_VEZ)) {
-    const rows = await preguntasDeTest(sb, t.id);
-    const body = await gzip(JSON.stringify({ created_at: new Date().toISOString(), test_id: t.id, rows }));
+    if (hechos.length && total >= ESP_MAX_BYTES) break;
+    const { body, bytes } = await testComprimido(sb, t.id);
     const { error } = await sb.storage.from(BUCKET).upload(`${ESP_DIR}/${t.id}.json.gz`, body, { contentType: "application/gzip", upsert: true });
     if (error) throw new Error("upload especifico: " + error.message);
     hechos.push(t.id);
+    total += bytes;
   }
   const sobran = [...hay.keys()].filter((n) => n.endsWith(".json.gz") && !vivos.has(n)).map((n) => `${ESP_DIR}/${n}`);
   if (sobran.length) await sb.storage.from(BUCKET).remove(sobran);
-  return { renovados: hechos.length, total: tests.length, sin_copia_antes: orden.filter((x) => !x.fecha).length, borrados: sobran.length };
+  return { renovados: hechos.length, bytes: total, total: tests.length, sin_copia_antes: orden.filter((x) => !x.fecha).length, borrados: sobran.length };
 }
 
 async function dumpTable(sb: ReturnType<typeof createClient>, table: string) {
@@ -118,28 +137,34 @@ Deno.serve(async (req) => {
 
   try {
     const started = new Date();
-    const tables: Record<string, unknown[]> = {};
-    const counts: Record<string, number> = {};
-    for (const t of TABLES) {
-      try {
-        tables[t] = await dumpTable(sb, t);
-        counts[t] = tables[t].length;
-      } catch (e) {
-        counts[t] = -1; // tabla inexistente o error puntual: no frena el resto
-        console.error((e as Error).message);
-      }
-    }
-    const payload = JSON.stringify({ created_at: started.toISOString(), version: 1, counts, tables });
-    const body = await gzip(payload);
     const day = started.toISOString().slice(0, 10);
     const path = `${day}.json.gz`;
-    const { error: upErr } = await sb.storage.from(BUCKET).upload(path, body, { contentType: "application/gzip", upsert: true });
-    if (upErr) throw new Error("upload: " + upErr.message);
+    const counts: Record<string, number> = {};
+    let testsEsp: { id: string }[] = [], bytes = 0, rawBytes = 0;
+    // En su bloque: al terminar la copia diaria se suelta de la memoria antes de seguir.
+    {
+      const tables: Record<string, unknown[]> = {};
+      for (const t of TABLES) {
+        try {
+          tables[t] = await dumpTable(sb, t);
+          counts[t] = tables[t].length;
+        } catch (e) {
+          counts[t] = -1; // tabla inexistente o error puntual: no frena el resto
+          console.error((e as Error).message);
+        }
+      }
+      testsEsp = (tables["especifico_tests"] || []) as { id: string }[];
+      const payload = JSON.stringify({ created_at: started.toISOString(), version: 1, counts, tables });
+      const body = await gzip(payload);
+      bytes = body.length; rawBytes = payload.length;
+      const { error: upErr } = await sb.storage.from(BUCKET).upload(path, body, { contentType: "application/gzip", upsert: true });
+      if (upErr) throw new Error("upload: " + upErr.message);
+    }
 
     // Preguntas del Específico, por partes (ver arriba). Si falla, la copia diaria ya está hecha.
     let especifico: unknown = null;
     try {
-      especifico = await copiaEspecifico(sb, (tables["especifico_tests"] || []) as { id: string }[]);
+      especifico = await copiaEspecifico(sb, testsEsp);
     } catch (e) {
       especifico = { error: (e as Error).message };
       console.error((e as Error).message);
@@ -151,7 +176,7 @@ Deno.serve(async (req) => {
     const old = (files || []).map((f) => f.name).filter((n) => /^\d{4}-\d{2}-\d{2}\.json\.gz$/.test(n) && n.slice(0, 10) < cutoff);
     if (old.length) await sb.storage.from(BUCKET).remove(old);
 
-    return json({ ok: true, path, bytes: body.length, raw_bytes: payload.length, counts, removed: old.length, especifico });
+    return json({ ok: true, path, bytes, raw_bytes: rawBytes, counts, removed: old.length, especifico });
   } catch (e) {
     return json({ ok: false, error: (e as Error).message }, 500);
   }
