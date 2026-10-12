@@ -1,5 +1,6 @@
 /* Estadísticas › Específico: lo mismo que las de Legislación (dominio de
-   preguntas, nota, ranking de temas) pero solo con las respuestas de los
+   preguntas, nota, ranking de temas; además, la evolución semanal y los temas
+   de peor a mejor por % de acierto, con sus tests) pero solo con las respuestas de los
    tests del Específico (tabla especifico_respuestas, las guarda
    js/especifico-test.js), sin mezclar. Las pestañas «Legislación /
    Específico» de la pantalla de Estadísticas cambian de una vista a otra;
@@ -37,7 +38,7 @@ const ESTE = (function(){
     const [rt, preguntas, respuestas] = await Promise.all([
       sb.from('especifico_tests').select('id,tema,titulo,orden'),
       supabaseTodas(o => sb.from('especifico_preguntas').select('id,test_id', o).order('id')),
-      supabaseTodas(o => sb.from('especifico_respuestas').select('pregunta_id,acierto', o).eq('user_id', yo).order('id'))
+      supabaseTodas(o => sb.from('especifico_respuestas').select('pregunta_id,acierto,created_at', o).eq('user_id', yo).order('id'))
     ]);
     if(rt.error) throw rt.error;
     // Estado de cada pregunta, con las mismas reglas que en Legislación:
@@ -56,7 +57,8 @@ const ESTE = (function(){
     const existe = new Set(preguntas.map(p => p.id));
     datos = {
       tests: rt.data || [], preguntas, estado,
-      nRespuestas: respuestas.filter(r => existe.has(r.pregunta_id)).length
+      nRespuestas: respuestas.filter(r => existe.has(r.pregunta_id)).length,
+      respuestas: respuestas.filter(r => existe.has(r.pregunta_id))
     };
   }
   function refrescar(){
@@ -68,6 +70,79 @@ const ESTE = (function(){
       .then(() => { sucio = false; fallo = ''; })
       .catch(e => { fallo = e.message || String(e); })
       .finally(() => { cargando = null; if(pestana() === 'esp') pintar(); });
+  }
+
+  /* ---------- evolución semanal y temas por % de acierto ---------- */
+  const abiertos = new Set();   // temas desplegados en «Tus temas»
+  const SEMANAS = 8;
+  const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const lunes = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x; };
+  const pctTxt = v => Math.round(v) + ' %';
+  // Las últimas semanas (de lunes a domingo): cuántas respondiste y qué % acertaste.
+  function evolucion(respuestas){
+    const hoyL = lunes(new Date());
+    const sem = Array.from({ length: SEMANAS }, (_, i) => { const d = new Date(hoyL); d.setDate(d.getDate() - (SEMANAS - 1 - i) * 7); return { d, n: 0, ok: 0 }; });
+    const ini = sem[0].d.getTime();
+    respuestas.forEach(r => {
+      if(!r.created_at) return;
+      const t = new Date(r.created_at).getTime();
+      if(t < ini) return;
+      const k = Math.min(SEMANAS - 1, Math.floor((lunes(t) - ini) / (7 * 864e5) + 0.5));
+      sem[k].n++; if(r.acierto) sem[k].ok++;
+    });
+    const max = Math.max(1, ...sem.map(x => x.n));
+    const ya = sem[SEMANAS - 1], antes = sem[SEMANAS - 2];
+    const p = x => x.n ? x.ok / x.n * 100 : 0;
+    let sub = ya.n ? 'Esta semana: <b>' + ya.n + '</b> ' + (ya.n === 1 ? 'pregunta' : 'preguntas') + ' · <b>' + pctTxt(p(ya)) + '</b> de acierto' : 'Esta semana aún no has respondido ninguna.';
+    if(ya.n && antes.n){
+      const dif = Math.round(p(ya) - p(antes));
+      sub += dif ? ' <span class="este-dif ' + (dif > 0 ? 'sube' : 'baja') + '">' + (dif > 0 ? '▲ ' : '▼ ') + Math.abs(dif) + ' pts</span>' : ' <span class="este-dif">= que la anterior</span>';
+    }
+    return '<div class="ranking-card"><div class="ranking-head"><div class="ranking-title">Evolución semanal</div><div class="ranking-sub">Últimas ' + SEMANAS + ' semanas</div></div>' +
+      '<div class="este-evo-sub">' + sub + '</div>' +
+      '<div class="este-evo">' + sem.map((x, i) => {
+        const h = x.n ? Math.max(8, Math.round(x.n / max * 100)) : 0;
+        return '<div class="este-evo-col' + (i === SEMANAS - 1 ? ' actual' : '') + '" title="' + x.n + ' preguntas · ' + pctTxt(p(x)) + ' de acierto">' +
+          '<span class="este-evo-pct" style="color:' + (x.n ? colorPct(p(x)) : 'var(--muted)') + '">' + (x.n ? pctTxt(p(x)) : '–') + '</span>' +
+          '<span class="este-evo-barra"><i style="height:' + h + '%; background:' + (x.n ? colorPct(p(x)) : 'transparent') + '"></i></span>' +
+          '<span class="este-evo-n">' + x.n + '</span>' +
+          '<span class="este-evo-f">' + x.d.getDate() + ' ' + MES[x.d.getMonth()] + '</span></div>';
+      }).join('') + '</div>' +
+      '<div class="este-evo-ley">Altura: preguntas respondidas · Número de arriba: % de acierto</div></div>';
+  }
+  // Por tema, de peor a mejor según el % de acierto de todo lo que has respondido; al tocarlo, sus tests.
+  function temasAcierto(tests, preguntas, respuestas){
+    const testDe = {}, temaDe = {}, totalTest = {};
+    preguntas.forEach(p => { testDe[p.id] = p.test_id; totalTest[p.test_id] = (totalTest[p.test_id] || 0) + 1; });
+    tests.forEach(t => { temaDe[t.id] = t.tema; });
+    const porTest = {}, porTema = {};
+    const sumar = (o, k, r) => { const x = o[k] = o[k] || { n: 0, ok: 0, vistas: new Set(), rec: { n: 0, ok: 0 } }; x.n++; if(r.acierto) x.ok++; x.vistas.add(r.pregunta_id);
+      if(r.created_at && Date.now() - new Date(r.created_at).getTime() < 14 * 864e5){ x.rec.n++; if(r.acierto) x.rec.ok++; } };
+    respuestas.forEach(r => { const t = testDe[r.pregunta_id], k = temaDe[t]; if(!t || !k) return; sumar(porTest, t, r); sumar(porTema, k, r); });
+    const totalTema = {};
+    preguntas.forEach(p => { const k = temaDe[p.test_id]; if(k) totalTema[k] = (totalTema[k] || 0) + 1; });
+    const lista = ESP.temas().map((t, i) => porTema[t.clave] ? Object.assign({ clave: t.clave, nombre: (i + 1) + '. ' + t.titulo, total: totalTema[t.clave] || 0 }, porTema[t.clave]) : null)
+      .filter(Boolean).sort((a, b) => a.ok / a.n - b.ok / b.n);
+    const sinEmpezar = ESP.temas().map((t, i) => totalTema[t.clave] && !porTema[t.clave] ? (i + 1) + '. ' + t.titulo : null).filter(Boolean);
+    if(!lista.length) return '';
+    const fila = (x, extra) => {
+      const p = x.ok / x.n * 100, color = colorPct(p);
+      const rec = x.rec.n >= 5 ? ' · últimos 14 días: ' + pctTxt(x.rec.ok / x.rec.n * 100) : '';
+      return '<div class="ranking-body">' +
+          '<div class="ranking-name">' + escapeHtml(x.nombre) + ' <span class="este-sub">' + x.n + ' respuestas · ' + x.vistas.size + ' de ' + x.total + ' vistas' + rec + '</span></div>' +
+          '<div class="ranking-track"><div class="ranking-fill" style="width:' + p + '%; background:' + color + '"></div></div></div>' +
+        '<div class="ranking-pct" style="color:' + color + '">' + pctTxt(p) + '</div>' + (extra || '');
+    };
+    return '<div class="ranking-card"><div class="ranking-head"><div class="ranking-title">Tus temas, de peor a mejor</div><div class="ranking-sub">% de acierto · toca uno para ver sus tests</div></div>' +
+      '<div class="ranking-list este-temas">' + lista.map((x, i) => {
+        const abierto = abiertos.has(x.clave);
+        const sus = tests.filter(t => t.tema === x.clave && porTest[t.id]).map(t => Object.assign({ id: t.id, nombre: t.titulo, total: totalTest[t.id] || 0 }, porTest[t.id]))
+          .sort((a, b) => a.ok / a.n - b.ok / b.n);
+        return '<div class="ranking-row este-clic este-tema' + (abierto ? ' abierto' : '') + '" role="button" tabindex="0" aria-expanded="' + abierto + '" data-este-tema="' + escapeHtml(x.clave) + '">' +
+            '<div class="ranking-pos">' + (i + 1) + '</div>' + fila(x, '<span class="este-chev" aria-hidden="true">›</span>') + '</div>' +
+          (abierto ? '<div class="este-tests">' + sus.map(t => '<div class="ranking-row este-clic" role="button" tabindex="0" data-este-test="' + t.id + '">' + fila(t) + '</div>').join('') + '</div>' : '');
+      }).join('') + '</div>' +
+      (sinEmpezar.length ? '<div class="este-sin">Sin empezar: ' + escapeHtml(sinEmpezar.join(' · ')) + '</div>' : '') + '</div>';
   }
 
   /* ---------- pintar ---------- */
@@ -129,6 +204,7 @@ const ESTE = (function(){
       '</div>';
 
     if(typeof featureEnabled !== 'function' || featureEnabled('stats_avanzadas')){
+      if(datos.respuestas.length) html += evolucion(datos.respuestas) + temasAcierto(tests, preguntas, datos.respuestas);
       // Ranking de temas: % de preguntas dominadas de cada tema (las no hechas cuentan).
       const temaDe = {};
       tests.forEach(t => { temaDe[t.id] = t.tema; });
@@ -142,7 +218,7 @@ const ESTE = (function(){
       });
       const temas = ESP.temas().map((t, i) => porTema[t.clave] ? { nombre: (i + 1) + '. ' + t.titulo, pct: porTema[t.clave].green / porTema[t.clave].total * 100 } : null)
         .filter(Boolean).sort((a, b) => b.pct - a.pct);
-      html += '<div class="ranking-card"><div class="ranking-head"><div class="ranking-title">Ranking de temas</div><div class="ranking-sub">De mejor a peor</div></div>' +
+      html += '<div class="ranking-card"><div class="ranking-head"><div class="ranking-title">Ranking de temas</div><div class="ranking-sub">% dominadas, de mejor a peor</div></div>' +
         '<div class="ranking-list">' + temas.map((t, i) => filaRanking(i, t.nombre, '', t.pct, formatPctExact(t.pct))).join('') + '</div></div>';
 
       // Tests con más preguntas suspendidas (rojas): se abren al pulsarlos.
@@ -173,8 +249,9 @@ const ESTE = (function(){
     document.querySelectorAll('[data-stats-tab]').forEach(b => b.addEventListener('click', () => elegir(b.dataset.statsTab)));
     const r = root();
     if(!r) return;
-    r.addEventListener('click', e => { const f = e.target.closest('[data-este-test]'); if(f) abrirTest(f.dataset.esteTest); });
-    r.addEventListener('keydown', e => { const f = e.target.closest('[data-este-test]'); if(f && e.key === 'Enter') abrirTest(f.dataset.esteTest); });
+    const tema = k => { if(abiertos.has(k)) abiertos.delete(k); else abiertos.add(k); pintar(); };
+    r.addEventListener('click', e => { const f = e.target.closest('[data-este-test]'); if(f) return abrirTest(f.dataset.esteTest); const t = e.target.closest('[data-este-tema]'); if(t) tema(t.dataset.esteTema); });
+    r.addEventListener('keydown', e => { if(e.key !== 'Enter') return; const f = e.target.closest('[data-este-test]'); if(f) return abrirTest(f.dataset.esteTest); const t = e.target.closest('[data-este-tema]'); if(t) tema(t.dataset.esteTema); });
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', enganchar); else enganchar();
 

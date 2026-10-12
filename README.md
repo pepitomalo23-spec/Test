@@ -356,8 +356,9 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   usuario; migración `20261015_especifico_respuestas.sql`): primero en una cola del dispositivo y de ahí a
   Supabase, así sin conexión no se pierde. Estadísticas tiene dos pestañas, Legislación y Específico (esta solo
   con el Específico activado), cada una con lo suyo y sin mezclar: `js/estadisticas-especifico.js` (ESTE)
-  calcula el dominio con las mismas reglas que Legislación, la nota, el ranking de temas y los tests que más
-  fallas (estos dos, con «Estadísticas avanzadas»).
+  calcula el dominio con las mismas reglas que Legislación, la nota, la evolución semanal (preguntas y % de
+  acierto de las últimas 8 semanas), tus temas de peor a mejor por % de acierto (al tocar uno, sus tests), el
+  ranking de temas y los tests que más fallas (estos cuatro, con «Estadísticas avanzadas»).
 - **Pruebas** (`js/pruebas.js`, PRU): el **Simulacro conjunto** (Inicio; con el Específico y el Simulacro activados)
   y los modos del Específico en su **panel de pj.fire** (Estudio › Específico; el botón junto al título cambia entre
   «Panel pj.fire» y «Tests de tutorbomberos», recordado en el dispositivo). Cada modo se configura con las mismas
