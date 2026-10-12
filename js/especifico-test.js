@@ -14,7 +14,8 @@ const ESPT = (function(){
   let modo = 'test', test = null, preguntas = [], resp = {}, abiertas = new Set(), cargando = false, error = '';
   let marcadas = new Set(), marcadasCargadas = false;
   let todasMarcadas = [], filtro = null;   // Preguntas marcadas: todas las cargadas y lo elegido ('todas' o un tema; null = elegir)
-  let sesion = null;         // la prueba de historial de esta vez: { id, inicio, created_at }
+  let sesion = null;
+  let tarea = null, volverA = null;   // si viene de una tarea del calendario: su id y adónde se vuelve         // la prueba de historial de esta vez: { id, inicio, created_at }
   const cache = new Map();   // test_id → preguntas (para no volver a descargarlas)
   const DIF = { facil: 'Fácil', media: 'Media', dificil: 'Difícil' };
 
@@ -51,13 +52,19 @@ const ESPT = (function(){
 
   /* ---------- abrir ---------- */
   function empezar(m){
-    modo = m; preguntas = []; resp = {}; abiertas = new Set(); error = ''; sesion = null;
+    modo = m; preguntas = []; resp = {}; abiertas = new Set(); error = ''; sesion = null; tarea = null; volverA = null;
     enviarRespuestas();   // las que quedaran pendientes de otra vez
     showScreen('screen-esp-test');
     arriba();
   }
-  async function abrir(t){
+  // op (desde el calendario): { tarea, progreso, volver } para seguir por donde se dejó.
+  async function abrir(t, op){
     empezar('test'); test = t;
+    if(op && op.tarea){
+      tarea = op.tarea; volverA = op.volver || null;
+      const p = op.progreso || {};
+      resp = Object.assign({}, p.resp); sesion = p.sesion || null;
+    }
     if(cache.has(t.id)) preguntas = cache.get(t.id);
     else{
       cargando = true; pintar();
@@ -70,7 +77,25 @@ const ESPT = (function(){
       else{ preguntas = r.data || []; cache.set(t.id, preguntas); }
     }
     if(!marcadasCargadas) await cargarMarcadas();
+    if(tarea && !error){
+      // Solo cuentan las preguntas que siguen en el test; se guarda cuántas tiene.
+      Object.keys(resp).forEach(id => { if(!preguntas.some(p => p.id === id)) delete resp[id]; });
+      avisarTarea();
+    }
     pintar();
+    if(tarea) irAPendiente();
+  }
+  // Para la tarea del calendario: lo respondido, cuántas tiene y si ya está todo.
+  function avisarTarea(){
+    if(!tarea || typeof CAL === 'undefined' || !preguntas.length) return;
+    const hechas = preguntas.filter(p => resp[p.id]).length;
+    CAL.guardarProgreso(tarea, { resp: Object.assign({}, resp), sesion, total: preguntas.length }, hechas === preguntas.length);
+  }
+  // Al seguir un test a medias, a la primera pregunta sin responder.
+  function irAPendiente(){
+    const p = preguntas.find(x => !resp[x.id]);
+    const el = p && Object.keys(resp).length ? document.getElementById('espt-' + p.id) : null;
+    if(el) requestAnimationFrame(() => el.scrollIntoView({ block: 'center' }));
   }
   async function abrirMarcadas(){
     empezar('marcadas'); test = null; filtro = null; todasMarcadas = [];
@@ -124,7 +149,8 @@ const ESPT = (function(){
         '<div class="espt-cab"><div class="espt-etiqueta">' + (filtro === 'todas' ? 'Todas juntas' : 'Tema:') + '</div>' +
         (filtro === 'todas' ? '<div class="espt-cab-txt">Todas tus preguntas marcadas, ordenadas por tema y test.</div>' : '<div class="espt-campo">' + escapeHtml(temaDe(filtro)) + '</div>') + '</div>';
     }
-    return '<nav class="espt-migas"><button type="button" data-espt="volver">Específico</button> <span>›</span> <b>Preguntas</b></nav>' +
+    const origen = { 'screen-calendario': 'Calendario', 'screen-inicio': 'Inicio' }[volverA] || 'Específico';
+    return '<nav class="espt-migas"><button type="button" data-espt="volver">' + origen + '</button> <span>›</span> <b>Preguntas</b></nav>' +
       '<h2 class="espt-h">Preguntas del test</h2>' +
       '<div class="espt-cab">' +
         '<div class="espt-etiqueta">Tema:</div><div class="espt-campo">' + escapeHtml(test ? temaDe(test.tema) : '') + '</div>' +
@@ -229,6 +255,7 @@ const ESPT = (function(){
     if(pru && !sesion) sesion = { id: PRU.nuevoId(), inicio: Date.now(), created_at: new Date().toISOString() };
     registrar([{ pregunta_id: id, acierto, prueba_id: sesion ? sesion.id : null }]);
     if(pru) guardarSesion();
+    avisarTarea();
   }
   // El historial: las respondidas, en el orden del test, con su nota (como en las pruebas).
   function guardarSesion(){
@@ -287,7 +314,7 @@ const ESPT = (function(){
     if(!b) return;
     const id = b.dataset.p;
     switch(b.dataset.espt){
-      case 'volver': showScreen('screen-especifico'); break;
+      case 'volver': showScreen(volverA || 'screen-especifico'); break;
       case 'filtro': elegirMarcadas(b.dataset.f || null); break;
       case 'exp':
         if(abiertas.has(id)){ abiertas.delete(id); repintar(id); break; }
@@ -295,7 +322,7 @@ const ESPT = (function(){
         if(!expl.has(id)) explicacion(id).then(() => { if(abiertas.has(id)) repintar(id); });
         break;
       case 'marca': alternarMarca(id); break;
-      case 'reiniciar': resp = {}; abiertas = new Set(); sesion = null; pintar(); arriba(); break;
+      case 'reiniciar': resp = {}; abiertas = new Set(); sesion = null; avisarTarea(); pintar(); arriba(); break;
     }
   }
   const enganchar = () => { const r = root(); if(r) r.addEventListener('click', onClick); };

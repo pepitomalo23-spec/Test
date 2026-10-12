@@ -61,6 +61,13 @@ const INICIO = (function(){
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }
 
+  // Tarea con un test del calendario: lo que lleva y lo que falta.
+  function barraTest(x){
+    if(!x) return '';
+    const pct = x.total ? Math.round(x.hechas / x.total * 100) : 0;
+    return '<span class="ini-tarea-test"><span class="ini-barra"><i style="width:' + pct + '%"></i></span>' +
+      '<span>' + (x.hechas ? x.hechas + '/' + x.total : 'Sin empezar') + '</span></span>';
+  }
   function hoy(){
     const r = typeof CAL !== 'undefined' ? CAL.resumenHoy() : null;
     let cuerpo;
@@ -77,7 +84,8 @@ const INICIO = (function(){
         '<div class="ini-tarea' + (t.hecho ? ' hecha' : '') + '" style="--c:' + t.color + '">' +
           '<button type="button" class="ini-check" data-ini="marcar" data-id="' + esc(t.id) + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' + CHECK + '</button>' +
           '<span class="ini-tarea-txt"><span class="ini-tarea-t">' + esc(t.titulo) + '</span>' +
-            '<span class="ini-tarea-cat">' + t.icono + esc(t.cat) + (t.nota ? ' · ' + esc(t.nota) : '') + '</span></span>' +
+            '<span class="ini-tarea-cat">' + t.icono + esc(t.cat) + (t.nota ? ' · ' + esc(t.nota) : '') + '</span>' + barraTest(t.test) + '</span>' +
+          (t.test ? '<button type="button" class="ini-tarea-ir" data-ini="test" data-id="' + esc(t.id) + '">' + (t.test.total && t.test.hechas >= t.test.total ? 'Repasar' : t.test.hechas ? 'Continuar' : 'Empezar') + '</button>' : '') +
         '</div>').join('');
       const chips = [
         r.racha ? '<span class="ini-chip fuego">' + ICO.llama + '<b>' + r.racha + '</b> ' + (r.racha === 1 ? 'día' : 'días') + ' de racha</span>' : '',
@@ -145,6 +153,7 @@ const INICIO = (function(){
     if(!el || el.disabled) return;
     switch(el.dataset.ini){
       case 'marcar': e.stopPropagation(); CAL.marcar(el.dataset.id); break;
+      case 'test': e.stopPropagation(); CAL.hacerTest(el.dataset.id); break;
       case 'nueva': e.stopPropagation(); CAL.nueva(); break;
       case 'calendario': showScreen('screen-calendario'); break;
       case 'reanudar': resumeQuiz(); break;
