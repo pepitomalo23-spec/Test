@@ -20,6 +20,9 @@ const PRU = (function(){
   const MODOS = {
     'conjunto':      { titulo: 'Simulacro conjunto', corto: 'Simulacro conjunto', largo: 'Simulacro conjunto', legis: true, vista: 'lista', temas: true, flags: ['especifico', 'simulacro'], volver: 'screen-inicio',
                        cuantas: N_SIM, minutos: [15, 30, 45, 60, 90, 120], def: [40, 60] },
+    // El del formato del examen de verdad (js/examen.js): todas las leyes y todo el Específico, reloj fijo y la penalización que se haya puesto.
+    'oficial':       { titulo: 'Simulacro oficial', corto: 'Simulacro oficial', largo: 'Simulacro oficial', legis: true, oficial: true, vista: 'lista', flags: ['especifico', 'simulacro'], volver: 'screen-inicio',
+                       cuantas: [0], minutos: [0], def: [100, 120] },
     'esp-estudio':   { titulo: 'Estudio', corto: 'Estudio', largo: 'Estudio del Específico', vista: 'tarjeta', temas: true, flags: ['especifico'], volver: 'screen-especifico',
                        cuantas: PREGUNTAS_OPTIONS.map(v => v || 0), minutos: MINUTOS_OPTIONS.map(v => v || 0), def: [0, 0] },
     'esp-fallos':    { titulo: 'Fallos', corto: 'Fallos', largo: 'Fallos del Específico', vista: 'tarjeta', falladas: true, flags: ['especifico', 'fallos'], volver: 'screen-especifico', cuantas: [0], minutos: [0], def: [0, 0] },
@@ -161,15 +164,19 @@ const PRU = (function(){
     rellenar(''); DIFS.forEach(([k]) => rellenar(k));
     return r;
   }
+  // Cuántas de Legislación (l) y del Específico (e), con el % pedido; lo que no llega de una parte sale de la otra.
+  function reparto(total, pct, nl, ne){
+    let l = nl && ne ? Math.round(total * pct / 100) : nl ? total : 0;
+    let e = total - l;
+    if(l > nl){ e += l - nl; l = nl; }
+    if(e > ne){ l = Math.min(nl, l + e - ne); e = ne; }
+    return { l, e };
+  }
   function plan(){
     const pe = poolEsp();
     const pl = m().legis ? QUESTIONS_POOL.filter(q => cfg.legis.has(q.topic_id)) : [];
     const ne = pe.length, nl = pl.length;
-    const total = cfg.cuantas || (ne + nl);
-    let l = m().legis ? (nl && ne ? Math.round(total * cfg.pct / 100) : nl ? total : 0) : 0;
-    let e = total - l;
-    if(l > nl){ e += l - nl; l = nl; }
-    if(e > ne){ l = Math.min(nl, l + e - ne); e = ne; }
+    const { l, e } = m().legis ? reparto(cfg.cuantas || (ne + nl), cfg.pct, nl, ne) : { l: 0, e: Math.min(ne, cfg.cuantas || ne) };
     return { l, e, nl, ne, pe, pl, dif: repartoDif(e, pe) };
   }
   async function abrirConfig(modo){
@@ -474,27 +481,59 @@ const PRU = (function(){
     if(!p.l && !p.e) return;
     b.disabled = true; b.textContent = 'Preparando…';
     try{
-      const legis = barajar(p.pl).slice(0, p.l);
-      const ids = elegirEsp(p.pe, p.e, p.dif).map(x => x.id);
-      const esp = ids.length ? await preguntasEsp(ids) : [];
-      let items = legis.map(q => itemLegis(q)).concat(esp.filter(x => (x.opciones || []).length).map(x => itemEsp(x, meta.tests)));
-      items = barajar(items);
-      est = { modo: cfg.modo, diseno: MODOS[cfg.modo].legis ? 'pj' : diseno(), items, resp: new Array(items.length).fill(null), vistas: new Array(items.length).fill(false), i: 0,
-        inicio: Date.now(), fin: cfg.minutos ? Date.now() + cfg.minutos * 60000 : null, terminado: false };
-      guardar();
+      await arrancar(cfg.modo, p, cfg.minutos);
       cerrarConfig();
-      mostrar();
     }catch(e){
       uiToast('No se pudo preparar: ' + (e.message || e), 'error');
       pintarPie();
     }
+  }
+  async function arrancar(modo, p, minutos, pen){
+    const legis = barajar(p.pl).slice(0, p.l);
+    const ids = elegirEsp(p.pe, p.e, p.dif).map(x => x.id);
+    const esp = ids.length ? await preguntasEsp(ids) : [];
+    let items = legis.map(q => itemLegis(q)).concat(esp.filter(x => (x.opciones || []).length).map(x => itemEsp(x, meta.tests)));
+    items = barajar(items);
+    est = { modo, diseno: MODOS[modo].legis ? 'pj' : diseno(), items, resp: new Array(items.length).fill(null), vistas: new Array(items.length).fill(false), i: 0,
+      inicio: Date.now(), fin: minutos ? Date.now() + minutos * 60000 : null, terminado: false, pen: pen === undefined ? null : pen };
+    guardar();
+    mostrar();
+  }
+  /* ---------- Simulacro oficial (lo abre js/examen.js con los ajustes del examen) ----------
+     a = { preguntas, minutos, penalizacion (null: 1/(opciones-1)), pct_legis }. Entran
+     todas las leyes y todo el Específico; el reloj no se para (ni saliendo de la app). */
+  async function empezarOficial(a){
+    if(!permitido('oficial')) return;
+    const g = guardado();
+    if(g){
+      if(g.modo === 'oficial'){ continuar(); return; }
+      if(!(await uiConfirm('Tienes un «' + MODOS[g.modo].corto + '» a medias.\n\n¿Lo descartas para empezar el simulacro oficial?', { ok: 'Descartar y empezar', danger: true }))) return;
+      borrarGuardado();
+    }
+    if(whenAppDataReady(() => empezarOficial(a))) return;
+    uiToast('Preparando el simulacro…', 'info');
+    try{
+      if(!metaYa()) await refrescarMeta();
+      const temas = new Set(legisTemas().map(t => t.id));
+      const pl = QUESTIONS_POOL.filter(q => temas.has(q.topic_id)), pe = meta.preg;
+      const r = reparto(a.preguntas, a.pct_legis, pl.length, pe.length);
+      if(!r.l && !r.e){ uiToast('No hay preguntas para el simulacro.', 'error'); return; }
+      await arrancar('oficial', Object.assign(r, { pl, pe, dif: null }), a.minutos, a.penalizacion == null ? null : Number(a.penalizacion));
+    }catch(e){ uiToast('No se pudo preparar: ' + (e.message || e), 'error'); }
+  }
+  // Cómo se corrige: cuánto resta cada fallo.
+  function textoPen(pen){
+    if(pen == null) return 'cada fallo resta 1/(opciones − 1)';
+    if(!pen) return 'los fallos no restan';
+    const f = { 0.25: '¼', 0.5: '½' }[pen] || (Math.abs(pen - 1 / 3) < 0.001 ? '⅓' : String(Math.round(pen * 100) / 100).replace('.', ','));
+    return 'cada fallo resta ' + f;
   }
 
   /* ---------- prueba a medias (en el dispositivo) ---------- */
   function guardar(){
     if(!clave() || !est || est.terminado || est.revision) return;
     try{
-      localStorage.setItem(clave(), JSON.stringify({ v: 2, modo: est.modo, inicio: est.inicio, fin: est.fin, i: est.i, resp: est.resp, vistas: est.vistas, blancas: est.blancas || null,
+      localStorage.setItem(clave(), JSON.stringify({ v: 2, modo: est.modo, pen: est.pen, inicio: est.inicio, fin: est.fin, i: est.i, resp: est.resp, vistas: est.vistas, blancas: est.blancas || null,
         items: est.items.map(it => it.k === 'l' ? { k: 'l', id: it.id, orden: it.orden } : { k: 'e', id: it.id }) }));
     }catch(e){}
   }
@@ -534,7 +573,7 @@ const PRU = (function(){
       const keep = rehechos.map((it, i) => it ? i : -1).filter(i => i >= 0);   // las que ya no existen se quitan
       if(!keep.length){ borrarGuardado(); uiToast('Las preguntas de esa prueba ya no existen.', 'info'); return; }
       est = { modo: g.modo, items: keep.map(i => rehechos[i]), resp: keep.map(i => g.resp[i] == null ? null : g.resp[i]),
-        vistas: keep.map(i => !!(g.vistas && g.vistas[i])), blancas: keep.map(i => !!(g.blancas && g.blancas[i])), i: Math.min(g.i || 0, keep.length - 1), inicio: g.inicio, fin: g.fin, terminado: false };
+        vistas: keep.map(i => !!(g.vistas && g.vistas[i])), blancas: keep.map(i => !!(g.blancas && g.blancas[i])), i: Math.min(g.i || 0, keep.length - 1), inicio: g.inicio, fin: g.fin, terminado: false, pen: g.pen === undefined ? null : g.pen };
       mostrar();
       if(est.fin && Date.now() >= est.fin) terminar(true);
     }catch(e){ uiToast('No se pudo recuperar: ' + (e.message || e), 'error'); }
@@ -768,15 +807,16 @@ const PRU = (function(){
   }
 
   /* ---------- corrección y guardado ---------- */
-  function puntos(items, resp){
+  // pen: lo que resta un fallo (null: 1/(opciones-1), como en los simulacros).
+  function puntos(items, resp, pen){
     let p = 0, bien = 0, mal = 0, blanco = 0;
     items.forEach((it, i) => {
       const r = resp[i];
       if(r == null){ blanco++; return; }
       if(r === it.correcta){ bien++; p += 1; }
-      else { mal++; const n = it.opciones.length || 4; p -= n > 1 ? 1 / (n - 1) : 0; }
+      else { mal++; const n = it.opciones.length || 4; p -= pen != null ? pen : n > 1 ? 1 / (n - 1) : 0; }
     });
-    return { total: items.length, bien, mal, blanco, nota: items.length ? Math.max(0, p / items.length * 10) : 0 };
+    return { total: items.length, bien, mal, blanco, netos: Math.round(p * 100) / 100, nota: items.length ? Math.max(0, p / items.length * 10) : 0 };
   }
   async function terminar(porTiempo){
     if(!est || est.terminado) return;
@@ -791,7 +831,8 @@ const PRU = (function(){
     const segundos = Math.round((Math.min(Date.now(), est.fin || Date.now()) - est.inicio) / 1000);
     const parte = k => { const idx = est.items.map((_, i) => i).filter(i => est.items[i].k === k); return { items: idx.map(i => est.items[i]), resp: idx.map(i => est.resp[i]) }; };
     const L = parte('l'), E = parte('e');
-    est.res = { todo: puntos(est.items, est.resp), l: puntos(L.items, L.resp), e: puntos(E.items, E.resp), segundos };
+    const pen = est.pen;
+    est.res = { todo: puntos(est.items, est.resp, pen), l: puntos(L.items, L.resp, pen), e: puntos(E.items, E.resp, pen), segundos, pen };
     if(porTiempo) uiToast('Se acabó el tiempo: corregido.', 'info');
     filtro = 'todas';
     pintarResultado();
@@ -803,7 +844,7 @@ const PRU = (function(){
     if(typeof ESTE !== 'undefined') ESTE.invalidar();
     if(meta) meta.t = 0;
     guardarHistorial({ id: pid, modo: est.modo, nota: Number(est.res.todo.nota.toFixed(2)), segundos,
-      resumen: { todo: est.res.todo, l: est.res.l, e: est.res.e },
+      resumen: { todo: est.res.todo, l: est.res.l, e: est.res.e, pen: est.res.pen },
       preguntas: est.items.map(it => it.k === 'l' ? { k: 'l', id: it.id, orden: it.orden } : { k: 'e', id: it.id }), respuestas: est.resp });
     // Legislación: una sesión «conjunto» con solo sus preguntas (para sus estadísticas y Fallos).
     if(L.items.length && currentUser) await guardarLegis(L, est.res.l, segundos, pid);
@@ -902,10 +943,10 @@ const PRU = (function(){
     if(!lista.length) return cab + '<div class="tree-empty">Todavía no has hecho ninguno.</div>';
     return cab + '<div class="history">' + lista.slice(0, limite || 20).map(h => {
       const r = h.resumen || {}, t = r.todo || {};
-      const partes = h.modo === 'esp-tb' && r.titulo ? '<span class="pru-hist-partes">' + escapeHtml(r.titulo) + '</span>' : h.modo === 'conjunto' ? '<span class="pru-hist-partes">Legislación <b>' + formatNota((r.l || {}).nota || 0) + '</b> · Específico <b>' + formatNota((r.e || {}).nota || 0) + '</b></span>' : '';
+      const partes = h.modo === 'esp-tb' && r.titulo ? '<span class="pru-hist-partes">' + escapeHtml(r.titulo) + '</span>' : MODOS[h.modo].legis ? '<span class="pru-hist-partes">Legislación <b>' + formatNota((r.l || {}).nota || 0) + '</b> · Específico <b>' + formatNota((r.e || {}).nota || 0) + '</b></span>' : '';
       return '<div class="hist-date">' + escapeHtml(formatRelativeDate(h.created_at)) + '</div>' +
-        '<div class="hist-item t-' + (h.modo === 'conjunto' || h.modo === 'esp-simulacro' ? 'simulacro' : h.modo === 'esp-tb' ? 'estudio' : h.modo.replace('esp-', '')) + '" role="button" tabindex="0" data-pru-hist="' + h.id + '">' +
-          '<div class="hist-icon">' + (ICONS[h.modo === 'conjunto' ? 'simulacro' : h.modo === 'esp-tb' ? 'doc' : h.modo.replace('esp-', '')] || ICONS.simulacro) + '</div>' +
+        '<div class="hist-item t-' + (MODOS[h.modo].legis || h.modo === 'esp-simulacro' ? 'simulacro' : h.modo === 'esp-tb' ? 'estudio' : h.modo.replace('esp-', '')) + '" role="button" tabindex="0" data-pru-hist="' + h.id + '">' +
+          '<div class="hist-icon">' + (ICONS[MODOS[h.modo].legis ? 'simulacro' : h.modo === 'esp-tb' ? 'doc' : h.modo.replace('esp-', '')] || ICONS.simulacro) + '</div>' +
           '<div class="hist-content"><div class="hist-top"><div class="hist-title">' + MODOS[h.modo].corto + partes + '</div>' +
             '<div class="hist-top-right"><div class="hist-score">Nota <b>' + formatNota(Number(h.nota)) + '</b></div>' +
             (String(h.id).startsWith('local-') ? '' : '<button class="hist-delete-btn" type="button" aria-label="Borrar" title="Borrar" data-pru-borrar="' + h.id + '">' + ICONS.trash + '</button>') + '</div></div>' +
@@ -958,6 +999,7 @@ const PRU = (function(){
     historial = (historial || []).filter(h => h.id !== id);
     if($('screen-pru-config').classList.contains('active')) pintarConfig();
     if(typeof ESP !== 'undefined' && $('screen-especifico').classList.contains('active')) ESP.repintar();
+    if(typeof EXA !== 'undefined') EXA.repintar();
   }
 
   function pintarResultado(){
@@ -972,7 +1014,9 @@ const PRU = (function(){
     $('pruCuerpo').innerHTML =
       '<div class="result-hero"><div class="result-label">' + M.largo + ' · ' + (est.fecha ? escapeHtml(formatRelativeDate(est.fecha)) + ' · ' : '') + formatMMSS(r.segundos || 0) + '</div>' +
         '<div class="result-score">' + formatNota(todo.nota) + '<span>/10</span></div>' +
-        '<div class="simc-sub">' + todo.bien + ' aciertos · ' + todo.mal + ' fallos · ' + todo.blanco + ' en blanco</div></div>' +
+        '<div class="simc-sub">' + todo.bien + ' aciertos · ' + todo.mal + ' fallos · ' + todo.blanco + ' en blanco</div>' +
+        (M.oficial ? '<div class="simc-oficial"><span class="simc-veredicto ' + (todo.nota >= 5 ? 'ok' : 'mal') + '">' + (todo.nota >= 5 ? 'Aprobado' : 'Suspenso') + '</span>' +
+          (todo.netos != null ? '<span>' + String(todo.netos).replace('.', ',') + ' puntos netos de ' + todo.total + '</span>' : '') + '<span>' + textoPen(r.pen) + '</span></div>' : '') + '</div>' +
       (M.legis ? '<div class="simc-partes">' + caja('Legislación', r.l, 'legis') + caja('Específico', r.e, 'esp') + '</div>' : '') +
       (est.items.length ? '<div class="simc-filtros">' + filtros.map(([k, t]) =>
         '<button type="button" class="admin-tab' + (filtro === k ? ' active' : '') + '" data-pru-filtro="' + k + '">' + t + '</button>').join('') + '</div>' +
@@ -1077,9 +1121,9 @@ const PRU = (function(){
       case 'blanco':
         if(!est.blancas) est.blancas = new Array(est.items.length).fill(false);
         est.blancas[est.i] = true; est.expAbierta = false; pintarTarjeta(); contador(); break;
-      case 'salir': showScreen(M.volver); break;   // queda guardada: se sigue después
+      case 'salir': showScreen(M.volver); if(M.oficial && est.fin) uiToast('El reloj sigue corriendo: puedes seguir desde Inicio.', 'info'); break;   // queda guardada: se sigue después
       case 'volver': { const v = M.volver; est = null; showScreen(v); break; }
-      case 'otro': { const modo = est.modo, v = M.volver; est = null; showScreen(v); abrirConfig(modo); break; }
+      case 'otro': { const modo = est.modo, v = M.volver; est = null; showScreen(v); if(M.oficial && typeof EXA !== 'undefined') EXA.simulacro(); else abrirConfig(modo); break; }
     }
   }
   function onKey(e){
@@ -1109,7 +1153,8 @@ const PRU = (function(){
   });
   function reiniciar(){ clearInterval(reloj); est = null; meta = null; cargandoMeta = null; panelMeta = null; historial = null; cfg.legis.clear(); cfg.esp.clear(); }
   return {
-    conjuntoDisponible: () => permitido('conjunto'),
+    conjuntoDisponible: () => permitido('conjunto'), oficialDisponible: () => permitido('oficial'), empezarOficial, textoPen,
+    cargarHistorial: () => cargarHistorial(), revisarHistorial, borrarHistorial,
     abrirConfig, cerrarConfig, empezar, quitarFallos, continuar, aMedias, reiniciar, precargar,
     guardarSesion, historialHtml, nuevoId, cargarHistorialTb: () => cargarHistorial().then(repintarListas).catch(() => {}),
     panelHtml, cargarPanel, onPanelClick, onKey

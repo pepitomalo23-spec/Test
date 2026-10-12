@@ -54,6 +54,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   estadisticas-especifico.js  Estadísticas › pestaña Específico
   pruebas.js         Simulacro conjunto (Inicio) y modos del Específico (panel pj.fire), con su historial
   importar-especifico.js  recibe las preguntas que envía el marcador de tutorbomberos.es
+  examen.js          Tu examen: cuenta atrás de Inicio y formato del Simulacro oficial
   inicio.js          Inicio: lo de hoy, test a medias, accesos rápidos y progreso
   arranque.js        escucha la sesión y arranca la app (siempre el último)
 datos/               datos que la app descarga cuando hacen falta (callejero-temario.json,
@@ -407,6 +408,21 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   hecho y lo que falta; al pulsarlo se abre ese test (`ESPT.abrir`) por donde se dejó. El avance va en la tarea
   (`progreso.porTest[test_id]`: respuestas, total y la prueba del historial), así que sirve en cualquier
   dispositivo; cuando están todos terminados, la tarea queda hecha.
+- También puede llevar un test de Legislación (`legis`, migración `20261025_calendario_legislacion.sql`): leyes,
+  modo (Estudio o Examen) y cuántas preguntas, sin reloj. Se hace con el test de siempre (`js/test.js`); con cada
+  paso, `saveQuizProgress` guarda el intento en la tarea (`legis.run`: preguntas, orden de sus opciones,
+  respuestas y pregunta actual) para seguir en la misma pregunta en cualquier dispositivo, y al finalizar queda
+  terminado (con su nota) y la tarea, hecha. «Volver» lleva a donde se abrió (calendario o Inicio).
+
+## Tu examen
+
+- `js/examen.js` (EXA), tabla `examen_ajustes` (una fila por alumno, privada; migración `20261026_examen_ajustes.sql`).
+- En Inicio, la cuenta atrás («Faltan N días») con el ritmo diario para llegar con todo dominado: lo que no está en
+  verde de Legislación y del Específico, entre los días que quedan. Tocándola se abre la hoja de ajustes.
+- Formato del examen: preguntas, minutos, cuánto resta cada fallo (nada, ¼, ⅓ o 1/(opciones−1)) y el % de
+  Legislación. El **Simulacro oficial** (modo `oficial` de `js/pruebas.js`) lo usa con todas las leyes y todo el
+  Específico; el reloj no se para aunque se salga, y la corrección da la nota, aprobado o suspenso y los puntos
+  netos. Va al historial de pruebas, que se ve en la misma hoja.
 
 ## Mnemotecnia
 
