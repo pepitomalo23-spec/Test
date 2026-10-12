@@ -19,6 +19,21 @@ if('serviceWorker' in navigator && (location.protocol === 'https:' || location.h
     }
     if(msg.type === 'open' && msg.url) handleDeepLink(msg.url);
   });
+  // Al abrir la app y cada vez que vuelve a primer plano (en el móvil a
+  // menudo no se recarga), se pide al service worker que mire si hay una
+  // versión nueva; se le dicen los css/js que usa esta página para que
+  // avise también si ya está descargada pero aún no se ha recargado.
+  let ultimaComprobacion = 0;
+  const comprobarActualizacion = () => {
+    const sw = navigator.serviceWorker.controller;
+    if(!sw || updateToastShown || Date.now() - ultimaComprobacion < 60000) return;
+    ultimaComprobacion = Date.now();
+    const archivos = [...document.querySelectorAll('script[src], link[rel="stylesheet"][href]')].map(e => e.src || e.href)
+      .filter(u => u.startsWith(location.origin + '/') && /^\/(css|js)\//.test(new URL(u).pathname));
+    sw.postMessage({ type: 'check-update', archivos });
+  };
+  window.addEventListener('load', () => setTimeout(comprobarActualizacion, 4000));
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) comprobarActualizacion(); });
 }
 
 // Enlaces que abren las notificaciones: ?repaso=1 → Repaso diario,
