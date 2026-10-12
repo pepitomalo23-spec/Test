@@ -479,7 +479,7 @@ const PRU = (function(){
       const esp = ids.length ? await preguntasEsp(ids) : [];
       let items = legis.map(q => itemLegis(q)).concat(esp.filter(x => (x.opciones || []).length).map(x => itemEsp(x, meta.tests)));
       items = barajar(items);
-      est = { modo: cfg.modo, items, resp: new Array(items.length).fill(null), vistas: new Array(items.length).fill(false), i: 0,
+      est = { modo: cfg.modo, diseno: MODOS[cfg.modo].legis ? 'pj' : diseno(), items, resp: new Array(items.length).fill(null), vistas: new Array(items.length).fill(false), i: 0,
         inicio: Date.now(), fin: cfg.minutos ? Date.now() + cfg.minutos * 60000 : null, terminado: false };
       guardar();
       cerrarConfig();
@@ -569,7 +569,8 @@ const PRU = (function(){
     $('pruCabecera').classList.remove('hidden');
     $('pruTiempo').classList.toggle('hidden', !est.fin);
     $('pruCabecera').querySelector('[data-pru="terminar"]').classList.remove('ready');
-    if(MODOS[est.modo].vista === 'tarjeta') pintarTarjeta();
+    if(est.diseno === 'tb') pintarTb();
+    else if(MODOS[est.modo].vista === 'tarjeta') pintarTarjeta();
     else {
       $('pruCuerpo').innerHTML = est.items.map((it, i) =>
         '<div class="quiz-list-item simc-item" data-i="' + i + '">' + (MODOS[est.modo].legis ? etiqueta(it) : '') +
@@ -606,6 +607,70 @@ const PRU = (function(){
     return '<div class="explain-body"><div class="explain-section-head"><div class="explain-section-label"><span class="explain-icon-badge">' + ICONS.bulb + '</span><span>Explicación</span></div></div>' +
       '<div class="explain-text">' + (explicacion(it) || 'Sin explicación.') + '</div></div>';
   }
+  /* ---------- diseño de tutorbomberos (elegido en el panel) ----------
+     Las preguntas del Específico todas seguidas, con el aspecto de los tests
+     de tutorbomberos (js/especifico-test.js y su CSS): franja de dificultad,
+     letras a), b)…, «?» para la explicación y la estrella para marcarla. */
+  const DISENO = 'pj_esp_diseno';
+  function diseno(){ try{ return localStorage.getItem(DISENO) === 'tb' ? 'tb' : 'pj'; }catch(e){ return 'pj'; } }
+  const ICO_TB = {
+    exp: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#5cb85c"/><path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="#fff"/></svg>',
+    marca: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#e8574b"/><path d="m12 5.6 1.9 3.9 4.3.6-3.1 3 .7 4.3L12 15.4l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="#fff"/></svg>',
+    estrella: '<svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" fill="#f5c518"/></svg>'
+  };
+  const letraTb = j => String.fromCharCode(97 + j);
+  function preguntaTb(it, i){
+    const r = est.resp[i], inmediata = MODOS[est.modo].vista === 'tarjeta', corregida = inmediata && r != null;
+    const ops = it.opciones.map((_, j) => {
+      let tick = '<span class="espt-tick"></span>', cls = 'espt-op';
+      if(corregida){
+        if(j === it.correcta){ tick = '<span class="espt-tick bien">✓</span>'; cls += r === j ? ' acierto' : ' era'; }
+        else if(j === r){ tick = '<span class="espt-tick mal">✗</span>'; cls += ' fallo'; }
+      } else if(r === j) cls += ' elegida';
+      return '<button type="button" class="' + cls + '" data-pru-r="' + i + '" data-j="' + j + '"' + (corregida ? ' disabled' : '') + '>' + tick +
+        '<span class="espt-letra">' + letraTb(j) + '</span><span class="espt-op-txt">' + opcion(it, j) + '</span></button>';
+    }).join('');
+    const marcada = typeof ESPT !== 'undefined' && ESPT.estaMarcada(it.id);
+    const dif = ['facil', 'media', 'dificil'].includes(it.dif) ? it.dif : 'nd';
+    return '<article class="espt-preg dif-' + dif + '" id="pru-tb-' + i + '">' +
+      (marcada ? '<span class="espt-estrella" title="Marcada">' + ICO_TB.estrella + '</span>' : '') +
+      '<div class="espt-iconos">' +
+        (corregida && it.explicacion !== '' ? '<button type="button" data-pru-tb="exp" data-i="' + i + '" title="Ver explicación" aria-label="Ver explicación">' + ICO_TB.exp + '</button>' : '') +
+        '<button type="button" data-pru-tb="marca" data-i="' + i + '" title="' + (marcada ? 'Quitar de Preguntas marcadas' : 'Guardar en Preguntas marcadas') + '" aria-label="Marcar pregunta">' + ICO_TB.marca + '</button>' +
+      '</div>' +
+      '<div class="espt-enunciado">' + (i + 1) + 'ª- ' + enunciado(it) + '</div>' +
+      '<div class="espt-ops">' + ops + '</div>' +
+      (corregida && r !== it.correcta ? '<div class="espt-correcta">La correcta es la <b>' + letraTb(it.correcta) + ')</b></div>' : '') +
+      (corregida && est.tbExp && est.tbExp[i] ? '<div class="espt-exp">' + (explicacion(it) || 'Sin explicación.') + '</div>' : '') +
+      '</article>';
+  }
+  function pintarTb(quieto){
+    const M = MODOS[est.modo], inmediata = M.vista === 'tarjeta';
+    // Las estrellas de las marcadas: si aún no se tienen, se piden y se vuelve a pintar.
+    if(!quieto && typeof ESPT !== 'undefined' && ESPT.numMarcadas() == null)
+      ESPT.cargarMarcadas().then(() => { if(est && est.diseno === 'tb' && !est.terminado && $('screen-pru').classList.contains('active')) pintarTb(true); });
+    $('pruCuerpo').innerHTML = '<div class="pru-tb">' +
+      '<h2 class="espt-h">' + escapeHtml(M.largo) + '</h2>' +
+      '<div class="espt-cab"><div class="espt-etiqueta">Prueba:</div><div class="espt-campo">' + escapeHtml(M.corto) + ' · ' + est.items.length + ' preguntas</div>' +
+        '<div class="espt-etiqueta">Cómo funciona:</div><div class="espt-campo">' + (inmediata ? 'Cada pregunta se corrige al responderla.' : 'Elige tus respuestas; se corrige todo al terminar.') + '</div></div>' +
+      '<div class="espt-lista">' + est.items.map(preguntaTb).join('') + '</div>' +
+      '<div class="espt-pie"><span data-pru-tb-pie></span><button type="button" class="pru-tb-fin" data-pru="terminar">Terminar</button></div></div>';
+    pieTb();
+    if(!quieto) arriba();
+  }
+  function pieTb(){
+    const el = document.querySelector('[data-pru-tb-pie]');
+    if(!el) return;
+    const n = est.items.length, hechas = est.resp.filter(r => r != null).length;
+    if(MODOS[est.modo].vista !== 'tarjeta'){ el.textContent = hechas + ' de ' + n + ' respondidas'; return; }
+    const bien = est.items.filter((it, i) => est.resp[i] === it.correcta).length;
+    el.textContent = hechas + ' de ' + n + ' respondidas · ' + bien + (bien === 1 ? ' acierto' : ' aciertos') + ' · ' + (hechas - bien) + (hechas - bien === 1 ? ' fallo' : ' fallos');
+  }
+  function repintarTb(i){
+    const el = $('pru-tb-' + i);
+    if(el) el.outerHTML = preguntaTb(est.items[i], i);
+    pieTb();
+  }
   function pintarTarjeta(){
     const i = est.i, it = est.items[i], n = est.items.length;
     if(!est.blancas) est.blancas = new Array(n).fill(false);
@@ -635,6 +700,7 @@ const PRU = (function(){
     guardar();
   }
   function contador(){
+    if(est.diseno === 'tb'){ $('pruContador').textContent = est.resp.filter(r => r != null).length + ' / ' + est.items.length; return; }
     if(MODOS[est.modo].vista === 'tarjeta'){ $('pruContador').textContent = (est.i + 1) + ' / ' + est.items.length; return; }
     $('pruContador').textContent = est.resp.filter(r => r != null).length + ' / ' + est.items.length;
   }
@@ -653,6 +719,13 @@ const PRU = (function(){
   }
   function responder(i, j){
     if(!est || est.terminado || est.revision) return;
+    if(est.diseno === 'tb'){
+      // Estudio y Fallos: una respuesta, corregida al momento. Simulacro y Examen: se elige (y se cambia) y se corrige al final.
+      if(MODOS[est.modo].vista === 'tarjeta'){ if(est.resp[i] != null) return; est.resp[i] = j; est.vistas[i] = true; }
+      else est.resp[i] = est.resp[i] === j ? null : j;
+      repintarTb(i); guardar(); contador();
+      return;
+    }
     if(MODOS[est.modo].vista === 'tarjeta'){
       if(est.resp[i] != null || (est.blancas && est.blancas[i])) return;   // una sola respuesta
       est.resp[i] = j;
@@ -669,7 +742,7 @@ const PRU = (function(){
     const tarjeta = MODOS[est.modo].vista === 'tarjeta';
     const quedan = tarjeta ? est.items.filter((_, i) => est.resp[i] == null && !(est.blancas && est.blancas[i])).length : est.resp.filter(r => r == null).length;
     const ok = await uiConfirm(!quedan ? '¿Terminar?' : tarjeta
-      ? 'Te quedan ' + quedan + (quedan === 1 ? ' pregunta' : ' preguntas') + ' por responder. ¿Terminar ya?\n\nSolo cuentan las que has visto.'
+      ? 'Te quedan ' + quedan + (quedan === 1 ? ' pregunta' : ' preguntas') + ' por responder. ¿Terminar ya?\n\nSolo cuentan las que has ' + (est.diseno === 'tb' ? 'respondido.' : 'visto.')
       : 'Te quedan ' + quedan + (quedan === 1 ? ' pregunta en blanco' : ' preguntas en blanco') + '. ¿Finalizar?', { ok: 'Terminar' });
     if(ok) terminar(false);
   }
@@ -923,6 +996,9 @@ const PRU = (function(){
     const nm = typeof ESPT !== 'undefined' ? ESPT.numMarcadas() : null;
     return (g ? '<button type="button" class="ini-continuar" data-pru="continuar"><span class="ini-continuar-txt"><b>Continuar ' + escapeHtml(MODOS[g.modo].corto.toLowerCase()) + '</b><span>' + g.hechas + ' de ' + g.total + ' respondidas</span></span><span class="ini-flecha">›</span></button>' : '') +
       '<div class="modes pru-modos">' + cards + '</div>' +
+      '<div class="pru-diseno"><span class="pru-diseno-t">Diseño de las preguntas</span><div class="param-seg">' +
+        [['pj', 'pj.fire'], ['tb', 'tutorbomberos']].map(([k, t]) => '<span class="param-opt' + (diseno() === k ? ' selected' : '') + '" role="button" tabindex="0" data-pru-diseno="' + k + '">' + t + '</span>').join('') +
+      '</div></div>' +
       '<button type="button" class="esp-marcadas pru-marcadas" data-marcadas="1"><span class="esp-marcadas-ico"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17l-5.9 3.3 1.3-6.5L2.5 9.3l6.6-.8z"/></svg></span><span class="esp-marcadas-txt"><b>Preguntas marcadas</b><span>' +
         (nm == null ? 'Las que guardas con la estrella' : nm ? nm + (nm === 1 ? ' pregunta guardada' : ' preguntas guardadas') : 'Todavía no has guardado ninguna') + '</span></span><span class="esp-marcadas-flecha">›</span></button>' +
       historialHtml(Object.keys(ICO_MODO).concat('esp-tb'), 10);
@@ -936,8 +1012,9 @@ const PRU = (function(){
     if(typeof ESP !== 'undefined') ESP.repintar();
   }
   function onPanelClick(e){
-    const t = e.target.closest('[data-pru-modo],[data-pru-hist],[data-pru-borrar],[data-pru="continuar"]');
+    const t = e.target.closest('[data-pru-modo],[data-pru-hist],[data-pru-borrar],[data-pru="continuar"],[data-pru-diseno]');
     if(!t) return false;
+    if(t.dataset.pruDiseno){ try{ localStorage.setItem(DISENO, t.dataset.pruDiseno); }catch(err){} if(typeof ESP !== 'undefined') ESP.repintar(); return true; }
     if(t.dataset.pruBorrar){ e.stopPropagation(); borrarHistorial(t.dataset.pruBorrar); return true; }
     if(t.dataset.pruHist){ revisarHistorial(t.dataset.pruHist); return true; }
     if(t.dataset.pru === 'continuar'){ continuar(); return true; }
@@ -949,6 +1026,13 @@ const PRU = (function(){
   function onClick(e){
     const r = e.target.closest('[data-pru-r]');
     if(r){ responder(Number(r.dataset.pruR), Number(r.dataset.j)); return; }
+    const tb = e.target.closest('[data-pru-tb]');
+    if(tb && est){
+      const i = Number(tb.dataset.i), it = est.items[i];
+      if(tb.dataset.pruTb === 'exp'){ est.tbExp = est.tbExp || {}; est.tbExp[i] = !est.tbExp[i]; repintarTb(i); }
+      else if(tb.dataset.pruTb === 'marca') ESPT.alternarMarca(it.id).then(() => repintarTb(i));
+      return;
+    }
     const f = e.target.closest('[data-pru-filtro]');
     if(f){ filtro = f.dataset.pruFiltro; pintarResultado(); return; }
     const b = e.target.closest('[data-pru]');
