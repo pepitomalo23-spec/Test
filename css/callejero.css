@@ -871,3 +871,16 @@
   .cj-fallado .cj-hoy-btn.cj-fallos-btn{ border-color: rgba(242,102,92,.5); background: rgba(242,102,92,.1); }
   .cj-fallado .cj-fallos-btn .cj-hoy-play{ background: var(--coral); }
   .cj-fallos-reset{ display:block; margin:6px 0 0 auto; color: var(--muted); }
+
+/* «Lugares importantes»: qué tipo de lugares preguntar */
+.cj-grupos-lista{ display:flex; flex-direction:column; border:1px solid var(--line); border-radius:14px; overflow:hidden; background: var(--card); }
+.cj-grupo{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; border:0; border-bottom:1px solid var(--line); background:none; color: var(--text); font:inherit; font-size:15px; text-align:left; cursor:pointer; }
+.cj-grupo:last-child{ border-bottom:0; }
+.cj-grupo:first-child{ font-weight:700; }
+.cj-grupo b{ font-size:13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cj-grupo:hover, .cj-grupo.on{ background: color-mix(in srgb, var(--teal) 12%, transparent); }
+.cj-grupo.on b{ color: var(--teal); }
+/* Láminas: el botón, solo en el mapa libre; en la hoja, cada opción con su explicación */
+.cj-lamina-ctl{ display:none; }
+#screen-callejero.cj-libre .cj-lamina-ctl{ display:block; }
+.cj-grupo small{ display:block; margin-top:3px; font-size:12.5px; font-weight:400; color: var(--muted); }

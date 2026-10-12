@@ -7,12 +7,14 @@
    solo al abrir esta pantalla, y el service worker lo guarda para
    poder jugar sin conexión.
    Leaflet (el mapa) también se carga solo al abrir la pantalla.
-   Tres estilos de mapa, a elegir con el botón de arriba a la derecha (se
+   Cuatro estilos de mapa, a elegir con el botón de arriba a la derecha (se
    recuerda en el dispositivo). Ninguno tiene nombres que den pistas:
      - Sencillo: solo el trazado de las vías y el Guadalquivir, con los
        colores del tema. Funciona sin conexión.
      - Plano: el mismo trazado con colores de plano (calles blancas con
        borde, avenidas y carreteras en amarillo, río azul).
+     - Plano bonito: como el Plano, con edificios, parques, agua y tren de
+       OpenStreetMap debajo (capaOsm). Sin conexión, una vez descargado.
      - Satélite: ortofotos del PNOA (Instituto Geográfico Nacional,
        CC BY 4.0) con las vías encima, finas. Necesita conexión. Solo se
        ve la del último vuelo (servicio de ortofotos provisionales: 2025
@@ -49,7 +51,8 @@
                  opciones. Los cruces y las paralelas se calculan con el
                  trazado oficial (ver crucesDe y paralelasDe).
      - lugares:  se da un lugar importante (hospital, colegio...) y hay
-                 que tocarlo en el mapa.
+                 que tocarlo en el mapa. Se elige qué tipo (o todos) y, al
+                 responder, se dibuja su edificio (edificioEn).
      - parque:   «¿Qué parque de bomberos acude?», Central o Granadal,
                  para vías y lugares (la línea viene en el archivo; lo que
                  está a menos de 150 m de ella no se pregunta).
@@ -98,7 +101,11 @@ const CJ = (function(){
   const PNOA_RECIENTE = 'https://wms-pnoa.idee.es/pnoa-provisionales';
   const PNOA_WMS = 'https://www.ign.es/wms-inspire/pnoa-ma';
   const ATRIBUCION_PNOA = 'Ortofoto: <a href="https://pnoa.ign.es/" target="_blank" rel="noopener">PNOA</a> (vuelo más reciente) © Instituto Geográfico Nacional (CC BY 4.0)';
-  const ESTILOS = { sencillo: 'Sencillo', plano: 'Plano', satelite: 'Satélite' };
+  const ESTILOS = { sencillo: 'Sencillo', plano: 'Plano', bonito: 'Plano bonito', satelite: 'Satélite' };
+  // Lo que el «Plano bonito» dibuja debajo de las calles (edificios, parques,
+  // agua, tren), de OpenStreetMap; lo genera scripts/osm-callejero.mjs.
+  const ARCHIVO_OSM = 'datos/callejero-osm.json?v=5182523724';
+  const ATRIBUCION_OSM = 'Edificios, parques y agua: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
   const ESTILO_KEY = 'cj_estilo_mapa';
   // En el estilo Plano estas vías se pintan como las principales (amarillas).
   const TIPOS_PRINCIPALES = new Set(['AVENIDA', 'CARRETERA', 'AUTOVIA', 'RONDA', 'PASEO', 'BULEVAR', 'VIA', 'ENLACE']);
@@ -770,6 +777,7 @@ const CJ = (function(){
     mapa.addControl(crearControlEstilo());
     mapa.addControl(crearControlCompleta());
     mapa.addControl(crearControlMarcar());
+    mapa.addControl(crearControlLamina());
     L.control.zoom({ position: 'topright' }).addTo(mapa);
     pintarMarcado();
     prepararAtribucion();
@@ -825,6 +833,314 @@ const CJ = (function(){
   function reescalar(){
     [capaRio, ...Object.values(capas || {})].forEach(c => { if(c && mapa.hasLayer(c)) ajustarGrosor(c); });
     [capaMarcas, capaProfesor, capaZona].forEach(g => { if(g) ajustarGrosor(g); });
+  }
+
+  /* ---------- Plano bonito: edificios, parques, agua y tren (OpenStreetMap) ----------
+     Se pintan en trozos de lienzo (como las fotos del satélite), debajo de
+     las calles: así no hay decenas de miles de polígonos en el mapa y al
+     moverse va fluido. Cada polígono se guarda en coordenadas de Mercator
+     (0 a 1) y en las casillas de una rejilla (las del zoom 14) por las que
+     pasa, para pintar en cada trozo solo lo suyo. Se descarga la primera vez
+     que hace falta (el service worker lo guarda para usarlo sin conexión). */
+  const OSM_Z = 14, OSM_CASILLAS = 1 << OSM_Z;
+  const OSM_COLORES = {
+    verde: { relleno: '#c8e0ad', borde: '#b3d192' },
+    deporte: { relleno: '#bfe0b4', borde: '#9ccf8f' },
+    agua: { relleno: '#a9d4f2', borde: '#93c6ea' },
+    edificios: { relleno: '#ddd3c4', borde: '#c4b6a2' },
+    tren: { linea: '#9b9187' }
+  };
+  let osm = null, cargandoOsm = null, capaOsm = null;
+  const mercX = lng => (lng + 180) / 360;
+  const mercY = lat => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2; };
+  function decodificarOsm(doc){
+    const rejilla = new Map(), grandes = [];
+    const meter = (f, capa) => {
+      f.capa = capa;
+      const c0 = Math.floor(f.x0 * OSM_CASILLAS), c1 = Math.floor(f.x1 * OSM_CASILLAS), f0 = Math.floor(f.y0 * OSM_CASILLAS), f1 = Math.floor(f.y1 * OSM_CASILLAS);
+      if((c1 - c0 + 1) * (f1 - f0 + 1) > 64){ grandes.push(f); return; }
+      for(let cx = c0; cx <= c1; cx++) for(let cy = f0; cy <= f1; cy++){
+        const k = cx * OSM_CASILLAS + cy;
+        let l = rejilla.get(k); if(!l) rejilla.set(k, l = []); l.push(f);
+      }
+    };
+    const anillo = d => {
+      const out = new Float64Array(d.length);
+      let x = 0, y = 0;
+      for(let k = 0; k < d.length; k += 2){ x += d[k]; y += d[k + 1]; out[k] = mercX(x / 1e5); out[k + 1] = mercY(y / 1e5); }
+      return out;
+    };
+    const caja = (f, rs) => {
+      f.x0 = f.y0 = 1; f.x1 = f.y1 = 0;
+      rs.forEach(r => { for(let k = 0; k < r.length; k += 2){ if(r[k] < f.x0) f.x0 = r[k]; if(r[k] > f.x1) f.x1 = r[k]; if(r[k + 1] < f.y0) f.y0 = r[k + 1]; if(r[k + 1] > f.y1) f.y1 = r[k + 1]; } });
+      return f;
+    };
+    const capas = doc.capas || {};
+    ['verde', 'deporte', 'agua', 'edificios'].forEach(k => (capas[k] || []).forEach(p => { const rs = p.map(anillo); meter(caja({ anillos: rs }, rs), k); }));
+    (capas.tren || []).forEach(l => { const r = anillo(l); meter(caja({ linea: r }, [r]), 'tren'); });
+    return { rejilla, grandes, edificios: (capas.edificios || []).length };
+  }
+  function cargarOsm(){
+    if(osm) return Promise.resolve(osm);
+    if(!cargandoOsm) cargandoOsm = fetch(ARCHIVO_OSM).then(r => { if(!r.ok) throw new Error('No se pudo descargar el plano (' + r.status + ')'); return r.json(); })
+      .then(doc => (osm = decodificarOsm(doc))).finally(() => { cargandoOsm = null; });
+    return cargandoOsm;
+  }
+  // Lo que cae en un rectángulo (en Mercator), cada cosa una vez, por capas en orden de pintado.
+  function osmEn(x0, y0, x1, y1){
+    const vistos = new Set(), por = { verde: [], deporte: [], agua: [], edificios: [], tren: [] };
+    const mira = f => { if(vistos.has(f) || f.x1 < x0 || f.x0 > x1 || f.y1 < y0 || f.y0 > y1) return; vistos.add(f); por[f.capa].push(f); };
+    osm.grandes.forEach(mira);
+    const c0 = Math.max(0, Math.floor(x0 * OSM_CASILLAS)), c1 = Math.floor(x1 * OSM_CASILLAS), f0 = Math.max(0, Math.floor(y0 * OSM_CASILLAS)), f1 = Math.floor(y1 * OSM_CASILLAS);
+    for(let cx = c0; cx <= c1; cx++) for(let cy = f0; cy <= f1; cy++){ const l = osm.rejilla.get(cx * OSM_CASILLAS + cy); if(l) l.forEach(mira); }
+    return por;
+  }
+  // Pinta en un lienzo lo que cae en [x0, y0] con escala px por unidad de Mercator.
+  function pintarOsm(ctx, x0, y0, escala, ancho, alto, z){
+    const por = osmEn(x0, y0, x0 + ancho / escala, y0 + alto / escala);
+    const trazo = r => { ctx.moveTo((r[0] - x0) * escala, (r[1] - y0) * escala); for(let k = 2; k < r.length; k += 2) ctx.lineTo((r[k] - x0) * escala, (r[k + 1] - y0) * escala); };
+    ['verde', 'deporte', 'agua', 'edificios'].forEach(k => {
+      if(k === 'edificios' && z < 13) return;   // de muy lejos los edificios son polvo
+      const c = OSM_COLORES[k];
+      ctx.fillStyle = c.relleno; ctx.strokeStyle = c.borde;
+      ctx.lineWidth = k === 'edificios' ? (z >= 17 ? 1 : 0.6) : 1;
+      por[k].forEach(f => {
+        ctx.beginPath();
+        f.anillos.forEach(r => { trazo(r); ctx.closePath(); });
+        ctx.fill('evenodd');
+        if(z >= 15 || k !== 'edificios') ctx.stroke();
+      });
+    });
+    if(por.tren.length){
+      ctx.strokeStyle = OSM_COLORES.tren.linea; ctx.lineWidth = z >= 16 ? 3 : 2; ctx.lineCap = 'butt';
+      ctx.setLineDash(z >= 15 ? [8, 6] : [5, 4]);
+      ctx.beginPath(); por.tren.forEach(f => trazo(f.linea)); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+  function crearCapaOsm(){
+    const Capa = L.GridLayer.extend({
+      createTile(coords){
+        const t = document.createElement('canvas'), tam = this.getTileSize(), dpr = Math.min(2, window.devicePixelRatio || 1);
+        t.width = tam.x * dpr; t.height = tam.y * dpr;
+        if(osm){
+          const ctx = t.getContext('2d');
+          ctx.scale(dpr, dpr);
+          const escala = tam.x * Math.pow(2, coords.z);
+          pintarOsm(ctx, coords.x * tam.x / escala, coords.y * tam.y / escala, escala, tam.x, tam.y, coords.z);
+        }
+        return t;
+      }
+    });
+    return new Capa({ tileSize: 256, updateWhenZooming: false, keepBuffer: 4, attribution: ATRIBUCION_OSM, className: 'cj-capa-osm' });
+  }
+  // El edificio (o la instalación deportiva) de OpenStreetMap donde está un
+  // punto (o el más cercano a menos de 20 m), para dibujar su contorno al
+  // resolver un lugar. null si no hay o no se ha cargado.
+  function edificioEn(lat, lng){
+    if(!osm) return null;
+    const x = mercX(lng), y = mercY(lat);
+    const dentro = r => { let d = false; for(let i = 0, j = r.length - 2; i < r.length; j = i, i += 2){ if((r[i + 1] > y) !== (r[j + 1] > y) && x < (r[j] - r[i]) * (y - r[i + 1]) / (r[j + 1] - r[i + 1]) + r[i]) d = !d; } return d; };
+    // Metros por unidad de Mercator a esta latitud.
+    const m = 40075016.7 * Math.cos(lat * Math.PI / 180), r20 = 20 / m;
+    const por = osmEn(x - r20, y - r20, x + r20, y + r20);
+    let f = por.edificios.find(f => f.anillos.some(dentro)) || por.deporte.find(f => f.anillos.some(dentro));
+    // Si no cae dentro (el punto suele estar en la acera, en la puerta), el edificio más cercano a menos de 20 m.
+    if(!f){
+      const dseg = (ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy; const t = l ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l)) : 0; return Math.hypot(x - ax - t * dx, y - ay - t * dy); };
+      let mejor = r20;
+      por.edificios.forEach(g => g.anillos.forEach(r => { for(let i = 0, j = r.length - 2; i < r.length; j = i, i += 2){ const d = dseg(r[j], r[j + 1], r[i], r[i + 1]); if(d < mejor){ mejor = d; f = g; } } }));
+    }
+    if(!f) return null;
+    const aLatLng = r => { const out = []; for(let k = 0; k < r.length; k += 2) out.push([Math.atan(Math.sinh(Math.PI * (1 - 2 * r[k + 1]))) * 180 / Math.PI, r[k] * 360 - 180]); return out; };
+    return f.anillos.map(aLatLng);
+  }
+
+  /* ---------- láminas para imprimir o guardar ----------
+     Una imagen grande (PNG) del barrio o distrito marcado (o de la zona
+     elegida; si no hay, de lo que se ve) en el estilo «Plano bonito»: con
+     los nombres de las calles y de los lugares para estudiar, o sin nombres
+     para practicar en papel. La zona se ve entera y lo de fuera, atenuado. */
+  const ICONO_LAMINA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>';
+  function crearControlLamina(){
+    const Control = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd: function(){
+        const div = L.DomUtil.create('div', 'cj-lamina-ctl');
+        div.innerHTML = '<button type="button" class="cj-completa-boton" aria-label="Descargar lámina" title="Descargar lámina">' + ICONO_LAMINA + '</button>';
+        L.DomEvent.disableClickPropagation(div);
+        div.querySelector('button').addEventListener('click', e => { L.DomEvent.stop(e); elegirLamina(); });
+        return div;
+      }
+    });
+    return new Control();
+  }
+  // Qué sale en la lámina: { titulo, barrios (o null), caja (L.LatLngBounds) }.
+  function areaLamina(){
+    const m = marcadoValido();
+    const bs = m ? barriosDeMarcado(m) : barriosDeZona();
+    if(bs.length) return { titulo: m ? nombreMarcado(m) : nombreZona(), barrios: bs, caja: L.latLngBounds(bs.flatMap(b => b.anillos.flat())).pad(0.04) };
+    return { titulo: 'Córdoba · lo que se ve en el mapa', barrios: null, caja: mapa.getBounds() };
+  }
+  function elegirLamina(){
+    const a = areaLamina();
+    const bg = document.createElement('div');
+    bg.className = 'cal-hoja-bg';
+    bg.innerHTML = '<div class="cal-hoja cj-grupos" style="--c: var(--teal)" role="dialog" aria-modal="true" aria-label="Descargar lámina">' +
+      '<div class="cal-hoja-top"><div class="cal-hoja-asa"></div><div class="cal-hoja-cab"><span class="cal-hoja-ico">' + ICONO_LAMINA + '</span>' +
+        '<div class="cal-hoja-tit"><h3>Lámina para imprimir</h3><div class="cal-hoja-sub">' + escapeHtml(a.titulo) + '</div></div>' +
+        '<button type="button" class="cal-x" data-l="x" aria-label="Cerrar">✕</button></div></div>' +
+      '<div class="cal-hoja-cuerpo"><div class="cj-grupos-lista">' +
+        '<button type="button" class="cj-grupo" data-l="si"><span>Con nombres<small>Para estudiar: calles y lugares con su nombre</small></span></button>' +
+        '<button type="button" class="cj-grupo" data-l="no"><span>Sin nombres<small>Para practicar: escribe tú el nombre de cada calle</small></span></button>' +
+      '</div><div class="cal-hasta-res">' + (a.barrios ? 'Sale el barrio o distrito entero.' : 'Sale lo que ves ahora en el mapa. Para un barrio o distrito entero, márcalo con el botón de la chincheta.') + '</div></div></div>';
+    const fin = () => { bg.remove(); document.removeEventListener('keydown', tecla, true); };
+    const tecla = e => { if(e.key === 'Escape'){ e.stopPropagation(); fin(); } };
+    bg.addEventListener('click', e => {
+      if(e.target === bg) return fin();
+      const b = e.target.closest('[data-l]');
+      if(!b) return;
+      fin();
+      if(b.dataset.l !== 'x') hacerLamina(a, b.dataset.l === 'si');
+    });
+    document.addEventListener('keydown', tecla, true);
+    document.body.appendChild(bg);
+    requestAnimationFrame(() => bg.classList.add('on'));
+  }
+  async function hacerLamina(a, conNombres){
+    uiToast('Preparando la lámina…', 'info');
+    try{ await cargarOsm(); }catch(e){ uiToast('No se pudo descargar el plano: ' + (e.message || e), 'error'); return; }
+    const W = 2400, CAB = 150, PIE = 70, MAXH = 3300;
+    let x0 = mercX(a.caja.getWest()), x1 = mercX(a.caja.getEast()), y0 = mercY(a.caja.getNorth()), y1 = mercY(a.caja.getSouth());
+    let escala = W / (x1 - x0);
+    if((y1 - y0) * escala > MAXH){ escala = MAXH / (y1 - y0); const sobra = (W / escala - (x1 - x0)) / 2; x0 -= sobra; x1 += sobra; }
+    const H = Math.round((y1 - y0) * escala);
+    const z = Math.log2(escala / 256);
+    const mPorU = 40075016.7 * Math.cos(CENTRO[0] * Math.PI / 180);   // metros por unidad de Mercator
+    const px = metros => metros * escala / mPorU;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = CAB + H + PIE;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
+    // Mapa
+    ctx.save();
+    ctx.translate(0, CAB);
+    ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
+    ctx.fillStyle = '#f4efe6'; ctx.fillRect(0, 0, W, H);
+    pintarOsm(ctx, x0, y0, escala, W, H, Math.max(13, z));
+    const P = ([la, ln]) => [(mercX(ln) - x0) * escala, (mercY(la) - y0) * escala];
+    const linea = (lineas, color, ancho) => {
+      ctx.strokeStyle = color; ctx.lineWidth = ancho; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      lineas.forEach(l => l.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }));
+      ctx.stroke();
+    };
+    if(datos.rio.length) linea(datos.rio, '#a9d4f2', Math.max(6, px(50)));
+    const cajaV = a.caja.pad(0.05);
+    const dentroCaja = v => !(v.caja.n < cajaV.getSouth() || v.caja.s > cajaV.getNorth() || v.caja.e < cajaV.getWest() || v.caja.o > cajaV.getEast());
+    const vs = datos.vias.filter(dentroCaja);
+    const princ = vs.filter(v => TIPOS_PRINCIPALES.has(v.tipo)).flatMap(v => v.lineas), resto = vs.filter(v => !TIPOS_PRINCIPALES.has(v.tipo)).flatMap(v => v.lineas);
+    linea(resto, '#d6ccbb', Math.max(3.5, px(7)));
+    linea(princ, '#e0a463', Math.max(5, px(12)));
+    linea(resto, '#ffffff', Math.max(2, px(5)));
+    linea(princ, '#f8cf98', Math.max(3.5, px(9)));
+    // Fuera de la zona, atenuado; la zona, con su borde.
+    if(a.barrios){
+      ctx.beginPath(); ctx.rect(0, 0, W, H);
+      a.barrios.forEach(b => b.anillos.forEach(r => r.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); })));
+      ctx.fillStyle = 'rgba(255,255,255,0.62)'; ctx.fill('evenodd');
+      ctx.setLineDash([14, 10]);
+      a.barrios.forEach(b => linea(b.anillos, '#e2574c', 4));
+      ctx.setLineDash([]);
+    }
+    // Lugares: un punto (y su nombre, si van nombres).
+    const enArea = (la, ln) => !a.barrios || a.barrios.some(b => dentroDeBarrio(la, ln, b));
+    const lugs = datos.lugares.filter(l => a.caja.contains([l.lat, l.lng]) && enArea(l.lat, l.lng));
+    // Nombres: el de cada calle una vez, en su tramo más largo, sin taparse.
+    const ocupado = [];
+    const libre = r => !ocupado.some(o => r.x0 < o.x1 && r.x1 > o.x0 && r.y0 < o.y1 && r.y1 > o.y0) && r.x0 >= 0 && r.y0 >= 0 && r.x1 <= W && r.y1 <= H;
+    // Primero se reserva el sitio de los lugares (su punto y su nombre): tienen prioridad sobre los de las calles.
+    const tamL = Math.round(Math.max(13, Math.min(19, W / 140))), etiquetas = [];
+    lugs.forEach(l => {
+      const [x, y] = P([l.lat, l.lng]);
+      ocupado.push({ x0: x - 11, x1: x + 11, y0: y - 11, y1: y + 11 });
+      if(!conNombres) return;
+      ctx.font = '700 ' + tamL + 'px Inter, system-ui, sans-serif';
+      const w = ctx.measureText(l.nombre).width;
+      // A la derecha del punto o, si no cabe, a la izquierda.
+      for(const lado of [1, -1]){
+        const r = lado > 0 ? { x0: x + 12, x1: x + 16 + w, y0: y - tamL * 0.7, y1: y + tamL * 0.7 } : { x0: x - 16 - w, x1: x - 12, y0: y - tamL * 0.7, y1: y + tamL * 0.7 };
+        if(libre(r)){ ocupado.push(r); etiquetas.push({ nombre: l.nombre, x: lado > 0 ? x + 14 : x - 14, y, lado }); break; }
+      }
+    });
+    if(conNombres){
+      const tam = Math.round(Math.max(15, Math.min(24, W / 110)));
+      const porNombre = new Map();
+      vs.forEach(v => { if(!porNombre.has(v.nombre)) porNombre.set(v.nombre, []); porNombre.get(v.nombre).push(v); });
+      const candidatos = [];
+      porNombre.forEach((lista, nombre) => {
+        let mejor = null;
+        lista.forEach(v => v.lineas.forEach(l => { for(let i = 0; i < l.length - 1; i++){
+          const [ax, ay] = P(l[i]), [bx, by] = P(l[i + 1]), d = Math.hypot(bx - ax, by - ay);
+          if(!enArea((l[i][0] + l[i + 1][0]) / 2, (l[i][1] + l[i + 1][1]) / 2)) continue;
+          if(!mejor || d > mejor.d) mejor = { d, ax, ay, bx, by };
+        } }));
+        if(mejor) candidatos.push(Object.assign(mejor, { nombre, princ: TIPOS_PRINCIPALES.has(lista[0].tipo), total: lista.reduce((n, v) => n + v.lineas.length, 0) }));
+      });
+      candidatos.sort((p, q) => (q.princ - p.princ) || (q.d - p.d));
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+      candidatos.forEach(c => {
+        const f = (c.princ ? 600 : 500) + ' ' + (c.princ ? tam + 2 : tam) + 'px Inter, system-ui, sans-serif';
+        ctx.font = f;
+        let ang = Math.atan2(c.by - c.ay, c.bx - c.ax);
+        if(ang > Math.PI / 2) ang -= Math.PI; if(ang < -Math.PI / 2) ang += Math.PI;
+        const w = ctx.measureText(c.nombre).width, h = tam * 1.2;
+        // Si no cabe a lo largo de su tramo, se escribe igual pero solo si no tapa nada (y en horizontal si el tramo es corto).
+        if(w > c.d * 1.6) ang = 0;
+        const cx = (c.ax + c.bx) / 2, cy = (c.ay + c.by) / 2;
+        const ex = Math.abs(Math.cos(ang)) * w / 2 + Math.abs(Math.sin(ang)) * h / 2, ey = Math.abs(Math.sin(ang)) * w / 2 + Math.abs(Math.cos(ang)) * h / 2;
+        const r = { x0: cx - ex, x1: cx + ex, y0: cy - ey, y1: cy + ey };
+        if(!libre(r)) return;
+        ocupado.push(r);
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang);
+        ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.strokeText(c.nombre, 0, 0);
+        ctx.fillStyle = '#2f2a24'; ctx.fillText(c.nombre, 0, 0);
+        ctx.restore();
+      });
+    }
+    lugs.forEach(l => {
+      const [x, y] = P([l.lat, l.lng]);
+      ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2);
+      ctx.fillStyle = '#14b8a6'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
+    });
+    ctx.font = '700 ' + tamL + 'px Inter, system-ui, sans-serif'; ctx.textBaseline = 'middle';
+    etiquetas.forEach(e => {
+      ctx.textAlign = e.lado > 0 ? 'left' : 'right';
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.strokeText(e.nombre, e.x, e.y);
+      ctx.fillStyle = '#0f766e'; ctx.fillText(e.nombre, e.x, e.y);
+    });
+    ctx.restore();
+    // Cabecera y pie
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#1d1b19'; ctx.font = '800 58px Inter, system-ui, sans-serif';
+    ctx.fillText(a.titulo, 60, 82);
+    ctx.fillStyle = '#7a7268'; ctx.font = '500 30px Inter, system-ui, sans-serif';
+    ctx.fillText(conNombres ? 'Callejero de Córdoba · con nombres' : 'Callejero de Córdoba · escribe el nombre de cada calle', 60, 124);
+    ctx.font = '400 20px Inter, system-ui, sans-serif';
+    ctx.fillText('pj.fire · Calles: CDAU, Junta de Andalucía (CC BY 4.0) · Lugares: DERA (IECA) y OpenStreetMap · Edificios, parques y agua: © colaboradores de OpenStreetMap (ODbL)', 60, CAB + H + 44);
+    const nombreArchivo = 'lamina-' + normalizar(a.titulo).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + (conNombres ? '' : '-sin-nombres') + '.png';
+    const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+    if(!blob){ uiToast('No se pudo crear la imagen.', 'error'); return; }
+    const archivo = new File([blob], nombreArchivo, { type: 'image/png' });
+    // En el móvil, el menú de compartir (guardar en Fotos, imprimir…); si no, se descarga.
+    if(navigator.canShare && navigator.canShare({ files: [archivo] }) && matchMedia('(pointer: coarse)').matches){
+      try{ await navigator.share({ files: [archivo], title: a.titulo }); return; }catch(e){ if(e && e.name === 'AbortError') return; }
+    }
+    const url = URL.createObjectURL(blob), enlace = document.createElement('a');
+    enlace.href = url; enlace.download = nombreArchivo;
+    document.body.appendChild(enlace); enlace.click(); enlace.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    uiToast('Lámina descargada', 'success');
   }
 
   /* ---------- satélite ---------- */
@@ -1149,6 +1465,13 @@ const CJ = (function(){
         restoBorde: { color: '#cbc2b0', weight: 5, metros: 7, opacity: 1 }, resto: { color: '#ffffff', weight: 3, metros: 5, opacity: 1 },
         princBorde: { color: '#d9a93a', weight: 7, metros: 12, opacity: 1 }, princ: { color: '#fbd96b', weight: 4.5, metros: 9, opacity: 1 }
       },
+      // Como el Plano, con edificios, parques, agua y tren debajo (capaOsm), en colores suaves.
+      bonito: {
+        fondo: '#f4efe6', foto: false, osm: true,
+        rio: { color: '#a9d4f2', weight: 11, metros: 50, opacity: 1 },
+        restoBorde: { color: '#d6ccbb', weight: 5, metros: 7, opacity: 1 }, resto: { color: '#ffffff', weight: 3, metros: 5, opacity: 1 },
+        princBorde: { color: '#e0a463', weight: 7, metros: 12, opacity: 1 }, princ: { color: '#f8cf98', weight: 4.5, metros: 9, opacity: 1 }
+      },
       // En el satélite, finas (una raya por el centro de la calle) para no tapar la foto.
       satelite: {
         fondo: '#1b1d1a', foto: true, rio: null,
@@ -1166,6 +1489,12 @@ const CJ = (function(){
     };
     if(S.foto){ if(!mapa.hasLayer(capaFoto)){ capaFondo.addTo(mapa); capaFoto.addTo(mapa); mapa.whenReady(empezarGuardado); } }
     else if(mapa.hasLayer(capaFoto)){ mapa.removeLayer(capaFoto); mapa.removeLayer(capaFondo); }
+    if(S.osm){
+      if(!capaOsm) capaOsm = crearCapaOsm();
+      if(!mapa.hasLayer(capaOsm)) capaOsm.addTo(mapa);
+      if(!osm) cargarOsm().then(() => { if(capaOsm) capaOsm.redraw(); }).catch(e => uiToast(e.message || String(e), 'error'));
+    }
+    else if(capaOsm && mapa.hasLayer(capaOsm)) mapa.removeLayer(capaOsm);
     ponerNotaSatelite();
     // Orden de abajo arriba: río, bordes, rellenos y, encima de todo, las marcas.
     [capaRio, capas.restoBorde, capas.princBorde, capas.resto, capas.princ, capaMarcado, capaProfesor, capaLugares, capaPuntos, capaMarcas].forEach(c => { if(c && mapa.hasLayer(c)) mapa.removeLayer(c); });
@@ -2887,7 +3216,8 @@ const CJ = (function(){
       return sinRepetirNombre(ordenarPorRepaso(pool, v => v.id, m), n, preguntaEnBarrio);
     }
     if(m === 'lugares'){
-      const lugares = datos.lugares.filter(enZonaLugar);
+      const g = GRUPOS_LUGARES.find(x => x.k === grupoLugares);
+      const lugares = datos.lugares.filter(enZonaLugar).filter(l => !g || g.cats.includes(l.categoria));
       return sinRepetirNombre(ordenarPorRepaso(lugares, l => -l.id, m), n, l => ({ lugar: l, id: -l.id, etiqueta: 'Localiza · ' + l.categoria, texto: l.nombre, nombre: l.nombre }));
     }
     if(m === 'parque'){
@@ -2901,7 +3231,36 @@ const CJ = (function(){
     return [];
   }
 
-  async function empezar(m){
+  // «Lugares importantes»: todos o solo un tipo (los grupos de Aprender). '' = todos.
+  let grupoLugares = '';
+  function elegirGrupoLugares(){
+    const cuantos = g => datos.lugares.filter(enZonaLugar).filter(l => !g || g.cats.includes(l.categoria)).length;
+    const total = cuantos(null);
+    const ops = [['', 'Todos los lugares', total]].concat(GRUPOS_LUGARES.map(g => [g.k, g.titulo, cuantos(g)])).filter(o => o[2]);
+    if(ops.length <= 2) return Promise.resolve('');
+    return new Promise(resolve => {
+      const bg = document.createElement('div');
+      bg.className = 'cal-hoja-bg';
+      bg.innerHTML = '<div class="cal-hoja cj-grupos" style="--c: var(--teal)" role="dialog" aria-modal="true" aria-label="¿Qué lugares?">' +
+        '<div class="cal-hoja-top"><div class="cal-hoja-asa"></div><div class="cal-hoja-cab"><span class="cal-hoja-ico">' + svgIcono(ICONOS.lugares) + '</span>' +
+          '<div class="cal-hoja-tit"><h3>Lugares importantes</h3><div class="cal-hoja-sub">¿Cuáles te pregunto?</div></div>' +
+          '<button type="button" class="cal-x" data-g="x" aria-label="Cerrar">✕</button></div></div>' +
+        '<div class="cal-hoja-cuerpo"><div class="cj-grupos-lista">' + ops.map(([k, t, n]) =>
+          '<button type="button" class="cj-grupo' + (k === grupoLugares ? ' on' : '') + '" data-g="' + k + '"><span>' + escapeHtml(t) + '</span><b>' + n.toLocaleString('es-ES') + '</b></button>').join('') +
+        '</div></div></div>';
+      const fin = v => { bg.remove(); document.removeEventListener('keydown', tecla, true); resolve(v); };
+      const tecla = e => { if(e.key === 'Escape'){ e.stopPropagation(); fin(null); } };
+      bg.addEventListener('click', e => {
+        if(e.target === bg) return fin(null);
+        const b = e.target.closest('[data-g]');
+        if(b) fin(b.dataset.g === 'x' ? null : b.dataset.g);
+      });
+      document.addEventListener('keydown', tecla, true);
+      document.body.appendChild(bg);
+      requestAnimationFrame(() => bg.classList.add('on'));
+    });
+  }
+  async function empezar(m, grupo){
     m = MODOS[m] ? m : 'localiza';
     try{
       await Promise.all([cargarLeaflet(), cargarDatos()]);
@@ -2912,6 +3271,13 @@ const CJ = (function(){
     if(m === 'lugares' && !datos.lugares.length){ uiToast('Todavía no hay lugares importantes publicados.', 'info'); return; }
     if(m === 'parque' && !datos.lineaParques){ uiToast('Todavía no está publicada la zona de cada parque.', 'info'); return; }
     actualizarFiltro();
+    // Lugares, sin tarea ni repaso guiado: se elige qué tipo (o todos).
+    if(m === 'lugares'){
+      if(grupo === undefined) grupo = tareaDeZona() || limiteRonda || limiteZonas ? '' : await elegirGrupoLugares();
+      if(grupo === null) return;
+      grupoLugares = grupo;
+      cargarOsm().catch(() => {});   // para dibujar el edificio al responder
+    }
     if(m === 'nombrar'){ desdeTemario = vistaActual === 'temario'; await empezarNombrar(); return; }
     const preguntas = crearPreguntas(m);
     rondaGuiada = limiteRonda || limiteZonas ? guiaPendiente : null;
@@ -3001,6 +3367,7 @@ const CJ = (function(){
     el('cjOpciones').innerHTML = '';
     const pantalla = document.getElementById('screen-callejero');
     pantalla.classList.toggle('cj-seleccionando', modo === 'seleccion');
+    pantalla.classList.toggle('cj-libre', modo === 'estudio');   // la lámina, solo en el mapa libre
     const nombrando = modo === 'nombrar';
     el('cjContador').classList.toggle('hidden', libre);
     el('cjAciertos').classList.toggle('hidden', libre || nombrando);
@@ -3332,6 +3699,9 @@ const CJ = (function(){
   }
   function mostrarLugar(l, centrar){
     capaMarcas.clearLayers();
+    const ed = edificioEn(l.lat, l.lng);
+    if(ed) L.polygon(ed, { color: '#F2665C', weight: 2.5, fillColor: '#F2665C', fillOpacity: 0.25, interactive: false }).addTo(capaMarcas);
+    else if(!osm) cargarOsm().then(() => { if(infoActual) infoActual(); }).catch(() => {});
     if(l.radio > 20) L.circle([l.lat, l.lng], { radius: l.radio, color: '#F2665C', weight: 3, fillColor: '#F2665C', fillOpacity: 0.15, interactive: false }).addTo(capaMarcas);
     L.circleMarker([l.lat, l.lng], { radius: 9, color: '#fff', weight: 2, fillColor: '#F2665C', fillOpacity: 1, interactive: false }).addTo(capaMarcas);
     if(centrar) mapa.flyTo([l.lat, l.lng], Math.max(mapa.getZoom(), 16), { duration: 0.7 });
@@ -3675,6 +4045,9 @@ const CJ = (function(){
       const dist = Math.max(0, mapa.distance(latlng, [l.lat, l.lng]) - l.radio);
       const acierto = dist <= Math.max(TOLERANCIA_LUGAR_M, pxEnMetros);
       L.circleMarker(latlng, { radius: 7, color: '#fff', weight: 2, fillColor: acierto ? '#34D399' : '#F2665C', fillOpacity: 1, interactive: false }).addTo(capaMarcas);
+      // Su edificio, si está en el plano de OpenStreetMap.
+      const ed = edificioEn(l.lat, l.lng);
+      if(ed) L.polygon(ed, { color: '#34D399', weight: 2.5, fillColor: '#34D399', fillOpacity: 0.3, interactive: false }).addTo(capaMarcas);
       if(l.radio > 20) L.circle([l.lat, l.lng], { radius: l.radio, color: '#34D399', weight: 3, fillColor: '#34D399', fillOpacity: 0.2, interactive: false }).addTo(capaMarcas);
       else L.circleMarker([l.lat, l.lng], { radius: 11, color: '#34D399', weight: 3, fillColor: '#34D399', fillOpacity: 0.35, interactive: false }).addTo(capaMarcas);
       if(!acierto) verSinAlejar(L.latLngBounds([[l.lat, l.lng], [l.lat, l.lng]]));
@@ -4041,7 +4414,7 @@ const CJ = (function(){
               (m === 'temario' && q.resumen && q.respuesta === 'opciones' ? ' <span class="cj-dir">· ' + escapeHtml(q.resumen) + '</span>' : '') + '</li>').join('') + '</ul>'
           : '<div class="cj-fin-sub">¡Todas bien!</div>') +
         '<div class="cj-fin-actions">' +
-          '<button type="button" class="btn btn-primary btn-light" onclick="' + (mixta ? 'CJ.empezarFallos()' : m === 'temario' ? 'CJ.otraRonda()' : rondaGuiada ? 'CJ.seguirGuiada()' : 'CJ.empezar(\'' + m + '\')') + '">' +
+          '<button type="button" class="btn btn-primary btn-light" onclick="' + (mixta ? 'CJ.empezarFallos()' : m === 'temario' ? 'CJ.otraRonda()' : rondaGuiada ? 'CJ.seguirGuiada()' : 'CJ.empezar(\'' + m + '\'' + (m === 'lugares' ? ', \'' + grupoLugares + '\'' : '') + ')') + '">' +
             (rondaGuiada && rondaGuiada.tipo !== 'nivel' ? 'Seguir repasando' : rondaGuiada ? 'Seguir aprendiendo' : 'Otra ronda') + '</button>' +
           '<button type="button" class="btn btn-ghost" onclick="CJ.salir()">Volver</button>' +
         '</div>' +

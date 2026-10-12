@@ -150,10 +150,24 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   memoria), con la regla de los tests:
   dominada si nunca se ha fallado o si lleva 3 aciertos seguidos. Cada ronda empieza por lo fallado.
 - Cada respuesta lleva un `uid` que pone la app: la cola sin conexión se sube sin duplicar ni perder nada.
+- **Plano bonito**: `datos/callejero-osm.json` (unos 1,2 MB, 380 KB comprimido), generado con
+  `node scripts/osm-callejero.mjs` desde OpenStreetMap (© colaboradores de OpenStreetMap, ODbL; se cita
+  en el mapa y en las láminas). Se dibuja en trozos de lienzo (`L.GridLayer`) debajo de las calles, con
+  una rejilla para pintar en cada trozo solo lo suyo; se descarga la primera vez que hace falta y el
+  service worker lo guarda. Para actualizarlo: volver a ejecutar el script y `node scripts/versionar.mjs`.
+- En «Lugares importantes» se elige qué tipo preguntar (todos o un grupo: salud, colegios, emergencias…;
+  los mismos grupos que en Aprender). Al responder un lugar, y al verlo en el mapa libre, se dibuja su
+  edificio (el de OpenStreetMap donde cae el punto o el más cercano a menos de 20 m).
+- **Láminas** (botón de descarga en el mapa libre): una imagen PNG grande del barrio o distrito marcado
+  (o de la zona; si no hay, de lo que se ve) en el estilo Plano bonito, con los nombres de las calles y
+  de los lugares o sin nombres para practicar en papel. En el móvil se abre el menú de compartir (guardar
+  en Fotos, imprimir…); en el ordenador se descarga.
 - La app descarga un único archivo compacto (almacén público `callejero`, unos 900 KB) solo al
   abrir la pantalla; el service worker lo guarda para jugar sin conexión. El mapa (Leaflet) también
-  se carga solo entonces. Tres estilos de mapa, sin nombres que den pistas: Sencillo y Plano
-  (el trazado de las vías es el mapa, funcionan sin conexión) y Satélite (ortofotos PNOA del
+  se carga solo entonces. Cuatro estilos de mapa, sin nombres que den pistas: Sencillo y Plano
+  (el trazado de las vías es el mapa, funcionan sin conexión), Plano bonito (como el Plano, con
+  edificios, parques, instalaciones deportivas, agua y vías del tren de OpenStreetMap debajo; ver más
+  abajo) y Satélite (ortofotos PNOA del
   Instituto Geográfico Nacional, CC BY 4.0; necesita conexión). En Satélite solo se ve la del último
   vuelo (servicio de ortofotos provisionales, 2024-2025), con el doble de píxeles en pantallas retina;
   la de «máxima actualidad» (más antigua) solo entra en el trozo que falle o tarde más de 12 s. El
