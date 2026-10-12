@@ -566,6 +566,10 @@ const PRU = (function(){
   }
   function mostrar(){
     showScreen('screen-pru');
+    if(typeof ESPT !== 'undefined' && est.items.some(x => x.k === 'e')) ESPT.cargarNotas().then(() => {
+      if(!est || !$('screen-pru').classList.contains('active')) return;
+      if(est.diseno === 'tb' && !est.terminado) pintarTb(true); else if(MODOS[est.modo].vista === 'tarjeta' && !est.terminado) pintarTarjeta();
+    });
     $('pruCabecera').classList.remove('hidden');
     $('pruTiempo').classList.toggle('hidden', !est.fin);
     $('pruCabecera').querySelector('[data-pru="terminar"]').classList.remove('ready');
@@ -604,8 +608,10 @@ const PRU = (function(){
       '</div><hr class="explain-divider">';
   }
   function cuerpoExplicacion(it){
-    return '<div class="explain-body"><div class="explain-section-head"><div class="explain-section-label"><span class="explain-icon-badge">' + ICONS.bulb + '</span><span>Explicación</span></div></div>' +
-      '<div class="explain-text">' + (explicacion(it) || 'Sin explicación.') + '</div></div>';
+    const esp = it.k === 'e' && typeof ESPT !== 'undefined', i = est ? est.items.indexOf(it) : -1;
+    return '<div class="explain-body"><div class="explain-section-head"><div class="explain-section-label"><span class="explain-icon-badge">' + ICONS.bulb + '</span><span>Explicación</span></div>' +
+        (esp && i >= 0 && !ESPT.tieneNota(it.id) ? '<div class="explain-section-actions"><button type="button" class="own-note-btn" data-pru-nota="' + i + '">' + ICONS.pencil + '<span>Nota</span></button></div>' : '') + '</div>' +
+      '<div class="explain-text">' + (explicacion(it) || 'Sin explicación.') + '</div>' + (esp ? ESPT.notaHtml(it.id) : '') + '</div>';
   }
   /* ---------- diseño de tutorbomberos (elegido en el panel) ----------
      Las preguntas del Específico todas seguidas, con el aspecto de los tests
@@ -616,6 +622,7 @@ const PRU = (function(){
   const ICO_TB = {
     exp: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#5cb85c"/><path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="#fff"/></svg>',
     marca: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#e8574b"/><path d="m12 5.6 1.9 3.9 4.3.6-3.1 3 .7 4.3L12 15.4l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="#fff"/></svg>',
+    nota: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#3a8ee6"/><path d="M7.6 16.4l.7-2.9 5.9-5.9 2.2 2.2-5.9 5.9z" fill="#fff"/><path d="M7.4 17.6h9.2" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>',
     estrella: '<svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" fill="#f5c518"/></svg>'
   };
   const letraTb = j => String.fromCharCode(97 + j);
@@ -637,10 +644,12 @@ const PRU = (function(){
       '<div class="espt-iconos">' +
         (corregida && it.explicacion !== '' ? '<button type="button" data-pru-tb="exp" data-i="' + i + '" title="Ver explicación" aria-label="Ver explicación">' + ICO_TB.exp + '</button>' : '') +
         '<button type="button" data-pru-tb="marca" data-i="' + i + '" title="' + (marcada ? 'Quitar de Preguntas marcadas' : 'Guardar en Preguntas marcadas') + '" aria-label="Marcar pregunta">' + ICO_TB.marca + '</button>' +
+        '<button type="button" data-pru-tb="nota" data-i="' + i + '" title="Tu nota (texto o imágenes)" aria-label="Tu nota">' + ICO_TB.nota + '</button>' +
       '</div>' +
       '<div class="espt-enunciado">' + (i + 1) + 'ª- ' + enunciado(it) + '</div>' +
       '<div class="espt-ops">' + ops + '</div>' +
       (corregida && r !== it.correcta ? '<div class="espt-correcta">La correcta es la <b>' + letraTb(it.correcta) + ')</b></div>' : '') +
+      (corregida ? ESPT.notaHtml(it.id) : '') +
       (corregida && est.tbExp && est.tbExp[i] ? '<div class="espt-exp">' + (explicacion(it) || 'Sin explicación.') + '</div>' : '') +
       '</article>';
   }
@@ -1024,6 +1033,13 @@ const PRU = (function(){
     return true;
   }
 
+  // Tras guardar o borrar una nota propia: se vuelve a pintar lo que se esté viendo.
+  function refrescarNota(){
+    if(!est || !$('screen-pru').classList.contains('active')) return;
+    if(est.terminado) pintarResultado();
+    else if(est.diseno === 'tb') pintarTb(true);
+    else if(MODOS[est.modo].vista === 'tarjeta') pintarTarjeta();
+  }
   function onClick(e){
     const r = e.target.closest('[data-pru-r]');
     if(r){ responder(Number(r.dataset.pruR), Number(r.dataset.j)); return; }
@@ -1032,8 +1048,13 @@ const PRU = (function(){
       const i = Number(tb.dataset.i), it = est.items[i];
       if(tb.dataset.pruTb === 'exp'){ est.tbExp = est.tbExp || {}; est.tbExp[i] = !est.tbExp[i]; repintarTb(i); }
       else if(tb.dataset.pruTb === 'marca') ESPT.alternarMarca(it.id).then(() => repintarTb(i));
+      else if(tb.dataset.pruTb === 'nota') ESPT.abrirNota(it.id, () => repintarTb(i));
       return;
     }
+    // La nota propia que se ve en una pregunta del Específico: editarla o ver sus imágenes.
+    if(est && typeof ESPT !== 'undefined' && ESPT.onNotaClick(e, refrescarNota)) return;
+    const nb = e.target.closest('[data-pru-nota]');
+    if(nb && est){ ESPT.abrirNota(est.items[Number(nb.dataset.pruNota)].id, refrescarNota); return; }
     const f = e.target.closest('[data-pru-filtro]');
     if(f){ filtro = f.dataset.pruFiltro; pintarResultado(); return; }
     const b = e.target.closest('[data-pru]');

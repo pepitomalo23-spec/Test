@@ -27,6 +27,7 @@ const ESPT = (function(){
   const ICO = {
     exp: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#5cb85c"/><path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="#fff"/></svg>',
     marca: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#e8574b"/><path d="m12 5.6 1.9 3.9 4.3.6-3.1 3 .7 4.3L12 15.4l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="#fff"/></svg>',
+    nota: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#3a8ee6"/><path d="M7.6 16.4l.7-2.9 5.9-5.9 2.2 2.2-5.9 5.9z" fill="#fff"/><path d="M7.4 17.6h9.2" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>',
     estrella: '<svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" fill="#f5c518"/></svg>'
   };
 
@@ -50,6 +51,117 @@ const ESPT = (function(){
   }
   function numMarcadas(){ return marcadasCargadas ? marcadas.size : null; }
 
+  /* ---------- nota propia de cada pregunta (tabla especifico_notas) ----------
+     Texto y hasta 5 imágenes, aparte de la explicación fija; solo de quien la
+     escribe. Se ve bajo la pregunta una vez respondida y se escribe o cambia
+     en una ventanita (botón del lápiz). La usan también las pruebas de
+     js/pruebas.js. */
+  let notas = new Map(), notasDe = null, cargandoNotas = null;
+  const MAX_IMG = 5;
+  function cargarNotas(){
+    if(!currentUser) return Promise.resolve();
+    if(notasDe === currentUser.id) return Promise.resolve();
+    if(cargandoNotas) return cargandoNotas;
+    cargandoNotas = sb.from('especifico_notas').select('pregunta_id,texto,imagenes').then(({ data, error }) => {
+      if(!error){ notas = new Map((data || []).map(r => [r.pregunta_id, r])); notasDe = currentUser.id; }
+    }).finally(() => { cargandoNotas = null; });
+    return cargandoNotas;
+  }
+  function notaHtml(id){
+    const n = notas.get(id);
+    if(!n) return '';
+    return '<div class="espn-nota"><div class="espn-nota-cab"><span>Tu nota</span><button type="button" data-espn-editar="' + id + '">Editar</button></div>' +
+      (n.texto ? '<div class="espn-nota-txt">' + escapeHtml(n.texto) + '</div>' : '') +
+      ((n.imagenes || []).length ? '<div class="espn-nota-imgs">' + n.imagenes.map(u => '<img src="' + escapeHtml(u) + '" alt="Imagen de tu nota" data-espn-img="' + escapeHtml(u) + '">').join('') + '</div>' : '') +
+      '</div>';
+  }
+  // Clics de la nota que se ve dentro de una pregunta (aquí y en js/pruebas.js).
+  function onNotaClick(e, alCambiar){
+    const ed = e.target.closest('[data-espn-editar]');
+    if(ed){ const id = ed.dataset.espnEditar; abrirNota(id, () => alCambiar && alCambiar(id)); return true; }
+    const im = e.target.closest('[data-espn-img]');
+    if(im){ if(typeof openImageLightbox === 'function') openImageLightbox(im.dataset.espnImg); return true; }
+    return false;
+  }
+  function cerrarNota(){ const v = document.getElementById('espnHoja'); if(v) v.remove(); document.removeEventListener('keydown', teclaNota, true); }
+  function teclaNota(e){ if(e.key === 'Escape'){ e.stopPropagation(); cerrarNota(); } }
+  async function abrirNota(id, alCambiar){
+    await cargarNotas();
+    cerrarNota();
+    const prev = notas.get(id) || { texto: '', imagenes: [] };
+    const st = { imagenes: [...(prev.imagenes || [])], nuevas: [] };   // nuevas: archivos aún sin subir
+    const bg = document.createElement('div');
+    bg.className = 'espn-bg'; bg.id = 'espnHoja';
+    bg.innerHTML = '<div class="espn-hoja" role="dialog" aria-modal="true" aria-label="Tu nota">' +
+      '<div class="espn-cab"><h3>Tu nota</h3><button type="button" class="espn-x" data-n="cerrar" aria-label="Cerrar">✕</button></div>' +
+      '<div class="espn-sub">Lo que quieras añadir a esta pregunta, aparte de la explicación. Solo la ves tú.</div>' +
+      '<textarea class="espn-texto" maxlength="4000" placeholder="Escribe aquí con tus palabras…">' + escapeHtml(prev.texto || '') + '</textarea>' +
+      '<div class="espn-imgs" data-imgs></div>' +
+      '<label class="espn-anadir"><input type="file" accept="image/*" multiple hidden><span>+ Añadir imágenes</span></label>' +
+      '<div class="espn-estado" data-estado></div>' +
+      '<div class="espn-pie">' + (notas.has(id) ? '<button type="button" class="espn-btn peligro" data-n="borrar">Borrar nota</button>' : '') +
+        '<button type="button" class="espn-btn primario" data-n="guardar">Guardar</button></div></div>';
+    document.body.appendChild(bg);
+    const pintaImgs = () => {
+      const urls = st.imagenes.map((u, i) => ({ u, k: 'g' + i })).concat(st.nuevas.map((f, i) => ({ u: f.url, k: 'n' + i })));
+      bg.querySelector('[data-imgs]').innerHTML = urls.map(x => '<div class="espn-img"><img src="' + escapeHtml(x.u) + '" alt=""><button type="button" data-quitar="' + x.k + '" aria-label="Quitar imagen">✕</button></div>').join('');
+      bg.querySelector('.espn-anadir').classList.toggle('hidden', urls.length >= MAX_IMG);
+    };
+    pintaImgs();
+    const estado = t => { bg.querySelector('[data-estado]').textContent = t || ''; };
+    bg.querySelector('input[type=file]').addEventListener('change', e => {
+      const fs = Array.from(e.target.files || []);
+      const caben = MAX_IMG - st.imagenes.length - st.nuevas.length;
+      if(fs.length > caben) uiToast('Caben ' + Math.max(0, caben) + ' imágenes más (máximo ' + MAX_IMG + ').', 'info');
+      fs.slice(0, Math.max(0, caben)).forEach(f => st.nuevas.push({ f, url: URL.createObjectURL(f) }));
+      e.target.value = '';
+      pintaImgs();
+    });
+    const acabar = () => { cerrarNota(); if(alCambiar) alCambiar(); };
+    bg.addEventListener('click', async e => {
+      if(e.target === bg) return cerrarNota();
+      const q = e.target.closest('[data-quitar]');
+      if(q){ const k = q.dataset.quitar; if(k[0] === 'g') st.imagenes.splice(+k.slice(1), 1); else st.nuevas.splice(+k.slice(1), 1); pintaImgs(); return; }
+      const b = e.target.closest('[data-n]');
+      if(!b || b.disabled) return;
+      if(b.dataset.n === 'cerrar') return cerrarNota();
+      if(b.dataset.n === 'borrar'){
+        if(!(await uiConfirm('¿Borrar tu nota de esta pregunta?', { ok: 'Borrar', danger: true }))) return;
+        const { error } = await sb.from('especifico_notas').delete().eq('user_id', currentUser.id).eq('pregunta_id', id);
+        if(error) return uiToast('No se pudo borrar: ' + error.message, 'error');
+        notas.delete(id); uiToast('Nota borrada', 'success'); return acabar();
+      }
+      // Guardar: primero se suben las imágenes nuevas.
+      const texto = bg.querySelector('.espn-texto').value.trim();
+      bg.querySelectorAll('[data-n]').forEach(x => { x.disabled = true; });
+      try{
+        const urls = [...st.imagenes];
+        for(let i = 0; i < st.nuevas.length; i++){
+          estado('Subiendo imagen ' + (i + 1) + ' de ' + st.nuevas.length + '…');
+          urls.push(await uploadOwnNoteImage('esp-' + id, st.nuevas[i].f));
+        }
+        estado('Guardando…');
+        if(!texto && !urls.length){
+          if(notas.has(id)){ const { error } = await sb.from('especifico_notas').delete().eq('user_id', currentUser.id).eq('pregunta_id', id); if(error) throw error; }
+          notas.delete(id);
+        } else {
+          const fila = { pregunta_id: id, texto: texto || null, imagenes: urls, updated_at: new Date().toISOString() };
+          const { error } = await sb.from('especifico_notas').upsert(fila, { onConflict: 'user_id,pregunta_id' });
+          if(error) throw error;
+          notas.set(id, fila);
+        }
+        uiToast('Nota guardada', 'success');
+        acabar();
+      }catch(err){
+        estado('');
+        bg.querySelectorAll('[data-n]').forEach(x => { x.disabled = false; });
+        uiToast('No se pudo guardar la nota: ' + (typeof friendlyUploadErrorMessage === 'function' ? friendlyUploadErrorMessage(err) : (err.message || err)), 'error');
+      }
+    });
+    document.addEventListener('keydown', teclaNota, true);
+    if(!notas.has(id) && matchMedia('(hover: hover)').matches) setTimeout(() => bg.querySelector('.espn-texto').focus(), 50);
+  }
+
   /* ---------- abrir ---------- */
   function empezar(m){
     modo = m; preguntas = []; resp = {}; abiertas = new Set(); error = ''; sesion = null; tarea = null; volverA = null;
@@ -60,6 +172,7 @@ const ESPT = (function(){
   // op (desde el calendario): { tarea, progreso, volver } para seguir por donde se dejó.
   async function abrir(t, op){
     empezar('test'); test = t;
+    cargarNotas().then(() => { if(modo === 'test' && test === t) pintar(); });
     if(op && op.tarea){
       tarea = op.tarea; volverA = op.volver || null;
       const p = op.progreso || {};
@@ -98,6 +211,7 @@ const ESPT = (function(){
   }
   async function abrirMarcadas(){
     empezar('marcadas'); test = null; filtro = null; todasMarcadas = [];
+    cargarNotas().then(() => { if(modo === 'marcadas' && filtro != null) pintar(); });
     cargando = true; pintar();
     const { data, error: e } = await sb.from('especifico_marcadas')
       .select('created_at, especifico_preguntas(id,orden,enunciado,opciones,correcta,tiene_explicacion,dificultad,test_id,especifico_tests(id,titulo,tema,orden))');
@@ -174,10 +288,12 @@ const ESPT = (function(){
       '<div class="espt-iconos">' +
         (p.tiene_explicacion ? '<button type="button" data-espt="exp" data-p="' + p.id + '" title="Ver explicación" aria-label="Ver explicación">' + ICO.exp + '</button>' : '') +
         '<button type="button" data-espt="marca" data-p="' + p.id + '" title="' + (marcadas.has(p.id) ? 'Quitar de Preguntas marcadas' : 'Guardar en Preguntas marcadas') + '" aria-label="Marcar pregunta">' + ICO.marca + '</button>' +
+        '<button type="button" data-espt="nota" data-p="' + p.id + '" title="' + (notas.has(p.id) ? 'Ver o cambiar tu nota' : 'Añadir tu nota (texto o imágenes)') + '" aria-label="Tu nota">' + ICO.nota + '</button>' +
       '</div>' +
       '<div class="espt-enunciado">' + html(p.enunciado) + '</div>' +
       '<div class="espt-ops">' + ops + '</div>' +
       (elegida && elegida !== p.correcta ? '<div class="espt-correcta">La correcta es la <b>' + escapeHtml(p.correcta) + ')</b></div>' : '') +
+      (elegida ? notaHtml(p.id) : '') +
       (abiertas.has(p.id) ? '<div class="espt-exp">' + (expl.has(p.id) ? html(expl.get(p.id)) : '<span class="espt-cargando">Cargando explicación…</span>') + '</div>' : '') +
       '</article>';
   }
@@ -300,6 +416,7 @@ const ESPT = (function(){
   }
 
   function onClick(e){
+    if(onNotaClick(e, id => repintar(id))) return;
     const op = e.target.closest('[data-op]');
     if(op && !op.disabled){
       const p = preguntas.find(x => x.id === op.dataset.p);
@@ -321,6 +438,7 @@ const ESPT = (function(){
         if(!expl.has(id)) explicacion(id).then(() => { if(abiertas.has(id)) repintar(id); });
         break;
       case 'marca': alternarMarca(id); break;
+      case 'nota': abrirNota(id, () => repintar(id)); break;
       case 'reiniciar': resp = {}; abiertas = new Set(); sesion = null; avisarTarea(); pintar(); arriba(); break;
     }
   }
@@ -328,8 +446,8 @@ const ESPT = (function(){
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', enganchar); else enganchar();
 
   // Al cambiar de cuenta, nada de la anterior.
-  function reiniciar(){ marcadas = new Set(); marcadasCargadas = false; cache.clear(); expl.clear(); }
+  function reiniciar(){ notas = new Map(); notasDe = null; marcadas = new Set(); marcadasCargadas = false; cache.clear(); expl.clear(); }
   // También las usa el diseño de tutorbomberos de js/pruebas.js.
   async function alternarMarcaDesde(id){ if(!marcadasCargadas) await cargarMarcadas(); return alternarMarca(id); }
-  return { estaMarcada: id => marcadas.has(id), alternarMarca: alternarMarcaDesde, abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar, olvidarPrueba, explicacion };
+  return { cargarNotas, notaHtml, abrirNota, onNotaClick, tieneNota: id => notas.has(id), estaMarcada: id => marcadas.has(id), alternarMarca: alternarMarcaDesde, abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar, olvidarPrueba, explicacion };
 })();
