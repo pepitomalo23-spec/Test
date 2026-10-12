@@ -148,7 +148,7 @@ const CJ = (function(){
   let datos = null;          // { version, vias: [...], porNombre: Map, jugables: [...] }
   let cargando = null;       // promesa de carga en curso
   let progreso = new Map();  // 'habilidad|id' -> { intentos, aciertos, racha, fallos }
-  let mapa = null, capaMarcas = null, capaRio = null, capaFoto = null, capaPuntos = null;
+  let mapa = null, capaMarcas = null, capaRio = null, capaFoto = null, capaFondo = null, capaPuntos = null;
   // Vías en dos grupos (resto / principales), cada uno con su borde y su relleno.
   let capas = null;          // { restoBorde, resto, princBorde, princ }
   let estilo = 'sencillo';
@@ -753,6 +753,7 @@ const CJ = (function(){
     mapa.attributionControl.setPrefix(false);
     mapa.attributionControl.addAttribution(ATRIBUCION);
     capaFoto = crearCapaFoto();
+    capaFondo = crearCapaFoto(true);
     const linea = lineas => L.polyline(lineas, { renderer, interactive: false, lineCap: 'round', lineJoin: 'round' });
     if(datos.rio.length) capaRio = linea(datos.rio);
     const princ = datos.vias.filter(v => TIPOS_PRINCIPALES.has(v.tipo)).flatMap(v => v.lineas);
@@ -831,7 +832,11 @@ const CJ = (function(){
   // peticiones a un servicio lento) con el doble de píxeles en pantallas
   // retina. Si un trozo falla o tarda más de 12 s, ese trozo se pide a la
   // de «máxima actualidad» (más antigua, pero siempre responde).
-  function crearCapaFoto(){
+  // fondo: la misma ortofoto, pero siempre con los trozos del zoom 13 (toda
+  // Córdoba está guardada en el móvil hasta ese zoom) y debajo de la buena.
+  // Al ampliar o alejar deprisa, mientras llegan los trozos nítidos se ve
+  // esta, algo borrosa, en vez de recuadros negros.
+  function crearCapaFoto(fondo){
     const WMS = L.TileLayer.WMS;
     const Foto = WMS.extend({
       createTile(coords, done){
@@ -860,8 +865,10 @@ const CJ = (function(){
       // guardado en el móvil, así que al soltar ya está).
       updateWhenIdle: false, updateWhenZooming: true, keepBuffer: 3,
       // Con CORS: así el service worker puede guardarlos (ver arriba).
-      crossOrigin: true
+      crossOrigin: true,
+      ...(fondo ? { maxNativeZoom: 13, updateWhenZooming: false, keepBuffer: 8, zIndex: 0, className: 'cj-foto-fondo' } : { zIndex: 1 })
     });
+    if(fondo) return capa;
     capa.on('load', () => { clearTimeout(esperaCerca); esperaCerca = setTimeout(precargarCerca, 300); siguientePedido(); });
     return capa;
   }
@@ -1157,8 +1164,8 @@ const CJ = (function(){
       }
       else if(mapa.hasLayer(capa)) mapa.removeLayer(capa);
     };
-    if(S.foto){ if(!mapa.hasLayer(capaFoto)){ capaFoto.addTo(mapa); mapa.whenReady(empezarGuardado); } }
-    else if(mapa.hasLayer(capaFoto)) mapa.removeLayer(capaFoto);
+    if(S.foto){ if(!mapa.hasLayer(capaFoto)){ capaFondo.addTo(mapa); capaFoto.addTo(mapa); mapa.whenReady(empezarGuardado); } }
+    else if(mapa.hasLayer(capaFoto)){ mapa.removeLayer(capaFoto); mapa.removeLayer(capaFondo); }
     ponerNotaSatelite();
     // Orden de abajo arriba: río, bordes, rellenos y, encima de todo, las marcas.
     [capaRio, capas.restoBorde, capas.princBorde, capas.resto, capas.princ, capaMarcado, capaProfesor, capaLugares, capaPuntos, capaMarcas].forEach(c => { if(c && mapa.hasLayer(c)) mapa.removeLayer(c); });
