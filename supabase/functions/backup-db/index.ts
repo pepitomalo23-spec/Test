@@ -46,7 +46,7 @@ const TABLES = [
   "nq_sets", "nq_cards", "nq_user_progress",
   "boe_normas_seguimiento", "boe_bloques_seguimiento", "boe_cambios",
   "app_settings", "device_sync_state", "tutorias", "questions_deleted",
-  "calendario_tareas", "historial_pruebas",
+  "calendario_tareas", "historial_pruebas", "examen_ajustes",
   "especifico_tests", "especifico_respuestas", "especifico_marcadas", "especifico_descartadas", "especifico_notas",
   "callejero_publicado", "callejero_cambios", "callejero_fallos_reinicio", "callejero_intentos", "callejero_mensajes",
   "callejero_notas", "callejero_tareas", "callejero_tareas_hechas", "callejero_temario_preguntas", "callejero_vueltas",

@@ -89,3 +89,33 @@ button.ini-prog-fila:hover{ background: var(--card-hi); }
 /* Cada tarea de Hoy abre su ventanita */
 .ini-tarea{ cursor:pointer; transition: background .12s; }
 .ini-tarea:hover{ background: color-mix(in srgb, var(--card-hi) 70%, var(--line)); }
+
+/* Tu examen (js/examen.js): cuenta atrás con el ritmo diario */
+.exa-tarjeta{ width:100%; display:flex; align-items:flex-start; gap:16px; padding:16px 18px; margin-bottom:14px; text-align:left; font:inherit; color: var(--text);
+  background: var(--card); border:1px solid var(--line); border-radius:20px; cursor:pointer; }
+.exa-tarjeta.exa-sin{ align-items:center; }
+.exa-ico{ width:44px; height:44px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; background: color-mix(in srgb, var(--coral) 16%, transparent); color: var(--coral); }
+.exa-ico svg{ width:20px; height:20px; }
+.exa-cuenta{ width:64px; flex-shrink:0; padding:10px 0 8px; border-radius:16px; background: var(--coral); color:#fff; display:flex; flex-direction:column; align-items:center; line-height:1;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--coral) 30%, transparent); }
+.exa-cuenta b{ font-size:26px; font-weight:800; font-variant-numeric: tabular-nums; }
+.exa-cuenta span{ font-size:11px; font-weight:700; margin-top:4px; text-transform:uppercase; letter-spacing:.05em; opacity:.9; }
+.exa-tarjeta.pasado .exa-cuenta{ background: var(--muted); box-shadow:none; }
+.exa-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.exa-txt > b{ font-size:15.5px; }
+.exa-txt > span{ font-size:12.5px; color: var(--muted); }
+.exa-ritmo{ margin-top:8px; padding-top:8px; border-top:1px solid var(--line); font-size:13px; line-height:1.45; color: var(--text); }
+.exa-ritmo span{ display:block; font-size:12px; color: var(--muted); margin-top:2px; }
+.exa-sim{ align-self:flex-start; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:10px; padding:8px 14px; border-radius:99px; border:1.5px solid var(--coral); background:none; color: var(--coral); font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+.exa-sim:hover{ background: color-mix(in srgb, var(--coral) 10%, transparent); }
+/* Hoja de ajustes */
+.exa-fecha{ display:flex; gap:8px; align-items:center; }
+.exa-fecha .cal-in{ flex:1; }
+.exa-otro{ width:84px; padding:8px 10px; border-radius:99px; text-align:center; }
+.exa-rango{ width:100%; accent-color: var(--coral); }
+.exa-nota{ line-height:1.45; }
+.exa-hist{ margin-top:6px; }
+/* Resultado del Simulacro oficial */
+.simc-oficial{ display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:6px 12px; margin-top:10px; font-size:12.5px; color: var(--muted); }
+.simc-veredicto{ padding:3px 10px; border-radius:99px; font-weight:800; font-size:12px; color:#fff; background: var(--green); }
+.simc-veredicto.mal{ background: var(--coral); }

@@ -1,6 +1,6 @@
 /* Inicio: de un vistazo, lo que toca hoy (tareas del calendario, que se
    pueden marcar aquí mismo; tocando el recuadro se abre el calendario en
-   grande para editarlo todo), el test a medias, el Simulacro conjunto y cómo
+   grande para editarlo todo), la cuenta atrás del examen (js/examen.js), el test a medias, el Simulacro conjunto y cómo
    vas en Legislación y en el Específico. */
 const INICIO = (function(){
   const MODOS = { estudio: 'Modo estudio', fallos: 'Fallos', inteligente: 'Test Inteligente', simulacro: 'Simulacro', examen: 'Examen' };
@@ -147,7 +147,7 @@ const INICIO = (function(){
   function pintar(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
-    root.innerHTML = saludo() + continuar() + pruebaAMedias() + hoy() + conjunto() + progreso();
+    root.innerHTML = saludo() + continuar() + pruebaAMedias() + (typeof EXA !== 'undefined' ? EXA.tarjeta() : '') + hoy() + conjunto() + progreso();
     if(typeof PRU !== 'undefined' && PRU.conjuntoDisponible()) PRU.precargar();   // que el Simulacro conjunto abra al momento
   }
 
@@ -163,6 +163,8 @@ const INICIO = (function(){
       case 'reanudar': resumeQuiz(); break;
       case 'conjunto': PRU.abrirConfig('conjunto'); break;
       case 'prueba': PRU.continuar(); break;
+      case 'examen': EXA.abrir(); break;
+      case 'oficial': e.stopPropagation(); EXA.simulacro(); break;
       case 'stats': showScreen('screen-stats'); break;
       case 'stats-legis': case 'stats-esp':
         try{ localStorage.setItem('pj_stats_pestana', el.dataset.ini === 'stats-esp' ? 'esp' : 'legis'); }catch(err){}
@@ -177,6 +179,7 @@ const INICIO = (function(){
       root.addEventListener('click', onClick);
       root.addEventListener('keydown', e => {
         if(e.key === 'Enter' && e.target.dataset && e.target.dataset.ini === 'ver') CAL.verTarea(e.target.dataset.id);
+        if(e.key === 'Enter' && e.target.dataset && e.target.dataset.ini === 'examen') EXA.abrir();
       });
     }
     if(typeof CAL !== 'undefined') CAL.asegurar();
