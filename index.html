@@ -873,6 +873,12 @@
         </form>
         <div id="adminEspLista"></div>
         <div class="admin-card" style="margin-top:18px;">
+          <div class="admin-card-title">Optimizar imágenes</div>
+          <div class="admin-card-meta" style="margin-bottom:12px;">Pasa las imágenes de las preguntas (casi todas en PNG, muy pesado) a WebP: se ven igual y ocupan mucho menos, así cargan antes con datos móviles. Solo se cambia una imagen si ocupa bastante menos. Va test a test; deja esta pantalla abierta hasta que termine (si se corta, al volver a pulsarlo sigue con lo que falte). Lo nuevo que se importa ya entra optimizado.</div>
+          <button class="btn btn-light" id="adminEspOptBtn" onclick="adminEspOptimizar()">Optimizar imágenes</button>
+          <div class="admin-card-meta" id="adminEspOptEstado" style="margin-top:10px;"></div>
+        </div>
+        <div class="admin-card" style="margin-top:18px;">
           <div class="admin-card-title">Marcador de tutorbomberos.es</div>
           <div class="admin-card-meta" style="margin-bottom:12px;">Con un test abierto en tutorbomberos.es, el marcador saca todas las preguntas (con la correcta, la explicación y las imágenes) y las envía aquí: se abre pj.fire y te pregunta en qué test guardarlas. Para instalarlo, copia el marcador, crea un marcador cualquiera en Safari y pega lo copiado como su dirección.</div>
           <button class="btn btn-light" onclick="adminEspCopiarMarcador()">Copiar marcador</button>
@@ -1211,7 +1217,7 @@
 <script src="js/admin/boe.js?v=0a4ab61cfd"></script>
 <script src="js/admin/temario.js?v=45b68f00ea"></script>
 <script src="js/admin/importar-ia.js?v=26e496cad5"></script>
-<script src="js/admin/especifico.js?v=b187751c4d"></script>
+<script src="js/admin/especifico.js?v=851f5e8ced"></script>
 <script src="js/admin/callejero.js?v=5d85c58ac1"></script>
 <script src="js/normativas.js?v=de05c01e02"></script>
 <script src="js/callejero.js?v=57c49f8adb"></script>
@@ -1220,7 +1226,7 @@
 <script src="js/mnemotecnia.js?v=c08acd5057"></script>
 <script src="js/calendario.js?v=a1ec685c87"></script>
 <script src="js/especifico.js?v=3fa7d8fb8a"></script>
-<script src="js/importar-especifico.js?v=c6c712fd36"></script>
+<script src="js/importar-especifico.js?v=235f566bb9"></script>
 <script src="js/especifico-test.js?v=307dd8cf1a"></script>
 <script src="js/estadisticas-especifico.js?v=de66d4bd95"></script>
 <script src="js/pruebas.js?v=9e7b3232d0"></script>

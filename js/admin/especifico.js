@@ -111,3 +111,46 @@ function adminEspCopiarMarcador(tipo){
   if(!ok && navigator.clipboard){ navigator.clipboard.writeText(txt).then(() => uiToast('Marcador copiado', 'success'), () => uiToast('No se pudo copiar el marcador', 'error')); return; }
   uiToast(ok ? 'Marcador copiado' : 'No se pudo copiar el marcador', ok ? 'success' : 'error');
 }
+
+/* Optimizar imágenes: recorre todas las preguntas del Específico y pasa sus
+   imágenes a WebP con IMP.optimizarPregunta (js/importar-especifico.js).
+   Solo se guarda lo que cambia; se puede repetir (lo ya optimizado se salta). */
+async function adminEspOptimizar(){
+  const btn = document.getElementById('adminEspOptBtn'), est = document.getElementById('adminEspOptEstado');
+  if(!btn || btn.disabled) return;
+  if(!(await uiConfirm('¿Optimizar las imágenes de todas las preguntas del Específico?\n\nSe ven igual pero ocupan mucho menos. Tarda unos minutos: deja esta pantalla abierta hasta que termine.', { ok: 'Optimizar' }))) return;
+  btn.disabled = true;
+  let bloqueo = null;
+  try{ if(navigator.wakeLock) bloqueo = await navigator.wakeLock.request('screen'); }catch(e){}
+  const mb = n => (n / 1048576).toFixed(1).replace('.', ',') + ' MB';
+  let antes = 0, despues = 0, cambiadas = 0, fallos = 0;
+  try{
+    const { data: tests, error } = await sb.from('especifico_tests').select('id,titulo').order('tema').order('orden');
+    if(error) throw error;
+    for(let t = 0; t < tests.length; t++){
+      est.textContent = 'Test ' + (t + 1) + ' de ' + tests.length + ' · ' + tests[t].titulo + ' · ahorrado ' + mb(antes - despues);
+      // Solo las preguntas con alguna imagen PNG o JPEG, de 20 en 20.
+      for(let desde = 0; ; desde += 20){
+        const { data, error: e2 } = await sb.from('especifico_preguntas').select('id,enunciado,opciones,explicacion').eq('test_id', tests[t].id).order('orden').range(desde, desde + 19);
+        if(e2) throw e2;
+        for(const q of data || []){
+          const viejo = JSON.stringify([q.enunciado, q.opciones, q.explicacion]);
+          if(!/data:image\/(png|jpeg)/.test(viejo)) continue;
+          const n = await IMP.optimizarPregunta(q);
+          const nuevo = JSON.stringify([n.enunciado, n.opciones, n.explicacion]);
+          if(nuevo === viejo) continue;
+          const { error: e3 } = await sb.from('especifico_preguntas').update({ enunciado: n.enunciado, opciones: n.opciones, explicacion: n.explicacion }).eq('id', q.id);
+          if(e3){ fallos++; continue; }
+          antes += viejo.length; despues += nuevo.length; cambiadas++;
+        }
+        if(!data || data.length < 20) break;
+      }
+    }
+    est.textContent = 'Hecho: ' + cambiadas + (cambiadas === 1 ? ' pregunta' : ' preguntas') + ' con imágenes más ligeras · ahorrado ' + mb(antes - despues) + (fallos ? ' · ' + fallos + ' no se pudieron guardar (vuelve a pulsarlo)' : '') + '.';
+    uiToast('Imágenes optimizadas: ' + mb(antes - despues) + ' menos', 'success');
+  }catch(e){
+    est.textContent = 'Se paró: ' + (e.message || e) + '. Vuelve a pulsarlo para seguir (lo hecho ya está guardado).';
+  }
+  try{ if(bloqueo) bloqueo.release(); }catch(e){}
+  btn.disabled = false;
+}
