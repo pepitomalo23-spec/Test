@@ -69,7 +69,26 @@ self.addEventListener('message', event => {
   // Al cerrar sesión se borran los datos guardados de ese usuario.
   if(msg.type === 'clear-data') event.waitUntil(caches.delete(DATA));
   if(msg.type === 'skip-waiting') self.skipWaiting();
+  // La app lo pide al abrirse y al volver a primer plano (js/pwa.js).
+  if(msg.type === 'check-update') event.waitUntil(comprobarVersion(event.source, msg.archivos || []).catch(() => {}));
 });
+
+// Busca un index.html nuevo (y lo guarda con sus archivos, avisando si
+// cambia). Además, si la página que lo pide usa archivos distintos de los
+// guardados (se actualizó por detrás sin recargarla, p. ej. al volver de
+// segundo plano en el móvil), se le avisa para que ofrezca «Actualizar».
+async function comprobarVersion(client, archivos){
+  const cache = await caches.open(SHELL);
+  try{
+    const cached = await cache.match('./');
+    const res = await fetch(new URL('./', self.registration.scope).href, { cache: 'no-store', credentials: 'same-origin' });
+    if(res && res.ok && res.type === 'basic') await updateShell(cache, cached, res);
+  }catch(e){ /* sin conexión: se mira solo lo guardado */ }
+  const guardado = await cache.match('./');
+  if(!guardado || !client || !archivos.length) return;
+  const usa = new Set(archivos);
+  if(appFiles(await guardado.text()).some(u => !usa.has(u))) client.postMessage({ type: 'update-available' });
+}
 
 async function notifyUpdate(){
   const clients = await self.clients.matchAll({ type: 'window' });
