@@ -151,7 +151,57 @@ const IMP = (function(){
      actualizan en su sitio las que ya estaban (mismo enunciado): así no se
      pierden las estrellas que les hayan puesto los alumnos; las que ya no
      vienen se borran. Si no, se añaden detrás. */
+  /* ---------- imágenes más ligeras ----------
+     Las imágenes de tutorbomberos llegan casi siempre en PNG (muy pesado
+     para fotos y capturas). Antes de guardar se pasan a WebP (o a JPEG si
+     el navegador no sabe hacer WebP), con 1600 px como mucho de lado; solo
+     se cambia si ocupa al menos un 30 % menos. Lo usa también el botón
+     «Optimizar imágenes» de Administración › Específico. */
+  const MIN_OPT = 20000;   // más pequeñas que esto (en base64) se dejan como están
+  function cargarImagen(src){
+    return new Promise((ok, ko) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => ko(new Error('imagen')); im.src = src; });
+  }
+  async function optimizarImagen(src){
+    if(src.length < MIN_OPT || !/^data:image\/(png|jpeg);base64,/i.test(src)) return src;
+    try{
+      const im = await cargarImagen(src);
+      const k = Math.min(1, 1600 / Math.max(im.naturalWidth || 1, im.naturalHeight || 1));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(im.naturalWidth * k)); c.height = Math.max(1, Math.round(im.naturalHeight * k));
+      const g = c.getContext('2d');
+      let nueva = c.toDataURL('image/webp', 0.82);
+      const webp = /^data:image\/webp/.test(nueva);
+      // JPEG no tiene transparencia: se pone el fondo blanco con el que se ven.
+      if(!webp){ g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); }
+      g.drawImage(im, 0, 0, c.width, c.height);
+      nueva = webp ? c.toDataURL('image/webp', 0.82) : c.toDataURL('image/jpeg', 0.85);
+      return nueva.length < src.length * 0.7 ? nueva : src;
+    }catch(e){ return src; }
+  }
+  async function optimizarHtml(html){
+    if(!html || html.indexOf('data:image/') < 0) return html;
+    let out = html;
+    const vistas = new Map();
+    for(const m of html.matchAll(/data:image\/(?:png|jpeg);base64,[A-Za-z0-9+\/=]+/g)){
+      if(!vistas.has(m[0])) vistas.set(m[0], await optimizarImagen(m[0]));
+    }
+    vistas.forEach((nueva, vieja) => { if(nueva !== vieja) out = out.split(vieja).join(nueva); });
+    return out;
+  }
+  // Enunciado, opciones y explicación de una pregunta (devuelve una copia).
+  async function optimizarPregunta(q){
+    const r = Object.assign({}, q);
+    r.enunciado = await optimizarHtml(q.enunciado);
+    if(Array.isArray(q.opciones)){ r.opciones = []; for(const o of q.opciones) r.opciones.push(Object.assign({}, o, { html: await optimizarHtml(o.html) })); }
+    r.explicacion = await optimizarHtml(q.explicacion);
+    return r;
+  }
+
   async function volcar(testId, preguntas, origen, sustituir){
+    // Primero, las imágenes más ligeras.
+    const ligeras = [];
+    for(const q of preguntas) ligeras.push(await optimizarPregunta(q));
+    preguntas = ligeras;
     const fila = (q, orden) => ({ test_id: testId, orden, enunciado: q.enunciado, opciones: q.opciones, correcta: q.correcta,
       confirmada: q.confirmada, explicacion: q.explicacion, dificultad: q.dificultad, origen: origen || null });
     let nuevas = [], cambiadas = [], sobran = [];
@@ -648,5 +698,5 @@ const IMP = (function(){
       try{ if(window.opener) window.opener.postMessage({ tipo: 'pjfire-listo' }, '*'); }catch(e){}
     }, 500);
   }
-  return { limpiar, normalizar };
+  return { limpiar, normalizar, optimizarPregunta };
 })();
