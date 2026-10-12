@@ -167,3 +167,39 @@
 .espt-op.elegida .espt-letra{ background: var(--esp-naranja); color:#fff; }
 .espt-op.elegida .espt-op-txt{ font-weight:700; }
 .pru-tb-fin{ background: var(--esp-naranja) !important; border-color: var(--esp-naranja) !important; color:#fff !important; font-weight:700; padding:10px 18px !important; }
+
+/* Nota propia de una pregunta del Específico (texto e imágenes) */
+.espn-nota{ margin-top:10px; padding:10px 12px; border-radius:6px; background: rgba(58,142,230,.08); border:1px solid rgba(58,142,230,.35); color: var(--text); font-family: var(--sans); }
+.espn-nota-cab{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
+.espn-nota-cab span{ font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#3a8ee6; }
+.espn-nota-cab button{ border:0; background:none; padding:2px 0; font:inherit; font-size:13px; font-weight:600; color:#3a8ee6; cursor:pointer; }
+.espn-nota-txt{ font-size:14.5px; line-height:1.5; white-space:pre-line; overflow-wrap:anywhere; }
+.espn-nota-imgs{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.espn-nota-imgs img{ width:96px; height:96px; object-fit:cover; border-radius:6px; background:#fff; cursor:zoom-in; }
+
+.espn-bg{ position:fixed; inset:0; z-index:1000; display:flex; align-items:flex-end; justify-content:center; background: rgba(0,0,0,.6); }
+@media (min-width: 700px){ .espn-bg{ align-items:center; } }
+.espn-hoja{ width:100%; max-width:540px; max-height: calc(100dvh - 24px); overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding:18px 18px calc(16px + env(safe-area-inset-bottom));
+  background: var(--bg); border:1px solid var(--line); border-radius:22px 22px 0 0; }
+@media (min-width: 700px){ .espn-hoja{ border-radius:22px; } }
+.espn-cab{ display:flex; align-items:center; justify-content:space-between; }
+.espn-cab h3{ margin:0; font-size:20px; }
+.espn-x{ width:34px; height:34px; border-radius:50%; border:0; background: var(--card); color: var(--muted); cursor:pointer; }
+.espn-sub{ font-size:13px; color: var(--muted); margin-top:-6px; }
+.espn-texto{ width:100%; min-height:120px; padding:12px 14px; border-radius:14px; border:1px solid var(--line); background: var(--card); color: var(--text); font:inherit; font-size:15px; line-height:1.5; resize:vertical; }
+.espn-texto:focus{ outline:none; border-color:#3a8ee6; }
+.espn-imgs{ display:flex; flex-wrap:wrap; gap:8px; }
+.espn-imgs:empty{ display:none; }
+.espn-img{ position:relative; width:84px; height:84px; }
+.espn-img img{ width:100%; height:100%; object-fit:cover; border-radius:10px; background:#fff; }
+.espn-img button{ position:absolute; top:-6px; right:-6px; width:24px; height:24px; border-radius:50%; border:0; background: var(--text); color: var(--bg); font-size:11px; cursor:pointer; }
+.espn-anadir{ align-self:flex-start; padding:9px 14px; border-radius:99px; border:1.5px dashed var(--line); color: var(--muted); font-size:14px; font-weight:600; cursor:pointer; }
+.espn-anadir.hidden{ display:none; }
+.espn-estado{ font-size:13px; color: var(--muted); min-height:0; }
+.espn-estado:empty{ display:none; }
+.espn-pie{ display:flex; gap:8px; }
+.espn-btn{ flex:1; padding:13px 16px; border-radius:14px; border:1px solid var(--line); background: var(--card); color: var(--text); font:inherit; font-size:15px; font-weight:700; cursor:pointer; }
+.espn-btn.primario{ background:#3a8ee6; border-color:#3a8ee6; color:#fff; }
+.espn-btn.peligro{ color: var(--coral); }
+.espn-btn:disabled{ opacity:.6; cursor:default; }
+.espt-iconos{ gap:5px; }
