@@ -148,7 +148,7 @@
 .cal-hasta-res b{ color: var(--c); }
 .cal-hoja-pie{ display:flex; gap:8px; padding:12px 18px calc(14px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); background: var(--bg); }
 .cal-btn{ border:1px solid var(--line); background: var(--card); color: var(--text); font:inherit; font-weight:700; font-size:15px; padding:13px 18px; border-radius:16px; cursor:pointer; }
-.cal-btn.primario{ flex:1; border:none; color:#fff; background: var(--c); box-shadow: 0 8px 20px color-mix(in srgb, var(--c) 35%, transparent); transition: background .25s; }
+.cal-btn.primario{ flex:1; border:none; color:#fff; background: var(--c); transition: background .25s; }
 .cal-btn.peligro{ color:#E5484D; }
 @media (min-width: 600px){ .cal-dia{ aspect-ratio:auto; height:66px; } .cal-puntos i{ width:7px; height:7px; } }
 
@@ -175,3 +175,28 @@
 .cal-test-elegido-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
 .cal-test-elegido-txt b{ font-size:14.5px; }
 .cal-test-elegido-txt span{ font-size:12px; color: var(--muted); }
+
+/* Varios tests en una tarea */
+.cal-tests{ flex-basis:100%; display:flex; flex-direction:column; gap:6px; margin:2px 0 0 38px; }
+.cal-tests-cab{ display:flex; justify-content:space-between; font-size:12px; font-weight:700; color: var(--muted); padding:0 2px; }
+.cal-tests .cal-test{ margin:0; }
+.cal-test.acabado .cal-test-accion{ color: var(--muted); }
+.cal-test-elegidos{ display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
+.cal-test-elegido .cal-x{ width:30px; height:30px; font-size:13px; }
+.cal-test-opciones{ width:100%; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:14px; overflow:hidden; background: var(--card); }
+.cal-test-op{ display:flex; align-items:center; gap:12px; padding:11px 14px; border:0; border-bottom:1px solid var(--line); background:none; color: var(--text); font:inherit; font-size:14px; text-align:left; cursor:pointer; }
+.cal-test-op:last-child{ border-bottom:0; }
+.cal-test-op.todos{ font-weight:700; }
+.cal-test-caja{ width:18px; height:18px; flex-shrink:0; border:2px solid var(--muted); border-radius:4px; display:flex; align-items:center; justify-content:center; }
+.cal-test-op.on .cal-test-caja{ background: var(--c); border-color: var(--c); }
+.cal-test-op.on .cal-test-caja::after{ content:''; width:9px; height:5px; border:2px solid #fff; border-top:0; border-right:0; transform: translateY(-1px) rotate(-45deg); }
+
+/* Ventanita de una tarea (desde Inicio) */
+.cal-ver .cal-tests, .cal-ver .cal-test{ margin-left:0; }
+.cal-ver-nota{ font-size:15px; line-height:1.5; color: var(--text); white-space:pre-line; overflow-wrap:anywhere; }
+.cal-ver-nota.vacia{ color: var(--muted); }
+.cal-ver-tests{ display:flex; flex-direction:column; }
+.cal-ver-ir{ width:100%; padding:13px 14px; border-radius:14px; border:1px solid var(--line); background: var(--card); color: var(--text); font:inherit; font-size:15px; font-weight:600; text-align:left; cursor:pointer; }
+.cal-ver .cal-hoja-pie{ display:flex; gap:8px; }
+.cal-ver .cal-hoja-pie .cal-btn{ flex:1; }
+.cal-ver.hecha .cal-hoja-tit h3{ text-decoration: line-through; color: var(--muted); }

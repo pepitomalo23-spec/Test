@@ -88,8 +88,7 @@ const ESPT = (function(){
   // Para la tarea del calendario: lo respondido, cuántas tiene y si ya está todo.
   function avisarTarea(){
     if(!tarea || typeof CAL === 'undefined' || !preguntas.length) return;
-    const hechas = preguntas.filter(p => resp[p.id]).length;
-    CAL.guardarProgreso(tarea, { resp: Object.assign({}, resp), sesion, total: preguntas.length }, hechas === preguntas.length);
+    CAL.guardarProgreso(tarea, test.id, { resp: Object.assign({}, resp), sesion, total: preguntas.length });
   }
   // Al seguir un test a medias, a la primera pregunta sin responder.
   function irAPendiente(){
