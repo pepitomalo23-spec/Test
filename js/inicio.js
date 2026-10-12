@@ -66,7 +66,9 @@ const INICIO = (function(){
     if(!x) return '';
     const pct = x.total ? Math.round(x.hechas / x.total * 100) : 0;
     const txt = x.tests > 1 ? x.terminados + '/' + x.tests + ' tests' : x.hechas ? x.hechas + '/' + x.total : 'Sin empezar';
-    return '<span class="ini-tarea-test"><span class="ini-barra"><i style="width:' + pct + '%"></i></span><span>' + txt + '</span></span>';
+    // Varios tests: un tramo por test (no se mezclan los avances).
+    const barra = x.tests > 1 ? CAL.barraTramos(x.partes) : '<span class="ini-barra"><i style="width:' + pct + '%"></i></span>';
+    return '<span class="ini-tarea-test">' + barra + '<span>' + txt + '</span></span>';
   }
   function hoy(){
     const r = typeof CAL !== 'undefined' ? CAL.resumenHoy() : null;

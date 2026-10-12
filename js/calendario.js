@@ -183,7 +183,9 @@ const CAL = (function(){
   function avanceTotal(t){
     const ids = t.test_ids || [];
     const xs = ids.map(id => avance(t, id));
-    return { tests: ids.length, terminados: xs.filter(terminado).length, hechas: xs.reduce((n, a) => n + a.hechas, 0), total: xs.reduce((n, a) => n + a.total, 0) };
+    // partes: lo hecho de cada test (0 a 1), en su orden, para la barra por tramos.
+    return { tests: ids.length, terminados: xs.filter(terminado).length, hechas: xs.reduce((n, a) => n + a.hechas, 0), total: xs.reduce((n, a) => n + a.total, 0),
+      partes: xs.map(a => a.total ? Math.min(1, a.hechas / a.total) : 0) };
   }
   function filaTest(t, x, solo){
     const a = avance(t, x.id), pct = a.total ? Math.round(a.hechas / a.total * 100) : 0;
@@ -200,8 +202,12 @@ const CAL = (function(){
     if(!xs.length) return '';
     if(xs.length === 1) return filaTest(t, xs[0], true);
     const a = avanceTotal(t);
-    return '<div class="cal-tests"><div class="cal-tests-cab"><span>' + xs.length + ' tests</span><span>' + a.terminados + ' de ' + xs.length + ' terminados</span></div>' +
+    return '<div class="cal-tests"><div class="cal-tests-cab"><span>' + xs.length + ' tests</span><span>' + a.terminados + ' de ' + xs.length + ' terminados</span></div>' + barraTramos(a.partes) +
       xs.map(x => filaTest(t, x)).join('') + '</div>';
+  }
+  // Una barra con un tramo por test: se va llenando test a test, cada uno en su sitio.
+  function barraTramos(partes){
+    return '<span class="cal-tramos">' + partes.map(x => '<i><b style="width:' + Math.round(x * 100) + '%"></b></i>').join('') + '</span>';
   }
   function hacerTest(t, id){
     if(!conTests()) return;
@@ -615,5 +621,5 @@ const CAL = (function(){
     if(!t) return;
     hacerTest(t, (t.test_ids || []).find(x => !terminado(avance(t, x))) || (t.test_ids || [])[0]);
   }
-  return { abrir, recargar: cargar, asegurar, resumenHoy, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
+  return { barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
 })();
