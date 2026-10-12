@@ -65,8 +65,8 @@ const INICIO = (function(){
   function barraTest(x){
     if(!x) return '';
     const pct = x.total ? Math.round(x.hechas / x.total * 100) : 0;
-    return '<span class="ini-tarea-test"><span class="ini-barra"><i style="width:' + pct + '%"></i></span>' +
-      '<span>' + (x.hechas ? x.hechas + '/' + x.total : 'Sin empezar') + '</span></span>';
+    const txt = x.tests > 1 ? x.terminados + '/' + x.tests + ' tests' : x.hechas ? x.hechas + '/' + x.total : 'Sin empezar';
+    return '<span class="ini-tarea-test"><span class="ini-barra"><i style="width:' + pct + '%"></i></span><span>' + txt + '</span></span>';
   }
   function hoy(){
     const r = typeof CAL !== 'undefined' ? CAL.resumenHoy() : null;
@@ -81,11 +81,11 @@ const INICIO = (function(){
       // Primero lo pendiente, para que se vea lo que falta.
       const orden = r.lista.slice().sort((a, b) => a.hecho - b.hecho);
       const filas = orden.slice(0, MAX_TAREAS).map(t =>
-        '<div class="ini-tarea' + (t.hecho ? ' hecha' : '') + '" style="--c:' + t.color + '">' +
+        '<div class="ini-tarea' + (t.hecho ? ' hecha' : '') + '" style="--c:' + t.color + '" role="button" tabindex="0" data-ini="ver" data-id="' + esc(t.id) + '" aria-label="Ver ' + esc(t.titulo) + '">' +
           '<button type="button" class="ini-check" data-ini="marcar" data-id="' + esc(t.id) + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' + CHECK + '</button>' +
           '<span class="ini-tarea-txt"><span class="ini-tarea-t">' + esc(t.titulo) + '</span>' +
             '<span class="ini-tarea-cat">' + t.icono + esc(t.cat) + (t.nota ? ' · ' + esc(t.nota) : '') + '</span>' + barraTest(t.test) + '</span>' +
-          (t.test ? '<button type="button" class="ini-tarea-ir" data-ini="test" data-id="' + esc(t.id) + '">' + (t.test.total && t.test.hechas >= t.test.total ? 'Repasar' : t.test.hechas ? 'Continuar' : 'Empezar') + '</button>' : '') +
+          (t.test ? '<button type="button" class="ini-tarea-ir" data-ini="test" data-id="' + esc(t.id) + '">' + (t.test.terminados === t.test.tests ? 'Repasar' : t.test.hechas ? 'Continuar' : 'Empezar') + '</button>' : '') +
         '</div>').join('');
       const chips = [
         r.racha ? '<span class="ini-chip fuego">' + ICO.llama + '<b>' + r.racha + '</b> ' + (r.racha === 1 ? 'día' : 'días') + ' de racha</span>' : '',
@@ -99,8 +99,9 @@ const INICIO = (function(){
            : '<button type="button" class="ini-anadir" data-ini="nueva"><span>+</span> Apuntar algo para hoy</button>') +
         '<div class="ini-chips">' + chips + '</div>';
     }
-    return '<div class="ini-hoy" data-ini="calendario" role="button" tabindex="0" aria-label="Abrir el calendario">' + cuerpo +
-      '<div class="ini-hoy-pie">Ver calendario completo ' + FLECHA + '</div></div>';
+    // Cada tarea abre su ventanita; al calendario se va con su botón.
+    return '<div class="ini-hoy">' + cuerpo +
+      '<div class="ini-hoy-pie"><button type="button" data-ini="calendario">Ver calendario completo ' + FLECHA + '</button></div></div>';
   }
 
 
@@ -153,7 +154,8 @@ const INICIO = (function(){
     if(!el || el.disabled) return;
     switch(el.dataset.ini){
       case 'marcar': e.stopPropagation(); CAL.marcar(el.dataset.id); break;
-      case 'test': e.stopPropagation(); CAL.hacerTest(el.dataset.id); break;
+      case 'test': e.stopPropagation(); CAL.seguirTest(el.dataset.id); break;
+      case 'ver': CAL.verTarea(el.dataset.id); break;
       case 'nueva': e.stopPropagation(); CAL.nueva(); break;
       case 'calendario': showScreen('screen-calendario'); break;
       case 'reanudar': resumeQuiz(); break;
@@ -172,7 +174,7 @@ const INICIO = (function(){
       root.dataset.listo = '1';
       root.addEventListener('click', onClick);
       root.addEventListener('keydown', e => {
-        if(e.key === 'Enter' && e.target.dataset && e.target.dataset.ini === 'calendario') showScreen('screen-calendario');
+        if(e.key === 'Enter' && e.target.dataset && e.target.dataset.ini === 'ver') CAL.verTarea(e.target.dataset.id);
       });
     }
     if(typeof CAL !== 'undefined') CAL.asegurar();

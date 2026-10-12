@@ -19,10 +19,9 @@
 .ini-continuar-txt .ini-barra{ margin-top:5px; height:4px; }
 
 /* Hoy (resumen del calendario) */
-.ini-hoy{ position:relative; padding:18px 18px 14px; border-radius:22px; margin-bottom:8px; cursor:pointer;
+.ini-hoy{ position:relative; padding:18px 18px 14px; border-radius:22px; margin-bottom:8px;
   background: var(--card);
   border:1px solid var(--line); transition: border-color .15s; }
-.ini-hoy:hover{ border-color: var(--muted-2); }
 .ini-hoy-cab{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
 .ini-hoy-tit{ font-family: var(--title); font-size:22px; letter-spacing:.3px; }
 .ini-hoy-msg{ font-size:14px; color: var(--muted); margin-top:2px; }
@@ -48,8 +47,9 @@
 .ini-chip svg{ width:13px; height:13px; color: var(--orange); }
 .ini-chip.fuego{ border-color: rgba(255,122,61,.5); background: rgba(255,122,61,.12); color: var(--text); }
 .ini-chip.aviso{ border-color: rgba(242,102,92,.5); color: var(--coral); }
-.ini-hoy-pie{ display:flex; align-items:center; justify-content:flex-end; gap:2px; margin-top:12px; font-size:13px; font-weight:600; color: var(--coral); }
-.ini-hoy-pie svg{ width:16px; height:16px; }
+.ini-hoy-pie{ display:flex; justify-content:flex-end; margin-top:12px; }
+.ini-hoy-pie button{ display:flex; align-items:center; gap:2px; padding:6px 0; border:0; background:none; font:inherit; font-size:13px; font-weight:600; color: var(--coral); cursor:pointer; }
+.ini-hoy-pie button svg{ width:16px; height:16px; }
 
 /* Progreso: una fila por parte (Legislación y Específico) */
 .ini-progreso{ display:flex; flex-direction:column; padding:6px; margin-bottom:8px;
@@ -85,3 +85,7 @@ button.ini-prog-fila:hover{ background: var(--card-hi); }
 .ini-tarea-test .ini-barra{ flex:1; height:4px; }
 .ini-tarea-test .ini-barra i{ background: var(--c); }
 .ini-tarea-ir{ flex-shrink:0; padding:7px 12px; border-radius:99px; border:1px solid var(--line); background: var(--card); color: var(--text); font:inherit; font-size:12.5px; font-weight:700; cursor:pointer; }
+
+/* Cada tarea de Hoy abre su ventanita */
+.ini-tarea{ cursor:pointer; transition: background .12s; }
+.ini-tarea:hover{ background: color-mix(in srgb, var(--card-hi) 70%, var(--line)); }
