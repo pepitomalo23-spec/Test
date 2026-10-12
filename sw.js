@@ -115,17 +115,26 @@ async function pruneDataVersions(cache, url){
     if(req.url !== url && new URL(req.url).pathname === p) await cache.delete(req);
   }
 }
-// Descarga los que aún no estén guardados. Si alguno falla, lanza error y
-// no se guarda nada más (el index.html nuevo tampoco).
+// Descarga los que aún no estén guardados y guarda cada uno en cuanto llega:
+// si el móvil corta la descarga a medias (iOS lo hace con lo que va en
+// segundo plano), lo ya bajado se queda y la vez siguiente solo falta el
+// resto. Si alguno falla, lanza error y el index.html nuevo no se guarda
+// todavía (los archivos ya bajados no estorban: llevan su ?v=).
 async function cacheAppFiles(cache, urls){
   const missing = [];
   for(const u of urls) if(!(await cache.match(u))) missing.push(u);
-  const responses = await Promise.all(missing.map(async u => {
-    const res = await fetch(u, { cache: 'no-cache' });
-    if(!res.ok) throw new Error('No se pudo descargar ' + u);
-    return res;
-  }));
-  await Promise.all(responses.map((res, i) => cache.put(missing[i], res)));
+  let fallo = null;
+  // De 4 en 4, para no atascar la conexión.
+  for(let i = 0; i < missing.length; i += 4){
+    await Promise.all(missing.slice(i, i + 4).map(async u => {
+      try{
+        const res = await fetch(u, { cache: 'no-cache' });
+        if(!res.ok) throw new Error('No se pudo descargar ' + u);
+        await cache.put(u, res);
+      }catch(e){ fallo = fallo || e; }
+    }));
+  }
+  if(fallo) throw fallo;
 }
 // Borra los css/ y js/ de versiones anteriores que ya no usa el index.html.
 async function pruneAppFiles(cache, keep){
