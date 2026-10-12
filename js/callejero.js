@@ -1158,36 +1158,128 @@ const CJ = (function(){
           if(cabe(r)){ poner(r); break; }
         }
       });
-      // Calles: cada nombre en sus tramos más largos, repetido a lo largo de las largas (separados).
+      // Calles: el nombre va dentro de la propia calle, siguiendo su trazado letra a
+      // letra. Los tramos de una calle se unen en recorridos; si no cabe, abreviado
+      // («C/», «Av.»…) y algo más pequeño; si tampoco, sin nombre (nunca fuera de la
+      // calle). Las largas, repetido cada cierto trecho. Plazas y glorietas: dentro.
+      const ABREV = [[/^Calle /, 'C/ '], [/^Avenida /, 'Av. '], [/^Plaza /, 'Pl. '], [/^Callej[oó]n /, 'Cjón. '], [/^Calleja /, 'Cja. '], [/^Glorieta /, 'Gta. '],
+        [/^Paseo /, 'Pº '], [/^Pasaje /, 'Pje. '], [/^Ronda /, 'Rda. '], [/^Carretera /, 'Ctra. '], [/^Camino /, 'Cº '], [/^Cuesta /, 'Cta. '], [/^Plazuela /, 'Pzla. ']];
+      const abreviar = n => { for(const [re, r] of ABREV) if(re.test(n)) return n.replace(re, r); return n; };
+      const deLatLng = ([x, y]) => [Math.atan(Math.sinh(Math.PI * (1 - 2 * (y / escala + y0)))) * 180 / Math.PI, (x / escala + x0) * 360 - 180];
+      // Une los tramos que se tocan por los extremos en recorridos lo más largos posible.
+      const recorridos = lineas => {
+        const k = p => Math.round(p[0] / 3) + ':' + Math.round(p[1] / 3);
+        const quedan = lineas.map(l => l.slice()), out = [];
+        while(quedan.length){
+          let r = quedan.shift(), sigue = true;
+          while(sigue){
+            sigue = false;
+            for(let i = 0; i < quedan.length; i++){
+              const t = quedan[i];
+              if(k(r[r.length - 1]) === k(t[0])) r = r.concat(t.slice(1));
+              else if(k(r[r.length - 1]) === k(t[t.length - 1])) r = r.concat(t.slice(0, -1).reverse());
+              else if(k(r[0]) === k(t[t.length - 1])) r = t.concat(r.slice(1));
+              else if(k(r[0]) === k(t[0])) r = t.slice(1).reverse().concat(r);
+              else continue;
+              quedan.splice(i, 1); sigue = true; break;
+            }
+          }
+          out.push(r);
+        }
+        return out;
+      };
+      // Las letras de un texto colocadas a lo largo de un recorrido, centrado en «centro»
+      // (distancia desde el principio). null si no cabe o la calle gira demasiado.
+      function enCamino(pts, cum, centro, letras, ancho, h){
+        const total = cum[cum.length - 1];
+        let s0 = centro - ancho / 2;
+        if(s0 < 2 || s0 + ancho > total - 2) return null;
+        const en = s => { let i = 1; while(i < cum.length - 1 && cum[i] < s) i++; const a = pts[i - 1], b = pts[i], t = (s - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1);
+          return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, Math.atan2(b[1] - a[1], b[0] - a[0])]; };
+        // Que se lea de izquierda a derecha: si el recorrido va hacia la izquierda, las letras al revés.
+        const ini = en(s0), fin = en(s0 + ancho), alReves = fin[0] < ini[0];
+        const out = [];
+        let acc = 0, angAnt = null, giro = 0;
+        for(const [ch, cw] of letras){
+          const s = alReves ? s0 + ancho - acc - cw / 2 : s0 + acc + cw / 2;
+          const [x, y, a0] = en(s);
+          const ang = alReves ? a0 + Math.PI : a0;
+          if(angAnt !== null){ let d = Math.abs(ang - angAnt); if(d > Math.PI) d = 2 * Math.PI - d; if(d > 0.6) return null; giro += d; }
+          angAnt = ang;
+          out.push({ ch, cx: x, cy: y, w: cw + 1, h, ang });
+          acc += cw;
+        }
+        return giro > 1.4 ? null : out;
+      }
       const porNombre = new Map();
       vs.forEach(v => { if(!porNombre.has(v.nombre)) porNombre.set(v.nombre, []); porNombre.get(v.nombre).push(v); });
       const lista = [...porNombre].map(([nombre, vv]) => {
-        const segs = [];
-        vv.forEach(v => v.lineas.forEach(l => { for(let i = 0; i < l.length - 1; i++){
-          if(!enArea((l[i][0] + l[i + 1][0]) / 2, (l[i][1] + l[i + 1][1]) / 2)) continue;
-          const [ax, ay] = P(l[i]), [bx, by] = P(l[i + 1]);
-          segs.push({ ax, ay, bx, by, d: Math.hypot(bx - ax, by - ay) });
-        } }));
-        return { nombre, princ: TIPOS_PRINCIPALES.has(vv[0].tipo), segs: segs.sort((p, q) => q.d - p.d), largo: segs.reduce((n, sg) => n + sg.d, 0) };
-      }).filter(x => x.segs.length).sort((p, q) => (q.princ - p.princ) || (q.largo - p.largo));
+        const caminos = recorridos(vv.flatMap(v => v.lineas).map(l => l.map(P))).map(pts => {
+          const cum = [0]; for(let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+          return { pts, cum, largo: cum[cum.length - 1] };
+        }).sort((p, q) => q.largo - p.largo);
+        const plaza = vv[0].tipo === 'PLAZA' || vv[0].tipo === 'GLORIETA' || vv[0].tipo === 'PLAZUELA';
+        return { nombre, princ: TIPOS_PRINCIPALES.has(vv[0].tipo), plaza, caminos, largo: caminos.reduce((n, c) => n + c.largo, 0), puestos: [] };
+      }).sort((p, q) => (q.princ - p.princ) || (q.largo - p.largo));
       const SEPARACION = Math.max(900, W / 6);
-      // Primera pasada: un nombre en cada calle (las que caben a lo largo de un tramo);
-      // segunda: las que no caben, en horizontal; tercera: repeticiones en las largas.
-      const intentar = (c, sg, horizontal) => {
-        med.font = (c.princ ? '600 ' + tamP : '500 ' + tamC) + 'px ' + FUENTE;
-        const w = med.measureText(c.nombre).width + 6, h = (c.princ ? tamP : tamC) * 1.25;
-        if(!horizontal && sg.d < w * 0.95) return false;
-        let ang = horizontal ? 0 : Math.atan2(sg.by - sg.ay, sg.bx - sg.ax);
-        if(ang > Math.PI / 2) ang -= Math.PI; if(ang < -Math.PI / 2) ang += Math.PI;
-        const r = { cx: (sg.ax + sg.bx) / 2, cy: (sg.ay + sg.by) / 2, w, h, ang, texto: c.nombre, princ: c.princ };
-        if(c.puestos && c.puestos.some(o => Math.hypot(o.cx - r.cx, o.cy - r.cy) < SEPARACION)) return false;
-        if(!cabe(r)) return false;
-        poner(r); (c.puestos = c.puestos || []).push(r);
-        return true;
+      const variantes = c => {
+        const t = c.princ ? tamP : tamC, ab = abreviar(c.nombre);
+        return [[c.nombre, t], [ab, t], [ab, Math.round(t * 0.85)]].filter((x, i, arr) => i === 0 || x[0] !== arr[i - 1][0] || x[1] !== arr[i - 1][1]);
       };
-      lista.forEach(c => { c.segs.some(sg => intentar(c, sg, false)); });
-      lista.forEach(c => { if(!c.puestos) c.segs.slice(0, 6).some(sg => intentar(c, sg, true)); });
-      lista.forEach(c => { if(c.largo > SEPARACION * 1.5) c.segs.forEach(sg => { if(c.puestos.length < 8) intentar(c, sg, false); }); });
+      const letrasDe = (texto, tam, princ) => { med.font = (princ ? '600 ' : '500 ') + tam + 'px ' + FUENTE; return [...texto].map(ch => [ch, med.measureText(ch).width]); };
+      // Pone el nombre en un punto del recorrido (si cabe y no tapa nada). true si lo ha puesto.
+      const ponerEn = (c, cam, centro) => {
+        for(const [texto, tam] of variantes(c)){
+          const letras = letrasDe(texto, tam, c.princ), ancho = letras.reduce((n, l) => n + l[1], 0);
+          const g = enCamino(cam.pts, cam.cum, centro, letras, ancho, tam * 1.25);
+          if(!g) continue;
+          const mid = g[Math.floor(g.length / 2)];
+          if(!enArea(...deLatLng([mid.cx, mid.cy]))) return false;
+          if(c.puestos.some(o => Math.hypot(o.cx - mid.cx, o.cy - mid.cy) < SEPARACION)) return false;
+          if(!g.every(cabe)) continue;
+          const r = { camino: g, texto, tam, princ: c.princ, cx: mid.cx, cy: mid.cy };
+          const xs = g.flatMap(q => q.esq.map(p => p[0])), ys = g.flatMap(q => q.esq.map(p => p[1]));
+          r.x0 = Math.min(...xs); r.x1 = Math.max(...xs); r.y0 = Math.min(...ys); r.y1 = Math.max(...ys);
+          g.forEach(poner);
+          puestos.push(r); c.puestos.push(r);
+          return true;
+        }
+        return false;
+      };
+      // Plaza o glorieta: dentro, en horizontal, en el centro de su contorno.
+      const ponerPlaza = c => {
+        const pts = c.caminos.flatMap(k => k.pts);
+        if(!pts.length) return false;
+        const cx = pts.reduce((n, p) => n + p[0], 0) / pts.length, cy = pts.reduce((n, p) => n + p[1], 0) / pts.length;
+        const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), anchoP = Math.max(...xs) - Math.min(...xs);
+        if(!enArea(...deLatLng([cx, cy]))) return false;
+        for(const [texto, tam] of variantes(c)){
+          med.font = '500 ' + tam + 'px ' + FUENTE;
+          const w = med.measureText(texto).width + 6;
+          if(w > anchoP * 1.15 || Math.max(...ys) - Math.min(...ys) < tam) continue;
+          const r = { cx, cy, w, h: tam * 1.25, ang: 0 };
+          if(!cabe(r)) continue;
+          poner(r); r.texto = texto; r.tam = tam; r.horizontal = true;
+          c.puestos.push(r);
+          return true;
+        }
+        return false;
+      };
+      // Primero un nombre por calle (en el centro de su recorrido más largo, o probando
+      // otros puntos y otros recorridos); luego las repeticiones en las largas.
+      lista.forEach(c => {
+        if(c.plaza && ponerPlaza(c)) return;
+        for(const cam of c.caminos){
+          if(cam.largo < 40) break;
+          if([0.5, 0.35, 0.65, 0.2, 0.8].some(f => ponerEn(c, cam, cam.largo * f))) return;
+        }
+      });
+      lista.forEach(c => {
+        if(c.plaza) return;
+        c.caminos.forEach(cam => {
+          for(let s = SEPARACION / 2; s < cam.largo - 40 && c.puestos.length < 10; s += SEPARACION / 2) ponerEn(c, cam, s);
+        });
+      });
     }
 
     // ---- Pintar una franja (coordenadas de la lámina entera; el lienzo ya va desplazado) ----
@@ -1249,11 +1341,21 @@ const CJ = (function(){
           ctx.fillStyle = '#0f766e'; ctx.fillText(r.texto, r.tx, r.cy);
           return;
         }
-        ctx.save(); ctx.translate(r.cx, r.cy); ctx.rotate(r.ang);
-        ctx.font = (r.princ ? '600 ' + tamP : '500 ' + tamC) + 'px ' + FUENTE; ctx.textAlign = 'center';
-        ctx.lineWidth = Math.max(4, tamC / 4); ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.strokeText(r.texto, 0, 0);
-        ctx.fillStyle = '#2f2a24'; ctx.fillText(r.texto, 0, 0);
-        ctx.restore();
+        ctx.font = (r.princ ? '600 ' : '500 ') + r.tam + 'px ' + FUENTE; ctx.textAlign = 'center';
+        if(r.horizontal){
+          ctx.lineWidth = Math.max(4, r.tam / 4); ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.strokeText(r.texto, r.cx, r.cy);
+          ctx.fillStyle = '#2f2a24'; ctx.fillText(r.texto, r.cx, r.cy);
+          return;
+        }
+        // Letra a letra por la calle: primero el halo de todas y luego el relleno (que no se tapen entre sí).
+        [['stroke', 'rgba(255,255,255,0.95)'], ['fill', '#2f2a24']].forEach(([modo, color]) => {
+          r.camino.forEach(g => {
+            ctx.save(); ctx.translate(g.cx, g.cy); ctx.rotate(g.ang);
+            if(modo === 'stroke'){ ctx.lineWidth = Math.max(4, r.tam / 4); ctx.strokeStyle = color; ctx.strokeText(g.ch, 0, 0); }
+            else { ctx.fillStyle = color; ctx.fillText(g.ch, 0, 0); }
+            ctx.restore();
+          });
+        });
       });
       ctx.restore();
     };

@@ -160,8 +160,9 @@ Las calles salen del **Callejero Digital de Andalucía Unificado (CDAU)** y el r
   edificio (el de OpenStreetMap donde cae el punto o el más cercano a menos de 20 m).
 - **Láminas** (botón de descarga en el mapa libre): una imagen PNG al detalle (unos 30 cm por píxel, tope
   de 150 megapíxeles: un barrio sale de ~3.000 px y el Distrito Centro de ~7.600 × 9.800) del barrio o
-  distrito marcado (o de la zona; si no hay, de lo que se ve) en el estilo Plano bonito, con los nombres de
-  todas las calles (repetidos a lo largo de las largas) y de los lugares, o sin nombres para practicar en
+  distrito marcado (o de la zona; si no hay, de lo que se ve) en el estilo Plano bonito, con el nombre de cada
+  calle escrito sobre la propia calle, siguiendo su trazado letra a letra (sus tramos unidos; si no cabe,
+  abreviado: «C/», «Av.»…; si tampoco, sin nombre; las plazas, dentro; las largas, repetido) y los lugares, o sin nombres para practicar en
   papel. Se pinta por franjas (el móvil no deja lienzos de más de ~16 megapíxeles) y el PNG se monta en la
   app comprimiendo las filas según salen (`CompressionStream`); en navegadores sin él, a 16 megapíxeles. En el móvil se abre el menú de compartir (guardar
   en Fotos, imprimir…); en el ordenador se descarga.
