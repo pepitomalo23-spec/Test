@@ -651,8 +651,7 @@
   .sc-color-ctrl button{ flex-shrink:0; width:26px; height:26px; padding:0; border-radius:50%; border:1px solid var(--line); background: var(--card); color: var(--text); font-size:16px; line-height:1; cursor:pointer; }
   .sc-color-n{ font-size:11.5px; color: var(--muted); }
 
-  /* Panel pj.fire del Específico: elegir el diseño de las preguntas */
-  .pru-diseno{ display:flex; flex-direction:column; gap:10px; margin:-6px 0 18px; padding:12px 14px 14px; border:1px solid var(--line); border-radius:14px; background: var(--card); }
-  .pru-diseno-t{ font-size:13.5px; font-weight:600; color: var(--muted); }
-  .pru-diseno .param-opt{ font-size:13.5px; padding:9px 6px; }
-  .pru-diseno .param-opt.selected{ background: var(--text); color: var(--bg); }
+  /* Panel pj.fire del Específico: enlace pequeño para cambiar el diseño de las preguntas */
+  .pru-diseno{ display:flex; justify-content:flex-end; margin:2px 0 0; }
+  .pru-diseno button{ border:0; background:none; padding:6px 2px; font:inherit; font-size:12px; color: var(--muted-2); cursor:pointer; }
+  .pru-diseno button:hover{ color: var(--muted); }
