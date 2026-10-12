@@ -330,5 +330,7 @@ const ESPT = (function(){
 
   // Al cambiar de cuenta, nada de la anterior.
   function reiniciar(){ marcadas = new Set(); marcadasCargadas = false; cache.clear(); expl.clear(); }
-  return { abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar, olvidarPrueba, explicacion };
+  // También las usa el diseño de tutorbomberos de js/pruebas.js.
+  async function alternarMarcaDesde(id){ if(!marcadasCargadas) await cargarMarcadas(); return alternarMarca(id); }
+  return { estaMarcada: id => marcadas.has(id), alternarMarca: alternarMarcaDesde, abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar, olvidarPrueba, explicacion };
 })();
