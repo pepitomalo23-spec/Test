@@ -564,8 +564,20 @@ const PRU = (function(){
     }
     return it.explicacion ? (it.k === 'l' ? escapeHtml(it.explicacion) : espHtml(it.explicacion)) : '';
   }
+  // La cabecera fija: en la prueba, «Volver» (se sigue después), contador, reloj
+  // y «Finalizar»; en el resultado, solo «Volver» arriba, como en Legislación.
+  function cabecera(resultado){
+    const c = $('pruCabecera');
+    c.classList.remove('hidden');
+    c.querySelector('.back-link').dataset.pru = resultado ? 'volver' : 'salir';
+    $('pruContador').classList.toggle('hidden', !!resultado);
+    c.querySelector('[data-pru="terminar"]').classList.toggle('hidden', !!resultado);
+    if(resultado) $('pruTiempo').classList.add('hidden');
+    if(typeof updateQuizHeadHeightVar === 'function') updateQuizHeadHeightVar();
+  }
   function mostrar(){
     showScreen('screen-pru');
+    cabecera(false);
     if(typeof ESPT !== 'undefined' && est.items.some(x => x.k === 'e')) ESPT.cargarNotas().then(() => {
       if(!est || !$('screen-pru').classList.contains('active')) return;
       if(est.diseno === 'tb' && !est.terminado) pintarTb(true); else if(MODOS[est.modo].vista === 'tarjeta' && !est.terminado) pintarTarjeta();
@@ -950,8 +962,7 @@ const PRU = (function(){
 
   function pintarResultado(){
     showScreen('screen-pru');
-    $('pruCabecera').classList.add('hidden');
-    if(typeof updateQuizHeadHeightVar === 'function') updateQuizHeadHeightVar();
+    cabecera(true);
     const r = est.res, M = MODOS[est.modo];
     const caja = (tit, x, clase) => x && x.total ? '<div class="simc-parte ' + clase + '"><div class="simc-parte-tit">' + tit + '</div>' +
       '<div class="simc-parte-nota">' + formatNota(x.nota) + '</div>' +
@@ -966,8 +977,7 @@ const PRU = (function(){
       (est.items.length ? '<div class="simc-filtros">' + filtros.map(([k, t]) =>
         '<button type="button" class="admin-tab' + (filtro === k ? ' active' : '') + '" data-pru-filtro="' + k + '">' + t + '</button>').join('') + '</div>' +
         '<div>' + revision() + '</div>' : '<div class="tree-empty">No llegaste a ver ninguna pregunta: no se guarda nada.</div>') +
-      '<div class="simc-botones"><button class="btn btn-ghost" data-pru="volver">' + (M.volver === 'screen-inicio' ? 'Volver al inicio' : 'Volver al Específico') + '</button>' +
-        (permitido(est.modo) && !MODOS[est.modo].soloHistorial ? '<button class="btn btn-primary" data-pru="otro">' + (est.revision ? 'Hacer otro' : 'Otro igual') + '</button>' : '') + '</div>';
+      (permitido(est.modo) && !MODOS[est.modo].soloHistorial ? '<div class="simc-botones"><button class="btn btn-primary" data-pru="otro">' + (est.revision ? 'Hacer otro' : 'Otro igual') + '</button></div>' : '');
     arriba();
   }
   function revision(){

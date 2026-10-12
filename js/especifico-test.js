@@ -15,7 +15,7 @@ const ESPT = (function(){
   let marcadas = new Set(), marcadasCargadas = false;
   let todasMarcadas = [], filtro = null;   // Preguntas marcadas: todas las cargadas y lo elegido ('todas' o un tema; null = elegir)
   let sesion = null;
-  let tarea = null, volverA = null;   // si viene de una tarea del calendario: su id y adónde se vuelve         // la prueba de historial de esta vez: { id, inicio, created_at }
+  let tarea = null, volverA = null, ultima = null;   // ultima: la última pregunta respondida   // si viene de una tarea del calendario: su id y adónde se vuelve         // la prueba de historial de esta vez: { id, inicio, created_at }
   const cache = new Map();   // test_id → preguntas (para no volver a descargarlas)
   const DIF = { facil: 'Fácil', media: 'Media', dificil: 'Difícil' };
 
@@ -164,7 +164,7 @@ const ESPT = (function(){
 
   /* ---------- abrir ---------- */
   function empezar(m){
-    modo = m; preguntas = []; resp = {}; abiertas = new Set(); error = ''; sesion = null; tarea = null; volverA = null;
+    modo = m; preguntas = []; resp = {}; abiertas = new Set(); error = ''; sesion = null; tarea = null; volverA = null; ultima = null;
     enviarRespuestas();   // las que quedaran pendientes de otra vez
     showScreen('screen-esp-test');
     arriba();
@@ -176,7 +176,7 @@ const ESPT = (function(){
     if(op && op.tarea){
       tarea = op.tarea; volverA = op.volver || null;
       const p = op.progreso || {};
-      resp = Object.assign({}, p.resp); sesion = p.sesion || null;
+      resp = Object.assign({}, p.resp); sesion = p.sesion || null; ultima = p.ultima || null;
     }
     if(cache.has(t.id)) preguntas = cache.get(t.id);
     else{
@@ -201,13 +201,23 @@ const ESPT = (function(){
   // Para la tarea del calendario: lo respondido, cuántas tiene y si ya está todo.
   function avisarTarea(){
     if(!tarea || typeof CAL === 'undefined' || !preguntas.length) return;
-    CAL.guardarProgreso(tarea, test.id, { resp: Object.assign({}, resp), sesion, total: preguntas.length });
+    CAL.guardarProgreso(tarea, test.id, { resp: Object.assign({}, resp), sesion, total: preguntas.length, ultima });
   }
   // Al seguir un test a medias, a la primera pregunta sin responder.
+  // Justo donde se dejó: la siguiente a la última respondida (o la primera sin responder).
   function irAPendiente(){
-    const p = preguntas.find(x => !resp[x.id]);
-    const el = p && Object.keys(resp).length ? document.getElementById('espt-' + p.id) : null;
-    if(el) requestAnimationFrame(() => el.scrollIntoView({ block: 'center' }));
+    if(!Object.keys(resp).length) return;
+    const i = preguntas.findIndex(x => x.id === ultima);
+    const p = (i >= 0 && preguntas.slice(i + 1).find(x => !resp[x.id])) || preguntas.find(x => !resp[x.id]) || preguntas[i];
+    if(!p) return;
+    // Se busca la pregunta cada vez (la lista se puede volver a pintar al llegar
+    // las notas) y se repite un poco, por si las imágenes de arriba cambian el alto.
+    const app = document.getElementById('app');
+    let tocado = false;
+    const mano = () => { tocado = true; };
+    if(app){ app.addEventListener('touchstart', mano, { once: true, passive: true }); app.addEventListener('wheel', mano, { once: true, passive: true }); }
+    const ir = () => { const el = !tocado && document.getElementById('espt-' + p.id); if(el) el.scrollIntoView({ block: 'center' }); };
+    requestAnimationFrame(ir); [250, 700, 1500].forEach(t => setTimeout(ir, t));
   }
   async function abrirMarcadas(){
     empezar('marcadas'); test = null; filtro = null; todasMarcadas = [];
@@ -421,7 +431,7 @@ const ESPT = (function(){
     if(op && !op.disabled){
       const p = preguntas.find(x => x.id === op.dataset.p);
       if(!p || resp[p.id]) return;   // una sola respuesta: no se cambia
-      resp[p.id] = op.dataset.op;
+      resp[p.id] = op.dataset.op; ultima = p.id;
       guardarRespuesta(p.id, op.dataset.op === p.correcta);
       repintar(p.id);
       return;
@@ -446,7 +456,7 @@ const ESPT = (function(){
         }
         repintar(id);
       }); break;
-      case 'reiniciar': resp = {}; abiertas = new Set(); sesion = null; avisarTarea(); pintar(); arriba(); break;
+      case 'reiniciar': resp = {}; abiertas = new Set(); sesion = null; ultima = null; avisarTarea(); pintar(); arriba(); break;
     }
   }
   const enganchar = () => { const r = root(); if(r) r.addEventListener('click', onClick); };
