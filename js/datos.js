@@ -318,6 +318,8 @@ function saveQuizProgress(){
       localStorage.removeItem(quizProgressKey());
       return;
     }
+    // Test de una tarea del calendario: su avance va también a la tarea (para seguir en otro dispositivo).
+    if(quizState.tarea && typeof CAL !== 'undefined') CAL.avanceTestLegis(quizState.tarea);
     localStorage.setItem(quizProgressKey(), JSON.stringify({
       quizState, activeQuestions: ACTIVE_QUESTIONS, quizSecondsLeft, savedAt: Date.now()
     }));

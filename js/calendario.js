@@ -70,7 +70,7 @@ const CAL = (function(){
     cargando = (async () => {
       const filas = [];
       for(let desde = 0; ; desde += 1000){
-        const { data, error } = await sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,hecho,orden,serie,created_at,test_id,test_ids,progreso')
+        const { data, error } = await sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,hecho,orden,serie,created_at,test_id,test_ids,progreso,legis')
           .eq('user_id', yo()).order('fecha').order('orden').range(desde, desde + 999);
         if(error) throw error;
         filas.push(...data);
@@ -182,9 +182,9 @@ const CAL = (function(){
   const terminado = a => a.total > 0 && a.hechas >= a.total;
   function avanceTotal(t){
     const ids = t.test_ids || [];
-    const xs = ids.map(id => avance(t, id));
+    const xs = ids.map(id => avance(t, id)).concat(t.legis ? [avanceLegis(t)] : []);
     // partes: lo hecho de cada test (0 a 1), en su orden, para la barra por tramos.
-    return { tests: ids.length, terminados: xs.filter(terminado).length, hechas: xs.reduce((n, a) => n + a.hechas, 0), total: xs.reduce((n, a) => n + a.total, 0),
+    return { tests: xs.length, terminados: xs.filter(terminado).length, hechas: xs.reduce((n, a) => n + a.hechas, 0), total: xs.reduce((n, a) => n + a.total, 0),
       partes: xs.map(a => a.total ? Math.min(1, a.hechas / a.total) : 0) };
   }
   function filaTest(t, x, solo){
@@ -198,13 +198,16 @@ const CAL = (function(){
   }
   // Lo que se ve en la tarea: un test, o la lista con cuántos van terminados.
   function bloqueTest(t){
-    const xs = testsDe(t);
-    if(!xs.length) return '';
-    if(xs.length === 1) return filaTest(t, xs[0], true);
+    const xs = testsDe(t), n = xs.length + (t.legis ? 1 : 0);
+    if(!n) return '';
+    if(n === 1) return xs.length ? filaTest(t, xs[0], true) : filaLegis(t, true);
     const a = avanceTotal(t);
-    return '<div class="cal-tests"><div class="cal-tests-cab"><span>' + xs.length + ' tests</span><span>' + a.terminados + ' de ' + xs.length + ' terminados</span></div>' + barraTramos(a.partes) +
-      xs.map(x => filaTest(t, x)).join('') + '</div>';
+    return '<div class="cal-tests"><div class="cal-tests-cab"><span>' + n + ' tests</span><span>' + a.terminados + ' de ' + n + ' terminados</span></div>' + barraTramos(a.partes) +
+      xs.map(x => filaTest(t, x)).join('') + (t.legis ? filaLegis(t) : '') + '</div>';
   }
+  const conTareaTest = t => !!(testsDe(t).length || t.legis);
+  // Todo lo que lleva la tarea, terminado (los del Específico y el de Legislación).
+  const todoTerminado = t => conTareaTest(t) && (t.test_ids || []).every(x => terminado(avance(t, x))) && (!t.legis || terminado(avanceLegis(t)));
   // Una barra con un tramo por test: se va llenando test a test, cada uno en su sitio.
   function barraTramos(partes){
     return '<span class="cal-tramos">' + partes.map(x => '<i><b style="width:' + Math.round(x * 100) + '%"></b></i>').join('') + '</span>';
@@ -225,15 +228,142 @@ const CAL = (function(){
     const pt = Object.assign({}, (t.progreso || {}).porTest);
     pt[testId] = prog;
     t.progreso = { porTest: pt };
-    const todo = (t.test_ids || []).length && t.test_ids.every(x => terminado(avance(t, x)));
-    const marca = todo && !t.hecho;
-    if(marca){ t.hecho = true; uiToast(t.test_ids.length > 1 ? 'Todos los tests terminados: tarea hecha' : 'Test terminado: tarea hecha', 'success'); }
-    else if(!antes && terminado(avance(t, testId)) && t.test_ids.length > 1) { const q = t.test_ids.filter(x => !terminado(avance(t, x))).length; uiToast('Test terminado. ' + (q === 1 ? 'Te queda 1 test' : 'Te quedan ' + q + ' tests') + ' de esta tarea', 'info'); }
+    const marca = todoTerminado(t) && !t.hecho;
+    if(marca){ t.hecho = true; uiToast(avanceTotal(t).tests > 1 ? 'Todos los tests terminados: tarea hecha' : 'Test terminado: tarea hecha', 'success'); }
+    else if(!antes && terminado(avance(t, testId)) && avanceTotal(t).tests > 1) avisarQuedan(t);
     guardarCache();
     clearTimeout(guardarProgreso.t);
     const enviarYa = () => sb.from('calendario_tareas').update(Object.assign({ progreso: t.progreso, updated_at: new Date().toISOString() }, t.hecho && marca ? { hecho: true } : {}))
       .eq('id', id).then(({ error }) => { if(error) console.warn('No se pudo guardar el avance del test', error); });
     if(marca) enviarYa(); else guardarProgreso.t = setTimeout(enviarYa, 800);
+  }
+
+  function avisarQuedan(t){
+    const a = avanceTotal(t), q = a.tests - a.terminados;
+    uiToast('Test terminado. ' + (q === 1 ? 'Te queda 1 test' : 'Te quedan ' + q + ' tests') + ' de esta tarea', 'info');
+  }
+
+  /* ---------- test de Legislación en una tarea ----------
+     t.legis = { temas: [topic_id], modo: 'estudio'|'examen', cuantas, run }.
+     Se hace con el test de siempre (js/test.js), sin reloj. run es el intento
+     en curso: las preguntas que salieron, el orden de sus opciones y lo
+     respondido, para seguir en la misma pregunta también desde otro
+     dispositivo. Al finalizar el test, la tarea queda hecha. */
+  const conLegis = () => typeof QUESTIONS_POOL !== 'undefined' && typeof startQuiz === 'function';
+  const LEGIS_MODOS = { estudio: 'Estudio', examen: 'Examen' };
+  const LEGIS_CUANTAS = [[10, '10'], [20, '20'], [30, '30'], [50, '50'], [0, 'Todas']];
+  const leyes = () => (typeof TOPICS !== 'undefined' ? TOPICS : []).filter(x => x.enabled);
+  function nombreLey(id){
+    const x = leyes().find(y => y.id === id), n = String(x ? x.name : id).trim();
+    const m = n.match(/^(\d+\/\d{4})/);
+    const c = m ? 'Ley ' + m[1] : n.replace(/\s*(→|->).*$/, '');
+    return c.charAt(0).toUpperCase() + c.slice(1);
+  }
+  function resumenLeyes(temas){
+    const ns = (temas || []).map(nombreLey);
+    if(ns.length > 2 && ns.length === leyes().length) return 'todas las leyes';
+    return ns.length <= 1 ? (ns[0] || '') : ns.length === 2 ? ns[0] + ' y ' + ns[1] : ns[0] + ' y ' + (ns.length - 1) + ' más';
+  }
+  const tituloLegis = L => LEGIS_MODOS[L.modo] + ' · ' + resumenLeyes(L.temas);
+  const mismoLegis = (a, b) => !!a && !!b && a.modo === b.modo && (a.cuantas || 0) === (b.cuantas || 0) && [...a.temas].sort().join('|') === [...b.temas].sort().join('|');
+  function avanceLegis(t){
+    const r = (t.legis || {}).run;
+    if(!r) return { hechas: 0, total: 0 };
+    return { hechas: r.fin ? r.total : r.hechas || 0, total: r.total || 0 };
+  }
+  function filaLegis(t, solo){
+    const L = t.legis, r = L.run, a = avanceLegis(t), fin = !!(r && r.fin);
+    const pct = a.total ? Math.round(a.hechas / a.total * 100) : 0;
+    const accion = fin ? 'Repetir' : a.hechas ? 'Continuar' : 'Empezar';
+    const nota = fin && r.nota != null ? ' · nota ' + String(Math.round(r.nota * 100) / 100).replace('.', ',') : '';
+    return '<button type="button" class="cal-test cal-test-legis' + (solo ? '' : ' en-lista') + (fin ? ' acabado' : '') + '" data-cal="legis" data-id="' + t.id + '">' +
+      '<span class="cal-test-cab"><span class="cal-test-t">Legislación - <b>' + esc(tituloLegis(L)) + '</b></span><span class="cal-test-accion">' + accion + ' ›</span></span>' +
+      '<span class="cal-test-barra"><i style="width:' + pct + '%"></i></span>' +
+      '<span class="cal-test-n">' + (fin ? 'Terminado · ' + (r.hechas && r.hechas < a.total ? r.hechas + ' de ' + a.total + ' respondidas' : a.total + ' preguntas') + nota : a.hechas ? a.hechas + ' de ' + a.total + ' respondidas · faltan ' + (a.total - a.hechas)
+        : 'Sin empezar · ' + (L.cuantas ? L.cuantas + ' preguntas' : 'todas las preguntas')) + '</span>' +
+      '</button>';
+  }
+  // Las preguntas del intento guardado, con sus opciones en el mismo orden que salieron.
+  function preguntasDe(run){
+    const porId = new Map(QUESTIONS_POOL.map(q => [String(q.id), q]));
+    const out = [];
+    run.ids.forEach((id, i) => {
+      const q = porId.get(String(id));
+      if(!q) return;   // pregunta borrada desde entonces: fuera
+      const ord = (run.ord || [])[i];
+      const ok = ord && ord.length === q.options.length && ord.indexOf(q.correct) !== -1;
+      out.push({ i, q: ok ? Object.assign({}, q, { options: ord.map(k => q.options[k]), correct: ord.indexOf(q.correct), _optionOrder: ord }) : q });
+    });
+    return out;
+  }
+  async function hacerLegis(t){
+    if(!conLegis() || !t.legis) return;
+    if(whenAppDataReady(() => hacerLegis(t))) return;
+    const volver = (document.querySelector('.screen.active:not(.overlay)') || {}).id || 'screen-calendario';
+    const L = t.legis, r = L.run && !L.run.fin ? L.run : null;
+    const enCurso = quizState && quizState.mode;
+    if(enCurso && quizState.tarea !== t.id){
+      const ok = await uiConfirm('Tienes otro test de Legislación a medias.\n\nSi empiezas este, aquel se descarta.', { ok: 'Empezar este', cancel: 'Cancelar', danger: true });
+      if(!ok) return;
+    }
+    cerrarVer();
+    // Ya abierto en este dispositivo (y no va más adelantado en otro): se sigue tal cual.
+    if(enCurso && quizState.tarea === t.id && (!L.run || (r && (quizState.tareaAt || 0) >= (r.at || 0)))){
+      quizState.volver = volver;
+      return resumeQuiz();
+    }
+    if(r){
+      const xs = preguntasDe(r);
+      if(xs.length){
+        const sel = k => xs.map(x => (r[k] || [])[x.i]);
+        ACTIVE_QUESTIONS = xs.map(x => x.q);
+        const viewMode = QUIZ_LIST_MODES.includes(L.modo) ? 'list' : 'card';
+        const answers = sel('answers').map(a => a == null ? null : a);
+        const k = xs.findIndex(x => x.i >= (r.index || 0));
+        quizState = { mode: L.modo, viewMode, index: k < 0 ? xs.length - 1 : k, answered: false,
+          answers, blanked: sel('blanked').map(Boolean), visited: sel('visited').map(Boolean),
+          startedAt: Date.now() - (r.seg || 0) * 1000, timeMinutes: null, tarea: t.id, tareaAt: r.at || 0, volver };
+        quizSecondsLeft = null;
+        saveQuizProgress();
+        return resumeQuiz();
+      }
+    }
+    let qs = QUESTIONS_POOL.filter(q => L.temas.includes(q.topic_id));
+    if(!qs.length) return uiToast('No hay preguntas de ' + (L.temas.length > 1 ? 'esas leyes' : 'esa ley') + ' todavía', 'error');
+    if(L.cuantas) qs = shuffleArray(qs).slice(0, L.cuantas);
+    startQuiz(L.modo, qs, null);
+    quizState.tarea = t.id; quizState.volver = volver;
+    saveQuizProgress();
+  }
+  // Lo llama saveQuizProgress (js/datos.js) con cada paso del test.
+  function avanceTestLegis(id){
+    const t = tareas.find(x => x.id === id);
+    if(!t || !t.legis || !quizState || quizState.tarea !== id) return;
+    const n = ACTIVE_QUESTIONS.length, bl = quizState.blanked || [];
+    const hechas = quizState.answers.filter((a, i) => a != null || (quizState.viewMode === 'card' && bl[i])).length;
+    const at = Date.now();
+    quizState.tareaAt = at;
+    t.legis = Object.assign({}, t.legis, { run: { ids: ACTIVE_QUESTIONS.map(q => q.id), ord: ACTIVE_QUESTIONS.map(q => q._optionOrder || null),
+      answers: quizState.answers.slice(), blanked: bl.slice(), visited: (quizState.visited || []).slice(), index: quizState.index,
+      hechas, total: n, at, seg: Math.round((at - (quizState.startedAt || at)) / 1000) } });
+    guardarCache();
+    clearTimeout(avanceTestLegis.t);
+    avanceTestLegis.t = setTimeout(() => sb.from('calendario_tareas').update({ legis: t.legis, updated_at: new Date().toISOString() }).eq('id', id)
+      .then(({ error }) => { if(error) console.warn('No se pudo guardar el avance del test', error); }), 800);
+  }
+  // Lo llama finishQuizInner (js/examen-revision.js) al finalizar el test.
+  function terminarTestLegis(id, nota){
+    const t = tareas.find(x => x.id === id);
+    if(!t || !t.legis) return;
+    clearTimeout(avanceTestLegis.t);
+    const r = t.legis.run || {};
+    t.legis = Object.assign({}, t.legis, { run: { fin: true, nota, total: r.total || ACTIVE_QUESTIONS.length, hechas: r.hechas || 0, at: Date.now() } });
+    const marca = todoTerminado(t) && !t.hecho;
+    if(marca){ t.hecho = true; uiToast(avanceTotal(t).tests > 1 ? 'Todos los tests terminados: tarea hecha' : 'Test terminado: tarea hecha', 'success'); }
+    else if(avanceTotal(t).tests > 1) avisarQuedan(t);
+    guardarCache();
+    sb.from('calendario_tareas').update(Object.assign({ legis: t.legis, updated_at: new Date().toISOString() }, marca ? { hecho: true } : {})).eq('id', id)
+      .then(({ error }) => { if(error) console.warn('No se pudo guardar el test terminado', error); });
   }
 
   /* ---------- ventanita de una tarea (desde fuera del calendario) ---------- */
@@ -247,7 +377,7 @@ const CAL = (function(){
     const bg = document.createElement('div');
     bg.className = 'cal-hoja-bg'; bg.id = 'calVer';
     const pinta = () => {
-      const tests = testsDe(t);
+      const tests = conTareaTest(t);
       bg.innerHTML = '<div class="cal-hoja cal-ver' + (t.hecho ? ' hecha' : '') + '" style="--c:' + c.c + '" role="dialog" aria-modal="true" aria-label="' + esc(t.titulo) + '">' +
         '<div class="cal-hoja-top"><div class="cal-hoja-asa"></div>' +
           '<div class="cal-hoja-cab"><span class="cal-hoja-ico">' + ICONO[t.categoria] + '</span><div class="cal-hoja-tit"><h3>' + esc(t.titulo) + '</h3>' +
@@ -255,9 +385,9 @@ const CAL = (function(){
           '<button type="button" class="cal-x" data-v="cerrar" aria-label="Cerrar">✕</button></div></div>' +
         '<div class="cal-hoja-cuerpo">' +
           (t.nota ? '<div class="cal-ver-nota">' + esc(t.nota) + '</div>' : '') +
-          (tests.length ? '<div class="cal-ver-tests">' + bloqueTest(t) + '</div>'
+          (tests ? '<div class="cal-ver-tests">' + bloqueTest(t) + '</div>'
             : IR[t.categoria] ? '<button type="button" class="cal-ver-ir" data-v="ir">Ir a ' + esc(c.n) + ' ›</button>' : '') +
-          (!t.nota && !tests.length && !IR[t.categoria] ? '<div class="cal-ver-nota vacia">Sin más detalles.</div>' : '') +
+          (!t.nota && !tests && !IR[t.categoria] ? '<div class="cal-ver-nota vacia">Sin más detalles.</div>' : '') +
         '</div>' +
         '<div class="cal-hoja-pie"><button type="button" class="cal-btn" data-v="editar">Editar</button>' +
           '<button type="button" class="cal-btn primario" data-v="hecho">' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '</button></div></div>';
@@ -266,9 +396,10 @@ const CAL = (function(){
     document.body.appendChild(bg);
     bg.addEventListener('click', e => {
       if(e.target === bg) return cerrarVer();
-      const b = e.target.closest('[data-v],[data-cal="test"]');
+      const b = e.target.closest('[data-v],[data-cal="test"],[data-cal="legis"]');
       if(!b) return;
       if(b.dataset.cal === 'test') return hacerTest(t, b.dataset.test);
+      if(b.dataset.cal === 'legis') return hacerLegis(t);
       switch(b.dataset.v){
         case 'cerrar': cerrarVer(); break;
         case 'hecho': marcar(t); pinta(); break;
@@ -281,7 +412,7 @@ const CAL = (function(){
   }
   function tarjeta(t, conFecha){
     const c = CAT[t.categoria];
-    return '<div class="cal-tarea' + (t.hecho ? ' hecha' : '') + (testsDe(t).length ? ' con-test' : '') + '" style="--c:' + c.c + '">' +
+    return '<div class="cal-tarea' + (t.hecho ? ' hecha' : '') + (conTareaTest(t) ? ' con-test' : '') + '" style="--c:' + c.c + '">' +
       '<button class="cal-check" data-cal="hecho" data-id="' + t.id + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></button>' +
       '<button class="cal-tarea-main" data-cal="editar" data-id="' + t.id + '">' +
@@ -290,7 +421,7 @@ const CAL = (function(){
         '<span class="cal-tarea-meta"><span class="cal-cat">' + esc(c.n) + '</span>' + (conFecha ? '<span class="cal-tarea-f">' + esc(nombreDia(t.fecha, true)) + '</span>' : '') + (t.serie ? '<span class="cal-rep" title="Se repite">↻</span>' : '') + '</span>' +
       '</button>' +
       (conFecha ? '<button class="cal-mini" data-cal="a-hoy" data-id="' + t.id + '">A hoy</button>'
-        : (IR[t.categoria] && !t.hecho && !testsDe(t).length ? '<button class="cal-ir" data-cal="ir" data-k="' + t.categoria + '" aria-label="Ir a ' + esc(c.n) + '">›</button>' : '') +
+        : (IR[t.categoria] && !t.hecho && !conTareaTest(t) ? '<button class="cal-ir" data-cal="ir" data-k="' + t.categoria + '" aria-label="Ir a ' + esc(c.n) + '">›</button>' : '') +
           '<button class="cal-ir cal-lapiz" data-cal="editar" data-id="' + t.id + '" aria-label="Editar">' + LAPIZ + '</button>') +
       bloqueTest(t) +
       '</div>';
@@ -342,7 +473,8 @@ const CAL = (function(){
     const serie = t && t.serie ? repDeSerie(t) : null;
     h = { t, cat: base.categoria, fecha: base.fecha, rep: serie ? serie.rep : '', hasta: serie ? serie.hasta : masDias(base.fecha, 27),
           alcance: 'una', repIni: serie ? serie.rep : '', hastaIni: serie ? serie.hasta : null,
-          tests: t ? [...(t.test_ids || [])] : [], eligiendo: false, temaTest: '' };
+          tests: t ? [...(t.test_ids || [])] : [], eligiendo: false, temaTest: '',
+          legis: t && t.legis ? { temas: [...t.legis.temas], modo: t.legis.modo, cuantas: t.legis.cuantas || 0 } : null };
     if(conTests()) ESP.cargarTests();
     const bg = document.createElement('div');
     bg.className = 'cal-hoja-bg';
@@ -356,6 +488,7 @@ const CAL = (function(){
         '<div class="cal-campo"><div class="cal-campo-t">Categoría</div><div class="cal-cats">' +
           CATS.map(([k, n, c]) => '<button type="button" class="cal-cat-op" data-cat="' + k + '" style="--c:' + c + '"><span>' + ICONO[k] + '</span>' + n + '</button>').join('') + '</div></div>' +
         (conTests() ? '<div class="cal-campo"><div class="cal-campo-t">Test del Específico</div><div data-test-campo></div></div>' : '') +
+        (conLegis() ? '<div class="cal-campo"><div class="cal-campo-t">Test de Legislación</div><div data-legis-campo></div></div>' : '') +
         '<div class="cal-campo"><div class="cal-campo-t">Día</div><div class="cal-segs" data-dias></div></div>' +
         '<div class="cal-campo"><div class="cal-campo-t">Nota</div><textarea class="cal-in" name="nota" rows="2" maxlength="1000" placeholder="Páginas, artículos, cuántos tests…">' + esc(base.nota || '') + '</textarea></div>' +
         (t && t.serie && siguientes(t).length ? '<div class="cal-campo"><div class="cal-campo-t">Aplicar los cambios a</div><div class="cal-segs cal-segs-full" data-alcance></div></div>' : '') +
@@ -386,6 +519,12 @@ const CAL = (function(){
         h.tests = todos ? h.tests.filter(x => !ids.includes(x)) : h.tests.concat(ids.filter(x => !h.tests.includes(x)));
         autoTitulo(f);
       }
+      else if(b.dataset.lg === 'anadir'){ h.legis = { temas: [], modo: 'estudio', cuantas: 20 }; }
+      else if(b.dataset.lg === 'quitar'){ h.legis = null; }
+      else if(b.dataset.lg === 'ley'){ const k = b.dataset.t, L = h.legis; L.temas = L.temas.includes(k) ? L.temas.filter(x => x !== k) : L.temas.concat(k); autoTituloLegis(f); }
+      else if(b.dataset.lg === 'todas'){ const ids = leyes().map(x => x.id); h.legis.temas = ids.every(x => h.legis.temas.includes(x)) ? [] : ids; autoTituloLegis(f); }
+      else if(b.dataset.lg === 'modo'){ h.legis.modo = b.dataset.m; autoTituloLegis(f); }
+      else if(b.dataset.lg === 'cuantas'){ h.legis.cuantas = +b.dataset.n; }
       else if(b.dataset.h === 'cerrar') return cerrarHoja();
       else if(b.dataset.h === 'borrar') return borrar(t);
       else return;
@@ -408,6 +547,8 @@ const CAL = (function(){
     f.querySelector('[data-sub]').textContent = c.n + ' · ' + nombreDia(h.fecha);
     const ct = f.querySelector('[data-test-campo]');
     if(ct) ct.innerHTML = campoTest();
+    const cl = f.querySelector('[data-legis-campo]');
+    if(cl) cl.innerHTML = campoLegis();
     f.querySelectorAll('.cal-cat-op').forEach(b => b.classList.toggle('on', b.dataset.cat === h.cat));
     const rapidos = [[hh, 'Hoy'], [masDias(hh, 1), 'Mañana'], [masDias(hh, 2), 'Pasado']];
     const otro = !rapidos.some(r => r[0] === h.fecha);
@@ -461,6 +602,33 @@ const CAL = (function(){
         '</div>' : '') +
       '<button type="button" class="cal-chip" data-tst="listo">Listo</button></div>';
   }
+  // Sin título aún (o con el puesto solo): el del test de Legislación y su categoría.
+  function autoTituloLegis(f){
+    if(!h.legis || !h.legis.temas.length || h.tests.length || (f.titulo.value.trim() && !f.titulo.dataset.auto)) return;
+    f.titulo.value = tituloLegis(h.legis);
+    f.titulo.dataset.auto = '1';
+    h.cat = 'legislacion';
+  }
+  function campoLegis(){
+    if(!h.legis) return '<button type="button" class="cal-test-anadir" data-lg="anadir"><span>+</span> Añadir un test de Legislación</button>';
+    const L = h.legis, ls = leyes();
+    if(!ls.length) return '<div class="cal-hasta-res">Cargando las leyes…</div>';
+    const todas = ls.every(x => L.temas.includes(x.id));
+    const n = QUESTIONS_POOL.filter(q => L.temas.includes(q.topic_id)).length;
+    const seg = (on, attrs, txt) => '<button type="button" class="cal-seg' + (on ? ' on' : '') + '" ' + attrs + '>' + txt + '</button>';
+    return '<div class="cal-legis">' +
+      '<div class="cal-test-opciones">' +
+        '<button type="button" class="cal-test-op todos' + (todas ? ' on' : '') + '" data-lg="todas"><span class="cal-test-caja"></span>Todas las leyes (' + ls.length + ')</button>' +
+        ls.map(x => '<button type="button" class="cal-test-op' + (L.temas.includes(x.id) ? ' on' : '') + '" data-lg="ley" data-t="' + esc(x.id) + '"><span class="cal-test-caja"></span>' + esc(x.name) + '</button>').join('') +
+      '</div>' +
+      '<div class="cal-legis-fila"><span>Modo</span><div class="cal-segs cal-segs-full">' +
+        seg(L.modo === 'estudio', 'data-lg="modo" data-m="estudio"', 'Estudio') + seg(L.modo === 'examen', 'data-lg="modo" data-m="examen"', 'Examen') + '</div></div>' +
+      '<div class="cal-legis-fila"><span>Preguntas</span><div class="cal-segs cal-segs-full">' +
+        LEGIS_CUANTAS.map(([k, txt]) => seg((L.cuantas || 0) === k, 'data-lg="cuantas" data-n="' + k + '"', txt)).join('') + '</div></div>' +
+      '<div class="cal-hasta-res">' + (L.temas.length ? (L.modo === 'examen' ? 'Corrección al final' : 'Corrección al momento') + ' · sin reloj · ' + n + ' preguntas en ' + (L.temas.length === 1 ? 'esa ley' : 'esas leyes')
+        : 'Elige al menos una ley') + '</div>' +
+      '<button type="button" class="cal-chip" data-lg="quitar">Quitar el test</button></div>';
+  }
   function teclaHoja(e){ if(e.key === 'Escape'){ e.stopPropagation(); cerrarHoja(); } }
   function cerrarHoja(){
     const bg = document.getElementById('calHoja');
@@ -479,7 +647,7 @@ const CAL = (function(){
   }
   const ahora = () => new Date().toISOString();
   const fila = (fecha, d, serie, hecho) => ({ id: crypto.randomUUID(), user_id: yo(), fecha, titulo: d.titulo, nota: d.nota, categoria: d.categoria,
-    test_id: d.test_id || null, test_ids: d.test_ids || [], progreso: null,
+    test_id: d.test_id || null, test_ids: d.test_ids || [], progreso: null, legis: d.legis || null,
     hecho: !!hecho, serie, orden: delDia(fecha).length, created_at: ahora() });
   const sinMeta = r => { const { created_at, ...x } = r; return x; };
   function recortar(p, ids){
@@ -487,6 +655,8 @@ const CAL = (function(){
     Object.entries((p || {}).porTest || {}).forEach(([k, v]) => { if(ids.includes(k)) pt[k] = v; });
     return Object.keys(pt).length ? { porTest: pt } : null;
   }
+  // El test de Legislación de una tarea con el de la hoja: si no ha cambiado, sigue con su intento.
+  const conRun = (x, cfg) => cfg && mismoLegis(x.legis, cfg) ? Object.assign({}, cfg, { run: x.legis.run || null }) : cfg;
   function irA(fecha){ elegido = fecha; const d = deIso(fecha); mes = [d.getFullYear(), d.getMonth()]; }
 
   async function guardar(f){
@@ -494,6 +664,10 @@ const CAL = (function(){
     if(!titulo){ f.titulo.classList.add('mal'); f.titulo.focus(); setTimeout(() => f.titulo.classList.remove('mal'), 600); return; }
     const d = { titulo, nota: f.nota.value.trim() || null, categoria: h.cat };
     if(conTests()){ d.test_ids = [...h.tests]; d.test_id = h.tests[0] || null; }
+    if(conLegis()){
+      if(h.legis && !h.legis.temas.length){ uiToast('Elige al menos una ley para el test de Legislación', 'error'); return; }
+      d.legis = h.legis ? { temas: [...h.legis.temas], modo: h.legis.modo, cuantas: h.legis.cuantas || null, run: null } : null;
+    }
     const { t, fecha, rep, hasta } = h;
     const alcance = t && t.serie && siguientes(t).length ? h.alcance : 'serie';
     cerrarHoja();
@@ -514,8 +688,9 @@ const CAL = (function(){
       grupo.forEach(x => {
         // De los tests que se quitan, fuera su avance (el de los que siguen se guarda).
         const prog = 'test_ids' in d ? recortar(x.progreso, d.test_ids) : x.progreso;
-        Object.assign(x, d, { progreso: prog }); if(delta) x.fecha = masDias(x.fecha, delta);
-        ops.push(sb.from('calendario_tareas').update({ ...d, progreso: prog, fecha: x.fecha, serie: x.serie, updated_at: ahora() }).eq('id', x.id));
+        const lg = 'legis' in d ? conRun(x, d.legis) : x.legis;
+        Object.assign(x, d, { progreso: prog, legis: lg }); if(delta) x.fecha = masDias(x.fecha, delta);
+        ops.push(sb.from('calendario_tareas').update({ ...d, progreso: prog, legis: lg, fecha: x.fecha, serie: x.serie, updated_at: ahora() }).eq('id', x.id));
       });
       if(alcance === 'una' && t.serie && rep !== h.repIni) t.serie = null;
     } else {
@@ -526,11 +701,12 @@ const CAL = (function(){
       tareas = tareas.filter(x => !ids.has(x.id));
       const fechas = fechasRepetidas(fecha, rep, hasta), serie = fechas.length > 1 ? (t.serie || crypto.randomUUID()) : null;
       if('test_ids' in d) d.progreso = recortar(t.progreso, d.test_ids);
-      Object.assign(t, d, { fecha, serie });
+      const lgT = 'legis' in d ? conRun(t, d.legis) : t.legis;
+      Object.assign(t, d, { fecha, serie, legis: lgT });
       const nuevas = fechas.slice(1).map(x => fila(x, d, serie, hechas.has(x)));
       tareas.push(...nuevas);
       if(ids.size) ops.push(sb.from('calendario_tareas').delete().in('id', [...ids]));
-      ops.push(sb.from('calendario_tareas').update({ ...d, fecha, serie, updated_at: ahora() }).eq('id', t.id));
+      ops.push(sb.from('calendario_tareas').update({ ...d, legis: lgT, fecha, serie, updated_at: ahora() }).eq('id', t.id));
       if(nuevas.length) ops.push(sb.from('calendario_tareas').insert(nuevas.map(sinMeta)));
       if(nuevas.length || ids.size) uiToast(serie ? 'Ahora se repite en ' + fechas.length + ' días' : 'Ya no se repite', 'success');
     }
@@ -583,6 +759,7 @@ const CAL = (function(){
       }
       case 'ir': if(IR[el.dataset.k]) showScreen(IR[el.dataset.k]); break;
       case 'test': if(t) hacerTest(t, el.dataset.test); break;
+      case 'legis': if(t) hacerLegis(t); break;
     }
   }
 
@@ -607,7 +784,7 @@ const CAL = (function(){
     const h = hoy(), lista = delDia(h);
     return {
       lista: lista.map(t => ({ id: t.id, titulo: t.titulo, nota: t.nota, hecho: t.hecho, cat: CAT[t.categoria].n, color: CAT[t.categoria].c, icono: ICONO[t.categoria],
-        test: testsDe(t).length ? avanceTotal(t) : null })),
+        test: conTareaTest(t) ? avanceTotal(t) : null })),
       hechas: lista.filter(t => t.hecho).length,
       racha: racha(),
       atrasadas: atrasadas().length,
@@ -619,7 +796,11 @@ const CAL = (function(){
   function seguirTest(id){
     const t = tareas.find(x => x.id === id);
     if(!t) return;
-    hacerTest(t, (t.test_ids || []).find(x => !terminado(avance(t, x))) || (t.test_ids || [])[0]);
+    const ids = t.test_ids || [], pend = ids.find(x => !terminado(avance(t, x)));
+    if(pend) return hacerTest(t, pend);
+    if(t.legis && !terminado(avanceLegis(t))) return hacerLegis(t);
+    if(ids.length) return hacerTest(t, ids[0]);
+    if(t.legis) hacerLegis(t);
   }
-  return { barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
+  return { avanceTestLegis, terminarTestLegis, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
 })();
