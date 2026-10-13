@@ -1,97 +1,94 @@
-/* Inicio: listas con líneas finas (sin tarjetas dentro de tarjetas), un punto
-   de color por categoría y el rojo solo para lo importante. */
-.ini-grid{ display:grid; gap:30px; }
-.ini-col{ display:flex; flex-direction:column; gap:28px; min-width:0; }
-@media (min-width: 900px){ .ini-grid{ grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap:48px; align-items:start; } }
-
-.ini-cab{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:6px; }
+/* Inicio: panel por bloques (recuadros de distinto tamaño). En el móvil, dos
+   columnas; en ordenador, cuatro. */
+.ini-cab{ margin-bottom:16px; }
 .ini-fecha{ font-size:13px; color: var(--muted); }
-.ini-h{ font-family: var(--sans); font-size:30px; font-weight:650; letter-spacing:-.025em; line-height:1.1; margin:2px 0 0; }
-.ini-cuenta{ font-size:13.5px; color: var(--muted); white-space:nowrap; font-variant-numeric: tabular-nums; padding-bottom:3px; }
-.ini-cuenta b{ color: var(--text); font-weight:600; }
-.ini-bloque{ display:flex; flex-direction:column; gap:10px; }
-.ini-label{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; font-size:13px; font-weight:500; color: var(--muted); }
-.ini-label > span{ min-width:0; }
-.ini-aviso{ color: var(--coral); font-weight:600; }
-.ini-link{ display:inline-flex; align-items:center; gap:1px; flex-shrink:0; border:0; background:none; padding:0; font:inherit; font-size:13px; font-weight:500; color: var(--text); cursor:pointer; }
-.ini-link svg{ width:15px; height:15px; color: var(--muted); }
-
+.ini-h{ font-family: var(--sans); font-size:30px; font-weight:700; letter-spacing:-.025em; line-height:1.1; margin:2px 0 0; }
+.ini-encurso{ display:flex; flex-direction:column; gap:10px; margin-bottom:10px; }
+.ini-bento{ display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:10px; }
+@media (min-width: 900px){
+  .ini-bento{ grid-template-columns: repeat(4, minmax(0, 1fr)); gap:14px; }
+  .ini-bento > .ini-tile.span2:first-child{ grid-column: span 2; grid-row: span 2; }
+}
+.ini-tile{ min-width:0; display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:18px; background: var(--card); border:1px solid var(--line); color: var(--text); font:inherit; text-align:left; }
+.ini-tile.span2{ grid-column: span 2; }
+.ini-tile-btn{ cursor:pointer; transition: border-color .15s, background .15s; }
+.ini-tile-btn:hover{ border-color: var(--muted-2); }
+.ini-label{ display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:11.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color: var(--muted); }
+.ini-label > span:first-child{ min-width:0; }
+.ini-cuenta{ text-transform:none; letter-spacing:0; font-size:12.5px; font-weight:500; font-variant-numeric: tabular-nums; }
+.ini-cuenta b{ color: var(--text); font-weight:700; }
+.ini-aviso{ color: var(--coral); }
+.ini-link{ display:inline-flex; align-items:center; gap:1px; flex-shrink:0; border:0; background:none; padding:0; font:inherit; font-size:12.5px; font-weight:600; letter-spacing:0; text-transform:none; color: var(--coral); cursor:pointer; }
+.ini-link svg{ width:15px; height:15px; }
 .ini-flecha{ display:flex; color: var(--muted-2); flex-shrink:0; }
 .ini-flecha svg{ width:18px; height:18px; }
 .ini-barra{ display:block; height:4px; border-radius:99px; background: var(--line); overflow:hidden; }
-.ini-barra i{ display:block; height:100%; border-radius:inherit; background: var(--text); transition: width .5s cubic-bezier(.2,.7,.2,1); }
+.ini-barra i{ display:block; height:100%; border-radius:inherit; background: var(--c, var(--coral)); transition: width .5s cubic-bezier(.2,.7,.2,1); }
 
-/* Las tareas de hoy */
-.ini-tareas{ display:flex; flex-direction:column; border-top:1px solid var(--line); }
-.ini-tarea{ display:flex; align-items:center; gap:12px; padding:12px 2px; border-bottom:1px solid var(--line); cursor:pointer; min-width:0; }
-.ini-tarea:hover .ini-tarea-t{ text-decoration: underline; text-decoration-color: var(--muted-2); text-underline-offset:3px; }
-.ini-check{ width:22px; height:22px; flex-shrink:0; border-radius:50%; border:1.5px solid var(--muted-2); background:none; color:transparent; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition: background .15s, border-color .15s; }
-.ini-check:hover{ border-color: var(--text); }
+/* Tareas de hoy */
+.ini-tareas{ display:flex; flex-direction:column; }
+.ini-tarea{ display:flex; align-items:center; gap:12px; padding:11px 0; border-top:1px solid var(--line); cursor:pointer; min-width:0; }
+.ini-tarea:first-child{ border-top:0; padding-top:2px; }
+.ini-check{ width:24px; height:24px; flex-shrink:0; border-radius:50%; border:2px solid var(--c); background:none; color:transparent; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition: background .15s; }
 .ini-check svg{ width:13px; height:13px; }
-.ini-tarea.hecha .ini-check{ background: var(--text); border-color: var(--text); color: var(--bg); }
-.ini-tarea-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
-.ini-tarea-t{ font-size:15px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ini-tarea-cat{ display:flex; align-items:center; gap:6px; font-size:12.5px; color: var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ini-punto{ width:7px; height:7px; border-radius:50%; flex-shrink:0; background: var(--c); }
-.ini-tarea.hecha .ini-tarea-t{ color: var(--muted); font-weight:400; }
-.ini-tarea.hecha .ini-punto{ opacity:.45; }
+.ini-tarea.hecha .ini-check{ background: var(--c); color:#fff; }
+.ini-tarea-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.ini-tarea-t{ font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ini-tarea-cat{ font-size:12.5px; color: var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ini-tarea.hecha .ini-tarea-t{ color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted-2); }
 .ini-tarea-test{ display:flex; align-items:center; gap:8px; margin-top:4px; font-size:11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.ini-tarea-test .ini-barra{ flex:1; max-width:180px; }
-.ini-tarea-ir{ flex-shrink:0; padding:6px 12px; border-radius:8px; border:1px solid var(--line); background: var(--bg); color: var(--text); font:inherit; font-size:13px; font-weight:500; cursor:pointer; }
-.ini-tarea-ir:hover{ background: var(--card); }
-.ini-tarea-ir.pri{ background: var(--text); border-color: var(--text); color: var(--bg); }
-.ini-tarea-ir.pri:hover{ opacity:.88; }
-.ini-tarea-ir.hecho{ cursor:default; background:none; border-color: transparent; color: var(--muted); padding-right:0; }
-.ini-mas{ align-self:flex-start; margin-top:8px; border:0; background:none; padding:0; font:inherit; font-size:13px; color: var(--muted); cursor:pointer; text-decoration: underline; text-underline-offset:3px; }
-.ini-anadir{ width:100%; display:flex; align-items:center; gap:8px; padding:13px 2px; border:0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); background:none; color: var(--muted); font:inherit; font-size:14.5px; text-align:left; cursor:pointer; }
-.ini-anadir span{ color: var(--text); font-size:18px; line-height:1; }
-.ini-anadir:hover{ color: var(--text); }
+.ini-tarea-test .ini-barra{ flex:1; max-width:160px; }
+.ini-tarea-ir{ flex-shrink:0; padding:8px 14px; border-radius:99px; border:0; background: var(--coral); color:#fff; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+.ini-tarea-ir:hover{ filter: brightness(1.06); }
+.ini-tarea-ir.hecho{ cursor:default; background:none; color: var(--green); padding-right:0; }
+.ini-mas{ align-self:flex-start; border:0; background:none; padding:0; font:inherit; font-size:13px; color: var(--muted); cursor:pointer; text-decoration: underline; text-underline-offset:3px; }
+.ini-anadir{ width:100%; display:flex; align-items:center; gap:8px; padding:12px; border-radius:12px; border:1px dashed var(--line); background:none; color: var(--muted); font:inherit; font-size:14px; text-align:left; cursor:pointer; }
+.ini-anadir span{ color: var(--coral); font-size:18px; font-weight:700; line-height:1; }
 
-/* Test a medias */
-.ini-continuar{ width:100%; display:flex; align-items:center; gap:12px; padding:12px 14px; text-align:left; font:inherit; color: var(--text);
-  background:none; border:1px solid var(--line); border-radius:10px; cursor:pointer; }
-.ini-continuar:hover{ background: var(--card); }
-.ini-continuar-ico{ width:30px; height:30px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; background: var(--coral); color:#fff; }
-.ini-continuar-ico svg{ width:12px; height:12px; margin-left:2px; }
-.ini-continuar-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.ini-continuar-txt b{ font-size:14.5px; font-weight:500; }
-.ini-continuar-txt > span{ font-size:12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.ini-continuar-txt .ini-barra{ margin-top:5px; max-width:220px; }
+/* Bloques pequeños: una cifra grande o lo próximo */
+.ini-big-fila{ display:flex; align-items:center; gap:8px; }
+.ini-big{ font-size:30px; font-weight:800; letter-spacing:-.03em; line-height:1; font-variant-numeric: tabular-nums; }
+.ini-big small{ font-size:16px; font-weight:600; color: var(--muted); }
+.ini-big.aviso{ color: var(--coral); }
+.ini-big-ico{ display:flex; color: var(--muted-2); }
+.ini-big-ico.aviso{ color: var(--coral); }
+.ini-big-ico svg{ width:24px; height:24px; }
+.ini-sub{ font-size:12.5px; color: var(--muted); margin-top:auto; }
+.ini-acento{ color: var(--coral); font-weight:600; }
+.ini-prox-t{ font-size:15px; font-weight:600; line-height:1.25; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.ini-prox-f{ margin-top:auto; font-size:13px; font-weight:700; color: var(--c, var(--coral)); }
+
+/* Progreso: círculo con el porcentaje */
+.ini-prog{ display:flex; align-items:center; gap:12px; }
+.ini-anillo{ width:62px; height:62px; flex-shrink:0; }
+.ini-anillo circle{ fill:none; stroke-width:4; }
+.ini-anillo .fondo{ stroke: var(--line); }
+.ini-anillo .valor{ stroke-linecap:round; transition: stroke-dasharray .6s cubic-bezier(.2,.7,.2,1); }
+.ini-anillo text{ fill: var(--text); font-size:9px; font-weight:700; font-family: var(--sans); }
+.ini-prog-datos{ min-width:0; display:flex; flex-direction:column; gap:2px; font-size:12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ini-prog-datos b{ color: var(--text); font-weight:600; }
 
 /* La semana */
 .ini-semana{ display:grid; grid-template-columns: repeat(7, 1fr); gap:2px; }
-.ini-dia{ display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 0 2px; border:0; border-radius:10px; background:none; color: var(--text); font:inherit; cursor:pointer; }
-.ini-dia:hover{ background: var(--card); }
-.ini-dia-l{ font-size:11.5px; color: var(--muted); }
-.ini-dia-n{ width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:500; font-variant-numeric: tabular-nums; }
+.ini-dia{ display:flex; flex-direction:column; align-items:center; gap:4px; padding:2px 0; border:0; border-radius:10px; background:none; color: var(--text); font:inherit; cursor:pointer; }
+.ini-dia:hover .ini-dia-n{ background: var(--card-hi); }
+.ini-dia-l{ font-size:11px; font-weight:600; color: var(--muted-2); }
+.ini-dia-n{ width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; font-variant-numeric: tabular-nums; }
 .ini-dia.pasado .ini-dia-n{ color: var(--muted); }
-.ini-dia.hoy .ini-dia-n{ background: var(--coral); color:#fff; font-weight:600; }
+.ini-dia.hoy .ini-dia-n, .ini-dia.hoy:hover .ini-dia-n{ background: var(--coral); color:#fff; }
 .ini-puntos{ display:flex; gap:2px; height:5px; }
 .ini-puntos i{ width:5px; height:5px; border-radius:50%; }
 .ini-puntos i.h{ opacity:.35; }
 
-/* Progreso: una fila por parte (Legislación y Específico) */
-.ini-progreso{ display:flex; flex-direction:column; border-top:1px solid var(--line); }
-.ini-prog-fila{ width:100%; display:block; text-align:left; font:inherit; color: var(--text); padding:13px 2px 12px; background:none; border:0; border-bottom:1px solid var(--line); cursor:pointer; }
-button.ini-prog-fila:hover .ini-prog-nombre{ text-decoration: underline; text-decoration-color: var(--muted-2); text-underline-offset:3px; }
-.ini-prog-cab{ display:flex; align-items:baseline; gap:8px; margin-bottom:9px; }
-.ini-prog-nombre{ font-size:15px; font-weight:500; margin-right:auto; }
-.ini-prog-pct{ font-size:15px; font-weight:600; font-variant-numeric: tabular-nums; }
-.ini-prog-cab .ini-flecha{ align-self:center; }
-.ini-dominio{ display:flex; gap:2px; height:6px; border-radius:99px; overflow:hidden; background: var(--line); }
-.ini-dominio i{ display:block; height:100%; }
-.ini-dominio .v{ background: var(--green); }
-.ini-dominio .a{ background: var(--amber); }
-.ini-dominio .r{ background: var(--coral); }
-.ini-progreso-datos{ display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:8px; font-size:12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.ini-progreso-datos b{ color: var(--text); font-weight:500; }
-
-/* Una fila que lleva a otro sitio (Simulacro conjunto) */
-.ini-fila{ width:100%; display:flex; align-items:center; gap:12px; padding:13px 2px; text-align:left; font:inherit; color: var(--text); background:none; border:0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); cursor:pointer; }
-.ini-fila:hover b{ text-decoration: underline; text-decoration-color: var(--muted-2); text-underline-offset:3px; }
-.ini-fila-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.ini-fila-txt b{ font-size:15px; font-weight:500; }
-.ini-fila-txt span{ font-size:12.5px; color: var(--muted); }
+/* Test a medias */
+.ini-continuar{ width:100%; display:flex; align-items:center; gap:12px; padding:12px 14px; text-align:left; font:inherit; color: var(--text);
+  background: var(--card); border:1px solid var(--coral); border-radius:18px; cursor:pointer; }
+.ini-continuar-ico{ width:36px; height:36px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; background: var(--coral); color:#fff; }
+.ini-continuar-ico svg{ width:14px; height:14px; margin-left:2px; }
+.ini-continuar-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.ini-continuar-txt b{ font-size:15px; }
+.ini-continuar-txt > span{ font-size:12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ini-continuar-txt .ini-barra{ margin-top:5px; max-width:240px; }
 
 /* Volver desde el calendario */
 .cal-volver{ margin-bottom:14px; width:max-content; }

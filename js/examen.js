@@ -34,6 +34,7 @@ const EXA = (function(){
         aj = data ? Object.assign({}, data, { penalizacion: data.penalizacion == null ? null : Number(data.penalizacion) }) : null;
         guardarCache();
         if(typeof INICIO !== 'undefined') INICIO.pintar();
+        if(typeof CAL !== 'undefined') CAL.pintar();
       }).catch(() => {}).finally(() => { cargando = null; });
     return cargando;
   }
@@ -41,6 +42,7 @@ const EXA = (function(){
     aj = Object.assign({}, BASE, nuevo);
     guardarCache();
     if(typeof INICIO !== 'undefined') INICIO.pintar();
+    if(typeof CAL !== 'undefined') CAL.pintar();
     const { error } = await sb.from('examen_ajustes').upsert(Object.assign({ user_id: yo(), updated_at: new Date().toISOString() }, aj), { onConflict: 'user_id' });
     if(error) uiToast('No se pudo guardar: ' + error.message, 'error');
   }
@@ -187,5 +189,5 @@ const EXA = (function(){
     if(ok) PRU.empezarOficial(a);
   }
   function reiniciar(){ aj = null; dueño = null; cerrar(); }
-  return { tarjeta, abrir, simulacro, repintar, reiniciar, ajustes };
+  return { tarjeta, abrir, simulacro, repintar, reiniciar, ajustes, diasHasta, fechaLarga };
 })();

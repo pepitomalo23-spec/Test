@@ -324,14 +324,15 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 - La barra tiene tres pestañas, en este orden: **Estudio** (`screen-estudio`: recuadros grandes
   de Legislación, Normativas, Callejero y Específico) **Inicio** (`screen-inicio`) y **Estadísticas**. Esas cuatro pantallas marcan Estudio;
   el calendario marca Inicio.
-- Inicio (`js/inicio.js`, `css/inicio.css`) es la pantalla de entrada: la fecha y **Hoy** con las tareas del
-  calendario (se marcan ahí mismo; cada una abre su ventanita con la nota y sus tests), el test a medias, la semana
-  de lunes a domingo con un punto por tarea (`CAL.semana()`; cada día abre el calendario en ese día, `CAL.abrirDia`),
-  y en otra columna (debajo en el móvil) el examen, el progreso de Legislación y del Específico y el Simulacro
-  conjunto. Se repinta cuando cambian el calendario, las estadísticas o las fichas.
-- Estilo (Inicio y Calendario, y poco a poco el resto): el de shadcn/ui pasado a CSS. Neutros «zinc» en
-  `css/base.css`, letra Geist (y Geist Mono), listas con líneas finas en vez de tarjetas dentro de tarjetas,
-  un punto de color por categoría y el rojo (`--coral`) solo para hoy, lo atrasado y lo importante.
+- Inicio (`js/inicio.js`, `css/inicio.css`) es la pantalla de entrada, un panel por bloques: la fecha y «Hoy»,
+  el test a medias (si lo hay), **Tareas de hoy** del calendario (se marcan ahí mismo; cada una abre su ventanita),
+  **Por repasar** (las falladas, abre Fallos; sin ese permiso, cuántas tareas de la semana van hechas), **Próximo**
+  (lo siguiente apuntado, `CAL.proxima()`), Legislación y Específico con su círculo de progreso (abren su pestaña
+  de Estadísticas) y **Esta semana** con un punto por tarea (`CAL.semana()`; cada día abre el calendario en ese
+  día, `CAL.abrirDia`). En ordenador, cuatro columnas. Se repinta cuando cambian el calendario, las estadísticas o
+  las fichas. El examen y el Simulacro conjunto ya no están en Inicio (ver Calendario).
+- Estilo: neutros «zinc» en `css/base.css` y letra Geist (y Geist Mono); recuadros (`.ini-tile`, `.cal-tile`)
+  con etiqueta en mayúsculas pequeñas, cifras grandes y el rojo (`--coral`) para lo principal.
 
 ## Legislación de tutorbomberos
 
@@ -477,6 +478,13 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   paso, `saveQuizProgress` guarda el intento en la tarea (`legis.run`: preguntas, orden de sus opciones,
   respuestas y pregunta actual) para seguir en la misma pregunta en cualquier dispositivo, y al finalizar queda
   terminado (con su nota) y la tarea, hecha. «Volver» lleva a donde se abrió (calendario o Inicio).
+- Panel por bloques: el mes, el día elegido (con lo atrasado debajo), **Examen** (días que quedan; abre sus
+  ajustes, con la fecha, el formato y el Simulacro oficial) y **Atrasadas** («Pasar todas a hoy»).
+- **Simulacro conjunto** en una tarea (`simulacro` jsonb `{ fin, nota }`, migración
+  `20261031_calendario_simulacro.sql`): se añade en la hoja («Añadir el Simulacro conjunto»; pone el título y la
+  categoría Test). Ese día sale con «Hacer», que abre el Simulacro conjunto de siempre (se eligen las preguntas y el
+  tiempo) y guarda en el dispositivo qué tarea lo abrió (`pj_cal_simc`); al terminarlo, `js/pruebas.js` llama a
+  `CAL.terminarSimulacro(nota)` y la tarea queda hecha con su nota.
 
 ## Tu examen
 
