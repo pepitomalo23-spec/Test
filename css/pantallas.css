@@ -546,6 +546,8 @@
   .tema-general-row{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; padding:9px 10px; border-radius:9px; margin:0 0 10px; background:transparent; border:1px dashed var(--line); }
   .node-qcount{ font-size:10.5px; padding:2px 8px; border-radius:999px; background:rgba(120,150,255,0.14); color: var(--badge-titulo-fg); cursor:pointer; flex-shrink:0; white-space:nowrap; }
   .node-qcount:hover{ background:rgba(120,150,255,0.26); }
+  .node-bloq{ display:inline-flex; align-items:center; gap:4px; font-size:10.5px; padding:2px 8px; border-radius:999px; background: var(--w12); color: var(--muted); flex-shrink:0; white-space:nowrap; font-weight:600; }
+  .node-bloq svg{ width:11px; height:11px; }
   .tree-node-actions{ position:relative; display:flex; align-items:center; flex-shrink:0; }
   .locate-highlight{ animation: locatePulse 2.2s ease-out; }
   @keyframes locatePulse{

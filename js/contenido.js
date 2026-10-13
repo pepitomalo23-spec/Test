@@ -234,8 +234,24 @@ function fuenteDeConjunto(preguntas){
   return fs.size > 1 ? 'mix' : fs.has('tb') ? 'tb' : 'pj';
 }
 const hayTutorbombero = () => QUESTIONS_ALL.some(q => fuenteDe(q) === 'tb');
+// Títulos bloqueados (nodos_temario.bloqueado: los que se crearon para colocar preguntas de
+// tutorbomberos y no estaban en tu temario): sus preguntas no salen en ningún test ni cuentan en
+// Estadísticas hasta desbloquearlos.
+function nodoBloqueado(id){
+  let n = NODES_BY_ID[id];
+  while(n){ if(n.bloqueado) return true; n = n.padre_id ? NODES_BY_ID[n.padre_id] : null; }
+  return false;
+}
+async function bloquearNodo(id, bloquear){
+  const { error } = await sb.from('nodos_temario').update({ bloqueado: bloquear }).eq('id', id);
+  if(error){ uiToast('No se pudo ' + (bloquear ? 'bloquear' : 'desbloquear') + ': ' + error.message, 'error'); return false; }
+  if(NODES_BY_ID[id]) NODES_BY_ID[id].bloqueado = bloquear;
+  aplicarFuenteLegis();
+  if(typeof refreshGlobalStats === 'function') refreshGlobalStats();
+  return true;
+}
 function aplicarFuenteLegis(){
-  QUESTIONS_POOL = QUESTIONS_ALL;
+  QUESTIONS_POOL = QUESTIONS_ALL.filter(q => !q.nodo_id || !nodoBloqueado(q.nodo_id));
   const redByTopic = {};
   QUESTIONS_POOL.forEach(q => {
     if(!q.topic_id) return;
