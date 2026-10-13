@@ -87,7 +87,8 @@ const INICIO = (function(){
           '<button type="button" class="ini-check" data-ini="marcar" data-id="' + esc(t.id) + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' + CHECK + '</button>' +
           '<span class="ini-tarea-txt"><span class="ini-tarea-t">' + esc(t.titulo) + '</span>' +
             '<span class="ini-tarea-cat">' + t.icono + esc(t.cat) + (t.nota ? ' · ' + esc(t.nota) : '') + '</span>' + barraTest(t.test) + '</span>' +
-          (t.test ? '<button type="button" class="ini-tarea-ir" data-ini="test" data-id="' + esc(t.id) + '">' + (t.test.terminados === t.test.tests ? 'Repasar' : t.test.hechas ? 'Continuar' : 'Empezar') + '</button>' : '') +
+          (t.test ? (t.test.terminados === t.test.tests ? '<span class="ini-tarea-ir hecho">Completado ✓</span>'
+            : '<button type="button" class="ini-tarea-ir" data-ini="test" data-id="' + esc(t.id) + '">' + (t.test.hechas ? 'Continuar' : 'Empezar') + '</button>') : '') +
         '</div>').join('');
       const chips = [
         r.racha ? '<span class="ini-chip fuego">' + ICO.llama + '<b>' + r.racha + '</b> ' + (r.racha === 1 ? 'día' : 'días') + ' de racha</span>' : '',

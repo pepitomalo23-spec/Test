@@ -215,3 +215,7 @@
 .cal-legis-fila > span{ font-size:12px; font-weight:700; color: var(--muted); text-transform:uppercase; letter-spacing:.04em; }
 /* Un título de test largo no ensancha la columna (se corta con «…») */
 .cal-col, .cal-test, .cal-test-cab{ min-width:0; }
+/* Test terminado de una tarea: ya no se abre */
+div.cal-test.acabado{ cursor:default; }
+div.cal-test.acabado:hover{ border-color: var(--line); }
+.cal-test.acabado .cal-test-accion{ color: var(--green); }

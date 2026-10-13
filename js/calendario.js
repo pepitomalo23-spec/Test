@@ -187,14 +187,16 @@ const CAL = (function(){
     return { tests: xs.length, terminados: xs.filter(terminado).length, hechas: xs.reduce((n, a) => n + a.hechas, 0), total: xs.reduce((n, a) => n + a.total, 0),
       partes: xs.map(a => a.total ? Math.min(1, a.hechas / a.total) : 0) };
   }
+  // Un test terminado sale como «Completado» y ya no se abre (así no se puede
+  // empezar de nuevo sin querer y perder lo hecho).
   function filaTest(t, x, solo){
-    const a = avance(t, x.id), pct = a.total ? Math.round(a.hechas / a.total * 100) : 0;
-    const accion = terminado(a) ? 'Repasar' : a.hechas ? 'Continuar' : 'Empezar';
-    return '<button type="button" class="cal-test' + (solo ? '' : ' en-lista') + (terminado(a) ? ' acabado' : '') + '" data-cal="test" data-id="' + t.id + '" data-test="' + x.id + '">' +
-      '<span class="cal-test-cab"><span class="cal-test-t">Test - <b>' + esc(x.titulo) + '</b></span><span class="cal-test-accion">' + accion + ' ›</span></span>' +
+    const a = avance(t, x.id), pct = a.total ? Math.round(a.hechas / a.total * 100) : 0, fin = terminado(a);
+    const accion = fin ? 'Completado ✓' : a.hechas ? 'Continuar ›' : 'Empezar ›';
+    return '<' + (fin ? 'div' : 'button type="button"') + ' class="cal-test' + (solo ? '' : ' en-lista') + (fin ? ' acabado' : '') + '"' + (fin ? '' : ' data-cal="test" data-id="' + t.id + '" data-test="' + x.id + '"') + '>' +
+      '<span class="cal-test-cab"><span class="cal-test-t">Test - <b>' + esc(x.titulo) + '</b></span><span class="cal-test-accion">' + accion + '</span></span>' +
       '<span class="cal-test-barra"><i style="width:' + pct + '%"></i></span>' +
-      '<span class="cal-test-n">' + (terminado(a) ? 'Terminado · ' + a.total + ' preguntas' : a.hechas ? a.hechas + ' de ' + a.total + ' respondidas · faltan ' + (a.total - a.hechas) : 'Sin empezar') + '</span>' +
-      '</button>';
+      '<span class="cal-test-n">' + (fin ? 'Terminado · ' + a.total + ' preguntas' : a.hechas ? a.hechas + ' de ' + a.total + ' respondidas · faltan ' + (a.total - a.hechas) : 'Sin empezar') + '</span>' +
+      '</' + (fin ? 'div' : 'button') + '>';
   }
   // Lo que se ve en la tarea: un test, o la lista con cuántos van terminados.
   function bloqueTest(t){
@@ -212,10 +214,23 @@ const CAL = (function(){
   function barraTramos(partes){
     return '<span class="cal-tramos">' + partes.map(x => '<i><b style="width:' + Math.round(x * 100) + '%"></b></i>').join('') + '</span>';
   }
-  function hacerTest(t, id){
+  // Antes de abrir un test de la tarea, su avance de verdad (el del servidor): el
+  // de este dispositivo puede estar atrasado (se hizo en otro, o se recuperó) y
+  // abrir el test con él lo guardaría encima. Sin conexión, el que haya.
+  async function refrescarTarea(t){
+    try{
+      const { data, error } = await Promise.race([sb.from('calendario_tareas').select('progreso,legis,hecho').eq('id', t.id).maybeSingle(), new Promise(r => setTimeout(() => r({ error: 'tarde' }), 6000))]);
+      if(error || !data) return;
+      Object.assign(t, { progreso: data.progreso, legis: data.legis, hecho: data.hecho });
+      normalizar(t); guardarCache(); pintar();
+    }catch(e){}
+  }
+  async function hacerTest(t, id){
     if(!conTests()) return;
     id = id || (t.test_ids || [])[0];
     if(!id) return;
+    await refrescarTarea(t);
+    if(terminado(avance(t, id))){ uiToast('Este test ya está completado', 'info'); return; }
     cerrarVer();
     const volver = (document.querySelector('.screen.active:not(.overlay)') || {}).id || 'screen-calendario';
     ESPT.abrir(datosTest(id), { tarea: t.id, progreso: ((t.progreso || {}).porTest || {})[id], volver });
@@ -226,7 +241,9 @@ const CAL = (function(){
     if(!t) return;
     const antes = terminado(avance(t, testId));
     const pt = Object.assign({}, (t.progreso || {}).porTest);
-    pt[testId] = prog;
+    // Las respuestas no se deshacen: lo que ya estaba guardado se queda (por si este dispositivo iba atrasado).
+    const viejo = pt[testId] || {};
+    pt[testId] = Object.assign({}, prog, { resp: Object.assign({}, viejo.resp, prog.resp), sesion: prog.sesion || viejo.sesion || null, ultima: prog.ultima || viejo.ultima || null });
     t.progreso = { porTest: pt };
     const marca = todoTerminado(t) && !t.hecho;
     if(marca){ t.hecho = true; uiToast(avanceTotal(t).tests > 1 ? 'Todos los tests terminados: tarea hecha' : 'Test terminado: tarea hecha', 'success'); }
@@ -274,14 +291,14 @@ const CAL = (function(){
   function filaLegis(t, solo){
     const L = t.legis, r = L.run, a = avanceLegis(t), fin = !!(r && r.fin);
     const pct = a.total ? Math.round(a.hechas / a.total * 100) : 0;
-    const accion = fin ? 'Repetir' : a.hechas ? 'Continuar' : 'Empezar';
+    const accion = fin ? 'Completado ✓' : a.hechas ? 'Continuar ›' : 'Empezar ›';
     const nota = fin && r.nota != null ? ' · nota ' + String(Math.round(r.nota * 100) / 100).replace('.', ',') : '';
-    return '<button type="button" class="cal-test cal-test-legis' + (solo ? '' : ' en-lista') + (fin ? ' acabado' : '') + '" data-cal="legis" data-id="' + t.id + '">' +
-      '<span class="cal-test-cab"><span class="cal-test-t">Legislación - <b>' + esc(tituloLegis(L)) + '</b></span><span class="cal-test-accion">' + accion + ' ›</span></span>' +
+    return '<' + (fin ? 'div' : 'button type="button"') + ' class="cal-test cal-test-legis' + (solo ? '' : ' en-lista') + (fin ? ' acabado' : '') + '"' + (fin ? '' : ' data-cal="legis" data-id="' + t.id + '"') + '>' +
+      '<span class="cal-test-cab"><span class="cal-test-t">Legislación - <b>' + esc(tituloLegis(L)) + '</b></span><span class="cal-test-accion">' + accion + '</span></span>' +
       '<span class="cal-test-barra"><i style="width:' + pct + '%"></i></span>' +
       '<span class="cal-test-n">' + (fin ? 'Terminado · ' + (r.hechas && r.hechas < a.total ? r.hechas + ' de ' + a.total + ' respondidas' : a.total + ' preguntas') + nota : a.hechas ? a.hechas + ' de ' + a.total + ' respondidas · faltan ' + (a.total - a.hechas)
         : 'Sin empezar · ' + (L.cuantas ? L.cuantas + ' preguntas' : 'todas las preguntas')) + '</span>' +
-      '</button>';
+      '</' + (fin ? 'div' : 'button') + '>';
   }
   // Las preguntas del intento guardado, con sus opciones en el mismo orden que salieron.
   function preguntasDe(run){
@@ -299,6 +316,9 @@ const CAL = (function(){
   async function hacerLegis(t){
     if(!conLegis() || !t.legis) return;
     if(whenAppDataReady(() => hacerLegis(t))) return;
+    await refrescarTarea(t);
+    if(!t.legis) return;
+    if(t.legis.run && t.legis.run.fin){ uiToast('Este test ya está completado', 'info'); return; }
     const volver = (document.querySelector('.screen.active:not(.overlay)') || {}).id || 'screen-calendario';
     const L = t.legis, r = L.run && !L.run.fin ? L.run : null;
     const enCurso = quizState && quizState.mode;
@@ -799,8 +819,7 @@ const CAL = (function(){
     const ids = t.test_ids || [], pend = ids.find(x => !terminado(avance(t, x)));
     if(pend) return hacerTest(t, pend);
     if(t.legis && !terminado(avanceLegis(t))) return hacerLegis(t);
-    if(ids.length) return hacerTest(t, ids[0]);
-    if(t.legis) hacerLegis(t);
+    uiToast(avanceTotal(t).tests > 1 ? 'Todos los tests de esta tarea están completados' : 'Este test ya está completado', 'info');
   }
   return { avanceTestLegis, terminarTestLegis, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
 })();
