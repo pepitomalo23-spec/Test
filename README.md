@@ -336,7 +336,11 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   dispositivo, `pj_legis_fuente`). `QUESTIONS_ALL` lleva todas y `QUESTIONS_POOL` solo las de la fuente elegida
   (`aplicarFuenteLegis` en `js/contenido.js`), así que tests, Fallos, Test Inteligente, Estadísticas, tareas del
   calendario y simulacros usan solo esas. En el test, una etiqueta dice «Tutorbombero»; en admin, también.
-- Se importan con el mismo marcador del Específico: los tests de temas que no son del Específico salen en la
+- Se importan con el marcador **«Legislación»** (`scripts/marcador/tutorbomberos-legislacion.js` →
+  `datos/marcador-tutorbomberos-legislacion.txt`, se copia en Administración › Específico): en tutorbomberos.es ›
+  Realizar test › Preguntas por tema se eligen los temas (agrupados por bloque) y saca todas las preguntas de
+  cada uno (`seleccionaTema` → formulario «formulario», modo porTema). Su lote lleva `porTema` y pj.fire lo
+  manda siempre a Legislación. También con el marcador del Específico: los tests de temas que no son del Específico salen en la
   ventana de importar como «Legislación · Tutorbombero». Cada tema va a una ley (se propone la de nombre más
   parecido; «No importar» para dejarlo fuera) y cada test, al título que diga su nombre («Título I», «Título
   Preliminar»…) o a la ley en general. Se guarda el texto sin formato (sin imágenes); las que ya estén (mismo

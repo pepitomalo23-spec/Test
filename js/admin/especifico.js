@@ -13,11 +13,12 @@ async function adminLoadEspecifico(){
   const temas = ESP.temas();
   if(!adminEspTema) adminEspTema = temas[0].clave;
   el.innerHTML = skelList(3);
-  if(!adminEspMarcador.uno || !adminEspMarcador.todo || !adminEspMarcador.revisar){
+  if(!adminEspMarcador.uno || !adminEspMarcador.todo || !adminEspMarcador.revisar || !adminEspMarcador.legislacion){
     // Se traen ya, para que «Copiar marcador» copie al momento (Safari solo deja copiar dentro del toque).
     fetch('datos/marcador-tutorbomberos.txt?v=378b511271').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.uno = t.trim(); }).catch(() => {});
     fetch('datos/marcador-tutorbomberos-todo.txt?v=9c6a0aa905').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.todo = t.trim(); }).catch(() => {});
     fetch('datos/marcador-tutorbomberos-revisar.txt?v=ad98bcf960').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.revisar = t.trim(); }).catch(() => {});
+    fetch('datos/marcador-tutorbomberos-legislacion.txt?v=4982bf1813').then(r => r.ok ? r.text() : '').then(t => { adminEspMarcador.legislacion = t.trim(); }).catch(() => {});
   }
   let rt, cuentas;
   try{
@@ -93,9 +94,9 @@ async function adminEspBorrar(id){
 
 /* Marcadores de tutorbomberos.es (datos/marcador-tutorbomberos*.txt, generados
    con node scripts/marcador.mjs): se copian para pegarlos como dirección de
-   un marcador del navegador. tipo: 'uno' (el test abierto), 'todo' o 'revisar'. */
+   un marcador del navegador. tipo: 'uno' (el test abierto), 'todo', 'revisar' o 'legislacion'. */
 function adminEspCopiarMarcador(tipo){
-  const txt = adminEspMarcador[tipo === 'todo' || tipo === 'revisar' ? tipo : 'uno'];
+  const txt = adminEspMarcador[['todo', 'revisar', 'legislacion'].includes(tipo) ? tipo : 'uno'];
   if(!txt){ uiToast('El marcador aún se está cargando; vuelve a pulsar en un momento.', 'info'); return; }
   let ok = false;
   try{
