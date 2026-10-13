@@ -486,6 +486,13 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   tiempo) y guarda en el dispositivo qué tarea lo abrió (`pj_cal_simc`); al terminarlo, `js/pruebas.js` llama a
   `CAL.terminarSimulacro(nota)` y la tarea queda hecha con su nota.
 
+- **Mover rápido** (todo con «Deshacer» en el aviso; una consulta por fecha de destino):
+  - «Mover» en la cabecera del día: lo pendiente al día siguiente, o retrasar todo desde ese día (lo pendiente de
+    ese día y todo lo posterior; lo ya hecho se queda) 1, 2 o 7 días.
+  - «⋯» en cada tarea: día siguiente, +2 días, +1 semana, elegir día o editar. En la ventanita (desde Inicio),
+    «Al día siguiente».
+  - En ordenador, arrastrar una tarea a un día del mes.
+
 ## Tu examen
 
 - `js/examen.js` (EXA), tabla `examen_ajustes` (una fila por alumno, privada; migración `20261026_examen_ajustes.sql`).
