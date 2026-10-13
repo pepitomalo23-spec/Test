@@ -340,6 +340,21 @@ const CJT = (function(){
     return g;
   }
   function preguntable(x){ return generadores(x).length > 0; }
+  // Revisión: cada elemento con cuántas de sus preguntas salen de verdad (las de opciones
+  // necesitan 3 falsas). Para comprobar que no se queda nada sin preguntar.
+  function auditar(){
+    if(!T) return null;
+    return T.fichas.map(f => ({ ficha: f.id, secciones: f.secciones.map(s => {
+      const sin = [], formas = [];
+      s.items.forEach(x => {
+        let ok = 0;
+        generadores(x).forEach(g => { try{ if(g(x)) ok++; }catch(e){} });
+        formas.push(ok);
+        if(!ok) sin.push(x.n);
+      });
+      return { id: s.id, tipo: s.tipo, titulo: s.titulo, total: s.items.length, formas: formas.reduce((a, b) => a + b, 0), sin };
+    }) }));
+  }
 
   function base(x, etiqueta, texto, extra){
     return Object.assign({ id: x.id, item: x, nombre: textoItem(x), etiqueta, texto }, extra);
@@ -423,15 +438,17 @@ const CJT = (function(){
     return opciones(x, '¿Qué es?', x.n, x.r, carreterasOrdenadas(x).map(y => y.r), { resumen: x.n + ': ' + x.r + '.', despues: verDespues(x) });
   }
   function salidasHermanas(x){ return x._s.items.filter(y => y !== x && y.via === x.via && y.sentido === x.sentido); }
+  // Si en ese sentido hay pocas (la CO-32 tiene dos), las falsas salen también de las demás salidas.
+  const otrasSalidas = x => x._s.items.filter(y => y !== x && !salidasHermanas(x).includes(y));
   function qSalidaDestino(x){
-    return opciones(x, x.via + ' ' + x.sentido + ' · ¿a dónde lleva?', 'Salida ' + x.num, x.r, barajar(salidasHermanas(x).map(y => y.r)),
+    return opciones(x, x.via + ' ' + x.sentido + ' · ¿a dónde lleva?', 'Salida ' + x.num, x.r, barajar(salidasHermanas(x).map(y => y.r)).concat(barajar(otrasSalidas(x).map(y => y.r))),
       { resumen: 'La salida ' + x.num + ' lleva a ' + x.r + '.' });
   }
   function qSalidaNumero(x){
     const h = salidasHermanas(x);
     if(h.some(y => normalizar(y.r) === normalizar(x.r))) return null;   // dos salidas al mismo sitio
     const cerca = h.slice().sort((a, b) => Math.abs(parseInt(a.num, 10) - parseInt(x.num, 10)) - Math.abs(parseInt(b.num, 10) - parseInt(x.num, 10)));
-    return opciones(x, x.via + ' ' + x.sentido + ' · ¿qué salida es?', x.r, 'Salida ' + x.num, cerca.map(y => 'Salida ' + y.num),
+    return opciones(x, x.via + ' ' + x.sentido + ' · ¿qué salida es?', x.r, 'Salida ' + x.num, cerca.map(y => 'Salida ' + y.num).concat(barajar(otrasSalidas(x).filter(y => y.via === x.via).map(y => 'Salida ' + y.num))),
       { resumen: 'Es la salida ' + x.num + '.' });
   }
   // Carretera del temario por su código («CO-3402 (Ctra. de Trassierra)» → CO-3402).
@@ -550,7 +567,8 @@ const CJT = (function(){
     return opciones(x, '¿De qué distrito es?', 'Barrio ' + x.n, x._f.titulo, barajar(T.distritos), { resumen: x.n + ' es del distrito ' + x._f.titulo + '.' });
   }
   function qBarrioDe(x){
-    return opciones(x, '¿En qué barrio está?', x.n, x.barrio, barajar(x._s.items.map(y => y.barrio)), { resumen: x.n + ': ' + x.barrio + '.', despues: verDespues(x) });
+    const deFicha = x._f.secciones.filter(z => z.tipo === 'barrios').flatMap(z => z.items.map(y => y.n));
+    return opciones(x, '¿En qué barrio está?', x.n, x.barrio, barajar(x._s.items.map(y => y.barrio)).concat(barajar(deFicha)), { resumen: x.n + ': ' + x.barrio + '.', despues: verDespues(x) });
   }
   function qPlanoTocar(x){
     return base(x, 'Toca en el plano · ' + x._s.titulo, x.n, { respuesta: 'plano', plano: x._s.plano, k: x.k, resumen: x.n + '.' });
@@ -588,18 +606,19 @@ const CJT = (function(){
   }
   // Las que se responden sin mirar el mapa: de opciones y sin nada dibujado antes.
   function sinMapa(q){ return q.respuesta === 'opciones' && !q.antes && !q.plano; }
-  function crearPreguntas(items, soloSinMapa){
+  // todas: cada elemento con todas sus preguntas (Aprender), no solo una al azar; tope: cuántas como mucho.
+  function crearPreguntas(items, soloSinMapa, todas, tope){
     const candidatos = CJ.ordenarPorRepaso(items.filter(x => preguntable(x) || propiasDe(x).length), x => x.id, 'temario');
-    const out = [];
+    const out = [], max = tope || CJ.PREGUNTAS_POR_RONDA;
     for(const x of candidatos){
-      if(out.length >= CJ.PREGUNTAS_POR_RONDA) break;
+      if(out.length >= max) break;
       // Las generadas que no se han quitado y las escritas a mano para este elemento.
       const formas = generadores(x).filter(g => !ocultas.has(x.id + '|' + g.name))
         .map(g => () => { const q = g(x); if(q) q.gen = g.name; return q; })
         .concat(propiasDe(x).map(p => () => qPropia(p, x)));
       for(const f of barajar(formas)){
         const q = f();
-        if(q && (!soloSinMapa || sinMapa(q))){ out.push(q); break; }
+        if(q && (!soloSinMapa || sinMapa(q))){ out.push(q); if(!todas) break; }
       }
     }
     // Las escritas a mano para un apartado entero de los que entran.
@@ -610,12 +629,12 @@ const CJT = (function(){
 
   /* ---------- rondas ---------- */
   // `zona`: la de las respuestas (por defecto, la tarea o la primera clave).
-  async function preguntar(claves, tareaId, titulo, zona, soloSinMapa){
+  async function preguntar(claves, tareaId, titulo, zona, soloSinMapa, todas, tope){
     try{ await cargar(); }catch(e){ uiToast(e.message, 'error'); return; }
     const items = itemsDe(claves);
     if(!items.length){ uiToast('No se encuentra esta parte del temario. Actualiza la app.', 'info'); return; }
     await CJ.empezarTemario({
-      crear: () => crearPreguntas(items, soloSinMapa),
+      crear: () => crearPreguntas(items, soloSinMapa, todas, tope),
       distritos: distritosDe(claves),
       zona: zona || (tareaId ? 't:' + tareaId : 'f:' + claves[0]),
       tareaId: tareaId || null,
@@ -624,14 +643,22 @@ const CJT = (function(){
     });
   }
   function preguntarClave(k){ preguntar([k]); }
+  // Repasar: los apartados del temario ya aprendidos (una pregunta de cada cosa, mezclado).
+  function repasarClaves(claves){ if(claves.length) preguntar(claves, null, 'Temario aprendido', 'f:aprendido'); }
   /* ---------- Aprender paso a paso (js/callejero.js) ----------
      Cada apartado de cada ficha es un paso: cuántas cosas tiene que se pueden
      preguntar y cuántas están ya dominadas. «Preguntar» saca solo lo que aún
      no se domina (lo fallado primero), de 20 en 20, hasta saberlo todo. */
+  // De lo más importante a lo más detallado (la General y cada distrito).
+  const ORDEN_SECCIONES = ['distritos', 'datos', 'linea', 'carreteras', 'salidas', 'puentes', 'aguas', 'inundables', 'poligonos', 'industrias',
+    'urbanizaciones', 'otro-nombre', 'mezquita', 'alcazar', 'feria',
+    'barrios', 'recorridos', 'plazas', 'jardines', 'salud', 'mayores', 'comisarias', 'organismos', 'delegaciones', 'juntas', 'colegios',
+    'civicos', 'bibliotecas', 'mercados', 'comerciales', 'deportes', 'museos', 'palacios', 'teatros', 'hoteles', 'iglesias'];
   function pasos(){
     if(!asegurar()) return null;
     const prog = CJ.progreso();
-    return T.fichas.map(f => ({ id: f.id, titulo: f.titulo, secciones: f.secciones.map(s => {
+    const orden = s => { const i = ORDEN_SECCIONES.indexOf(s.id); return i < 0 ? 99 : i; };
+    return T.fichas.map(f => ({ id: f.id, titulo: f.titulo, secciones: f.secciones.slice().sort((a, b) => orden(a) - orden(b)).map(s => {
       const r = cuenta(prog, s.items);
       return { clave: claveDe(s), titulo: s.titulo, total: r.total, dominadas: r.dominada };
     }).filter(x => x.total) })).filter(f => f.secciones.length);
@@ -642,8 +669,9 @@ const CJT = (function(){
     const s = T.fichaPorId.get(fid).secciones.find(x => x.id === sid);
     const prog = CJ.progreso(), orden = { fallada: 0, progreso: 1, nueva: 2 };
     const pend = s.items.filter(x => preguntable(x) && estado(prog, x) !== 'dominada').sort((a, b) => orden[estado(prog, a)] - orden[estado(prog, b)]);
-    if(!pend.length){ preguntar([k]); return; }
-    preguntar(pend.slice(0, 20).map(x => k + '/' + x.id), null, s.titulo, 'f:' + k);
+    // Lo que falta, con todas sus preguntas (cada cosa por todos lados), unas 30 por ronda.
+    const lista = pend.length ? pend : s.items.filter(preguntable);
+    preguntar(lista.map(x => k + '/' + x.id), null, s.titulo, 'f:' + k, false, true, 30);
   }
   // Un apartado de la pantalla: entero o, en una tarea, solo lo elegido de él.
   function clavesSec(k){
@@ -1720,7 +1748,7 @@ const CJT = (function(){
   }
 
   return {
-    cargar, listo, pasos, aprenderSec, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
+    cargar, listo, pasos, aprenderSec, auditar, repasarClaves, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
     filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, preguntasFalladas, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,

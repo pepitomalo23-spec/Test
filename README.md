@@ -223,16 +223,19 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   **Lo que te ha mandado** (las tareas sin terminar y las hechas), **Repasar lo estudiado** y **Aprender**.
   Si el profesor ha mandado algo nuevo, al entrar sale una ventanita («Estudiar esto» abre solo esa tarea; una
   vez por sesión).
-- **Aprender**: un recorrido de pasos en orden, de lo más general a lo más concreto (`pasosAprender`): los
-  distritos; los barrios de cada distrito; las calles principales (avenidas, rondas, paseos y carreteras) y las
-  plazas y glorietas de cada distrito; las calles de cada barrio; los lugares por grupos; y cada apartado de cada
-  ficha del temario (`CJT.pasos`). Arriba, «Tu siguiente paso». Cada paso: «Ver» (el mapa con los nombres) y
-  **«Preguntar»**, que saca solo lo que aún no se domina, lo fallado primero, de 20 en 20 (`aprenderPaso`,
-  ronda mixta): las calles en las dos direcciones (`voz` y `localiza`: hace falta dominar las dos), los barrios y
-  distritos igual (`vozbarrios`/`mapabarrios`, misma habilidad `barrios`), los lugares (`lugares`) y el temario
-  (`CJT.aprenderSec`). Cuando todo está dominado (la regla de siempre), el paso queda ✓ y se apunta en
-  `callejero_aprendido` (migración `20261101_callejero_aprendido.sql`): desde entonces sale en Repasar, aunque luego
-  se falle algo. Abajo, «Mis notas».
+- **Aprender**: un recorrido de pasos de lo más importante a lo más detallado (`pasosAprender`): 1 Córdoba (los
+  distritos en el mapa y la ficha General del temario: distritos y barrios, datos, línea, carreteras, salidas,
+  puentes, ríos, inundables, polígonos, industrias, urbanizaciones, otro nombre, Mezquita, Alcázar y Feria); 2 los
+  barrios de cada distrito (el apartado de barrios de su ficha: la lista fija; Noroeste, sin ficha, los del mapa);
+  3 las calles principales de cada distrito; 4 cada distrito en detalle (el resto de su ficha, en orden: recorridos,
+  plazas, jardines, salud, mayores, comisarías…, `ORDEN_SECCIONES`); 5 las calles de cada barrio. Los polígonos
+  industriales, que el mapa trae como barrios, no cuentan como barrios (`esBarrio`): en el temario van aparte.
+  Arriba, «Tu siguiente paso». Cada paso: «Ver» y **«Preguntar»**, que saca solo lo que aún no se domina, lo
+  fallado primero: las calles, barrios y distritos en las dos direcciones, y cada cosa del temario con **todas sus
+  preguntas** (no una al azar; `crearPreguntas(…, todas)`, unas 30 por ronda). Cuando todo está dominado, el paso
+  queda ✓ y se apunta en `callejero_aprendido` (migración `20261101_callejero_aprendido.sql`): desde entonces sale
+  en Repasar. `CJT.auditar()` dice, de cada apartado, cuántas preguntas salen y qué cosas no tienen ninguna (hoy,
+  3 jardines del Centro sin datos). Abajo, «Mis notas».
 - **Lo fallado** (arriba en Repasar): lo que la última vez se respondió mal (estado `fallada`: racha 0). Un solo
   botón, «Hacer solo fallos», con todo mezclado y cada cosa preguntada como se falló (calles en su modo, temario,
   barrios y distritos en el mapa de colores; cada pregunta lleva su `modo` y la ronda lo cambia entre preguntas).
@@ -242,8 +245,8 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   vistas). Arriba, «Lo fallado» (si hay) y **Todo junto**: «¿Cuál es?» (calles, barrios y distritos: te lo marca y
   dices el nombre) y «¿Dónde está?» (calles, barrios, distritos y lugares: te dice el nombre y lo tocas), mezclado y
   de 30 en 30 (`repasarJunto`). Debajo, por separado: calles («¿Qué calle es?», «¿Dónde está?», por vueltas),
-  distritos y barrios («¿Qué … es?» con `vozdistritos`/`vozbarrios`; «¿Dónde está?»), lugares y las preguntas del
-  temario ya respondidas.
+  distritos y barrios («¿Qué … es?» con `vozdistritos`/`vozbarrios`; «¿Dónde está?») y el temario (lo aprendido,
+  `CJT.repasarClaves`, y todo lo ya respondido).
 - **«Ya la he visto»**: cada tarea del profesor tiene ese botón. Hasta marcarla se queda en «Lo que te ha mandado»
   y nada de ella sale en Repasar; al marcarla pasa a «Ya vistas · en Repasar» y sus calles y su temario (sin mapa)
   entran en Repasar. Se puede desmarcar. Se guarda en `callejero_tareas_hechas` (migración
