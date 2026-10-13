@@ -230,6 +230,30 @@ const CJ = (function(){
     }));
     return c;
   }
+  // Correcciones a los barrios publicados por callejero-sync (hasta que se lleven a su barrios.ts):
+  // «Santa Isabel Este» es Huerta de Santa Isabel Oeste y llega hasta la Av. Donantes de Órganos
+  // (contorno de OpenStreetMap, relación 21253596, 2026). Camino de Turruñuelos (la zona del
+  // Corte Inglés de Ronda de Poniente) no tenía barrio: se añade (relación 21253576). [lat, lng].
+  const CORREGIR_BARRIOS = [
+    { nuevo: true, nombre: 'Camino de Turruñuelos', distrito: 'Poniente Norte', anillos: [[[37.89601,-4.81128],[37.89556,-4.81142],[37.89544,-4.81059],[37.89491,-4.8107],[37.89479,-4.80968],[37.89407,-4.80938],[37.8956,-4.80881],[37.89567,-4.80925],[37.89579,-4.80929],[37.89588,-4.80927],[37.89598,-4.80893],[37.89618,-4.80856],[37.89599,-4.80743],[37.89593,-4.80728],[37.8957,-4.80636],[37.89509,-4.80674],[37.89497,-4.80613],[37.89481,-4.806],[37.89318,-4.80853],[37.89246,-4.80905],[37.89252,-4.8167],[37.89307,-4.81668],[37.89415,-4.81613],[37.89578,-4.81539],[37.89592,-4.81646],[37.89627,-4.81637],[37.89656,-4.81821],[37.89625,-4.81861],[37.89626,-4.81931],[37.89721,-4.81941],[37.89756,-4.82134],[37.89705,-4.82149],[37.89728,-4.82275],[37.89833,-4.8227],[37.89883,-4.82533],[37.89999,-4.82518],[37.90023,-4.82667],[37.90173,-4.8262],[37.90112,-4.82295],[37.90076,-4.82266],[37.90022,-4.82022],[37.89954,-4.82043],[37.89929,-4.81918],[37.89822,-4.81945],[37.89787,-4.81787],[37.89866,-4.81769],[37.89836,-4.81652],[37.89873,-4.81643],[37.89847,-4.81548],[37.89804,-4.81557],[37.89771,-4.81448],[37.89725,-4.81461],[37.89672,-4.81508],[37.89656,-4.81395],[37.89601,-4.81128]]] },
+    { de: 'Santa Isabel Este', nombre: 'Huerta de Santa Isabel Oeste', anillos: [[[37.88632,-4.81632],[37.88629,-4.81601],[37.88684,-4.81592],[37.88689,-4.81591],[37.88689,-4.81591],[37.88688,-4.81581],[37.88688,-4.81553],[37.88683,-4.81524],[37.88685,-4.81502],[37.88683,-4.81463],[37.8868,-4.81418],[37.8868,-4.81413],[37.88678,-4.81344],[37.88678,-4.81344],[37.88678,-4.81343],[37.88678,-4.81291],[37.88672,-4.81264],[37.88669,-4.81251],[37.88668,-4.81244],[37.88668,-4.81239],[37.88669,-4.81224],[37.88671,-4.81192],[37.88663,-4.8113],[37.88652,-4.81085],[37.88646,-4.81071],[37.88641,-4.81057],[37.88638,-4.8105],[37.88638,-4.81049],[37.88634,-4.81047],[37.88623,-4.81044],[37.88616,-4.81041],[37.88598,-4.8103],[37.88588,-4.81015],[37.88592,-4.81011],[37.88589,-4.81006],[37.88612,-4.81001],[37.88637,-4.80969],[37.88646,-4.80934],[37.88643,-4.8093],[37.88653,-4.80918],[37.88666,-4.80902],[37.88668,-4.80903],[37.8867,-4.80897],[37.88685,-4.80883],[37.88707,-4.80885],[37.8889,-4.80903],[37.88944,-4.80906],[37.88943,-4.80904],[37.89198,-4.8091],[37.89246,-4.80905],[37.89252,-4.8167],[37.89222,-4.81671],[37.89148,-4.81646],[37.88632,-4.81632]]] }
+  ];
+  function corregirBarrios(barrios, vias, lugares){
+    CORREGIR_BARRIOS.forEach(c => {
+      let b = barrios.find(x => x.nombre === c.de || x.nombre === c.nombre);
+      if(!b && c.nuevo){ b = { nombre: c.nombre, distrito: c.distrito, anillos: c.anillos }; barrios.push(b); }
+      if(!b) return;
+      b.nombre = c.nombre;
+      b.anillos = c.anillos;
+      // Lo que ahora queda dentro también es de este barrio.
+      const caja = cajaDe(c.anillos);
+      vias.forEach(v => {
+        if(v.barrios.includes(b) || v.caja.n < caja.s || v.caja.s > caja.n || v.caja.e < caja.o || v.caja.o > caja.e) return;
+        if(v.lineas.some(l => l.some(p => dentroDeBarrio(p[0], p[1], b)))) v.barrios.push(b);
+      });
+      lugares.forEach(l => { if(!l.barrios.includes(b) && dentroDeBarrio(l.lat, l.lng, b)) l.barrios.push(b); });
+    });
+  }
   function decodificar(doc){
     const barrios = ((doc.zonas && doc.zonas.barrios) || []).map(([nombre, distrito, anillos]) => ({ nombre, distrito, anillos: decodificarLineas(anillos) }));
     const vias = doc.vias.map(([id, nombre, tipo, jugable, lineas, enBarrios, parque]) => {
@@ -242,6 +266,7 @@ const CJ = (function(){
       id, nombre, categoria, direccion, lat: y / 1e5, lng: x / 1e5, clave: normalizar(nombre),
       barrios: (enBarrios || []).map(i => barrios[i]).filter(Boolean), parque: parque || 0, radio: radio || 0
     }));
+    corregirBarrios(barrios, vias, lugares);
     const lineaParques = doc.parques && doc.parques.linea ? decodificarLineas([doc.parques.linea])[0] : null;
     const porNombre = new Map();
     vias.forEach(v => {
@@ -2770,7 +2795,11 @@ const CJ = (function(){
   function barriosFijos(){
     const l = typeof CJT !== 'undefined' ? CJT.listaBarrios() : null;
     if(!l) return datos.barrios.filter(esBarrio).map(b => ({ n: b.nombre, distrito: b.distrito, barrio: b }));
-    return l.map(x => ({ n: x.n, distrito: x.distrito, barrio: x.b ? datos.barrios.find(b => b.nombre === x.b) || null : null }));
+    const out = l.map(x => ({ n: x.n, distrito: x.distrito, barrio: x.b ? datos.barrios.find(b => b.nombre === x.b) || null : null }));
+    // Y los del mapa que el temario no tiene (Camino de Turruñuelos).
+    const ya = new Set(out.map(x => x.barrio).filter(Boolean));
+    datos.barrios.filter(b => esBarrio(b) && !ya.has(b)).forEach(b => out.push({ n: b.nombre, distrito: b.distrito, barrio: b }));
+    return out;
   }
   // Los distritos en su orden (los del mapa y, detrás, los demás).
   function ordenDistritos(nombres){
