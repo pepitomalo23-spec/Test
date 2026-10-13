@@ -360,9 +360,9 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   motivo), se cambia a mano el que haga falta y «Guardar».
 - **Títulos bloqueados** (`nodos_temario.bloqueado`, migración `20261030_nodos_bloqueados.sql`): los títulos que
   se crean al colocar (no estaban en el temario propio) nacen bloqueados. Sus preguntas no salen en ningún test ni
-  cuentan en Estadísticas (`nodoBloqueado`: QUESTIONS_POOL no las incluye) hasta desbloquearlos: al preparar un test
-  salen con candado y «Bloqueado» (tocarlo, siendo administrador, pregunta si desbloquearlo) y en Administración ›
-  Temario cada nivel tiene en su menú (⋮) Bloquear / Desbloquear.
+  cuentan en Estadísticas ni en sus contadores (`nodoBloqueado`: QUESTIONS_POOL no las incluye) hasta desbloquearlos.
+  Al preparar un test ni aparecen (`gruposDe`); se bloquean y desbloquean en Administración › Temario, en el menú (⋮)
+  de cada nivel.
 
 ## Específico
 

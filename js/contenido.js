@@ -274,7 +274,8 @@ function pintarFuenteStats(){
   const el = document.getElementById('statsFuente');
   if(!el) return;
   if(!hayTutorbombero()){ el.innerHTML = ''; fuenteStats = 'todas'; return; }
-  const n = k => (k === 'todas' ? QUESTIONS_ALL : QUESTIONS_ALL.filter(q => fuenteDe(q) === k)).length;
+  // Solo las que pueden salir (sin las de títulos bloqueados).
+  const n = k => (k === 'todas' ? QUESTIONS_POOL : QUESTIONS_POOL.filter(q => fuenteDe(q) === k)).length;
   el.innerHTML = [['todas', 'Todas'], ['pj', FUENTES_LEGIS.pj], ['tb', FUENTES_LEGIS.tb]].map(([k, t]) =>
     '<button type="button" class="legis-fuente-op' + (k === fuenteStats ? ' on' : '') + '" onclick="cambiarFuenteStats(\'' + k + '\')" aria-pressed="' + (k === fuenteStats) + '">' +
       t + '<span>' + n(k).toLocaleString('es-ES') + '</span></button>').join('');
