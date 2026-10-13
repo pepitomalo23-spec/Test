@@ -59,6 +59,7 @@ function romanToInt(s){
 function nodeSortKey(n){
   const raw = (n.numero || '').trim();
   if(!raw) return null;
+  if(/^preliminar$/i.test(raw)) return 0;   // el Título Preliminar va antes del 1
   if(/^\d+(\.\d+)?$/.test(raw)) return parseFloat(raw);
   const roman = romanToInt(raw.toUpperCase());
   return roman == null ? null : roman;

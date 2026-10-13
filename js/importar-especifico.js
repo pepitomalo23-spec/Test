@@ -461,7 +461,20 @@ const IMP = (function(){
               correct_index: ci, explain: aTexto(q.explicacion), difficulty: q.dificultad || 'media', fuente: 'tb', origen_test: t.titulo });
           });
           const nuevas = [], viejas = [];
-          filas.forEach(f => { const id = porTexto.get(claveP(f.question)); if(id) viejas.push([id, f]); else { nuevas.push(f); porTexto.set(claveP(f.question), -1); } });
+          filas.forEach(f => {
+            const id = porTexto.get(claveP(f.question));
+            // Si el test no va a un título concreto, las que ya estaban conservan su sitio (revisado a mano o no).
+            if(id){ if(!t.nodo) delete f.nodo_id; viejas.push([id, f]); }
+            else { nuevas.push(f); porTexto.set(claveP(f.question), -1); }
+          });
+          // Las nuevas sin título: cada una a su título o artículo (por el artículo que cita, por parecido…).
+          if(!t.nodo && typeof COLOCAR !== 'undefined'){
+            for(const f of nuevas){
+              try{ f.nodo_id = await COLOCAR.nodoDe(COLOCAR.colocar({ question: f.question, explain: f.explain }, g.ley), g.ley); }
+              catch(e){ f.nodo_id = null; }
+            }
+            COLOCAR.olvidar();
+          }
           for(let k = 0; k < nuevas.length; k += 200){
             const { error } = await sb.from('questions').insert(nuevas.slice(k, k + 200));
             if(error) throw error;

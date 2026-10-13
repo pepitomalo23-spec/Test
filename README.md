@@ -53,6 +53,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   especifico-test.js hacer un test del Específico y ver las Preguntas marcadas (diseño de tutorbomberos)
   estadisticas-especifico.js  Estadísticas › pestaña Específico
   pruebas.js         Simulacro conjunto (Inicio) y modos del Específico (panel pj.fire), con su historial
+  colocar-tb.js      dónde va (título o artículo) cada pregunta de tutorbomberos, y su revisión en Administración
   importar-especifico.js  recibe las preguntas que envía el marcador de tutorbomberos.es (Específico y Legislación)
   examen.js          Tu examen: cuenta atrás de Inicio y formato del Simulacro oficial
   inicio.js          Inicio: lo de hoy, test a medias, accesos rápidos y progreso
@@ -334,7 +335,8 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   migración `20261027_preguntas_fuente.sql`) y, las de tutorbomberos, el test del que salieron (`origen_test`).
 - Legislación es **una sola**: todas las preguntas juntas (un solo historial, Fallos, Test Inteligente y
   estadísticas). Al preparar un test (Estudio, Examen, Simulacro) la fila **«Preguntas de»** elige Todas (por
-  defecto), pj.fire o Tutorbombero, con cuántas hay de cada una; cada ley dice cuántas tiene de cada fuente. Solo
+  defecto), pj.fire o Tutorbombero, con cuántas hay de cada una. Con Todas, cada ley dice cuántas tiene de cada
+  fuente; con una fuente, solo salen las leyes y los títulos que tienen preguntas de ella, con cuántas. Solo
   sale si hay preguntas de tutorbomberos. En el test y en la corrección, las de tutorbomberos llevan su etiqueta.
 - Cada sesión guarda de qué fuente eran sus preguntas (`test_sessions.fuente`: `pj`, `tb` o `mix`; migraciones
   `20261028_sesiones_fuente.sql` y `20261029_sesiones_fuente_mix.sql`): en el historial, «Tutorbombero» o «Mixto».
@@ -348,7 +350,13 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   ventana de importar como «Legislación · Tutorbombero». Cada tema va a una ley (se propone la de nombre más
   parecido; «No importar» para dejarlo fuera) y cada test, al título que diga su nombre («Título I», «Título
   Preliminar»…) o a la ley en general. Se guarda el texto sin formato (sin imágenes); las que ya estén (mismo
-  texto en esa ley, de tutorbomberos) se actualizan, sin duplicar; las que vienen sin respuesta correcta no se guardan.
+  texto en esa ley, de tutorbomberos) se actualizan sin duplicar y sin mover de sitio; las que vienen sin respuesta correcta no se guardan.
+- **Dónde va cada una** (`js/colocar-tb.js`, `COLOCAR`): por el artículo que cita (si es de esa ley y existe en
+  el árbol), por el título que le toca según la estructura conocida de la CE, la 7/1985 y el TREBEP (si el título no
+  existe, se crea), por si es de estructura o por su parecido con una de pj.fire; si no, a la ley en general. Las
+  nuevas que se importan sin título se colocan solas. Para las que ya están: Administración › Temario ›
+  **«Tutorbombero: colocar preguntas»**, por ley: «Colocar automáticamente» propone el sitio de cada una (con el
+  motivo), se cambia a mano el que haga falta y «Guardar».
 
 ## Específico
 
