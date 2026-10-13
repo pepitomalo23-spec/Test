@@ -169,7 +169,12 @@ function renderTopicGroupList(topicId, topicSelected){
   // sus preguntas cuenten igualmente): el marcado morado solo aparece
   // cuando el usuario ha tocado títulos concretos a mano.
   const selected = configState.nodeSelections[topicId] || new Set();
-  return '<div class="article-list">' + groups.map(g => {
+  // Con tutorbomberos, cada título dice cuántas preguntas tiene de la fuente
+  // elegida; con una fuente concreta, los títulos sin ninguna no salen.
+  const cuentas = hayTutorbombero() ? cuentasPorGrupo(topicId) : null;
+  const visibles = (cuentas && configState.fuente !== 'todas') ? groups.filter(g => cuentas[g.id] || selected.has(g.id)) : groups;
+  if(!visibles.length) return '<div class="article-list"><div class="article-vacio">Ningún título tiene preguntas de ' + FUENTES_LEGIS[configState.fuente] + ': son generales de la ley.</div></div>';
+  return '<div class="article-list">' + visibles.map(g => {
     // El marcado de cada título es independiente de si el tema está
     // encendido o apagado: se ve igual en ambos casos (el check del tema
     // solo decide si el tema entra o no en el test, no toca esto).
@@ -178,6 +183,7 @@ function renderTopicGroupList(topicId, topicSelected){
       'onclick="toggleTopicGroup(\'' + topicId + '\', \'' + g.id + '\')" ' +
       'onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleTopicGroup(\'' + topicId + '\', \'' + g.id + '\');}">' +
       '<span class="article-check">' + ICONS.check + '</span><span class="article-name">' + esc(g.label) + '</span>' +
+      (cuentas ? '<span class="article-cuenta">' + (cuentas[g.id] || 0).toLocaleString('es-ES') + '</span>' : '') +
     '</div>';
   }).join('') + '</div>';
 }
@@ -206,7 +212,8 @@ function toggleTopicGroup(topicId, groupId){
 function renderTemas(){
   const el = document.getElementById('temasList');
   el.innerHTML = '';
-  const enabledTopics = TOPICS.filter(t => t.enabled);
+  // Con una fuente concreta en «Preguntas de», solo salen las leyes que tienen preguntas de ella.
+  const enabledTopics = TOPICS.filter(t => t.enabled && (configState.fuente === 'todas' || !hayTutorbombero() || cuentaFuente(t.id)));
   if(!enabledTopics.length){
     el.innerHTML = '<div class="tree-empty">Todavía no hay temas creados. Créalos desde el panel de administración → pestaña "Temas".</div>';
     updateConfigFooter();
@@ -252,14 +259,36 @@ function renderTemas(){
   if(!renderTemas.desdeFuente){ renderTemas.desdeFuente = true; renderFuenteOptions(); renderTemas.desdeFuente = false; }
 }
 
-// Debajo de cada ley, cuántas preguntas tiene de cada fuente (solo si tiene de tutorbomberos).
+// Debajo de cada ley, cuántas preguntas tiene (solo si hay de tutorbomberos):
+// con «Todas», las de cada fuente; con una fuente elegida, solo las de esa.
+function cuentaFuente(topicId){
+  const f = configState.fuente;
+  let n = 0;
+  QUESTIONS_POOL.forEach(q => { if(q.topic_id === topicId && deFuente(q, f)) n++; });
+  return n;
+}
 function desgloseTema(topicId){
   if(!hayTutorbombero()) return '';
+  const f = configState.fuente, fmt = n => n.toLocaleString('es-ES');
+  if(f !== 'todas'){
+    const n = cuentaFuente(topicId);
+    return '<span class="topic-desglose">' + fmt(n) + (n === 1 ? ' pregunta' : ' preguntas') + ' de ' + FUENTES_LEGIS[f] + '</span>';
+  }
   let pj = 0, tb = 0;
   QUESTIONS_POOL.forEach(q => { if(q.topic_id === topicId){ if(fuenteDe(q) === 'tb') tb++; else pj++; } });
   if(!tb) return '';
-  const f = configState.fuente, txt = (k, n, nom) => '<span class="topic-fuente' + (f !== 'todas' && f !== k ? ' fuera' : '') + '">' + n.toLocaleString('es-ES') + ' ' + nom + '</span>';
-  return '<span class="topic-desglose">' + txt('pj', pj, FUENTES_LEGIS.pj) + ' · ' + txt('tb', tb, FUENTES_LEGIS.tb) + '</span>';
+  return '<span class="topic-desglose">' + fmt(pj) + ' ' + FUENTES_LEGIS.pj + ' · ' + fmt(tb) + ' ' + FUENTES_LEGIS.tb + '</span>';
+}
+// Cuántas preguntas de la fuente elegida hay dentro de cada título del tema.
+function cuentasPorGrupo(topicId){
+  const ids = new Set((TOPIC_GROUPS[topicId] || []).map(g => g.id)), out = {};
+  QUESTIONS_POOL.forEach(q => {
+    if(q.topic_id !== topicId || !q.nodo_id || !deFuente(q, configState.fuente)) return;
+    let cur = NODES_BY_ID[q.nodo_id];
+    while(cur && !ids.has(cur.id)) cur = cur.padre_id ? NODES_BY_ID[cur.padre_id] : null;
+    if(cur) out[cur.id] = (out[cur.id] || 0) + 1;
+  });
+  return out;
 }
 
 function toggleTopic(id){

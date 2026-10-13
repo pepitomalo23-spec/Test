@@ -213,3 +213,18 @@
 .imp-legis select{ width:100%; }
 .imp-legis-test{ display:flex; flex-direction:column; gap:4px; margin:8px 0; font-size:13px; }
 .imp-legis-test small{ color: var(--muted); }
+
+/* Administración › Temario: dónde va cada pregunta de tutorbomberos (js/colocar-tb.js) */
+.imp-panel.col-panel{ max-width:760px; }
+.col-cab{ position:sticky; top:-20px; z-index:1; background: var(--bg); padding:4px 0 10px; border-bottom:1px solid var(--line); }
+.col-cab .imp-nota{ margin:10px 0; font-size:13.5px; color: var(--muted); }
+.col-acciones{ display:flex; flex-wrap:wrap; gap:8px; }
+.col-lista{ list-style:none; margin:12px 0 0; padding:0; display:flex; flex-direction:column; gap:10px; }
+.col-q{ border:1px solid var(--line); border-radius:12px; padding:12px; background: var(--card); }
+.col-q.cambiada{ border-color: var(--esp-naranja); box-shadow: inset 3px 0 0 var(--esp-naranja); }
+.col-texto{ font-size:14.5px; line-height:1.45; white-space:pre-line; }
+.col-exp{ margin-top:6px; font-size:12.5px; line-height:1.4; color: var(--muted); }
+.col-sitio{ margin-top:10px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.imp-cuerpo .col-sitio select{ flex:1 1 260px; width:auto; min-width:0; max-width:100%; text-overflow:ellipsis; padding:8px 10px; font-size:13.5px; }
+.col-motivo{ font-size:12px; padding:3px 8px; border-radius:999px; background: var(--card-hi); color: var(--muted); }
+.col-pie{ position:sticky; bottom:-20px; background: var(--bg); padding:10px 0; border-top:1px solid var(--line); }
