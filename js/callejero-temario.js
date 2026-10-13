@@ -672,21 +672,25 @@ const CJT = (function(){
     })));
     return out;
   }
-  // Todo lo de una categoría en el mapa, con su distrito (para elegirlo arriba).
-  // Lo que no está en el mapa también sale en la lista, con su ficha.
-  async function verCategoria(ids, titulo){
-    try{ await cargar(); }catch(e){ uiToast(e.message, 'error'); return; }
-    // Lo que no está en el mapa (los datos, los planos de la Mezquita, el Alcázar y la Feria…), en su ficha.
-    const secs = T.fichas.flatMap(f => f.secciones.filter(s => ids.includes(s.id)));
-    if(secs.length === 1 && !secs[0].items.some(x => itemMapa(x))){ abrir(claveDe(secs[0]), true); return; }
+  // Lo de una categoría, con su distrito (para elegirlo arriba). Lo que no está
+  // en el mapa también, con su ficha (null mientras se descarga el temario).
+  function itemsCategoria(ids){
+    if(!asegurar()) return null;
     const items = [];
-    secs.forEach(s => s.items.forEach(x => { const f = s._f;
-      const it = itemMapa(x) || { id: x.id, nombre: textoItem(x), tipo: s.titulo, detalle: lineasDetalle(x, true), vias: [], lugar: null, barrio: null };
+    T.fichas.forEach(f => f.secciones.filter(s => ids.includes(s.id)).forEach(s => s.items.forEach(x => {
+      const it = itemMapa(x) || { id: x.id, nombre: textoItem(x), tipo: s.titulo, detalle: lineasDetalle(x, true), vias: [], lugar: null, barrio: null, dir: x.dir || null };
       it.grupo = f.grupo === 'distrito' ? f.titulo : x.distrito || null;
+      it.temario = true;
       items.push(it);
-    }));
-    if(!items.length){ uiToast('Esto no tiene nada que ver.', 'info'); return; }
-    CJ.estudio({ titulo, items, distritos: [], porGrupos: true, lista: 'Lista', pista: 'Toca lo marcado en azul o elige de la lista' });
+    })));
+    return items;
+  }
+  // Lo que no está en el mapa (los datos, los planos de la Mezquita, el Alcázar y la Feria…) se ve en su ficha.
+  async function verEnFicha(ids){
+    try{ await cargar(); }catch(e){ uiToast(e.message, 'error'); return false; }
+    const secs = T.fichas.flatMap(f => f.secciones.filter(s => ids.includes(s.id)));
+    if(secs.length === 1 && !secs[0].items.some(x => itemMapa(x))){ abrir(claveDe(secs[0]), true); return true; }
+    return false;
   }
   // Un apartado de la pantalla: entero o, en una tarea, solo lo elegido de él.
   function clavesSec(k){
@@ -729,7 +733,7 @@ const CJT = (function(){
     return {
       id: x.id, nombre: textoItem(x), tipo: x._s.titulo,
       detalle: lineasDetalle(x, true),
-      vias: g ? g.vias : [], lugar: g ? g.lugar : null, barrio: g ? g.barrio : null, ruta, salida: salidaDe(x), encuadre
+      vias: g ? g.vias : [], lugar: g ? g.lugar : null, barrio: g ? g.barrio : null, ruta, salida: salidaDe(x), encuadre, dir: x.dir || null
     };
   }
   async function verEnMapa(claves, focoId, titulo){
@@ -1765,7 +1769,7 @@ const CJT = (function(){
   }
 
   return {
-    cargar, listo, contarSecciones, clavesSecciones, listaBarrios, verCategoria, auditar, repasarClaves, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
+    cargar, listo, contarSecciones, clavesSecciones, listaBarrios, itemsCategoria, verEnFicha, auditar, repasarClaves, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
     filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, preguntasFalladas, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
