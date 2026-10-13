@@ -223,26 +223,30 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
   **Lo que te ha mandado** (las tareas sin terminar y las hechas), **Repasar lo estudiado** y **Aprender**.
   Si el profesor ha mandado algo nuevo, al entrar sale una ventanita («Estudiar esto» abre solo esa tarea; una
   vez por sesión).
-- **Aprender**: para ver en el mapa y saber cómo se llama cada cosa (se toca o se elige de la lista): los
-  distritos (de colores, con su nombre), los barrios (con su nombre, de cerca), todas las calles (mapa libre de
-  Córdoba, sin lo del profesor), plazas y glorietas, y los lugares por grupos (colegios, salud, parques,
-  monumentos, edificios públicos, ocio, transporte…); y el temario de la academia. Usa el visor del temario
-  (`verTemario`), que admite elementos con varios barrios (un distrito), colores y nombres sobre el mapa.
+- **Aprender**, paso a paso de lo más general a lo más concreto: 1 los distritos; 2 los barrios de cada distrito;
+  3 las calles principales (avenidas, rondas, paseos y carreteras, `TIPOS_PRINCIPALES`) y las plazas y glorietas;
+  4 las calles de cada barrio (desplegable por distrito); 5 los lugares por grupos; 6 el temario de la academia.
+  Cada fila abre el mapa con los nombres (se toca o se elige de la lista; usa el visor del temario, `verTemario`).
+  **«Me lo sé»** marca el paso como aprendido y lo pasa a Repasar (`callejero_aprendido`, claves `distritos`,
+  `barrios:<distrito>`, `grandes`, `plazas`, `barrio:<barrio>`; migración `20261101_callejero_aprendido.sql`, con
+  copia en el dispositivo). Abajo, «Mis notas».
 - **Lo fallado** (arriba en Repasar): lo que la última vez se respondió mal (estado `fallada`: racha 0). Un solo
   botón, «Hacer solo fallos», con todo mezclado y cada cosa preguntada como se falló (calles en su modo, temario,
   barrios y distritos en el mapa de colores; cada pregunta lleva su `modo` y la ronda lo cambia entre preguntas).
   Se quita solo al acertarlo. «Restablecer» lo vacía: desde esa fecha solo cuenta lo que se vuelva a fallar
   (`callejero_fallos_reinicio`, migración `20261009_callejero_fallos_reinicio.sql`).
-- **Repasar lo estudiado**: todo lo dado hasta ahora, en una sola pantalla: el temario (las preguntas ya
-  respondidas y las preguntas sin mapa —de lo que ha mandado el profesor o, si no hay, de todo el temario—),
-  «Distritos en el mapa» y «Barrios en el mapa», y las calles. Ya no hay «lo que toca hoy».
+- **Repasar lo estudiado**: solo lo ya aprendido, con los botones justos: «Lo fallado» (si hay algo), las **calles**
+  («¿Qué calle es?»: te marca una y dices su nombre, modo `voz`; «¿Dónde está?»: te dice el nombre y la tocas, modo
+  `localiza`; cada una por vueltas), los **distritos** y los **barrios** («¿Qué … es?»: marcado en rojo, dices el nombre
+  y te corriges, modos `vozdistritos` y `vozbarrios`; «¿Dónde está?»: `mapadistritos` y `mapabarrios`) y las preguntas
+  del temario ya respondidas. Las calles son las de las tareas del profesor ya vistas y las de lo marcado con «Me lo
+  sé»; los distritos y barrios, los marcados.
 - **«Ya la he visto»**: cada tarea del profesor tiene ese botón. Hasta marcarla se queda en «Lo que te ha mandado»
   y nada de ella sale en Repasar; al marcarla pasa a «Ya vistas · en Repasar» y sus calles y su temario (sin mapa)
   entran en Repasar. Se puede desmarcar. Se guarda en `callejero_tareas_hechas` (migración
   `20261008_callejero_tareas_hechas.sql`), con copia en el dispositivo.
-- **Calles de tu profesor, por vueltas** (en Repasar, tras «Lo fallado»): solo las de las tareas ya marcadas como
-  vistas (calles sueltas y zonas enteras, y las de sus fichas del temario). Se elige cómo preguntarlas (4 nombres,
-  señalándolas, diciendo el nombre, cruces o parque) y cada forma lleva su vuelta: salen todas antes de repetir
+- **Calles por vueltas** (en Repasar): las de las tareas ya marcadas como vistas (calles sueltas y zonas enteras, y
+  las de sus fichas del temario) y las aprendidas. Cada forma de preguntarlas lleva su vuelta: salen todas antes de repetir
   (lo ya visto se guarda en la cuenta, `callejero_vueltas`, con copia en el dispositivo, `cj_vuelta_<usuario>`;
   al cargar gana lo más reciente; la ronda siguiente sigue con lo que falta, en cualquier dispositivo).
   Al acabar empieza otra; «Empezar la vuelta de nuevo» la reinicia.

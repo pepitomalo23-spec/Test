@@ -134,6 +134,9 @@ const CJ = (function(){
     // Sus respuestas se guardan como las de «Barrios y distritos».
     mapadistritos: { titulo: 'Distritos en el mapa', respuesta: 'toque', registra: 'barrios' },
     mapabarrios: { titulo: 'Barrios en el mapa', respuesta: 'toque', registra: 'barrios' },
+    // Uno marcado en el mapa: se dice su nombre, se ve y uno mismo se pone bien o mal.
+    vozdistritos: { titulo: '¿Qué distrito es?', respuesta: 'voz', registra: 'barrios' },
+    vozbarrios: { titulo: '¿Qué barrio es?', respuesta: 'voz', registra: 'barrios' },
     // Nombra las calles de una zona: no son preguntas, se dicen o se escriben.
     nombrar: { titulo: 'Nombra las calles', respuesta: 'nombrar' }
   };
@@ -141,7 +144,7 @@ const CJ = (function(){
   // Habilidad que entrena cada modo: el progreso se cuenta por habilidad
   // («escribe» es un modo antiguo que ya no existe, pero tiene respuestas).
   const HABILIDAD = { localiza: 'localiza', opciones: 'nombre', voz: 'nombre', escribe: 'nombre', cruces: 'cruces', lugares: 'lugares', parque: 'parque', temario: 'temario',
-    barrios: 'barrios', enbarrio: 'barrios', mapadistritos: 'barrios', mapabarrios: 'barrios', nombrar: 'memoria' };
+    barrios: 'barrios', enbarrio: 'barrios', mapadistritos: 'barrios', mapabarrios: 'barrios', vozdistritos: 'barrios', vozbarrios: 'barrios', nombrar: 'memoria' };
   const HABILIDADES = [
     { k: 'nombre', titulo: 'Nombres', desc: '¿Cómo se llama? y Di el nombre' },
     { k: 'localiza', titulo: 'Situar calles', desc: 'Localiza la calle' },
@@ -406,6 +409,7 @@ const CJ = (function(){
     cargarNotas();
     cargarFallosDesde().then(() => { if(vistaActual === 'inicio' && subInicio === 'repasar') pintarInicio(); }, () => {});
     cargarMarcadas().then(() => { if(vistaActual === 'inicio') pintarInicio(); }, () => {});
+    cargarAprendido().then(() => { if(vistaActual === 'inicio') pintarInicio(); }, () => {});
     cargarVueltas().then(() => { if(vistaActual === 'inicio' && subInicio === 'repasar') pintarInicio(); }, () => {});
     const { data, error } = await sb.rpc('callejero_progreso');
     if(error) return;
@@ -448,6 +452,44 @@ const CJ = (function(){
       : await sb.from('callejero_tareas_hechas').upsert({ user_id: currentUser.id, tarea_id: id });
     if(r.error){ uiToast('No se ha podido guardar: ' + r.error.message, 'error'); return; }
     uiToast(ya ? 'La tarea vuelve a «Lo que te ha mandado» y sale de Repasar' : 'Hecho: lo de esta tarea ya sale en Repasar', 'success');
+  }
+  /* ---------- lo aprendido («Me lo sé» en Aprender) ----------
+     Cada paso de Aprender se marca cuando uno ya se lo sabe y entonces pasa a
+     Repasar: 'distritos', 'barrios:<distrito>', 'grandes', 'plazas' y
+     'barrio:<barrio>' (sus calles). En callejero_aprendido, con copia en el dispositivo. */
+  const APR_KEY = 'cj_aprendido_';
+  let aprendido = new Set();
+  function leerAprendido(){ try{ return new Set(JSON.parse(localStorage.getItem(APR_KEY + (currentUser ? currentUser.id : '')) || '[]')); }catch(e){ return new Set(); } }
+  function guardarAprendido(){ try{ localStorage.setItem(APR_KEY + (currentUser ? currentUser.id : ''), JSON.stringify([...aprendido])); }catch(e){} }
+  async function cargarAprendido(){
+    if(!currentUser) return;
+    aprendido = leerAprendido();
+    const { data, error } = await sb.from('callejero_aprendido').select('clave');
+    if(error) return;
+    aprendido = new Set((data || []).map(r => r.clave));
+    guardarAprendido();
+  }
+  async function marcarAprendido(clave, ev){
+    if(ev){ ev.stopPropagation(); const d = ev.target.closest && ev.target.closest('details[data-d]'); if(d) abiertoAprender = d.dataset.d; }
+    const ya = aprendido.has(clave);
+    ya ? aprendido.delete(clave) : aprendido.add(clave);
+    guardarAprendido();
+    pintarInicio();
+    const r = ya ? await sb.from('callejero_aprendido').delete().eq('clave', clave).eq('user_id', currentUser.id)
+      : await sb.from('callejero_aprendido').upsert({ user_id: currentUser.id, clave });
+    if(r.error){ uiToast('No se ha podido guardar: ' + r.error.message, 'error'); return; }
+    if(!ya) uiToast('Hecho: ya sale en Repasar', 'success');
+  }
+  // Las calles de cada paso de Aprender.
+  const callesGrandes = () => datos.jugables.filter(v => TIPOS_PRINCIPALES.has(v.tipo));
+  const callesPlazas = () => datos.jugables.filter(v => v.tipo === 'PLAZA' || v.tipo === 'GLORIETA');
+  const callesBarrio = nombre => datos.jugables.filter(v => v.barrios.some(b => b.nombre === nombre));
+  function callesAprendidas(){
+    const out = [];
+    if(aprendido.has('grandes')) out.push(...callesGrandes());
+    if(aprendido.has('plazas')) out.push(...callesPlazas());
+    aprendido.forEach(k => { if(k.startsWith('barrio:')) out.push(...callesBarrio(k.slice(7))); });
+    return out;
   }
   async function cargarNotas(){
     if(!currentUser) return;
@@ -2440,8 +2482,8 @@ const CJ = (function(){
         (num ? '<span class="cj-grande-num">' + num + '</span>' : '') + FLECHA_FILA + '</button>';
     return '<div class="cj-grandes">' +
       boton('tareas', 'profe', ICONOS.localiza, 'Lo que te ha mandado', porHacer ? (porHacer === 1 ? '1 por ver' : porHacer + ' por ver') : 'Nada pendiente', porHacer) +
-      boton('repasar', 'repaso', ICONOS.repasar, 'Repasar lo estudiado', 'Todo lo dado hasta ahora', 0) +
-      boton('aprender', 'nuevo', ICONOS.aprender, 'Aprender', 'Distritos, barrios, calles, lugares y temario', 0) +
+      boton('repasar', 'repaso', ICONOS.repasar, 'Repasar lo estudiado', 'Lo que ya te sabes: calles, barrios, distritos y temario', 0) +
+      boton('aprender', 'nuevo', ICONOS.aprender, 'Aprender', 'Paso a paso: distritos, barrios, calles, lugares y temario', 0) +
     '</div>';
   }
   // La pantalla de cada botón, con su cabecera para volver.
@@ -2584,7 +2626,8 @@ const CJ = (function(){
     const g = rondaGuiada;
     if(g && g.tipo === 'repaso') repasar(g.modo); else if(g && g.tipo === 'todo') repasarTodo(g.modo);
     else if(g && g.tipo === 'fallos') empezarFallos();
-    else if(g && g.tipo === 'vuelta') repasarVuelta(g.modo); else aprender(g ? g.n : 0);
+    else if(g && g.tipo === 'vuelta') repasarVuelta(g.modo);
+    else if(g && g.tipo === 'zonas') repasarZonas(g.modo); else aprender(g ? g.n : 0);
   }
   // Una fila grande de modo de juego: icono, nombre y lo que lleva.
   function filaModo(accion, titulo, texto, icono, activo){
@@ -2610,24 +2653,58 @@ const CJ = (function(){
     { k: 'otros', titulo: 'Transporte, mercados e industria', cats: ['Transporte', 'Mercados y comercios', 'Industria y polígonos', 'Cementerios'] }
   ];
   const lugaresDeGrupo = g => datos.lugares.filter(l => g.cats.includes(l.categoria));
+  // Aprender, paso a paso de lo más general a lo más concreto: distritos,
+  // los barrios de cada distrito, las grandes vías, plazas y glorietas, las
+  // calles de cada barrio, los lugares y el temario. Cada fila abre el mapa
+  // con su nombre al tocar; «Me lo sé» lo pasa a Repasar.
+  function filaAprender(accion, titulo, texto, icono, clave){
+    const ok = clave && aprendido.has(clave);
+    return '<div class="cj-aprender-fila' + (ok ? ' sabido' : '') + '">' + filaModo(accion, titulo, texto, icono, true) +
+      (clave ? '<button type="button" class="cj-melose' + (ok ? ' on' : '') + '" onclick="CJ.marcarAprendido(' + escapeHtml(JSON.stringify(clave)) + ', event)" aria-pressed="' + ok + '">' +
+        (ok ? '✓ Me lo sé' : 'Me lo sé') + '</button>' : '') + '</div>';
+  }
+  function pasoAprender(n, titulo, cuenta, filas){
+    return '<div class="cj-seccion cj-paso"><span class="cj-paso-n">' + n + '</span>' + titulo + (cuenta ? '<span class="cj-paso-cuenta">' + cuenta + '</span>' : '') + '</div>' +
+      '<div class="cj-card cj-aprender"><div class="cj-niveles cj-modos cj-modos-arriba">' + filas + '</div></div>';
+  }
   function aprenderHtml(){
     const n = k => k.toLocaleString('es-ES');
-    const nc = new Set(datos.jugables.map(v => v.nombre)).size;
-    const np = new Set(datos.vias.filter(v => v.tipo === 'PLAZA' || v.tipo === 'GLORIETA').map(v => v.nombre)).size;
-    const filas = (datos.barrios.length
-        ? filaModo('CJ.ver(\'distritos\')', 'Distritos', 'Los ' + datos.distritos.length + ', de colores y con su nombre', ICONOS.barrios, true) +
-          filaModo('CJ.ver(\'barrios\')', 'Barrios', 'Los ' + n(datos.barrios.length) + ', con su nombre (acércate para leerlos)', ICONOS.enbarrio, true)
-        : '') +
-      filaModo('CJ.ver(\'calles\')', 'Todas las calles', n(nc) + ' calles; toca una y te dice cómo se llama', ICONOS.mapa, true) +
-      (np ? filaModo('CJ.ver(\'plazas\')', 'Plazas y glorietas', n(np) + ' plazas y glorietas', ICONOS.localiza, true) : '') +
-      GRUPOS_LUGARES.map(g => { const k = lugaresDeGrupo(g).length; return k ? filaModo('CJ.ver(\'' + g.k + '\')', g.titulo, n(k) + (k === 1 ? ' lugar' : ' lugares'), ICONOS.lugares, true) : ''; }).join('');
+    const nombres = l => new Set(l.map(v => v.nombre)).size;
+    const ds = datos.distritos, conBarrios = datos.barrios.length > 0;
+    const sabidos = pre => [...aprendido].filter(k => k.startsWith(pre)).length;
+    let paso = 0, h = '';
+    if(conBarrios){
+      h += pasoAprender(++paso, 'Distritos', aprendido.has('distritos') ? 'Te los sabes' : '',
+        filaAprender('CJ.ver(\'distritos\')', 'Los ' + ds.length + ' distritos', 'De colores y con su nombre', ICONOS.barrios, 'distritos'));
+      h += pasoAprender(++paso, 'Barrios de cada distrito', sabidos('barrios:') + ' de ' + ds.length,
+        ds.map(d => { const k = datos.barrios.filter(b => b.distrito === d).length;
+          return filaAprender('CJ.ver(' + escapeHtml(JSON.stringify('barrios:' + d)) + ')', d, k + (k === 1 ? ' barrio' : ' barrios'), ICONOS.enbarrio, 'barrios:' + d); }).join(''));
+    }
+    const ng = nombres(callesGrandes()), np = nombres(callesPlazas());
+    h += pasoAprender(++paso, 'Las calles principales', '',
+      filaAprender('CJ.ver(\'grandes\')', 'Avenidas, rondas, paseos y carreteras', n(ng) + ' vías', ICONOS.mapa, 'grandes') +
+      (np ? filaAprender('CJ.ver(\'plazas\')', 'Plazas y glorietas', n(np) + ' plazas y glorietas', ICONOS.localiza, 'plazas') : ''));
+    if(conBarrios){
+      h += pasoAprender(++paso, 'Las calles de cada barrio', sabidos('barrio:') + ' de ' + datos.barrios.length,
+        ds.map(d => {
+          const bs = datos.barrios.filter(b => b.distrito === d).sort((x, y) => x.nombre.localeCompare(y.nombre, 'es'));
+          const ok = bs.filter(b => aprendido.has('barrio:' + b.nombre)).length;
+          return '<details class="cj-distrito-calles"' + (abiertoAprender === d ? ' open' : '') + ' data-d="' + escapeHtml(d) + '"><summary><b>' + escapeHtml(d) + '</b><span>' + ok + ' de ' + bs.length + '</span></summary>' +
+            bs.map(b => { const k = nombres(callesBarrio(b.nombre));
+              return filaAprender('CJ.ver(' + escapeHtml(JSON.stringify('barrio:' + b.nombre)) + ')', b.nombre, n(k) + (k === 1 ? ' calle' : ' calles'), ICONOS.localiza, 'barrio:' + b.nombre); }).join('') +
+            '</details>';
+        }).join(''));
+    }
+    h += pasoAprender(++paso, 'Lugares importantes', '',
+      GRUPOS_LUGARES.map(g => { const k = lugaresDeGrupo(g).length; return k ? filaAprender('CJ.ver(\'' + g.k + '\')', g.titulo, n(k) + (k === 1 ? ' lugar' : ' lugares'), ICONOS.lugares, '') : ''; }).join(''));
+    if(typeof CJT !== 'undefined') h += pasoAprender(++paso, 'Temario de la academia', '',
+      filaAprender('CJ.irA(\'temario\')', 'Las fichas', 'Con sus apartados, documentos y mapas; y sus preguntas', ICONOS.estudio, ''));
     const nn = notas.size;
-    return '<div class="cj-card cj-aprender"><div class="cj-niveles cj-modos cj-modos-arriba">' +
-        filaModo('CJ.irA(\'notas\')', 'Mis notas', nn ? nn + (nn === 1 ? ' nota' : ' notas') + ' · las últimas, arriba' : 'Lo que apuntes de cada calle o lugar', ICONOS.estudio, true) +
-      '</div></div><div class="cj-card cj-aprender cj-todas"><div class="cj-niveles cj-modos cj-modos-arriba">' + filas + '</div></div>' +
-      (typeof CJT !== 'undefined' ? '<div class="cj-card cj-aprender cj-todas"><div class="cj-niveles cj-modos cj-modos-arriba">' +
-        filaModo('CJ.irA(\'temario\')', 'Temario de la academia', 'Las fichas, con sus apartados, documentos y mapas', ICONOS.estudio, true) + '</div></div>' : '');
+    return '<p class="cj-aprender-intro">Ve paso a paso, de lo más general a lo más concreto. Toca cada cosa para verla en el mapa y, cuando te la sepas, pulsa «Me lo sé»: pasa a Repasar.</p>' + h +
+      '<div class="cj-card cj-aprender"><div class="cj-niveles cj-modos cj-modos-arriba">' +
+        filaModo('CJ.irA(\'notas\')', 'Mis notas', nn ? nn + (nn === 1 ? ' nota' : ' notas') : 'Lo que apuntes de cada calle o lugar', ICONOS.estudio, true) + '</div></div>';
   }
+  let abiertoAprender = null;   // distrito desplegado en «Las calles de cada barrio»
   async function ver(k){
     try{ await Promise.all([cargarLeaflet(), cargarDatos()]); }catch(e){ uiToast(e.message, 'error'); return; }
     if(k === 'calles'){ guardarZona(''); await estudio({ sinProfesor: true }); if(modo === 'estudio') el('cjBarraTitulo').textContent = 'Todas las calles'; return; }
@@ -2644,6 +2721,18 @@ const CJ = (function(){
       const color = coloresDe('barrios');
       extra = { titulo: 'Barrios', nombres: true, nombresDesde: 15, items: datos.barrios.slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
         .map(b => ({ nombre: b.nombre, tipo: 'Barrio', vias: [], lugar: null, barrios: [b], color: color.get(b.nombre), detalle: ['Distrito ' + b.distrito] })) };
+    }else if(k.startsWith('barrios:')){
+      const d = k.slice(8), color = coloresDe('barrios');
+      extra = { titulo: 'Barrios de ' + d, nombres: true, items: datos.barrios.filter(b => b.distrito === d).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+        .map(b => ({ nombre: b.nombre, tipo: 'Barrio', vias: [], lugar: null, barrios: [b], color: color.get(b.nombre), detalle: ['Distrito ' + b.distrito] })) };
+    }else if(k === 'grandes' || k.startsWith('barrio:')){
+      const grupos = new Map(), b = k === 'grandes' ? null : datos.barrios.find(x => x.nombre === k.slice(7));
+      (b ? callesBarrio(b.nombre) : callesGrandes()).forEach(v => { if(!grupos.has(v.nombre)) grupos.set(v.nombre, []); grupos.get(v.nombre).push(v); });
+      if(b) abiertoAprender = b.distrito;
+      extra = { titulo: b ? 'Calles de ' + b.nombre : 'Avenidas, rondas, paseos y carreteras', items: [...grupos].sort((x, y) => x[0].localeCompare(y[0], 'es')).map(([nombre, vs]) => ({
+        nombre, tipo: tipoBonito(vs[0].tipo), vias: vs, lugar: null,
+        detalle: [[...new Set(vs.flatMap(v => v.barrios.map(x => x.nombre)))].join(', ')].filter(Boolean) })) };
+      if(!b) extra.centro = 13;
     }else if(k === 'plazas'){
       const grupos = new Map();
       datos.vias.filter(v => v.tipo === 'PLAZA' || v.tipo === 'GLORIETA').forEach(v => { if(!grupos.has(v.nombre)) grupos.set(v.nombre, []); grupos.get(v.nombre).push(v); });
@@ -2791,6 +2880,7 @@ const CJ = (function(){
     const cuenta = (k, uno, varios) => k ? k + ' ' + (k === 1 ? uno : varios) : '';
     const partes = [cuenta(nc, 'calle', 'calles'), cuenta(nt.length, 'pregunta del temario', 'preguntas del temario'),
       cuenta(f.barrios.length, 'barrio', 'barrios'), cuenta(f.distritos.length, 'distrito', 'distritos')].filter(Boolean).join(' · ');
+    if(!total) return '';
     return '<div class="cj-seccion cj-seccion-fallado">Lo fallado</div><div class="cj-card cj-repaso cj-fallado">' +
       (total
         ? '<button type="button" class="cj-hoy-btn cj-fallos-btn" onclick="CJ.empezarFallos()"><span class="cj-hoy-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg></span>' +
@@ -2813,6 +2903,8 @@ const CJ = (function(){
     const fs = ts.map(t => filtroDe('t:' + t.id, t));
     if(fs.length) datos.jugables.forEach(v => { if(fs.some(f => f.via(v))) pon(v); });
     ts.filter(esTemario).forEach(t => { if(typeof CJT !== 'undefined') CJT.geoClaves(t.fichas).forEach(it => it.vias.forEach(pon)); });
+    // Y lo que uno ha marcado como aprendido en Aprender.
+    callesAprendidas().forEach(pon);
     return [...porNombre.values()];
   }
   // Se guarda en la cuenta (callejero_vueltas), para seguir igual en otro
@@ -2869,7 +2961,7 @@ const CJ = (function(){
   function repasarVuelta(m){
     if(!datos) return;
     let e = estadoVuelta(m);
-    if(!e.todas.length){ uiToast('Tu profesor todavía no te ha marcado calles para esto.', 'info'); return; }
+    if(!e.todas.length){ uiToast('Todavía no tienes calles aprendidas: márcalas con «Me lo sé» en Aprender.', 'info'); return; }
     if(!e.pendientes.length){
       // Vuelta terminada: empieza otra.
       cambiarVuelta(m, []);
@@ -2880,17 +2972,29 @@ const CJ = (function(){
   }
   async function reiniciarVuelta(m){
     const f = FORMAS_CALLES.find(x => x.modo === m);
-    if(!await uiConfirm('Vuelven a salir todas las calles de tu profesor en «' + (f ? f.titulo : m) + '».', { title: '¿Empezar la vuelta de nuevo?', ok: 'Empezar de nuevo', danger: false })) return;
+    if(!await uiConfirm('Vuelven a salir todas tus calles en «' + (f ? f.titulo : m) + '».', { title: '¿Empezar la vuelta de nuevo?', ok: 'Empezar de nuevo', danger: false })) return;
     cambiarVuelta(m, []);
     pintarInicio();
   }
+  // En Repasar, las calles se preguntan de dos formas (cada una con su vuelta).
   const FORMAS_CALLES = [
-    { modo: 'opciones', titulo: 'Eligiendo entre 4 nombres', desc: 'Te marco la calle y eliges cómo se llama' },
-    { modo: 'localiza', titulo: 'Señalándolas en el mapa', desc: 'Te digo el nombre y la tocas' },
-    { modo: 'voz', titulo: 'Diciendo el nombre', desc: 'Te marco la calle, la dices y lo compruebas' },
-    { modo: 'cruces', titulo: 'Con sus cruces y paralelas', desc: '¿Cuál cruza con esta?' },
-    { modo: 'parque', titulo: '¿Qué parque acude?', desc: 'Central o Granadal' }
+    { modo: 'voz', titulo: '¿Qué calle es?', desc: 'Te marco una calle y dices su nombre' },
+    { modo: 'localiza', titulo: '¿Dónde está?', desc: 'Te digo el nombre y la tocas en el mapa' }
   ];
+  // Distritos y barrios aprendidos, para Repasar.
+  function zonasAprendidas(distritos){
+    if(distritos) return aprendido.has('distritos') ? datos.distritos.slice() : [];
+    return datos.barrios.filter(b => aprendido.has('barrios:' + b.distrito)).map(b => b.nombre);
+  }
+  async function repasarZonas(m){
+    if(!datos) return;
+    const z = zonasAprendidas(m.endsWith('distritos'));
+    if(!z.length){ uiToast('Márcalos antes con «Me lo sé» en Aprender.', 'info'); return; }
+    limiteZonas = z;
+    guiaPendiente = { tipo: 'zonas', modo: m };
+    try{ await empezar(m); }
+    finally{ guiaPendiente = null; limiteZonas = null; }
+  }
   function repasarTodo(m){
     if(!datos) return;
     const n = m === 'cruces' ? 2 : m === 'parque' ? 3 : -1;
@@ -2898,33 +3002,34 @@ const CJ = (function(){
     if(!vias.length){ uiToast('Todavía no has estudiado calles para esto.', 'info'); return; }
     empezarGuiada(m, vias.slice(0, PREGUNTAS_POR_RONDA + 5), { tipo: 'todo', modo: m });
   }
+  // Repasar lo estudiado: solo lo ya aprendido, con los botones justos.
+  //   Lo fallado (si hay), las calles (¿qué calle es? / ¿dónde está?), los
+  //   distritos y los barrios (igual: ¿cuál es? / ¿dónde está?) y el temario.
   function todoHtml(){
     const n = k => k.toLocaleString('es-ES');
     const nc = callesProfesor().length;
+    const nd = zonasAprendidas(true).length, nb = zonasAprendidas(false).length;
     const nt = typeof CJT !== 'undefined' ? CJT.contarVistas() : null;
-    const mandado = typeof CJT !== 'undefined' && tareasActivas().some(t => (t.fichas || []).length);
-    const mandadoVisto = mandado && tareasDelRepaso().some(t => (t.fichas || []).length);
-    const calles = '' +
-      '<div class="cj-seccion">Calles de tu profesor · ¿cómo te las pregunto?</div><div class="cj-card cj-repaso">' +
-        '<div class="cj-repaso-vacio">' + (nc ? n(nc) + (nc === 1 ? ' calle' : ' calles') + ' de las tareas que ya has visto. Van por vueltas: te salen todas antes de repetir ninguna.'
-          : tareasActivas().length ? 'Aquí salen las calles de las tareas que marques con «Ya la he visto» (en «Lo que te ha mandado»).' : 'Tu profesor todavía no te ha marcado calles.') + '</div>' +
-        '<div class="cj-niveles cj-modos">' + FORMAS_CALLES.map(f => {
-          const e = nc ? estadoVuelta(f.modo) : { todas: [], vistas: 0 };
-          const t = e.todas.length;
-          const txt = !t ? (nc ? 'Ninguna de tus calles sirve para esto' : f.desc)
-            : e.vistas ? 'Vuelta: ' + e.vistas + ' de ' + t + ' vistas · ' + (t - e.vistas) + ' por salir' : 'Vuelta nueva: ' + t + (t === 1 ? ' calle' : ' calles');
-          return '<div class="cj-vuelta">' + filaModo('CJ.repasarVuelta(\'' + f.modo + '\')', f.titulo, txt, ICONOS[f.modo], t > 0) +
-            (e.vistas ? '<button type="button" class="cj-vuelta-reiniciar" onclick="CJ.reiniciarVuelta(\'' + f.modo + '\')">Empezar la vuelta de nuevo</button>' : '') + '</div>';
-        }).join('') + '</div>' +
-      '</div>';
-    return falladoHtml() + calles + (typeof CJT !== 'undefined' ? '<div class="cj-seccion">Temario</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
-        filaModo('CJT.preguntarVistas()', 'Preguntas del temario', nt === null ? 'Todo lo que ya has respondido' : nt ? n(nt) + ' que ya has respondido' : 'Todavía no has respondido ninguna', ICONOS.estudio, nt !== 0) +
-        filaModo('CJT.preguntarSinMapa()', 'Preguntas del temario sin mapa', !mandado ? 'De todo el temario' : mandadoVisto ? 'De las tareas que ya has visto' : 'Cuando marques una tarea como vista', ICONOS.estudio, !mandado || mandadoVisto) +
-      '</div></div>' : '') +
-      (datos.barrios.length ? '<div class="cj-seccion">Distritos y barrios</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
-        filaModo('CJ.empezar(\'mapadistritos\')', 'Distritos en el mapa', 'Todos de colores; toca el que te pido', ICONOS.barrios, true) +
-        filaModo('CJ.empezar(\'mapabarrios\')', 'Barrios en el mapa', 'Todos de colores; toca el que te pido', ICONOS.enbarrio, true) +
-      '</div></div>' : '');
+    const aviso = 'Márcalo con «Me lo sé» en Aprender';
+    const calles = '<div class="cj-seccion">Calles' + (nc ? ' · ' + n(nc) : '') + '</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
+      FORMAS_CALLES.map(f => {
+        const e = nc ? estadoVuelta(f.modo) : { todas: [], vistas: 0 };
+        const t = e.todas.length;
+        const txt = !nc ? 'Cuando aprendas calles (en Aprender) o veas las de tu profesor' : f.desc + (e.vistas ? ' · ' + e.vistas + ' de ' + t + ' en esta vuelta' : '');
+        return '<div class="cj-vuelta">' + filaModo('CJ.repasarVuelta(\'' + f.modo + '\')', f.titulo, txt, ICONOS[f.modo === 'voz' ? 'voz' : 'localiza'] || ICONOS.localiza, t > 0) +
+          (e.vistas ? '<button type="button" class="cj-vuelta-reiniciar" onclick="CJ.reiniciarVuelta(\'' + f.modo + '\')">Empezar la vuelta de nuevo</button>' : '') + '</div>';
+      }).join('') + '</div></div>';
+    const zonas = datos.barrios.length ? '<div class="cj-seccion">Distritos' + (nd ? ' · ' + nd : '') + '</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
+        filaModo('CJ.repasarZonas(\'vozdistritos\')', '¿Qué distrito es?', nd ? 'Te marco uno y dices su nombre' : aviso, ICONOS.barrios, nd > 0) +
+        filaModo('CJ.repasarZonas(\'mapadistritos\')', '¿Dónde está?', nd ? 'Te digo uno y lo tocas en el mapa' : aviso, ICONOS.barrios, nd > 0) +
+      '</div></div><div class="cj-seccion">Barrios' + (nb ? ' · ' + nb : '') + '</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
+        filaModo('CJ.repasarZonas(\'vozbarrios\')', '¿Qué barrio es?', nb ? 'Te marco uno y dices su nombre' : aviso, ICONOS.enbarrio, nb > 0) +
+        filaModo('CJ.repasarZonas(\'mapabarrios\')', '¿Dónde está?', nb ? 'Te digo uno y lo tocas en el mapa' : aviso, ICONOS.enbarrio, nb > 0) +
+      '</div></div>' : '';
+    const temario = typeof CJT !== 'undefined' ? '<div class="cj-seccion">Temario de la academia</div><div class="cj-card cj-repaso"><div class="cj-niveles cj-modos cj-modos-arriba">' +
+        filaModo('CJT.preguntarVistas()', 'Preguntas del temario', nt === null ? 'Lo que ya has respondido' : nt ? n(nt) + ' que ya has respondido' : 'Cuando respondas alguna en Aprender › Temario', ICONOS.estudio, nt !== 0) +
+      '</div></div>' : '';
+    return falladoHtml() + calles + zonas + temario;
   }
 
   // Calles y lugares por repasar (la última vez mal) de la zona elegida, y el modo que más lo necesita.
@@ -3349,6 +3454,20 @@ const CJ = (function(){
         mapa.flyToBounds(cajaBarrios(delDistrito), { padding: [40, 40], maxZoom: 15, duration: 0.6 });
       } }, opcionesCon(b.distrito, otros));
   }
+  // «¿Qué barrio / distrito es?»: marcado en rojo; se dice el nombre y se comprueba.
+  function preguntaVozBarrio(b){
+    return { barrio: b, id: idBarrio(b), etiqueta: 'Di el nombre del barrio marcado', texto: '', nombre: b.nombre, detalle: 'Distrito ' + b.distrito,
+      antes: () => { poligonos([b], '#F2665C', 0.25); mapa.flyToBounds(cajaBarrios([b]), { padding: [60, 60], maxZoom: 15, duration: 0.6 }); } };
+  }
+  function preguntaVozDistrito(d){
+    const bs = datos.barrios.filter(b => b.distrito === d);
+    return { distrito: d, id: idDistrito(d), etiqueta: 'Di el nombre del distrito marcado', texto: '', nombre: 'Distrito ' + d,
+      antes: () => {
+        poligonos(bs, '#F2665C', 0.18);
+        L.polyline(contornoDistrito(d), { color: '#F2665C', weight: 3.5, opacity: 1, interactive: false }).addTo(capaMarcas);
+        mapa.flyToBounds(cajaBarrios(bs), { padding: [40, 40], maxZoom: 14, duration: 0.6 });
+      } };
+  }
   function preguntaDistrito(d){
     return { barrios: datos.barrios.filter(b => b.distrito === d), distrito: d, id: idDistrito(d), etiqueta: 'Toca el distrito', texto: d, nombre: 'Distrito ' + d, respuesta: 'toque' };
   }
@@ -3449,6 +3568,11 @@ const CJ = (function(){
       const pintar = colores('barrios');
       const bs = limiteZonas ? datos.barrios.filter(b => limiteZonas.includes(b.nombre)) : ordenarPorRepaso(barriosDelJuego(), idBarrio, m).slice(0, n);
       return barajar(bs).map(b => Object.assign(preguntaBarrio(b, 'toca'), { antes: pintar }));
+    }
+    if(m === 'vozdistritos') return barajar((limiteZonas || datos.distritos).slice()).map(preguntaVozDistrito);
+    if(m === 'vozbarrios'){
+      const bs = limiteZonas ? datos.barrios.filter(b => limiteZonas.includes(b.nombre)) : ordenarPorRepaso(barriosDelJuego(), idBarrio, m).slice(0, n);
+      return barajar(bs).map(preguntaVozBarrio);
     }
     if(m === 'enbarrio'){
       // Calles de un barrio (o dos); en una zona de un solo barrio, las de su
@@ -4582,7 +4706,7 @@ const CJ = (function(){
   function verRespuesta(){
     if(!ronda || ronda.respondida || MODOS[modo].respuesta !== 'voz') return;
     const q = ronda.preguntas[ronda.i];
-    el('cjPregunta').textContent = q.via.nombre;
+    el('cjPregunta').textContent = q.nombre;
     el('cjPregunta').classList.remove('hidden');
     el('cjVozVer').classList.add('hidden');
     el('cjVozSi').classList.remove('hidden');
@@ -4597,8 +4721,8 @@ const CJ = (function(){
     el('cjVozSi').classList.add('hidden');
     el('cjVozNo').classList.add('hidden');
     marcarRespondida(acierto, acierto
-      ? '<span class="cj-marca ok">✓</span> <b>¡Bien!</b> ' + escapeHtml(q.via.nombre) + '.'
-      : '<span class="cj-marca ko">✗</span> <b>Mal.</b> Es ' + escapeHtml(q.via.nombre) + '.', null);
+      ? '<span class="cj-marca ok">✓</span> <b>¡Bien!</b> ' + escapeHtml(q.nombre) + '.'
+      : '<span class="cj-marca ko">✗</span> <b>Mal.</b> Es ' + escapeHtml(q.nombre) + '.', null);
   }
 
   function formatearDistancia(m){
@@ -4707,7 +4831,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarTarea, empezarFallos, restablecerFallos, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, marcarTarea, empezarFallos, restablecerFallos, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)
