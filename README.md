@@ -441,6 +441,8 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   guardan en el dispositivo, `pj_permisos_v1:<usuario>`). Si internet tarda o falla, no se ve nada que no tenga.
   El Específico tiene su permiso (`especifico`), y además la base de datos no deja leer sus tests ni preguntas a
   quien lo tenga quitado (migración `20261013_especifico_permiso.sql`).
+  El permiso `tutorbombero` decide si un usuario ve las preguntas de tutorbomberos en Legislación: sin él, no entran
+  en `QUESTIONS_POOL` (ni en tests, ni en Estadísticas, ni sale el selector «Preguntas de»).
 
 ## Calendario
 
@@ -464,7 +466,9 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   (`progreso.porTest[test_id]`: respuestas, total y la prueba del historial), así que sirve en cualquier
   dispositivo; cuando están todos terminados, la tarea queda hecha.
 - También puede llevar un test de Legislación (`legis`, migración `20261025_calendario_legislacion.sql`): leyes,
-  modo (Estudio o Examen) y cuántas preguntas, sin reloj. Se hace con el test de siempre (`js/test.js`); con cada
+  modo (Estudio o Examen) y cuántas preguntas, sin reloj. Si hay de tutorbomberos, también de qué fuente
+  (`legis.fuente`: todas, pj o tb) y, de cada ley, qué títulos (`legis.titulos[ley]`: ninguno = la ley entera; los
+  bloqueados no salen). Se hace con el test de siempre (`js/test.js`); con cada
   paso, `saveQuizProgress` guarda el intento en la tarea (`legis.run`: preguntas, orden de sus opciones,
   respuestas y pregunta actual) para seguir en la misma pregunta en cualquier dispositivo, y al finalizar queda
   terminado (con su nota) y la tarea, hecha. «Volver» lleva a donde se abrió (calendario o Inicio).

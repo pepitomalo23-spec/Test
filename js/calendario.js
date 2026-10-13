@@ -281,8 +281,25 @@ const CAL = (function(){
     if(ns.length > 2 && ns.length === leyes().length) return 'todas las leyes';
     return ns.length <= 1 ? (ns[0] || '') : ns.length === 2 ? ns[0] + ' y ' + ns[1] : ns[0] + ' y ' + (ns.length - 1) + ' más';
   }
-  const tituloLegis = L => LEGIS_MODOS[L.modo] + ' · ' + resumenLeyes(L.temas);
-  const mismoLegis = (a, b) => !!a && !!b && a.modo === b.modo && (a.cuantas || 0) === (b.cuantas || 0) && [...a.temas].sort().join('|') === [...b.temas].sort().join('|');
+  // De qué fuente (Todas / pj.fire / Tutorbombero) y qué títulos de cada ley (L.titulos[ley]: sin elegir, la ley entera).
+  const fuenteLegis = L => L.fuente && L.fuente !== 'todas' && hayTutorbombero() ? L.fuente : 'todas';
+  const titulosDe = (L, ley) => ((L.titulos || {})[ley] || []).filter(id => gruposDe(ley).some(g => g.id === id));
+  const nTitulos = L => L.temas.reduce((n, k) => n + titulosDe(L, k).length, 0);
+  function preguntasLegis(L){
+    const f = fuenteLegis(L);
+    return QUESTIONS_POOL.filter(q => {
+      if(!L.temas.includes(q.topic_id) || !deFuente(q, f)) return false;
+      const ts = titulosDe(L, q.topic_id);
+      return !ts.length || (!!q.nodo_id && nodeIsInSelectedGroups(q.nodo_id, new Set(ts)));
+    });
+  }
+  const tituloLegis = L => LEGIS_MODOS[L.modo] + ' · ' + resumenLeyes(L.temas) + (nTitulos(L) ? ' (' + nTitulos(L) + (nTitulos(L) === 1 ? ' título)' : ' títulos)') : '') +
+    (fuenteLegis(L) !== 'todas' ? ' · ' + FUENTES_LEGIS[fuenteLegis(L)] : '');
+  const claveTit = L => L.temas.map(k => k + ':' + titulosDe(L, k).slice().sort().join(',')).sort().join('|');
+  const mismoLegis = (a, b) => !!a && !!b && a.modo === b.modo && (a.cuantas || 0) === (b.cuantas || 0) && [...a.temas].sort().join('|') === [...b.temas].sort().join('|') &&
+    (a.fuente || 'todas') === (b.fuente || 'todas') && claveTit(a) === claveTit(b);
+  const copiaLegis = L => ({ temas: [...L.temas], modo: L.modo, cuantas: L.cuantas || 0, fuente: L.fuente || 'todas',
+    titulos: Object.fromEntries(L.temas.map(k => [k, titulosDe(L, k)]).filter(([, v]) => v.length)) });
   function avanceLegis(t){
     const r = (t.legis || {}).run;
     if(!r) return { hechas: 0, total: 0 };
@@ -348,8 +365,8 @@ const CAL = (function(){
         return resumeQuiz();
       }
     }
-    let qs = QUESTIONS_POOL.filter(q => L.temas.includes(q.topic_id));
-    if(!qs.length) return uiToast('No hay preguntas de ' + (L.temas.length > 1 ? 'esas leyes' : 'esa ley') + ' todavía', 'error');
+    let qs = preguntasLegis(L);
+    if(!qs.length) return uiToast('No hay preguntas de ' + (L.temas.length > 1 ? 'esas leyes' : 'esa ley') + (nTitulos(L) || fuenteLegis(L) !== 'todas' ? ' con lo que elegiste' : '') + ' todavía', 'error');
     if(L.cuantas) qs = shuffleArray(qs).slice(0, L.cuantas);
     startQuiz(L.modo, qs, null);
     quizState.tarea = t.id; quizState.volver = volver;
@@ -494,7 +511,7 @@ const CAL = (function(){
     h = { t, cat: base.categoria, fecha: base.fecha, rep: serie ? serie.rep : '', hasta: serie ? serie.hasta : masDias(base.fecha, 27),
           alcance: 'una', repIni: serie ? serie.rep : '', hastaIni: serie ? serie.hasta : null,
           tests: t ? [...(t.test_ids || [])] : [], eligiendo: false, temaTest: '',
-          legis: t && t.legis ? { temas: [...t.legis.temas], modo: t.legis.modo, cuantas: t.legis.cuantas || 0 } : null };
+          legis: t && t.legis ? copiaLegis(t.legis) : null };
     if(conTests()) ESP.cargarTests();
     const bg = document.createElement('div');
     bg.className = 'cal-hoja-bg';
@@ -539,12 +556,20 @@ const CAL = (function(){
         h.tests = todos ? h.tests.filter(x => !ids.includes(x)) : h.tests.concat(ids.filter(x => !h.tests.includes(x)));
         autoTitulo(f);
       }
-      else if(b.dataset.lg === 'anadir'){ h.legis = { temas: [], modo: 'estudio', cuantas: 20 }; }
+      else if(b.dataset.lg === 'anadir'){ h.legis = { temas: [], modo: 'estudio', cuantas: 20, fuente: 'todas', titulos: {} }; }
       else if(b.dataset.lg === 'quitar'){ h.legis = null; }
       else if(b.dataset.lg === 'ley'){ const k = b.dataset.t, L = h.legis; L.temas = L.temas.includes(k) ? L.temas.filter(x => x !== k) : L.temas.concat(k); autoTituloLegis(f); }
       else if(b.dataset.lg === 'todas'){ const ids = leyes().map(x => x.id); h.legis.temas = ids.every(x => h.legis.temas.includes(x)) ? [] : ids; autoTituloLegis(f); }
       else if(b.dataset.lg === 'modo'){ h.legis.modo = b.dataset.m; autoTituloLegis(f); }
       else if(b.dataset.lg === 'cuantas'){ h.legis.cuantas = +b.dataset.n; }
+      else if(b.dataset.lg === 'fuente'){ h.legis.fuente = b.dataset.f; autoTituloLegis(f); }
+      else if(b.dataset.lg === 'titulo'){
+        const L = h.legis, k = b.dataset.t, id = b.dataset.n, ts = (L.titulos = L.titulos || {})[k] = titulosDe(L, k);
+        L.titulos[k] = ts.includes(id) ? ts.filter(x => x !== id) : ts.concat(id);
+        // Todos marcados es lo mismo que la ley entera.
+        if(L.titulos[k].length === gruposDe(k).length) L.titulos[k] = [];
+        autoTituloLegis(f);
+      }
       else if(b.dataset.h === 'cerrar') return cerrarHoja();
       else if(b.dataset.h === 'borrar') return borrar(t);
       else return;
@@ -634,18 +659,37 @@ const CAL = (function(){
     const L = h.legis, ls = leyes();
     if(!ls.length) return '<div class="cal-hasta-res">Cargando las leyes…</div>';
     const todas = ls.every(x => L.temas.includes(x.id));
-    const n = QUESTIONS_POOL.filter(q => L.temas.includes(q.topic_id)).length;
+    const f = fuenteLegis(L), n = preguntasLegis(L).length;
     const seg = (on, attrs, txt) => '<button type="button" class="cal-seg' + (on ? ' on' : '') + '" ' + attrs + '>' + txt + '</button>';
+    // Debajo de cada ley elegida, sus títulos (con cuántas preguntas tiene cada uno de la fuente elegida): sin marcar ninguno, la ley entera.
+    const titulosLey = k => {
+      const gs = gruposDe(k);
+      if(!gs.length) return '';
+      const cuenta = {};
+      QUESTIONS_POOL.forEach(q => {
+        if(q.topic_id !== k || !q.nodo_id || !deFuente(q, f)) return;
+        const g = gs.find(g => nodeIsInSelectedGroups(q.nodo_id, new Set([g.id])));
+        if(g) cuenta[g.id] = (cuenta[g.id] || 0) + 1;
+      });
+      const ts = titulosDe(L, k), vis = gs.filter(g => cuenta[g.id] || ts.includes(g.id));
+      if(!vis.length) return '';
+      return '<div class="cal-legis-tits"><span class="cal-legis-tits-t">' + (ts.length ? ts.length + ' de ' + gs.length + ' títulos' : 'Toda la ley · o elige títulos:') + '</span>' +
+        vis.map(g => '<button type="button" class="cal-chip cal-tit' + (ts.includes(g.id) ? ' on' : '') + '" data-lg="titulo" data-t="' + esc(k) + '" data-n="' + esc(g.id) + '">' +
+          esc(g.label.replace(/\s+–\s+.*$/, '')) + ' <small>' + (cuenta[g.id] || 0) + '</small></button>').join('') + '</div>';
+    };
     return '<div class="cal-legis">' +
+      (hayTutorbombero() ? '<div class="cal-legis-fila"><span>Preguntas de</span><div class="cal-segs cal-segs-full">' +
+        [['todas', 'Todas'], ['pj', FUENTES_LEGIS.pj], ['tb', FUENTES_LEGIS.tb]].map(([k, t]) => seg(f === k, 'data-lg="fuente" data-f="' + k + '"', t)).join('') + '</div></div>' : '') +
       '<div class="cal-test-opciones">' +
         '<button type="button" class="cal-test-op todos' + (todas ? ' on' : '') + '" data-lg="todas"><span class="cal-test-caja"></span>Todas las leyes (' + ls.length + ')</button>' +
-        ls.map(x => '<button type="button" class="cal-test-op' + (L.temas.includes(x.id) ? ' on' : '') + '" data-lg="ley" data-t="' + esc(x.id) + '"><span class="cal-test-caja"></span>' + esc(x.name) + '</button>').join('') +
+        ls.map(x => '<button type="button" class="cal-test-op' + (L.temas.includes(x.id) ? ' on' : '') + '" data-lg="ley" data-t="' + esc(x.id) + '"><span class="cal-test-caja"></span>' + esc(x.name) + '</button>' +
+          (L.temas.includes(x.id) ? titulosLey(x.id) : '')).join('') +
       '</div>' +
       '<div class="cal-legis-fila"><span>Modo</span><div class="cal-segs cal-segs-full">' +
         seg(L.modo === 'estudio', 'data-lg="modo" data-m="estudio"', 'Estudio') + seg(L.modo === 'examen', 'data-lg="modo" data-m="examen"', 'Examen') + '</div></div>' +
       '<div class="cal-legis-fila"><span>Preguntas</span><div class="cal-segs cal-segs-full">' +
         LEGIS_CUANTAS.map(([k, txt]) => seg((L.cuantas || 0) === k, 'data-lg="cuantas" data-n="' + k + '"', txt)).join('') + '</div></div>' +
-      '<div class="cal-hasta-res">' + (L.temas.length ? (L.modo === 'examen' ? 'Corrección al final' : 'Corrección al momento') + ' · sin reloj · ' + n + ' preguntas en ' + (L.temas.length === 1 ? 'esa ley' : 'esas leyes')
+      '<div class="cal-hasta-res">' + (L.temas.length ? (L.modo === 'examen' ? 'Corrección al final' : 'Corrección al momento') + ' · sin reloj · ' + n + ' preguntas' + (nTitulos(L) || f !== 'todas' ? ' con lo elegido' : ' en ' + (L.temas.length === 1 ? 'esa ley' : 'esas leyes'))
         : 'Elige al menos una ley') + '</div>' +
       '<button type="button" class="cal-chip" data-lg="quitar">Quitar el test</button></div>';
   }
@@ -686,7 +730,7 @@ const CAL = (function(){
     if(conTests()){ d.test_ids = [...h.tests]; d.test_id = h.tests[0] || null; }
     if(conLegis()){
       if(h.legis && !h.legis.temas.length){ uiToast('Elige al menos una ley para el test de Legislación', 'error'); return; }
-      d.legis = h.legis ? { temas: [...h.legis.temas], modo: h.legis.modo, cuantas: h.legis.cuantas || null, run: null } : null;
+      d.legis = h.legis ? Object.assign(copiaLegis(h.legis), { cuantas: h.legis.cuantas || null, run: null }) : null;
     }
     const { t, fecha, rep, hasta } = h;
     const alcance = t && t.serie && siguientes(t).length ? h.alcance : 'serie';

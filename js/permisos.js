@@ -24,7 +24,8 @@ const FEATURES = {
   notas_ia: 'Notas y explicaciones con IA',
   boe: 'Cambios BOE',
   callejero: 'Callejero',
-  especifico: 'Específico'
+  especifico: 'Específico',
+  tutorbombero: 'Preguntas de Tutorbombero (Legislación)'
 };
 // Pantallas que dependen de una función: si está desactivada, se va a Inicio.
 const SCREEN_FEATURE = {
@@ -86,6 +87,8 @@ function applyFeatureVisibility(){
   if(active && SCREEN_FEATURE[active.id] && !featureEnabled(SCREEN_FEATURE[active.id])) showScreen('screen-home');
   if(typeof INICIO !== 'undefined') INICIO.pintar();
   if(typeof ESTE !== 'undefined') ESTE.aplicarPestana();   // la pestaña Específico de Estadísticas
+  // Las preguntas de Tutorbombero dependen de su permiso: se rehace la lista de Legislación.
+  try{ if(typeof aplicarFuenteLegis === 'function' && TOPICS_DATA.length) aplicarFuenteLegis(); }catch(e){}
 }
 
 /* Los permisos se vuelven a leer al volver a la app y cada minuto: así, si

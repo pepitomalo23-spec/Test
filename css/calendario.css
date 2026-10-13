@@ -211,6 +211,10 @@
 /* Test de Legislación en la hoja: leyes, modo y cuántas preguntas */
 .cal-legis{ display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
 .cal-legis .cal-test-opciones{ max-height:260px; overflow-y:auto; overscroll-behavior:contain; }
+.cal-legis-tits{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:2px 0 10px 32px; }
+.cal-legis-tits-t{ width:100%; font-size:12px; color: var(--muted); }
+.cal-chip.cal-tit small{ opacity:.7; font-variant-numeric: tabular-nums; margin-left:2px; }
+.cal-chip.cal-tit.on{ background: var(--purple); border-color: var(--purple); color:#fff; }
 .cal-legis-fila{ width:100%; display:flex; flex-direction:column; gap:6px; }
 .cal-legis-fila > span{ font-size:12px; font-weight:700; color: var(--muted); text-transform:uppercase; letter-spacing:.04em; }
 /* Un título de test largo no ensancha la columna (se corta con «…») */

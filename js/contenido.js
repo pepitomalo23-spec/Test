@@ -233,7 +233,8 @@ function fuenteDeConjunto(preguntas){
   const fs = new Set((preguntas || []).map(fuenteDe));
   return fs.size > 1 ? 'mix' : fs.has('tb') ? 'tb' : 'pj';
 }
-const hayTutorbombero = () => QUESTIONS_ALL.some(q => fuenteDe(q) === 'tb');
+// Solo si este usuario las puede ver (permiso «tutorbombero», que da o quita el administrador).
+const hayTutorbombero = () => QUESTIONS_POOL.some(q => fuenteDe(q) === 'tb');
 // Títulos bloqueados (nodos_temario.bloqueado: los que se crearon para colocar preguntas de
 // tutorbomberos y no estaban en tu temario): sus preguntas no salen en ningún test ni cuentan en
 // Estadísticas hasta desbloquearlos.
@@ -251,7 +252,8 @@ async function bloquearNodo(id, bloquear){
   return true;
 }
 function aplicarFuenteLegis(){
-  QUESTIONS_POOL = QUESTIONS_ALL.filter(q => !q.nodo_id || !nodoBloqueado(q.nodo_id));
+  const verTb = featureEnabled('tutorbombero');
+  QUESTIONS_POOL = QUESTIONS_ALL.filter(q => (!q.nodo_id || !nodoBloqueado(q.nodo_id)) && (verTb || fuenteDe(q) !== 'tb'));
   const redByTopic = {};
   QUESTIONS_POOL.forEach(q => {
     if(!q.topic_id) return;
