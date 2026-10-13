@@ -324,10 +324,14 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 - La barra tiene tres pestañas, en este orden: **Estudio** (`screen-estudio`: recuadros grandes
   de Legislación, Normativas, Callejero y Específico) **Inicio** (`screen-inicio`) y **Estadísticas**. Esas cuatro pantallas marcan Estudio;
   el calendario marca Inicio.
-- Inicio (`js/inicio.js`, `css/inicio.css`) es la pantalla de entrada: saludo, el test a medias (para
-  continuarlo), las tareas de hoy del calendario (se marcan ahí mismo; tocando una tarea se abre su ventanita
-  con la nota y sus tests, y el calendario completo tiene su propio botón), accesos rápidos (Test Inteligente, fallos, fichas que tocan hoy, Callejero) y el
-  porcentaje del temario dominado. Se repinta cuando cambian el calendario, las estadísticas o las fichas.
+- Inicio (`js/inicio.js`, `css/inicio.css`) es la pantalla de entrada: la fecha y **Hoy** con las tareas del
+  calendario (se marcan ahí mismo; cada una abre su ventanita con la nota y sus tests), el test a medias, la semana
+  de lunes a domingo con un punto por tarea (`CAL.semana()`; cada día abre el calendario en ese día, `CAL.abrirDia`),
+  y en otra columna (debajo en el móvil) el examen, el progreso de Legislación y del Específico y el Simulacro
+  conjunto. Se repinta cuando cambian el calendario, las estadísticas o las fichas.
+- Estilo (Inicio y Calendario, y poco a poco el resto): el de shadcn/ui pasado a CSS. Neutros «zinc» en
+  `css/base.css`, letra Geist (y Geist Mono), listas con líneas finas en vez de tarjetas dentro de tarjetas,
+  un punto de color por categoría y el rojo (`--coral`) solo para hoy, lo atrasado y lo importante.
 
 ## Legislación de tutorbomberos
 
