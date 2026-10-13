@@ -18,7 +18,7 @@ function renderHistoryEntry(container, h){
     '<div class="hist-icon">' + ICONS[h.type] + '</div>' +
     '<div class="hist-content">' +
       '<div class="hist-top">' +
-        '<div class="hist-title">' + h.title + '</div>' +
+        '<div class="hist-title">' + h.title + (h.fuente === 'tb' ? ' <span class="q-fuente-tb">Tutorbombero</span>' : h.fuente === 'mix' ? ' <span class="q-fuente-tb mix">Mixto</span>' : '') + '</div>' +
         '<div class="hist-top-right">' +
           '<div class="hist-score">Nota <b>' + h.nota + '</b></div>' +
           '<button class="hist-delete-btn" type="button" aria-label="Borrar test" title="Borrar test">' + ICONS.trash + '</button>' +
@@ -213,6 +213,7 @@ function mapSessionRowToHistoryEntry(row){
     nota: formatNota(row.score),
     time: formatMMSS(row.time_seconds),
     ok: row.ok, bad: row.bad, pending: row.pending,
+    fuente: row.fuente || 'pj',   // 'pj', 'tb' (tutorbomberos) o 'mix'
     review: null
   };
 }
@@ -220,10 +221,9 @@ async function loadHistory(){
   if(!currentUser){ HISTORY = []; SMART_HISTORY = []; renderHistory(); renderSmartHistory(); return; }
   const [{ data, error }, { data: smartData, error: smartError }] = await Promise.all([
     // El Simulacro conjunto («conjunto») tiene su propio historial (js/pruebas.js): aquí no sale.
-    // Cada fuente de Legislación (pj.fire / Tutorbombero) con su propio historial.
-    sb.from('test_sessions').select('*').eq('user_id', currentUser.id).eq('fuente', fuenteLegis()).not('mode', 'in', '(inteligente,conjunto)')
+    sb.from('test_sessions').select('*').eq('user_id', currentUser.id).not('mode', 'in', '(inteligente,conjunto)')
       .order('created_at', { ascending: false }).limit(50),
-    sb.from('test_sessions').select('*').eq('user_id', currentUser.id).eq('fuente', fuenteLegis()).eq('mode', 'inteligente')
+    sb.from('test_sessions').select('*').eq('user_id', currentUser.id).eq('mode', 'inteligente')
       .order('created_at', { ascending: false }).limit(30)
   ]);
   if(error) console.error('Error cargando historial', error);

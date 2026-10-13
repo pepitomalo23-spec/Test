@@ -656,14 +656,18 @@
   .pru-diseno button{ border:0; background:none; padding:6px 2px; font:inherit; font-size:12px; color: var(--muted-2); cursor:pointer; }
   .pru-diseno button:hover{ color: var(--muted); }
 
-  /* Legislación: de qué fuente son las preguntas (pj.fire / Tutorbombero), siempre por separado */
-  .legis-fuente{ display:grid; grid-template-columns: 1fr 1fr; gap:4px; padding:4px; margin:-6px 0 18px; background: var(--card); border:1px solid var(--line); border-radius:12px; }
+  /* Legislación: «Preguntas de» (Todas / pj.fire / Tutorbombero) al preparar el test y filtro de Estadísticas */
+  .legis-fuente{ display:grid; grid-template-columns: 1fr 1fr; gap:4px; padding:4px; background: var(--card); border:1px solid var(--line); border-radius:12px; }
+  .legis-fuente.tres{ grid-template-columns: repeat(3, 1fr); }
   .legis-fuente:empty{ display:none; }
-  .legis-fuente-op{ display:flex; align-items:center; justify-content:center; gap:7px; padding:10px 8px; border:0; border-radius:9px; background:none; color: var(--muted); font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
-  .legis-fuente-op span{ font-size:11.5px; font-weight:600; opacity:.75; font-variant-numeric: tabular-nums; }
+  #statsFuente{ margin:-6px 0 18px; }
+  .legis-fuente-op{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; padding:8px 6px; border:0; border-radius:9px; background:none; color: var(--muted); font:inherit; font-size:13.5px; font-weight:700; cursor:pointer; min-width:0; }
+  .legis-fuente-op span{ font-size:11px; font-weight:600; opacity:.75; font-variant-numeric: tabular-nums; }
   .legis-fuente-op.on{ background: var(--purple); color:#fff; }
   .legis-fuente-op:focus-visible{ outline:2px solid var(--purple); outline-offset:2px; }
-  .legis-fuente-vacia{ margin:-8px 0 16px; font-size:13px; color: var(--muted); line-height:1.45; }
+  .topic-desglose{ display:block; margin-top:2px; font-size:11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .topic-fuente.fuera{ opacity:.45; text-decoration: line-through; }
   .quiz-fuente{ font-size:11px; font-weight:700; padding:3px 8px; border-radius:99px; background: color-mix(in srgb, var(--orange) 16%, transparent); color: var(--orange); white-space:nowrap; }
   /* Admin: pregunta de tutorbomberos */
+  .q-fuente-tb.mix{ background: color-mix(in srgb, var(--purple) 16%, transparent); color: var(--purple); }
   .q-fuente-tb{ margin-left:6px; font-size:11px; font-weight:700; padding:2px 7px; border-radius:99px; background: color-mix(in srgb, var(--orange) 16%, transparent); color: var(--orange); }

@@ -10,13 +10,18 @@ function salirDelTest(){
   if(v && document.getElementById(v)) showScreen(v); else showHome();
 }
 // Arriba del test, de qué fuente son las preguntas (solo si no son las de pj.fire).
-function marcarFuenteQuiz(){
+// Arriba del test, de dónde son las preguntas: en la vista tarjeta, la de la
+// pregunta que se ve («Tutorbombero» o nada si es de pj.fire); en la lista,
+// la del test entero («Tutorbombero» o «Mixto»).
+function marcarFuenteQuiz(q){
   const el = document.getElementById('quizFuente');
-  if(!el) return;
-  const f = (ACTIVE_QUESTIONS[0] || {}).fuente;
-  el.classList.toggle('hidden', !f || f === 'pj');
-  if(f && typeof FUENTES_LEGIS !== 'undefined') el.textContent = FUENTES_LEGIS[f] || f;
+  if(!el || typeof fuenteDeConjunto !== 'function') return;
+  const f = q ? fuenteDe(q) : fuenteDeConjunto(ACTIVE_QUESTIONS);
+  el.classList.toggle('hidden', f === 'pj');
+  el.textContent = f === 'mix' ? 'Mixto' : FUENTES_LEGIS[f] || f;
 }
+// Etiqueta pequeña delante del enunciado de una pregunta de tutorbomberos.
+const etiquetaFuente = q => q && q.fuente === 'tb' ? '<span class="q-fuente-tb">Tutorbombero</span> ' : '';
 function startQuiz(mode, questions, timeMinutes){
   volverTrasTest = null;
   const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
@@ -322,6 +327,7 @@ function renderQuestion(){
 
   document.getElementById('quizCount').textContent = (quizState.index+1) + ' / ' + ACTIVE_QUESTIONS.length;
   document.getElementById('quizQuestion').textContent = q.q;
+  marcarFuenteQuiz(q);
 
   const optsEl = document.getElementById('quizOptions');
   optsEl.innerHTML = '';

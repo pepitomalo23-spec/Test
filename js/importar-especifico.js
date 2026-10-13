@@ -411,7 +411,7 @@ const IMP = (function(){
     if(!legis || !legis.length) return '';
     const leyes = typeof TOPICS_DATA !== 'undefined' ? TOPICS_DATA : [];
     return '<div class="imp-legis-sec"><h3>Legislación · Tutorbombero</h3>' +
-      (lote.porTema ? '<p class="imp-nota">Elige a qué ley va cada tema (o «No importar»).' : '<p class="imp-nota">Estos temas no son del Específico. Elige a qué ley va cada uno (o «No importar»).') + ' Irán aparte de las tuyas: se ven eligiendo «Tutorbombero» arriba de Legislación.</p>' +
+      (lote.porTema ? '<p class="imp-nota">Elige a qué ley va cada tema (o «No importar»).' : '<p class="imp-nota">Estos temas no son del Específico. Elige a qué ley va cada uno (o «No importar»).') + ' Van con las demás de Legislación, marcadas como «Tutorbombero»: al preparar un test eliges si salen todas juntas o solo unas.</p>' +
       legis.map((g, i) => {
         const n = g.tests.reduce((k, t) => k + t.preguntas.length, 0), tits = g.ley ? titulosDe(g.ley) : [];
         return '<div class="imp-legis"><div class="imp-legis-cab"><b>' + escapeHtml(g.temaTb) + '</b><span>' + g.tests.length + (g.tests.length === 1 ? ' test · ' : ' tests · ') + n + ' preguntas</span></div>' +
@@ -547,7 +547,7 @@ const IMP = (function(){
         (rl.conImagen ? '<p class="imp-nota">' + rl.conImagen + ' tenían imagen: en Legislación se guardan solo con el texto.</p>' : '') +
         (fallos.length ? '<p class="imp-aviso">Fallaron ' + fallos.length + ':</p><ul class="imp-resumen">' + fallos.map(f => '<li>' + escapeHtml(f) + '</li>').join('') + '</ul>' : '') +
         (sinImg ? '<p class="imp-aviso">' + sinImg + (sinImg === 1 ? ' imagen no se pudo descargar.' : ' imágenes no se pudieron descargar.') + '</p>' : '') +
-        '<p class="imp-nota">Para verlas: Legislación › arriba, «Tutorbombero».</p>' +
+        '<p class="imp-nota">Ya están en Legislación: al preparar un test, en «Preguntas de», elige Todas, pj.fire o Tutorbombero.</p>' +
         '<div class="imp-botones"><button type="button" class="imp-btn primario" data-imp="cerrar">Cerrar</button></div>';
       plan = null;
       showScreen('screen-home');
