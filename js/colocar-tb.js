@@ -25,7 +25,9 @@ const COLOCAR = (function(){
   // Cómo se nombra la propia ley: sus números («7/1985») y, la Constitución, «constitución» o «CE».
   function propios(topicId, nombre){
     const t = sinTildes(nombre + ' ' + topicId), c = CONOCIDAS.find(x => x.re.test(t));
-    return { nums: t.match(/\d+\/\d{4}/g) || [], ce: /constitucion/.test(t), titulos: c ? c.titulos : null };
+    // Siglas entre paréntesis del nombre (T.R.E.B.E.P → trebep, B.R.L → brl): también la nombran.
+    const siglas = (t.match(/\(([^)]+)\)/g) || []).map(x => x.replace(/[^a-z]/g, '')).filter(x => x.length >= 2);
+    return { nums: t.match(/\d+\/\d{4}/g) || [], ce: /constitucion/.test(t), siglas, titulos: c ? c.titulos : null };
   }
   // Los artículos que cita un texto, de esta ley (en orden).
   function citados(texto, p){
@@ -67,13 +69,23 @@ const COLOCAR = (function(){
     { re: /7\/1985/, titulos: [['1', 1, 10], ['2', 11, 30], ['3', 31, 41], ['4', 42, 45], ['5', 46, 77], ['6', 78, 88], ['7', 89, 104],
       ['8', 105, 116], ['9', 117, 120], ['10', 121, 138], ['11', 139, 141]] },
     { re: /5\/2015|trebep|estatuto basico del empleado/, titulos: [['1', 1, 7], ['2', 8, 13], ['3', 14, 54], ['4', 55, 68], ['5', 69, 84],
-      ['6', 85, 92], ['7', 93, 98], ['8', 99, 100]] }
+      ['6', 85, 92], ['7', 93, 98], ['8', 99, 100]] },
+    // Ley 12/2007 de igualdad de género en Andalucía (texto consolidado, BOE-A-2008-2492).
+    { re: /12\/2007/, titulos: [['Preliminar', 1, 4], ['1', 5, 13], ['2', 14, 58], ['3', 59, 63], ['4', 64, 72], ['5', 73, 86]] }
   ];
   const mismoNumero = (a, b) => sinTildes(a).replace(/^0+/, '') === sinTildes(b).replace(/^0+/, '');
   const ESTRUCTURA = /(cuant[oa]s (titulos|capitulos|articulos|secciones|disposiciones)|consta de|se (divide|estructura|compone)|estructura|disposicion(es)? (adicional|transitoria|derogatoria|final))/;
 
   // ctx: { arbol, propios, pj: [{ nodo_id, palabras }] }. Devuelve { nodo, motivo } (nodo null: la ley en general).
+  // La pregunta habla de otra ley (otro nº de ley, una orgánica…) y no nombra la suya: se queda en la ley en general.
+  function deOtraLey(pregunta, p){
+    const t = sinTildes(pregunta);
+    const otra = (t.match(/\d+\/\d{4}/g) || []).some(x => !p.nums.includes(x)) || /\b(ley organica|l\.?o\.?) ?\d/.test(t);
+    const suya = p.nums.some(x => t.includes(x)) || (p.ce && /(constitucion|\bce\b)/.test(t)) || (p.siglas || []).some(x => new RegExp('\\b' + x + '\\b').test(t));
+    return otra && !suya;
+  }
   function colocarCon(q, ctx){
+    if(deOtraLey(q.question || '', ctx.propios)) return { nodo: null, motivo: 'otra ley' };
     const texto = (q.explain || '') + ' \n ' + (q.question || '');
     const arts = citados(texto, ctx.propios);
     for(const k of arts) if(ctx.arbol.porNum.has(k)) return { nodo: ctx.arbol.porNum.get(k).id, motivo: 'artículo ' + k };
