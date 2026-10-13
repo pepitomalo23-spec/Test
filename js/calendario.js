@@ -39,6 +39,7 @@ const CAL = (function(){
 
   let tareas = [], cargado = false, cargando = null, dueño = null;
   let mes = null, elegido = null;
+  let menuDia = false, opcionesDe = null;   // menú «Mover» del día abierto; tarea con sus opciones rápidas abiertas
 
   /* ---------- fechas (siempre en hora local, como 'AAAA-MM-DD') ---------- */
   const dos = n => String(n).padStart(2, '0');
@@ -445,6 +446,7 @@ const CAL = (function(){
           (!t.nota && !tests && !IR[t.categoria] ? '<div class="cal-ver-nota vacia">Sin más detalles.</div>' : '') +
         '</div>' +
         '<div class="cal-hoja-pie"><button type="button" class="cal-btn" data-v="editar">Editar</button>' +
+          (t.hecho ? '' : '<button type="button" class="cal-btn" data-v="siguiente">Al día siguiente</button>') +
           '<button type="button" class="cal-btn primario" data-v="hecho">' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '</button></div></div>';
     };
     pinta();
@@ -460,6 +462,7 @@ const CAL = (function(){
         case 'cerrar': cerrarVer(); break;
         case 'hecho': marcar(t); pinta(); break;
         case 'editar': cerrarVer(); abrirHoja(t); break;
+        case 'siguiente': cerrarVer(); moverUna(t, masDias(t.fecha, 1)); break;
         case 'ir': cerrarVer(); showScreen(IR[t.categoria]); break;
       }
     });
@@ -468,7 +471,8 @@ const CAL = (function(){
   }
   function tarjeta(t, conFecha){
     const c = CAT[t.categoria];
-    return '<div class="cal-tarea' + (t.hecho ? ' hecha' : '') + (conTareaTest(t) ? ' con-test' : '') + '" style="--c:' + c.c + '">' +
+    const abierta = !conFecha && opcionesDe === t.id;
+    return '<div class="cal-tarea' + (t.hecho ? ' hecha' : '') + (conTareaTest(t) ? ' con-test' : '') + (abierta ? ' con-opciones' : '') + '" style="--c:' + c.c + '"' + (conFecha ? '' : ' draggable="true" data-arrastra="' + t.id + '"') + '>' +
       '<button class="cal-check" data-cal="hecho" data-id="' + t.id + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></button>' +
       '<button class="cal-tarea-main" data-cal="editar" data-id="' + t.id + '">' +
@@ -478,16 +482,68 @@ const CAL = (function(){
       '</button>' +
       (conFecha ? '<button class="cal-mini" data-cal="a-hoy" data-id="' + t.id + '">A hoy</button>'
         : (IR[t.categoria] && !t.hecho && !conTareaTest(t) ? '<button class="cal-ir" data-cal="ir" data-k="' + t.categoria + '" aria-label="Ir a ' + esc(c.n) + '">›</button>' : '') +
-          '<button class="cal-ir cal-lapiz" data-cal="editar" data-id="' + t.id + '" aria-label="Editar">' + LAPIZ + '</button>') +
+          '<button class="cal-ir cal-mas' + (abierta ? ' on' : '') + '" data-cal="opciones" data-id="' + t.id + '" aria-label="Mover o editar" aria-expanded="' + abierta + '">⋯</button>') +
+      (abierta ? opcionesTarea(t) : '') +
       bloqueTest(t) +
       '</div>';
   }
+  /* ---------- mover tareas rápido ----------
+     Todo con un toque y con «Deshacer»: el día entero (lo pendiente a otro día,
+     o todo el plan desde ese día unos días más tarde), una tarea suelta (⋯) o,
+     en ordenador, arrastrándola a otro día del mes. */
+  const FLECHA_D = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>';
+  function menuMover(){
+    const pend = delDia(elegido).filter(t => !t.hecho).length;
+    const desde = tareas.filter(t => t.fecha > elegido || (t.fecha === elegido && !t.hecho)).length;
+    const op = (attrs, t, sub, on) => '<button class="cal-mover-op"' + (on ? '' : ' disabled') + ' ' + attrs + '><b>' + t + '</b><span>' + sub + '</span></button>';
+    return '<div class="cal-mover-menu">' +
+      op('data-cal="pend-sig"', 'Lo pendiente, al día siguiente', pend ? (pend === 1 ? 'Pasa 1 tarea ' : 'Pasan ' + pend + ' tareas ') + esc(aDia(masDias(elegido, 1))) : 'No queda nada pendiente', pend) +
+      '<div class="cal-mover-todo"><b>Retrasar todo desde este día</b><span>' + (desde ? desde + (desde === 1 ? ' tarea se mueve' : ' tareas se mueven') + '; lo ya hecho de este día se queda' : 'No hay tareas que mover') + '</span>' +
+        '<div class="cal-mover-chips">' + [[1, '1 día'], [2, '2 días'], [7, '1 semana']].map(([n, txt]) => '<button class="cal-chip" data-cal="todo-mas" data-n="' + n + '"' + (desde ? '' : ' disabled') + '>+ ' + txt + '</button>').join('') + '</div></div>' +
+    '</div>';
+  }
+  function opcionesTarea(t){
+    return '<div class="cal-opciones">' +
+      [[1, 'Día siguiente'], [2, '+2 días'], [7, '+1 semana']].map(([n, txt]) => '<button class="cal-chip" data-cal="mover" data-id="' + t.id + '" data-n="' + n + '">' + txt + '</button>').join('') +
+      '<label class="cal-chip cal-chip-fecha">' + CALEND + ' Elegir día<input type="date" data-mover-fecha="' + t.id + '" value="' + t.fecha + '"></label>' +
+      '<button class="cal-chip" data-cal="editar" data-id="' + t.id + '">' + LAPIZ + ' Editar</button></div>';
+  }
+  // Mueve las tareas (cambio = { tarea: fecha nueva }) y avisa con «Deshacer».
+  function moverA(lista, nuevaFecha, msg){
+    if(!lista.length){ uiToast('No hay nada que mover', 'info'); return; }
+    const antes = lista.map(t => [t, t.fecha]);
+    lista.forEach(t => { t.fecha = nuevaFecha(t); });
+    menuDia = false; opcionesDe = null;
+    ordenar();
+    guardarFechas(lista);
+    uiToast(msg, 'success', { action: 'Deshacer', duration: 7000, onAction: () => {
+      antes.forEach(([t, f]) => { t.fecha = f; });
+      ordenar(); guardarFechas(lista);
+    } });
+  }
+  // Una consulta por fecha de destino (no una por tarea).
+  function guardarFechas(lista){
+    const porFecha = new Map();
+    lista.forEach(t => { if(!porFecha.has(t.fecha)) porFecha.set(t.fecha, []); porFecha.get(t.fecha).push(t.id); });
+    const ops = [...porFecha].map(([f, ids]) => sb.from('calendario_tareas').update({ fecha: f, updated_at: new Date().toISOString() }).in('id', ids));
+    return enviar(Promise.all(ops).then(rs => rs.find(r => r.error) || {}), 'No se pudo mover');
+  }
+  const cuantas = n => n === 1 ? '1 tarea' : n + ' tareas';
+  // «a mañana» / «al jueves 15 de octubre»
+  function aDia(f){ const n = nombreDia(f, true); return /^(Hoy|Mañana|Ayer)$/.test(n) ? 'a ' + n.toLowerCase() : 'al ' + n.toLowerCase(); }
+  function moverUna(t, f){
+    if(!t || !f || f === t.fecha) return;
+    moverA([t], () => f, '«' + t.titulo + '» pasa ' + aDia(f));
+  }
+
   function dia(){
     const lista = delDia(elegido), hechas = lista.filter(t => t.hecho).length;
     const frase = FRASES[deIso(elegido).getDate() % FRASES.length];
     return '<div class="cal-dia-cab"><div><h2>' + esc(nombreDia(elegido)) + '</h2>' +
         '<div class="cal-dia-sub">' + (lista.length ? hechas + ' de ' + lista.length + ' hechas' : 'Sin tareas') + '</div></div>' +
-        '<button class="cal-anadir" data-cal="nueva"><span>+</span> Añadir</button></div>' +
+        '<div class="cal-dia-btns">' + (lista.length || tareas.some(t => t.fecha > elegido) ? '<button class="cal-mover' + (menuDia ? ' on' : '') + '" data-cal="menu-dia" aria-expanded="' + menuDia + '">' + FLECHA_D + ' Mover</button>' : '') +
+        '<button class="cal-anadir" data-cal="nueva"><span>+</span> Añadir</button></div></div>' +
+      (menuDia ? menuMover() : '') +
       (lista.length ? '<div class="cal-lista">' + lista.map(t => tarjeta(t)).join('') + '</div>'
         : '<button class="cal-vacio" data-cal="nueva"><span>' + frase + '</span><b>Añadir tarea</b></button>');
   }
@@ -868,6 +924,7 @@ const CAL = (function(){
     const t = el.dataset.id ? tareas.find(x => x.id === el.dataset.id) : null;
     switch(el.dataset.cal){
       case 'dia': {
+        menuDia = false; opcionesDe = null;
         irA(el.dataset.f); pintar();
         break;
       }
@@ -875,6 +932,19 @@ const CAL = (function(){
       case 'hoy': { elegido = hoy(); const d = deIso(elegido); mes = [d.getFullYear(), d.getMonth()]; pintar(); break; }
       case 'nueva': abrirHoja(); break;
       case 'editar': if(t) abrirHoja(t); break;
+      case 'menu-dia': menuDia = !menuDia; opcionesDe = null; pintar(); break;
+      case 'opciones': opcionesDe = opcionesDe === el.dataset.id ? null : el.dataset.id; menuDia = false; pintar(); break;
+      case 'mover': if(t) moverUna(t, masDias(t.fecha, Number(el.dataset.n))); break;
+      case 'pend-sig': {
+        const lista = delDia(elegido).filter(x => !x.hecho), sig = masDias(elegido, 1);
+        moverA(lista, () => sig, cuantas(lista.length) + ' ' + aDia(sig));
+        break;
+      }
+      case 'todo-mas': {
+        const n = Number(el.dataset.n), lista = tareas.filter(x => x.fecha > elegido || (x.fecha === elegido && !x.hecho));
+        moverA(lista, x => masDias(x.fecha, n), cuantas(lista.length) + ' retrasadas ' + (n === 7 ? '1 semana' : n === 1 ? '1 día' : n + ' días'));
+        break;
+      }
       case 'hecho': marcar(t); break;
       case 'a-hoy': if(t){ t.fecha = hoy(); ordenar(); enviar(sb.from('calendario_tareas').update({ fecha: t.fecha, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo mover'); } break;
       case 'todas-a-hoy': {
@@ -895,7 +965,37 @@ const CAL = (function(){
 
   function abrir(){
     const root = document.getElementById('calRoot');
-    if(root && !root.dataset.listo){ root.dataset.listo = '1'; root.addEventListener('click', onClick); }
+    if(root && !root.dataset.listo){
+      root.dataset.listo = '1';
+      root.addEventListener('click', onClick);
+      root.addEventListener('change', e => {
+        const id = e.target.dataset && e.target.dataset.moverFecha;
+        if(id && e.target.value) moverUna(tareas.find(x => x.id === id), e.target.value);
+      });
+      // En ordenador: arrastrar una tarea a un día del mes.
+      root.addEventListener('dragstart', e => {
+        const el = e.target.closest && e.target.closest('[data-arrastra]');
+        if(!el) return;
+        e.dataTransfer.setData('text/plain', el.dataset.arrastra);
+        e.dataTransfer.effectAllowed = 'move';
+        root.classList.add('arrastrando');
+      });
+      root.addEventListener('dragend', () => { root.classList.remove('arrastrando'); root.querySelectorAll('.cal-dia.soltar').forEach(x => x.classList.remove('soltar')); });
+      root.addEventListener('dragover', e => {
+        const d = e.target.closest && e.target.closest('.cal-dia[data-f]');
+        if(!d) return;
+        e.preventDefault();
+        root.querySelectorAll('.cal-dia.soltar').forEach(x => { if(x !== d) x.classList.remove('soltar'); });
+        d.classList.add('soltar');
+      });
+      root.addEventListener('drop', e => {
+        const d = e.target.closest && e.target.closest('.cal-dia[data-f]');
+        if(!d) return;
+        e.preventDefault();
+        root.classList.remove('arrastrando');
+        moverUna(tareas.find(x => x.id === e.dataTransfer.getData('text/plain')), d.dataset.f);
+      });
+    }
     // Al volver a la pestaña otro día, se parte de hoy.
     if(abrir.dia !== hoy()){ abrir.dia = hoy(); elegido = hoy(); mes = null; }
     if(dueño !== yo()){ tareas = []; cargado = false; }
