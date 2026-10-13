@@ -468,7 +468,8 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 - También puede llevar un test de Legislación (`legis`, migración `20261025_calendario_legislacion.sql`): leyes,
   modo (Estudio o Examen) y cuántas preguntas, sin reloj. Si hay de tutorbomberos, también de qué fuente
   (`legis.fuente`: todas, pj o tb) y, de cada ley, qué títulos (`legis.titulos[ley]`: ninguno = la ley entera; los
-  bloqueados no salen). Se hace con el test de siempre (`js/test.js`); con cada
+  bloqueados no salen). Con una fuente elegida solo salen las leyes y títulos que tienen preguntas de ella, con cuántas;
+  con «Todas», cada ley y cada título dicen las de cada fuente por separado. Se hace con el test de siempre (`js/test.js`); con cada
   paso, `saveQuizProgress` guarda el intento en la tarea (`legis.run`: preguntas, orden de sus opciones,
   respuestas y pregunta actual) para seguir en la misma pregunta en cualquier dispositivo, y al finalizar queda
   terminado (con su nota) y la tarea, hecha. «Volver» lleva a donde se abrió (calendario o Inicio).

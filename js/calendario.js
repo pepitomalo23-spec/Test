@@ -284,6 +284,13 @@ const CAL = (function(){
   // De qué fuente (Todas / pj.fire / Tutorbombero) y qué títulos de cada ley (L.titulos[ley]: sin elegir, la ley entera).
   const fuenteLegis = L => L.fuente && L.fuente !== 'todas' && hayTutorbombero() ? L.fuente : 'todas';
   const titulosDe = (L, ley) => ((L.titulos || {})[ley] || []).filter(id => gruposDe(ley).some(g => g.id === id));
+  // Cuántas preguntas tiene cada ley de cada fuente; con una fuente elegida solo salen las leyes que tienen de ella.
+  function cuentasLeyes(){
+    const out = {};
+    QUESTIONS_POOL.forEach(q => { const c = out[q.topic_id] = out[q.topic_id] || { pj: 0, tb: 0 }; c[fuenteDe(q) === 'tb' ? 'tb' : 'pj']++; });
+    return out;
+  }
+  const leyesDe = L => { const f = fuenteLegis(L), c = cuentasLeyes(); return leyes().filter(x => f === 'todas' || (c[x.id] && c[x.id][f])); };
   const nTitulos = L => L.temas.reduce((n, k) => n + titulosDe(L, k).length, 0);
   function preguntasLegis(L){
     const f = fuenteLegis(L);
@@ -559,10 +566,16 @@ const CAL = (function(){
       else if(b.dataset.lg === 'anadir'){ h.legis = { temas: [], modo: 'estudio', cuantas: 20, fuente: 'todas', titulos: {} }; }
       else if(b.dataset.lg === 'quitar'){ h.legis = null; }
       else if(b.dataset.lg === 'ley'){ const k = b.dataset.t, L = h.legis; L.temas = L.temas.includes(k) ? L.temas.filter(x => x !== k) : L.temas.concat(k); autoTituloLegis(f); }
-      else if(b.dataset.lg === 'todas'){ const ids = leyes().map(x => x.id); h.legis.temas = ids.every(x => h.legis.temas.includes(x)) ? [] : ids; autoTituloLegis(f); }
+      else if(b.dataset.lg === 'todas'){ const ids = leyesDe(h.legis).map(x => x.id); h.legis.temas = ids.every(x => h.legis.temas.includes(x)) ? [] : ids; autoTituloLegis(f); }
       else if(b.dataset.lg === 'modo'){ h.legis.modo = b.dataset.m; autoTituloLegis(f); }
       else if(b.dataset.lg === 'cuantas'){ h.legis.cuantas = +b.dataset.n; }
-      else if(b.dataset.lg === 'fuente'){ h.legis.fuente = b.dataset.f; autoTituloLegis(f); }
+      else if(b.dataset.lg === 'fuente'){
+        h.legis.fuente = b.dataset.f;
+        // Las leyes elegidas que no tienen preguntas de esa fuente se quitan (ya no salen).
+        const ids = leyesDe(h.legis).map(x => x.id);
+        h.legis.temas = h.legis.temas.filter(x => ids.includes(x));
+        autoTituloLegis(f);
+      }
       else if(b.dataset.lg === 'titulo'){
         const L = h.legis, k = b.dataset.t, id = b.dataset.n, ts = (L.titulos = L.titulos || {})[k] = titulosDe(L, k);
         L.titulos[k] = ts.includes(id) ? ts.filter(x => x !== id) : ts.concat(id);
@@ -656,33 +669,43 @@ const CAL = (function(){
   }
   function campoLegis(){
     if(!h.legis) return '<button type="button" class="cal-test-anadir" data-lg="anadir"><span>+</span> Añadir un test de Legislación</button>';
-    const L = h.legis, ls = leyes();
-    if(!ls.length) return '<div class="cal-hasta-res">Cargando las leyes…</div>';
-    const todas = ls.every(x => L.temas.includes(x.id));
+    const L = h.legis;
+    if(!leyes().length) return '<div class="cal-hasta-res">Cargando las leyes…</div>';
+    const ls = leyesDe(L), cl = cuentasLeyes(), tb = hayTutorbombero();
+    const todas = ls.length > 0 && ls.every(x => L.temas.includes(x.id));
     const f = fuenteLegis(L), n = preguntasLegis(L).length;
+    // Lo que tiene cada ley: de la fuente elegida o, con «Todas», de cada una por separado.
+    const cuentaLey = (c, f) => { c = c || { pj: 0, tb: 0 }; const n = x => x.toLocaleString('es-ES');
+      return f === 'todas' ? n(c.pj) + ' ' + FUENTES_LEGIS.pj + ' · ' + n(c.tb) + ' ' + FUENTES_LEGIS.tb : n(c[f]) + ' preguntas de ' + FUENTES_LEGIS[f]; };
     const seg = (on, attrs, txt) => '<button type="button" class="cal-seg' + (on ? ' on' : '') + '" ' + attrs + '>' + txt + '</button>';
     // Debajo de cada ley elegida, sus títulos (con cuántas preguntas tiene cada uno de la fuente elegida): sin marcar ninguno, la ley entera.
     const titulosLey = k => {
       const gs = gruposDe(k);
       if(!gs.length) return '';
-      const cuenta = {};
+      const cuenta = {}, por = {};
       QUESTIONS_POOL.forEach(q => {
         if(q.topic_id !== k || !q.nodo_id || !deFuente(q, f)) return;
         const g = gs.find(g => nodeIsInSelectedGroups(q.nodo_id, new Set([g.id])));
-        if(g) cuenta[g.id] = (cuenta[g.id] || 0) + 1;
+        if(!g) return;
+        cuenta[g.id] = (cuenta[g.id] || 0) + 1;
+        const p = por[g.id] = por[g.id] || { pj: 0, tb: 0 };
+        p[fuenteDe(q) === 'tb' ? 'tb' : 'pj']++;
       });
+      // Con «Todas», cada título dice las de cada fuente por separado.
+      const num = id => { const p = por[id] || { pj: 0, tb: 0 }; return tb && f === 'todas' ? p.pj + ' pj · ' + p.tb + ' tb' : String(cuenta[id] || 0); };
       const ts = titulosDe(L, k), vis = gs.filter(g => cuenta[g.id] || ts.includes(g.id));
       if(!vis.length) return '';
       return '<div class="cal-legis-tits"><span class="cal-legis-tits-t">' + (ts.length ? ts.length + ' de ' + gs.length + ' títulos' : 'Toda la ley · o elige títulos:') + '</span>' +
         vis.map(g => '<button type="button" class="cal-chip cal-tit' + (ts.includes(g.id) ? ' on' : '') + '" data-lg="titulo" data-t="' + esc(k) + '" data-n="' + esc(g.id) + '">' +
-          esc(g.label.replace(/\s+–\s+.*$/, '')) + ' <small>' + (cuenta[g.id] || 0) + '</small></button>').join('') + '</div>';
+          esc(g.label.replace(/\s+–\s+.*$/, '')) + ' <small>' + num(g.id) + '</small></button>').join('') + '</div>';
     };
     return '<div class="cal-legis">' +
       (hayTutorbombero() ? '<div class="cal-legis-fila"><span>Preguntas de</span><div class="cal-segs cal-segs-full">' +
         [['todas', 'Todas'], ['pj', FUENTES_LEGIS.pj], ['tb', FUENTES_LEGIS.tb]].map(([k, t]) => seg(f === k, 'data-lg="fuente" data-f="' + k + '"', t)).join('') + '</div></div>' : '') +
       '<div class="cal-test-opciones">' +
         '<button type="button" class="cal-test-op todos' + (todas ? ' on' : '') + '" data-lg="todas"><span class="cal-test-caja"></span>Todas las leyes (' + ls.length + ')</button>' +
-        ls.map(x => '<button type="button" class="cal-test-op' + (L.temas.includes(x.id) ? ' on' : '') + '" data-lg="ley" data-t="' + esc(x.id) + '"><span class="cal-test-caja"></span>' + esc(x.name) + '</button>' +
+        ls.map(x => '<button type="button" class="cal-test-op' + (L.temas.includes(x.id) ? ' on' : '') + '" data-lg="ley" data-t="' + esc(x.id) + '"><span class="cal-test-caja"></span>' +
+          '<span class="cal-ley-txt">' + esc(x.name) + (tb ? '<small>' + cuentaLey(cl[x.id], f) + '</small>' : '') + '</span></button>' +
           (L.temas.includes(x.id) ? titulosLey(x.id) : '')).join('') +
       '</div>' +
       '<div class="cal-legis-fila"><span>Modo</span><div class="cal-segs cal-segs-full">' +
