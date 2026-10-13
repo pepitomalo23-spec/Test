@@ -342,17 +342,20 @@ const CJT = (function(){
   function preguntable(x){ return generadores(x).length > 0; }
   // Revisión: cada elemento con cuántas de sus preguntas salen de verdad (las de opciones
   // necesitan 3 falsas). Para comprobar que no se queda nada sin preguntar.
-  function auditar(){
+  // Con «conPreguntas», también el texto y la respuesta de cada pregunta de cada cosa (para revisarlas).
+  function auditar(conPreguntas){
     if(!T) return null;
     return T.fichas.map(f => ({ ficha: f.id, secciones: f.secciones.map(s => {
-      const sin = [], formas = [];
+      const sin = [], formas = [], items = [];
       s.items.forEach(x => {
         let ok = 0;
-        generadores(x).forEach(g => { try{ if(g(x)) ok++; }catch(e){} });
+        const qs = [];
+        generadores(x).forEach(g => { try{ const q = g(x); if(q){ ok++; qs.push(q); } }catch(e){} });
         formas.push(ok);
         if(!ok) sin.push(x.n);
+        if(conPreguntas) items.push({ n: textoItem(x), preguntas: qs.map(q => ({ etiqueta: q.etiqueta, texto: q.texto, respuesta: q.respuesta === 'opciones' ? q.opciones[q.correcta] : q.resumen || '', tipo: q.respuesta, detalle: typeof q.detalle === 'string' ? q.detalle : '' })) });
       });
-      return { id: s.id, tipo: s.tipo, titulo: s.titulo, total: s.items.length, formas: formas.reduce((a, b) => a + b, 0), sin };
+      return { id: s.id, tipo: s.tipo, titulo: s.titulo, total: s.items.length, formas: formas.reduce((a, b) => a + b, 0), sin, items };
     }) }));
   }
 
@@ -645,33 +648,45 @@ const CJT = (function(){
   function preguntarClave(k){ preguntar([k]); }
   // Repasar: los apartados del temario ya aprendidos (una pregunta de cada cosa, mezclado).
   function repasarClaves(claves){ if(claves.length) preguntar(claves, null, 'Temario aprendido', 'f:aprendido'); }
-  /* ---------- Aprender paso a paso (js/callejero.js) ----------
-     Cada apartado de cada ficha es un paso: cuántas cosas tiene que se pueden
-     preguntar y cuántas están ya dominadas. «Preguntar» saca solo lo que aún
-     no se domina (lo fallado primero), de 20 en 20, hasta saberlo todo. */
-  // De lo más importante a lo más detallado (la General y cada distrito).
-  const ORDEN_SECCIONES = ['distritos', 'datos', 'linea', 'carreteras', 'salidas', 'puentes', 'aguas', 'inundables', 'poligonos', 'industrias',
-    'urbanizaciones', 'otro-nombre', 'mezquita', 'alcazar', 'feria',
-    'barrios', 'recorridos', 'plazas', 'jardines', 'salud', 'mayores', 'comisarias', 'organismos', 'delegaciones', 'juntas', 'colegios',
-    'civicos', 'bibliotecas', 'mercados', 'comerciales', 'deportes', 'museos', 'palacios', 'teatros', 'hoteles', 'iglesias'];
-  function pasos(){
+  /* ---------- Aprender (js/callejero.js): ver por categorías ----------
+     Cada categoría junta el mismo apartado de todas las fichas (los colegios
+     de los siete distritos, por ejemplo). Solo para ver: sin preguntas. */
+  // Cuántas cosas tienen esos apartados en todas las fichas (null mientras se descarga).
+  function contarSecciones(ids){
     if(!asegurar()) return null;
-    const prog = CJ.progreso();
-    const orden = s => { const i = ORDEN_SECCIONES.indexOf(s.id); return i < 0 ? 99 : i; };
-    return T.fichas.map(f => ({ id: f.id, titulo: f.titulo, secciones: f.secciones.slice().sort((a, b) => orden(a) - orden(b)).map(s => {
-      const r = cuenta(prog, s.items);
-      return { clave: claveDe(s), titulo: s.titulo, total: r.total, dominadas: r.dominada };
-    }).filter(x => x.total) })).filter(f => f.secciones.length);
+    return T.fichas.reduce((a, f) => a + f.secciones.filter(s => ids.includes(s.id)).reduce((n, s) => n + s.items.length, 0), 0);
   }
-  function aprenderSec(k){
-    if(!T) return;
-    const [fid, sid] = k.split('/');
-    const s = T.fichaPorId.get(fid).secciones.find(x => x.id === sid);
-    const prog = CJ.progreso(), orden = { fallada: 0, progreso: 1, nueva: 2 };
-    const pend = s.items.filter(x => preguntable(x) && estado(prog, x) !== 'dominada').sort((a, b) => orden[estado(prog, a)] - orden[estado(prog, b)]);
-    // Lo que falta, con todas sus preguntas (cada cosa por todos lados), unas 30 por ronda.
-    const lista = pend.length ? pend : s.items.filter(preguntable);
-    preguntar(lista.map(x => k + '/' + x.id), null, s.titulo, 'f:' + k, false, true, 30);
+  // Las claves (ficha/apartado) de esos apartados, para preguntarlos en Repasar.
+  function clavesSecciones(ids){ return T ? T.fichas.flatMap(f => f.secciones.filter(s => ids.includes(s.id)).map(claveDe)) : []; }
+  // La lista fija de barrios: la general del temario (con las pedanías) y los
+  // de las fichas de distrito que no están en ella. { n, distrito, b (su barrio del mapa) }.
+  function listaBarrios(){
+    if(!asegurar()) return null;
+    const g = T.fichaPorId.get('general'), sg = g && g.secciones.find(s => s.id === 'distritos');
+    const out = sg ? sg.items.map(x => ({ n: x.n, distrito: x.distrito || '', b: x.b || null })) : [];
+    const ya = new Set(out.map(x => normalizar(x.n)));
+    T.fichas.forEach(f => f.secciones.filter(s => s.id === 'barrios').forEach(s => s.items.forEach(x => {
+      if(ya.has(normalizar(x.n))) return;
+      ya.add(normalizar(x.n));
+      out.push({ n: x.n, distrito: f.titulo, b: x.b || null });
+    })));
+    return out;
+  }
+  // Todo lo de una categoría en el mapa, con su distrito (para elegirlo arriba).
+  // Lo que no está en el mapa también sale en la lista, con su ficha.
+  async function verCategoria(ids, titulo){
+    try{ await cargar(); }catch(e){ uiToast(e.message, 'error'); return; }
+    // Lo que no está en el mapa (los datos, los planos de la Mezquita, el Alcázar y la Feria…), en su ficha.
+    const secs = T.fichas.flatMap(f => f.secciones.filter(s => ids.includes(s.id)));
+    if(secs.length === 1 && !secs[0].items.some(x => itemMapa(x))){ abrir(claveDe(secs[0]), true); return; }
+    const items = [];
+    secs.forEach(s => s.items.forEach(x => { const f = s._f;
+      const it = itemMapa(x) || { id: x.id, nombre: textoItem(x), tipo: s.titulo, detalle: lineasDetalle(x, true), vias: [], lugar: null, barrio: null };
+      it.grupo = f.grupo === 'distrito' ? f.titulo : x.distrito || null;
+      items.push(it);
+    }));
+    if(!items.length){ uiToast('Esto no tiene nada que ver.', 'info'); return; }
+    CJ.estudio({ titulo, items, distritos: [], porGrupos: true, lista: 'Lista', pista: 'Toca lo marcado en azul o elige de la lista' });
   }
   // Un apartado de la pantalla: entero o, en una tarea, solo lo elegido de él.
   function clavesSec(k){
@@ -858,11 +873,13 @@ const CJT = (function(){
   //   Preguntar: toda la ficha o por apartados y, en una ficha, los modos de
   //              juego con las calles de su distrito (o de toda Córdoba).
   const ULTIMA_KEY = 'cjt_ultima';   // la última ficha abierta («Seguir con…» en «Hoy»)
-  function abrir(clave){
-    vista = { claves: [clave], titulo: nombreClave(clave).replace(/^Ficha /, ''), inc: incluye([clave]), pestana: 'lista' };
+  // soloVer (desde Aprender): solo para ver, sin preguntar ni porcentaje, con el apartado ya abierto.
+  function abrir(clave, soloVer){
+    vista = { claves: [clave], titulo: nombreClave(clave).replace(/^Ficha /, ''), inc: incluye([clave]), pestana: 'lista', soloVer: !!soloVer };
     try{ localStorage.setItem(ULTIMA_KEY, String(clave).split('/')[0]); }catch(e){}
     documento = null;
     abiertas.clear();
+    if(soloVer) abiertas.add(clave);
     mostrar();
   }
   // Una tarea, con todo lo que lleva (temario, calles y lugares, zona). Desde
@@ -978,11 +995,11 @@ const CJT = (function(){
     const fichas = [...new Set(secciones.map(s => s._f))];
     const docs = fichas.flatMap(f => f.docs || []);
     const pestanas = [['lista', 'Lista', true], ['documento', 'Documento', docs.length > 0],
-      ['mapa', 'Mapa', calles || todos.some(x => tieneGeo(x) || x.pv)], ['preguntar', 'Preguntar', calles || r.total > 0]].filter(p => p[2]);
+      ['mapa', 'Mapa', calles || todos.some(x => tieneGeo(x) || x.pv)], ['preguntar', 'Preguntar', !vista.soloVer && (calles || r.total > 0)]].filter(p => p[2]);
     if(!pestanas.some(p => p[0] === vista.pestana)) vista.pestana = 'lista';
     const p = vista.pestana;
     root.innerHTML =
-      cabecera(t ? 'Tarea de tu profesor' : vista.acumulado ? 'De tu profesor' : 'Temario', vista.titulo, r.total ? pct(r) : null) +
+      cabecera(t ? 'Tarea de tu profesor' : vista.acumulado ? 'De tu profesor' : vista.soloVer ? 'Aprender' : 'Temario', vista.titulo, r.total && !vista.soloVer ? pct(r) : null) +
       (t ? tarjetaTarea(t) : '') +
       (esProfe() && !t && !vista.acumulado ? barraMandar() : '') +
       '<div class="cj-segmento cj-pestanas cjt-pestanas" role="tablist">' + pestanas.map(([k, texto]) =>
@@ -1089,20 +1106,20 @@ const CJT = (function(){
   }
   function tarjetaSeccion(s, prog, items){
     const k = claveDe(s);
-    const r = cuenta(prog, items);
+    const r = cuenta(prog, items), ver = !!(vista && vista.soloVer);   // desde Aprender: sin preguntar ni porcentaje
     const abierta = abiertas.has(k);
     const conMapa = items.some(x => tieneGeo(x) || x.pv);
     const parte = items.length < s.items.length;
     return '<div class="cjt-sec' + (abierta ? ' abierta' : '') + '">' +
       '<button type="button" class="cjt-sec-cab" onclick="CJT.alternar(\'' + escapeHtml(k) + '\')" aria-expanded="' + abierta + '">' +
         '<span class="cjt-sec-titulo">' + escapeHtml(s.titulo) + ' <small>' + (parte ? items.length + ' de ' + s.items.length : s.items.length) + '</small></span>' +
-        (r.total ? '<b>' + pct(r) + '%</b>' : '') +
+        (r.total && !ver ? '<b>' + pct(r) + '%</b>' : '') +
         '<svg class="cjt-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>' +
       '</button>' +
-      (r.total ? barra(r) : '') +
+      (r.total && !ver ? barra(r) : '') +
       (abierta
         ? '<div class="cjt-sec-acciones">' +
-            (r.total ? '<button type="button" class="btn btn-primary btn-light" onclick="CJT.preguntarSec(\'' + escapeHtml(k) + '\')">Preguntar</button>' : '') +
+            (r.total && !ver ? '<button type="button" class="btn btn-primary btn-light" onclick="CJT.preguntarSec(\'' + escapeHtml(k) + '\')">Preguntar</button>' : '') +
             (conMapa ? '<button type="button" class="btn btn-ghost" onclick="CJT.verSec(\'' + escapeHtml(k) + '\')">En el mapa</button>' : '') +
             (esProfe() && !vista.tarea && !vista.acumulado ? '<button type="button" class="btn btn-ghost cjt-btn-mandar" onclick="CJT.mandar(\'' + escapeHtml(k) + '\')">' + ICONO_MANDAR + 'Mandar</button>' : '') +
           '</div>' +
@@ -1350,7 +1367,7 @@ const CJT = (function(){
       (tieneGeo(x) || x.pv ? '<button type="button" class="cjt-fila-btn azul" onclick="CJT.verItem(' + x.id + ')" aria-label="Verlo en el mapa" title="Verlo en el mapa">' + ICONO_MAPA + '</button>' : '');
   }
   function filaItem(x, prog){
-    const est = preguntable(x) ? estado(prog, x) : '';
+    const est = vista && vista.soloVer ? null : preguntable(x) ? estado(prog, x) : '';
     // En los planos, la fila marca su sitio en el plano de arriba.
     if(x._s.tipo === 'plano'){
       return '<button type="button" class="cjt-fila' + (planoVer[x._s.plano] === x.k ? ' activa' : '') + '" onclick="CJT.verEnPlano(\'' + x._s.plano + '\', \'' + x.k + '\')">' + cuerpoItem(x, est) + '</button>';
@@ -1748,7 +1765,7 @@ const CJT = (function(){
   }
 
   return {
-    cargar, listo, pasos, aprenderSec, auditar, repasarClaves, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
+    cargar, listo, contarSecciones, clavesSecciones, listaBarrios, verCategoria, auditar, repasarClaves, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
     filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, preguntasFalladas, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
