@@ -1,14 +1,15 @@
 /* Variables, tema claro, barra superior, acceso, splash, esqueletos y avisos. */
 
   :root{
-    --bg: #000000;
-    --card: #141414;
-    --card-hi: #1C1C1C;
-    --line: #262626;
-    --line-soft: #1E1E1E;
-    --text: #F5F5F5;
-    --muted: #9BA0A6;
-    --muted-2: #6B7078;
+    /* Neutros con un punto de azul (la escala «zinc» de shadcn/ui): más limpios que el gris puro. */
+    --bg: #09090B;
+    --card: #131316;
+    --card-hi: #1B1B1F;
+    --line: #27272A;
+    --line-soft: #1E1E22;
+    --text: #FAFAFA;
+    --muted: #A1A1AA;
+    --muted-2: #71717A;
 
     --purple: #8C7DF5;
     --coral: #F2665C;
@@ -18,9 +19,9 @@
     --orange: #FF7A3D;
     --amber: #F5C043;
 
-    --sans: 'Inter', sans-serif;
+    --sans: 'Geist', 'Inter', system-ui, sans-serif;
     --serif: 'Source Serif 4', serif;
-    --mono: 'JetBrains Mono', monospace;
+    --mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
     --title: 'Anton', 'Inter', sans-serif;
 
     /* ---- "tintes" de superficie: recuadros/hovers sutiles que antes eran
@@ -60,13 +61,13 @@
      los colores de acento (--purple, --coral, etc.) se mantienen igual ---------- */
   :root[data-theme="light"]{
     --bg: #FFFFFF;
-    --card: #F3F3F5;
-    --card-hi: #E9E9EC;
-    --line: #E1E1E5;
-    --line-soft: #ECECEF;
-    --text: #16171A;
-    --muted: #5B6068;
-    --muted-2: #82868D;
+    --card: #F4F4F5;
+    --card-hi: #EBEBEE;
+    --line: #E4E4E7;
+    --line-soft: #EFEFF1;
+    --text: #09090B;
+    --muted: #63636B;
+    --muted-2: #A1A1AA;
 
     --w02: rgba(0,0,0,0.028);
     --w03: rgba(0,0,0,0.035);
@@ -112,8 +113,8 @@
   .header-back:hover{ color: var(--text); background: var(--card); }
   .header-back svg{ width:19px; height:19px; }
   .header-nav{ display:flex; align-items:center; gap:22px; }
-  .header-nav span{ display:flex; align-items:center; gap:7px; font-family: var(--title); font-weight:400; font-size:16.5px; letter-spacing:.2px; color: var(--muted-2); cursor:pointer; transition: color .15s; }
-  .header-nav span:hover{ color: var(--muted); }
+  .header-nav span{ display:flex; align-items:center; gap:7px; font-family: var(--sans); font-weight:500; font-size:14.5px; color: var(--muted); cursor:pointer; transition: color .15s; }
+  .header-nav span:hover{ color: var(--text); }
   .header-nav span.active{ color: var(--coral); }
   .header-nav span.active .header-nav-label{ color: var(--coral); }
   .header-nav span svg{ width:17px; height:17px; flex-shrink:0; }

@@ -80,7 +80,7 @@ const EXA = (function(){
     if(!yo()) return '';
     const a = ajustes();
     if(!a.fecha) return '<button type="button" class="exa-tarjeta exa-sin" data-ini="examen"><span class="exa-ico">' + ICO + '</span>' +
-      '<span class="exa-txt"><b>¿Cuándo es tu examen?</b><span>Pon la fecha y te digo cuántos días quedan y a qué ritmo ir</span></span><span class="ini-flecha">' + FLECHA + '</span></button>';
+      '<span class="exa-txt"><b>Sin fecha</b><span>Ponla para ver los días que quedan y cuánto repasar cada día</span></span><span class="ini-flecha">' + FLECHA + '</span></button>';
     const d = diasHasta(a.fecha);
     const grande = d > 1 ? '<b>' + d + '</b><span>días</span>' : d === 1 ? '<b>1</b><span>día</span>' : d === 0 ? '<b>Hoy</b>' : '<b>✓</b>';
     const titulo = d > 1 ? 'Faltan ' + d + ' días' : d === 1 ? '¡Es mañana!' : d === 0 ? '¡Hoy es el examen!' : 'El examen ya pasó';

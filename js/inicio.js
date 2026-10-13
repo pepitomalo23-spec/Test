@@ -1,39 +1,28 @@
 /* Inicio: de un vistazo, lo que toca hoy (tareas del calendario, que se
-   pueden marcar aquí mismo; tocando el recuadro se abre el calendario en
-   grande para editarlo todo), la cuenta atrás del examen (js/examen.js), el test a medias, el Simulacro conjunto y cómo
-   vas en Legislación y en el Específico. */
+   pueden marcar aquí mismo; cada una abre su ventanita), la semana con sus
+   puntos (lleva al calendario), la cuenta atrás del examen (js/examen.js),
+   el test a medias, cómo vas en Legislación y en el Específico y el
+   Simulacro conjunto. Diseño sobrio: listas con líneas finas en vez de
+   tarjetas dentro de tarjetas, y el color solo para la categoría y lo
+   importante. En ordenador, dos columnas. */
 const INICIO = (function(){
   const MODOS = { estudio: 'Modo estudio', fallos: 'Fallos', inteligente: 'Test Inteligente', simulacro: 'Simulacro', examen: 'Examen' };
   const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-  const FRASES = [
-    'Poco a poco se llega lejos.',
-    'Un rato cada día vale más que un atracón.',
-    'Lo que repasas hoy, no lo olvidas mañana.',
-    'Constancia antes que intensidad.',
-    'Cada pregunta acertada cuenta.',
-    'Hoy un poco mejor que ayer.',
-    'El examen se aprueba día a día.'
-  ];
   const FLECHA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>';
   const ICO = {
-    conjunto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 22h2a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v2.85"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M8 14v2.2l1.6 1"/><circle cx="8" cy="16" r="6"/></svg>',
-    llama: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/></svg>',
     reanudar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>'
   };
   const MAX_TAREAS = 5;
   const esc = s => escapeHtml(String(s == null ? '' : s));
   const datosListos = () => typeof appDataReady !== 'undefined' && appDataReady && QUESTIONS_POOL.length > 0;
 
-  function saludo(){
-    const d = new Date(), h = d.getHours();
-    const hola = h < 6 ? 'Buenas noches' : h < 14 ? 'Buenos días' : h < 21 ? 'Buenas tardes' : 'Buenas noches';
-    const fecha = DIAS[d.getDay()] + ', ' + d.getDate() + ' de ' + MESES[d.getMonth()];
-    const frase = FRASES[Math.floor(d.getTime() / 864e5) % FRASES.length];
-    return '<div class="ini-saludo"><h1>' + hola + '</h1>' +
-      '<div class="ini-fecha">' + fecha.charAt(0).toUpperCase() + fecha.slice(1) + ' · ' + frase + '</div></div>';
+  function fechaHoy(){
+    const d = new Date(), f = DIAS[d.getDay()] + ', ' + d.getDate() + ' de ' + MESES[d.getMonth()];
+    return f.charAt(0).toUpperCase() + f.slice(1);
   }
+  const etiqueta = (txt, enlace) => '<div class="ini-label"><span>' + txt + '</span>' + (enlace || '') + '</div>';
 
   function continuar(){
     if(!quizState || !quizState.mode) return '';
@@ -72,54 +61,53 @@ const INICIO = (function(){
   }
   function hoy(){
     const r = typeof CAL !== 'undefined' ? CAL.resumenHoy() : null;
-    let cuerpo;
-    if(!r){
-      cuerpo = '<div class="ini-hoy-cab"><div class="ini-hoy-tit">Hoy</div></div><div class="skel-list">' +
-        '<div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:60%"></span></span></div>' +
-        '<div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:45%"></span></span></div></div>';
-    } else {
-      const n = r.lista.length, pct = n ? Math.round(r.hechas / n * 100) : 0;
-      const msg = !n ? 'Nada apuntado para hoy' : r.hechas === n ? '¡Todo hecho!' : 'Te queda' + (n - r.hechas === 1 ? ' 1 cosa' : 'n ' + (n - r.hechas) + ' cosas');
-      // Primero lo pendiente, para que se vea lo que falta.
-      const orden = r.lista.slice().sort((a, b) => a.hecho - b.hecho);
-      const filas = orden.slice(0, MAX_TAREAS).map(t =>
-        '<div class="ini-tarea' + (t.hecho ? ' hecha' : '') + '" style="--c:' + t.color + '" role="button" tabindex="0" data-ini="ver" data-id="' + esc(t.id) + '" aria-label="Ver ' + esc(t.titulo) + '">' +
-          '<button type="button" class="ini-check" data-ini="marcar" data-id="' + esc(t.id) + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' + CHECK + '</button>' +
-          '<span class="ini-tarea-txt"><span class="ini-tarea-t">' + esc(t.titulo) + '</span>' +
-            '<span class="ini-tarea-cat">' + t.icono + esc(t.cat) + (t.nota ? ' · ' + esc(t.nota) : '') + '</span>' + barraTest(t.test) + '</span>' +
-          (t.test ? (t.test.terminados === t.test.tests ? '<span class="ini-tarea-ir hecho">Completado ✓</span>'
-            : '<button type="button" class="ini-tarea-ir" data-ini="test" data-id="' + esc(t.id) + '">' + (t.test.hechas ? 'Continuar' : 'Empezar') + '</button>') : '') +
-        '</div>').join('');
-      const chips = [
-        r.racha ? '<span class="ini-chip fuego">' + ICO.llama + '<b>' + r.racha + '</b> ' + (r.racha === 1 ? 'día' : 'días') + ' de racha</span>' : '',
-        r.atrasadas ? '<span class="ini-chip aviso"><b>' + r.atrasadas + '</b> ' + (r.atrasadas === 1 ? 'atrasada' : 'atrasadas') + '</span>' : '',
-        '<span class="ini-chip">Mañana: <b>' + r.manana + '</b></span>'
-      ].join('');
-      cuerpo = '<div class="ini-hoy-cab"><div><div class="ini-hoy-tit">Hoy</div><div class="ini-hoy-msg">' + msg + '</div></div>' +
-          (n ? '<div class="ini-hoy-num"><b>' + r.hechas + '</b>/' + n + '</div>' : '') + '</div>' +
-        (n ? '<span class="ini-barra ini-barra-hoy"><i style="width:' + pct + '%"></i></span>' : '') +
-        (n ? '<div class="ini-tareas">' + filas + '</div>' + (n > MAX_TAREAS ? '<div class="ini-mas">y ' + (n - MAX_TAREAS) + ' más…</div>' : '')
-           : '<button type="button" class="ini-anadir" data-ini="nueva"><span>+</span> Apuntar algo para hoy</button>') +
-        '<div class="ini-chips">' + chips + '</div>';
-    }
-    // Cada tarea abre su ventanita; al calendario se va con su botón.
-    return '<div class="ini-hoy">' + cuerpo +
-      '<div class="ini-hoy-pie"><button type="button" data-ini="calendario">Ver calendario completo ' + FLECHA + '</button></div></div>';
+    const n = r ? r.lista.length : 0;
+    const cab = '<div class="ini-cab"><div><div class="ini-fecha">' + fechaHoy() + '</div><h1 class="ini-h">Hoy</h1></div>' +
+      (n ? '<div class="ini-cuenta"><b>' + r.hechas + '</b> de ' + n + (r.hechas === n ? ' · todo hecho' : ' hechas') + '</div>' : '') + '</div>';
+    if(!r) return cab + '<div class="skel-list">' +
+      '<div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:60%"></span></span></div>' +
+      '<div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:45%"></span></span></div></div>';
+    if(!n) return cab + '<button type="button" class="ini-anadir" data-ini="nueva"><span>+</span> Apuntar algo para hoy</button>';
+    // Primero lo pendiente, para que se vea lo que falta.
+    const orden = r.lista.slice().sort((a, b) => a.hecho - b.hecho);
+    const filas = orden.slice(0, MAX_TAREAS).map(t => {
+      const fin = t.test && t.test.terminados === t.test.tests;
+      return '<div class="ini-tarea' + (t.hecho ? ' hecha' : '') + '" style="--c:' + t.color + '" role="button" tabindex="0" data-ini="ver" data-id="' + esc(t.id) + '" aria-label="Ver ' + esc(t.titulo) + '">' +
+        '<button type="button" class="ini-check" data-ini="marcar" data-id="' + esc(t.id) + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' + CHECK + '</button>' +
+        '<span class="ini-tarea-txt"><span class="ini-tarea-t">' + esc(t.titulo) + '</span>' +
+          '<span class="ini-tarea-cat"><i class="ini-punto"></i>' + esc(t.cat) + (t.nota ? ' · ' + esc(t.nota) : '') + '</span>' + barraTest(t.test) + '</span>' +
+        (t.test ? (fin ? '<span class="ini-tarea-ir hecho">Completado</span>'
+          : '<button type="button" class="ini-tarea-ir' + (t.hecho ? '' : ' pri') + '" data-ini="test" data-id="' + esc(t.id) + '">' + (t.test.hechas ? 'Continuar' : 'Empezar') + '</button>') : '') +
+      '</div>';
+    }).join('');
+    return cab + '<div class="ini-tareas">' + filas + '</div>' +
+      (n > MAX_TAREAS ? '<button type="button" class="ini-mas" data-ini="calendario">y ' + (n - MAX_TAREAS) + ' más en el calendario</button>' : '');
   }
 
+  // La semana (de lunes a domingo) con un punto por tarea: cada día abre el calendario en ese día.
+  function semana(){
+    const s = typeof CAL !== 'undefined' ? CAL.semana() : null;
+    if(!s) return '';
+    const extra = (s.racha ? ' · racha de ' + s.racha + (s.racha === 1 ? ' día' : ' días') : '') +
+      (s.atrasadas ? ' · <b class="ini-aviso">' + s.atrasadas + (s.atrasadas === 1 ? ' atrasada' : ' atrasadas') + '</b>' : '');
+    return '<div class="ini-bloque">' + etiqueta('Esta semana' + extra, '<button type="button" class="ini-link" data-ini="calendario">Calendario ' + FLECHA + '</button>') +
+      '<div class="ini-semana">' + s.dias.map(d =>
+        '<button type="button" class="ini-dia' + (d.hoy ? ' hoy' : '') + (d.pasado ? ' pasado' : '') + '" data-ini="dia" data-f="' + d.f + '" aria-label="' + esc(d.nombre) + ', ' + d.puntos.length + ' tareas">' +
+          '<span class="ini-dia-l">' + d.letra + '</span><span class="ini-dia-n">' + d.n + '</span>' +
+          '<span class="ini-puntos">' + d.puntos.slice(0, 4).map(p => '<i style="background:' + p.c + '"' + (p.h ? ' class="h"' : '') + '></i>').join('') + '</span></button>').join('') +
+      '</div></div>';
+  }
 
-  // El Simulacro conjunto (Legislación + Específico): una fila con el mismo estilo que «Tu progreso».
+  // El Simulacro conjunto (Legislación + Específico): una fila más.
   function conjunto(){
     if(typeof PRU === 'undefined' || !PRU.conjuntoDisponible()) return '';
-    return '<div class="section-row"><div class="section-title">Practicar</div><div class="section-rule"></div></div>' +
-      '<div class="ini-progreso"><button type="button" class="ini-prog-fila ini-conjunto" data-ini="conjunto">' +
-        '<span class="ini-conjunto-ico">' + ICO.conjunto + '</span>' +
-        '<span class="ini-conjunto-txt"><b>Simulacro conjunto</b><span>Legislación + Específico, a tu medida</span></span>' +
+    return '<div class="ini-bloque">' + etiqueta('Practicar') +
+      '<button type="button" class="ini-fila" data-ini="conjunto"><span class="ini-fila-txt"><b>Simulacro conjunto</b><span>Legislación y Específico, con las preguntas y el tiempo que elijas</span></span>' +
         '<span class="ini-flecha">' + FLECHA + '</span></button></div>';
   }
 
   // Cómo vas: Legislación y, si lo tienes, el Específico, cada uno con su barra
-  // de dominio (verde, amarillo, rojo; azul lo no visto). Pulsar abre su pestaña de Estadísticas.
+  // de dominio (verde dominadas, amarillo a medias, rojo falladas; el resto, sin ver). Pulsar abre su pestaña de Estadísticas.
   function filaProgreso(clave, nombre, r){
     if(!r) return '<div class="ini-prog-fila"><div class="ini-prog-cab"><span class="ini-prog-nombre">' + nombre + '</span></div>' +
       '<div class="skel-list"><div class="skel-row"><span class="skel-lines"><span class="skel skel-line" style="width:70%"></span></span></div></div></div>';
@@ -127,13 +115,13 @@ const INICIO = (function(){
     return '<button type="button" class="ini-prog-fila" data-ini="' + clave + '">' +
       '<div class="ini-prog-cab"><span class="ini-prog-nombre">' + nombre + '</span>' +
         '<span class="ini-prog-pct">' + formatPctExact(r.total ? r.verde / r.total * 100 : 0) + '</span><span class="ini-flecha">' + FLECHA + '</span></div>' +
-      '<div class="ini-dominio"><i class="v" style="width:' + p(r.verde) + '%"></i><i class="a" style="width:' + p(r.amarillo) + '%"></i><i class="r" style="width:' + p(r.rojo) + '%"></i></div>' +
-      '<div class="ini-progreso-datos"><span><b>' + r.vistas + '</b> de ' + r.total + ' vistas</span><span><b>' + r.verde + '</b> dominadas</span></div>' +
+      '<div class="ini-dominio">' + [['v', r.verde], ['a', r.amarillo], ['r', r.rojo]].filter(([, n]) => n).map(([k, n]) => '<i class="' + k + '" style="width:' + p(n) + '%"></i>').join('') + '</div>' +
+      '<div class="ini-progreso-datos"><span><b>' + r.verde + '</b> dominadas</span>' + (r.rojo ? '<span><b>' + r.rojo + '</b> falladas</span>' : '') +
+        '<span><b>' + r.vistas + '</b> de ' + r.total + ' vistas</span></div>' +
       '</button>';
   }
   function progreso(){
     if(!featureEnabled('estadisticas')) return '';
-    const cab = '<div class="section-row"><div class="section-title">Tu progreso</div><div class="section-rule"></div></div>';
     let legis = null;
     if(datosListos()){
       const pool = QUESTIONS_POOL, cuenta = st => pool.filter(q => q.masteryStatus === st).length;
@@ -141,14 +129,17 @@ const INICIO = (function(){
       legis.vistas = legis.verde + legis.amarillo + legis.rojo;
     }
     const conEsp = featureEnabled('especifico') && typeof ESTE !== 'undefined';
-    return cab + '<div class="ini-progreso">' + filaProgreso('stats-legis', 'Legislación', legis) +
-      (conEsp ? filaProgreso('stats-esp', 'Específico', ESTE.resumen()) : '') + '</div>';
+    return '<div class="ini-bloque">' + etiqueta('Progreso') + '<div class="ini-progreso">' + filaProgreso('stats-legis', 'Legislación', legis) +
+      (conEsp ? filaProgreso('stats-esp', 'Específico', ESTE.resumen()) : '') + '</div></div>';
   }
 
   function pintar(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
-    root.innerHTML = saludo() + continuar() + pruebaAMedias() + (typeof EXA !== 'undefined' ? EXA.tarjeta() : '') + hoy() + conjunto() + progreso();
+    // Izquierda: lo de hoy y la semana. Derecha (debajo en el móvil): examen, progreso y práctica.
+    const examen = typeof EXA !== 'undefined' ? EXA.tarjeta() : '';
+    root.innerHTML = '<div class="ini-grid"><div class="ini-col">' + hoy() + continuar() + pruebaAMedias() + semana() + '</div>' +
+      '<div class="ini-col">' + (examen ? '<div class="ini-bloque">' + etiqueta('Examen') + examen + '</div>' : '') + progreso() + conjunto() + '</div></div>';
     if(typeof PRU !== 'undefined' && PRU.conjuntoDisponible()) PRU.precargar();   // que el Simulacro conjunto abra al momento
   }
 
@@ -161,6 +152,7 @@ const INICIO = (function(){
       case 'ver': CAL.verTarea(el.dataset.id); break;
       case 'nueva': e.stopPropagation(); CAL.nueva(); break;
       case 'calendario': showScreen('screen-calendario'); break;
+      case 'dia': CAL.abrirDia(el.dataset.f); break;
       case 'reanudar': resumeQuiz(); break;
       case 'conjunto': PRU.abrirConfig('conjunto'); break;
       case 'prueba': PRU.continuar(); break;

@@ -28,7 +28,6 @@ const CAL = (function(){
     repaso: svg('<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M8 16H3v5"/>'),
     otro: svg('<circle cx="12" cy="12" r="3.5"/>')
   };
-  const LLAMA = ICONO.especifico.replace('cal-ico', 'cal-ico llama');
   const CALEND = svg('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>');
   const LAPIZ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
   const CAT = Object.fromEntries(CATS.map(([k, n, c]) => [k, { n, c }]));
@@ -36,7 +35,7 @@ const CAL = (function(){
   const IR = { normativas: 'screen-normativas', legislacion: 'screen-home', callejero: 'screen-callejero', especifico: 'screen-especifico', test: 'screen-home' };
   const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-  const FRASES = ['Día libre. Si te apetece, apunta algo.', 'Nada apuntado para este día.', 'Hueco libre: buen momento para un repaso.'];
+  const FRASES = ['Nada apuntado para este día.', 'Día libre.', 'Sin tareas este día.'];
 
   let tareas = [], cargado = false, cargando = null, dueño = null;
   let mes = null, elegido = null;
@@ -111,30 +110,6 @@ const CAL = (function(){
   const atrasadas = () => { const h = hoy(); return tareas.filter(t => !t.hecho && t.fecha < h); };
 
   /* ---------- pintar ---------- */
-  function anillo(hechas, total){
-    const r = 34, c = 2 * Math.PI * r, p = total ? hechas / total : 0;
-    return '<svg class="cal-anillo" viewBox="0 0 80 80" aria-hidden="true"><defs><linearGradient id="calGrad" x1="0" y1="0" x2="1" y2="1">' +
-      '<stop offset="0" stop-color="var(--coral)"/><stop offset="1" stop-color="var(--amber)"/></linearGradient></defs>' +
-      '<circle cx="40" cy="40" r="' + r + '" class="cal-anillo-fondo"/>' +
-      '<circle cx="40" cy="40" r="' + r + '" class="cal-anillo-barra" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + (c * (1 - p)).toFixed(1) + '"/></svg>' +
-      '<div class="cal-anillo-txt">' + (total ? Math.round(p * 100) + '%' : '—') + '</div>';
-  }
-  function cabecera(){
-    const h = hoy(), lista = delDia(h), hechas = lista.filter(t => t.hecho).length, r = racha();
-    const proximas = tareas.filter(t => t.fecha > h && t.fecha <= masDias(h, 7) && !t.hecho).length;
-    const msg = !lista.length ? 'Hoy no tienes nada apuntado.'
-      : hechas === lista.length ? '¡Todo hecho por hoy!'
-      : 'Te queda' + (lista.length - hechas === 1 ? ' 1 cosa' : 'n ' + (lista.length - hechas) + ' cosas') + ' por hacer.';
-    return '<div class="cal-hero">' +
-      '<div class="cal-hero-anillo">' + anillo(hechas, lista.length) + '</div>' +
-      '<div class="cal-hero-txt"><div class="cal-hero-fecha">' + esc(nombreDia(h)) + '</div>' +
-        '<div class="cal-hero-msg">' + msg + '</div>' +
-        '<div class="cal-hero-chips">' +
-          '<span class="cal-chip-dato"><b>' + hechas + '/' + lista.length + '</b> hoy</span>' +
-          '<span class="cal-chip-dato' + (r ? ' fuego' : '') + '">' + LLAMA + '<b>' + r + '</b> ' + (r === 1 ? 'día' : 'días') + ' de racha</span>' +
-          '<span class="cal-chip-dato"><b>' + proximas + '</b> en 7 días</span>' +
-        '</div></div></div>';
-  }
   function rejilla(){
     const [a, m] = mes, primero = new Date(a, m, 1), h = hoy();
     const hueco = (primero.getDay() + 6) % 7;            // la semana empieza en lunes
@@ -149,14 +124,14 @@ const CAL = (function(){
       const cls = ['cal-dia', f === h ? 'hoy' : '', f === elegido ? 'sel' : '', todo ? 'ok' : '', falta ? 'falta' : '', f < h ? 'pasado' : ''].filter(Boolean).join(' ');
       const puntos = ts.slice(0, 4).map(t => '<i style="background:' + CAT[t.categoria].c + '"' + (t.hecho ? ' class="h"' : '') + '></i>').join('') + (ts.length > 4 ? '<em>+' + (ts.length - 4) + '</em>' : '');
       celdas += '<button class="' + cls + '" data-cal="dia" data-f="' + f + '" aria-label="' + esc(nombreDia(f)) + ', ' + ts.length + ' tareas">' +
-        '<span class="cal-num">' + d + '</span>' + (todo ? '<span class="cal-ok">✓</span>' : '') + '<span class="cal-puntos">' + puntos + '</span></button>';
+        '<span class="cal-num">' + d + '</span><span class="cal-puntos">' + puntos + '</span></button>';
     }
     const esteMes = (() => { const n = new Date(); return n.getFullYear() === a && n.getMonth() === m; })();
     return '<div class="cal-mes">' +
-      '<div class="cal-mes-cab"><button class="cal-flecha" data-cal="mes" data-d="-1" aria-label="Mes anterior">‹</button>' +
-        '<div class="cal-mes-nombre">' + MESES[m].charAt(0).toUpperCase() + MESES[m].slice(1) + ' <span>' + a + '</span></div>' +
-        '<button class="cal-flecha" data-cal="mes" data-d="1" aria-label="Mes siguiente">›</button>' +
-        (esteMes && elegido === h ? '' : '<button class="cal-hoy-btn" data-cal="hoy">Hoy</button>') + '</div>' +
+      '<div class="cal-mes-cab"><div class="cal-mes-nombre">' + MESES[m].charAt(0).toUpperCase() + MESES[m].slice(1) + ' <span>' + a + '</span></div>' +
+        '<div class="cal-mes-nav"><button class="cal-btn-s" data-cal="hoy"' + (esteMes && elegido === h ? ' disabled' : '') + '>Hoy</button>' +
+        '<button class="cal-btn-s cal-flecha" data-cal="mes" data-d="-1" aria-label="Mes anterior">‹</button>' +
+        '<button class="cal-btn-s cal-flecha" data-cal="mes" data-d="1" aria-label="Mes siguiente">›</button></div></div>' +
       '<div class="cal-semana">' + ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => '<span>' + x + '</span>').join('') + '</div>' +
       '<div class="cal-rejilla">' + celdas + '</div></div>';
   }
@@ -461,8 +436,8 @@ const CAL = (function(){
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></button>' +
       '<button class="cal-tarea-main" data-cal="editar" data-id="' + t.id + '">' +
         '<span class="cal-tarea-t">' + esc(t.titulo) + '</span>' +
+        '<span class="cal-tarea-meta"><i class="cal-punto"></i><span class="cal-cat">' + esc(c.n) + '</span>' + (conFecha ? '<span class="cal-tarea-f">' + esc(nombreDia(t.fecha, true)) + '</span>' : '') + (t.serie ? '<span class="cal-rep" title="Se repite">↻ se repite</span>' : '') + '</span>' +
         (t.nota ? '<span class="cal-tarea-n">' + esc(t.nota) + '</span>' : '') +
-        '<span class="cal-tarea-meta"><span class="cal-cat">' + esc(c.n) + '</span>' + (conFecha ? '<span class="cal-tarea-f">' + esc(nombreDia(t.fecha, true)) + '</span>' : '') + (t.serie ? '<span class="cal-rep" title="Se repite">↻</span>' : '') + '</span>' +
       '</button>' +
       (conFecha ? '<button class="cal-mini" data-cal="a-hoy" data-id="' + t.id + '">A hoy</button>'
         : (IR[t.categoria] && !t.hecho && !conTareaTest(t) ? '<button class="cal-ir" data-cal="ir" data-k="' + t.categoria + '" aria-label="Ir a ' + esc(c.n) + '">›</button>' : '') +
@@ -477,7 +452,7 @@ const CAL = (function(){
         '<div class="cal-dia-sub">' + (lista.length ? hechas + ' de ' + lista.length + ' hechas' : 'Sin tareas') + '</div></div>' +
         '<button class="cal-anadir" data-cal="nueva"><span>+</span> Añadir</button></div>' +
       (lista.length ? '<div class="cal-lista">' + lista.map(t => tarjeta(t)).join('') + '</div>'
-        : '<button class="cal-vacio" data-cal="nueva"><span class="cal-vacio-ico">' + CALEND + '</span><span>' + frase + '</span><b>Toca para añadir</b></button>');
+        : '<button class="cal-vacio" data-cal="nueva"><span>' + frase + '</span><b>Añadir tarea</b></button>');
   }
   function bloqueAtrasadas(){
     const at = atrasadas();
@@ -493,7 +468,7 @@ const CAL = (function(){
     if(!elegido) elegido = hoy();
     if(!mes){ const d = deIso(elegido); mes = [d.getFullYear(), d.getMonth()]; }
     if(!cargado && !tareas.length && cargando){ root.innerHTML = '<div class="cal-cargando">Cargando tu calendario…</div>'; return; }
-    root.innerHTML = cabecera() + '<div class="cal-cuerpo"><div class="cal-col">' + rejilla() + '</div><div class="cal-col">' + dia() + bloqueAtrasadas() + '</div></div>';
+    root.innerHTML = '<div class="cal-cuerpo"><div class="cal-col">' + rejilla() + '</div><div class="cal-col">' + dia() + bloqueAtrasadas() + '</div></div>';
   }
 
   /* ---------- hoja para añadir o editar ---------- */
@@ -878,6 +853,19 @@ const CAL = (function(){
       manana: delDia(masDias(h, 1)).length
     };
   }
+  // La semana de hoy (lunes a domingo) para Inicio: un punto por tarea, y la racha y lo atrasado.
+  function semana(){
+    if(!yo() || dueño !== yo() || (!cargado && !tareas.length && cargando)) return null;
+    const h = hoy(), lunes = masDias(h, -((deIso(h).getDay() + 6) % 7));
+    const dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((letra, i) => {
+      const f = masDias(lunes, i);
+      return { f, letra, n: deIso(f).getDate(), nombre: nombreDia(f), hoy: f === h, pasado: f < h,
+        puntos: delDia(f).map(t => ({ c: CAT[t.categoria].c, h: t.hecho })) };
+    });
+    return { dias, racha: racha(), atrasadas: atrasadas().length };
+  }
+  // Desde Inicio: el calendario abierto en ese día.
+  function abrirDia(f){ abrir.dia = hoy(); irA(f); showScreen('screen-calendario'); }
   function marcarId(id){ marcar(tareas.find(x => x.id === id)); }
   // Desde Inicio: directo al primer test sin terminar de la tarea.
   function seguirTest(id){
@@ -888,5 +876,5 @@ const CAL = (function(){
     if(t.legis && !terminado(avanceLegis(t))) return hacerLegis(t);
     uiToast(avanceTotal(t).tests > 1 ? 'Todos los tests de esta tarea están completados' : 'Este test ya está completado', 'info');
   }
-  return { avanceTestLegis, terminarTestLegis, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
+  return { avanceTestLegis, terminarTestLegis, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, semana, abrirDia, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
 })();
