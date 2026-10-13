@@ -834,6 +834,8 @@ const PRU = (function(){
     const pen = est.pen;
     est.res = { todo: puntos(est.items, est.resp, pen), l: puntos(L.items, L.resp, pen), e: puntos(E.items, E.resp, pen), segundos, pen };
     if(porTiempo) uiToast('Se acabó el tiempo: corregido.', 'info');
+    // Si se abrió desde una tarea del calendario, la tarea queda hecha.
+    if(est.modo === 'conjunto' && typeof CAL !== 'undefined') CAL.terminarSimulacro(est.res.todo.nota);
     filtro = 'todas';
     pintarResultado();
     if(!est.items.length) return;

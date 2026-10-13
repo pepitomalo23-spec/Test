@@ -69,7 +69,7 @@ const CAL = (function(){
     cargando = (async () => {
       const filas = [];
       for(let desde = 0; ; desde += 1000){
-        const { data, error } = await sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,hecho,orden,serie,created_at,test_id,test_ids,progreso,legis')
+        const { data, error } = await sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,hecho,orden,serie,created_at,test_id,test_ids,progreso,legis,simulacro')
           .eq('user_id', yo()).order('fecha').order('orden').range(desde, desde + 999);
         if(error) throw error;
         filas.push(...data);
@@ -157,7 +157,7 @@ const CAL = (function(){
   const terminado = a => a.total > 0 && a.hechas >= a.total;
   function avanceTotal(t){
     const ids = t.test_ids || [];
-    const xs = ids.map(id => avance(t, id)).concat(t.legis ? [avanceLegis(t)] : []);
+    const xs = ids.map(id => avance(t, id)).concat(t.legis ? [avanceLegis(t)] : [], t.simulacro ? [avanceSimc(t)] : []);
     // partes: lo hecho de cada test (0 a 1), en su orden, para la barra por tramos.
     return { tests: xs.length, terminados: xs.filter(terminado).length, hechas: xs.reduce((n, a) => n + a.hechas, 0), total: xs.reduce((n, a) => n + a.total, 0),
       partes: xs.map(a => a.total ? Math.min(1, a.hechas / a.total) : 0) };
@@ -175,16 +175,16 @@ const CAL = (function(){
   }
   // Lo que se ve en la tarea: un test, o la lista con cuántos van terminados.
   function bloqueTest(t){
-    const xs = testsDe(t), n = xs.length + (t.legis ? 1 : 0);
+    const xs = testsDe(t), n = xs.length + (t.legis ? 1 : 0) + (t.simulacro ? 1 : 0);
     if(!n) return '';
-    if(n === 1) return xs.length ? filaTest(t, xs[0], true) : filaLegis(t, true);
+    if(n === 1) return xs.length ? filaTest(t, xs[0], true) : t.legis ? filaLegis(t, true) : filaSimc(t, true);
     const a = avanceTotal(t);
     return '<div class="cal-tests"><div class="cal-tests-cab"><span>' + n + ' tests</span><span>' + a.terminados + ' de ' + n + ' terminados</span></div>' + barraTramos(a.partes) +
-      xs.map(x => filaTest(t, x)).join('') + (t.legis ? filaLegis(t) : '') + '</div>';
+      xs.map(x => filaTest(t, x)).join('') + (t.legis ? filaLegis(t) : '') + (t.simulacro ? filaSimc(t) : '') + '</div>';
   }
-  const conTareaTest = t => !!(testsDe(t).length || t.legis);
+  const conTareaTest = t => !!(testsDe(t).length || t.legis || t.simulacro);
   // Todo lo que lleva la tarea, terminado (los del Específico y el de Legislación).
-  const todoTerminado = t => conTareaTest(t) && (t.test_ids || []).every(x => terminado(avance(t, x))) && (!t.legis || terminado(avanceLegis(t)));
+  const todoTerminado = t => conTareaTest(t) && (t.test_ids || []).every(x => terminado(avance(t, x))) && (!t.legis || terminado(avanceLegis(t))) && (!t.simulacro || terminado(avanceSimc(t)));
   // Una barra con un tramo por test: se va llenando test a test, cada uno en su sitio.
   function barraTramos(partes){
     return '<span class="cal-tramos">' + partes.map(x => '<i><b style="width:' + Math.round(x * 100) + '%"></b></i>').join('') + '</span>';
@@ -385,6 +385,42 @@ const CAL = (function(){
       .then(({ error }) => { if(error) console.warn('No se pudo guardar el test terminado', error); });
   }
 
+  /* ---------- Simulacro conjunto en una tarea ----------
+     t.simulacro = { fin, nota }. Ese día sale con «Hacer»: abre el Simulacro
+     conjunto de siempre (js/pruebas.js), donde se eligen las preguntas y el
+     tiempo. Al terminarlo, pruebas.js avisa (terminarSimulacro) y la tarea
+     queda hecha. Qué tarea lo abrió se guarda en el dispositivo, así vale
+     también si se deja a medias y se sigue después. */
+  const SIMC_TAREA = 'pj_cal_simc';
+  const conSimc = () => typeof PRU !== 'undefined' && PRU.conjuntoDisponible();
+  const avanceSimc = t => ({ hechas: t.simulacro && t.simulacro.fin ? 1 : 0, total: 1 });
+  function filaSimc(t, solo){
+    const S = t.simulacro || {}, fin = !!S.fin;
+    const nota = fin && S.nota != null ? ' · nota ' + String(Math.round(S.nota * 100) / 100).replace('.', ',') : '';
+    return '<' + (fin ? 'div' : 'button type="button"') + ' class="cal-test cal-test-simc' + (solo ? '' : ' en-lista') + (fin ? ' acabado' : '') + '"' + (fin ? '' : ' data-cal="simc" data-id="' + t.id + '"') + '>' +
+      '<span class="cal-test-cab"><span class="cal-test-t"><b>Simulacro conjunto</b> · Legislación y Específico</span><span class="cal-test-accion">' + (fin ? 'Completado ✓' : 'Hacer ›') + '</span></span>' +
+      '<span class="cal-test-n">' + (fin ? 'Terminado' + nota : 'Eliges las preguntas y el tiempo al empezar') + '</span>' +
+      '</' + (fin ? 'div' : 'button') + '>';
+  }
+  function hacerSimc(t){
+    if(!conSimc() || !t || !t.simulacro) return;
+    if(t.simulacro.fin){ uiToast('Este simulacro ya está hecho', 'info'); return; }
+    try{ localStorage.setItem(SIMC_TAREA, t.id); }catch(e){}
+    cerrarVer();
+    PRU.abrirConfig('conjunto');
+  }
+  // Lo llama js/pruebas.js al terminar un Simulacro conjunto.
+  function terminarSimulacro(nota){
+    let id = null;
+    try{ id = localStorage.getItem(SIMC_TAREA); localStorage.removeItem(SIMC_TAREA); }catch(e){}
+    const t = id && tareas.find(x => x.id === id);
+    if(!t || !t.simulacro) return;
+    t.simulacro = { fin: true, nota: nota == null ? null : Number(nota) };
+    const marca = todoTerminado(t) && !t.hecho;
+    if(marca){ t.hecho = true; uiToast('Simulacro hecho: tarea completada', 'success'); }
+    enviar(sb.from('calendario_tareas').update(Object.assign({ simulacro: t.simulacro, updated_at: new Date().toISOString() }, marca ? { hecho: true } : {})).eq('id', t.id), 'No se pudo guardar el simulacro');
+  }
+
   /* ---------- ventanita de una tarea (desde fuera del calendario) ---------- */
   function cerrarVer(){ const v = document.getElementById('calVer'); if(v) v.remove(); document.removeEventListener('keydown', teclaVer, true); }
   function teclaVer(e){ if(e.key === 'Escape'){ e.stopPropagation(); cerrarVer(); } }
@@ -415,10 +451,11 @@ const CAL = (function(){
     document.body.appendChild(bg);
     bg.addEventListener('click', e => {
       if(e.target === bg) return cerrarVer();
-      const b = e.target.closest('[data-v],[data-cal="test"],[data-cal="legis"]');
+      const b = e.target.closest('[data-v],[data-cal="test"],[data-cal="legis"],[data-cal="simc"]');
       if(!b) return;
       if(b.dataset.cal === 'test') return hacerTest(t, b.dataset.test);
       if(b.dataset.cal === 'legis') return hacerLegis(t);
+      if(b.dataset.cal === 'simc') return hacerSimc(t);
       switch(b.dataset.v){
         case 'cerrar': cerrarVer(); break;
         case 'hecho': marcar(t); pinta(); break;
@@ -454,11 +491,24 @@ const CAL = (function(){
       (lista.length ? '<div class="cal-lista">' + lista.map(t => tarjeta(t)).join('') + '</div>'
         : '<button class="cal-vacio" data-cal="nueva"><span>' + frase + '</span><b>Añadir tarea</b></button>');
   }
+  // El examen: cuántos días quedan; abre sus ajustes (fecha, formato y Simulacro oficial).
+  function bloqueExamen(){
+    if(typeof EXA === 'undefined') return '';
+    const a = EXA.ajustes(), d = a.fecha ? EXA.diasHasta(a.fecha) : null;
+    const cifra = d == null ? '<span class="cal-big apagado">—</span>' : d >= 0 ? '<span class="cal-big">' + d + '<small>' + (d === 1 ? ' día' : ' días') + '</small></span>' : '<span class="cal-big apagado">✓</span>';
+    const sub = d == null ? 'Sin fecha · Ponerla ›' : d >= 0 ? EXA.fechaLarga(a.fecha) : 'Ya pasó · Poner otra ›';
+    return '<button type="button" class="cal-tile cal-tile-btn cal-a-exa" data-cal="examen"><span class="cal-tile-t">Examen</span>' + cifra + '<span class="cal-tile-sub">' + esc(sub) + '</span></button>';
+  }
+  function bloqueAtras(){
+    const n = atrasadas().length;
+    return '<div class="cal-tile cal-a-atr"><span class="cal-tile-t">Atrasadas</span><span class="cal-big' + (n ? ' aviso' : '') + '">' + n + '</span>' +
+      (n ? '<button type="button" class="cal-tile-sub cal-tile-link" data-cal="todas-a-hoy">Pasar todas a hoy ›</button>' : '<span class="cal-tile-sub">Todo al día</span>') + '</div>';
+  }
   function bloqueAtrasadas(){
     const at = atrasadas();
     if(!at.length) return '';
     return '<details class="cal-atras"' + (at.length <= 3 ? ' open' : '') + '><summary><span class="cal-atras-n">' + at.length + '</span> ' +
-        (at.length === 1 ? 'Tarea atrasada' : 'Tareas atrasadas') + '<button class="cal-mini" data-cal="todas-a-hoy">Pasar todas a hoy</button></summary>' +
+        (at.length === 1 ? 'Tarea atrasada' : 'Tareas atrasadas') + '</summary>' +
       '<div class="cal-lista">' + at.slice(-30).reverse().map(t => tarjeta(t, true)).join('') + '</div></details>';
   }
   function pintar(){
@@ -468,7 +518,9 @@ const CAL = (function(){
     if(!elegido) elegido = hoy();
     if(!mes){ const d = deIso(elegido); mes = [d.getFullYear(), d.getMonth()]; }
     if(!cargado && !tareas.length && cargando){ root.innerHTML = '<div class="cal-cargando">Cargando tu calendario…</div>'; return; }
-    root.innerHTML = '<div class="cal-cuerpo"><div class="cal-col">' + rejilla() + '</div><div class="cal-col">' + dia() + bloqueAtrasadas() + '</div></div>';
+    // Panel por bloques: el mes, el día elegido, el examen y lo atrasado.
+    root.innerHTML = '<div class="cal-bento"><div class="cal-tile cal-a-mes">' + rejilla() + '</div>' +
+      '<div class="cal-tile cal-a-dia">' + dia() + bloqueAtrasadas() + '</div>' + bloqueExamen() + bloqueAtras() + '</div>';
   }
 
   /* ---------- hoja para añadir o editar ---------- */
@@ -493,7 +545,7 @@ const CAL = (function(){
     h = { t, cat: base.categoria, fecha: base.fecha, rep: serie ? serie.rep : '', hasta: serie ? serie.hasta : masDias(base.fecha, 27),
           alcance: 'una', repIni: serie ? serie.rep : '', hastaIni: serie ? serie.hasta : null,
           tests: t ? [...(t.test_ids || [])] : [], eligiendo: false, temaTest: '',
-          legis: t && t.legis ? copiaLegis(t.legis) : null };
+          legis: t && t.legis ? copiaLegis(t.legis) : null, simc: !!(t && t.simulacro) };
     if(conTests()) ESP.cargarTests();
     const bg = document.createElement('div');
     bg.className = 'cal-hoja-bg';
@@ -508,6 +560,7 @@ const CAL = (function(){
           CATS.map(([k, n, c]) => '<button type="button" class="cal-cat-op" data-cat="' + k + '" style="--c:' + c + '"><span>' + ICONO[k] + '</span>' + n + '</button>').join('') + '</div></div>' +
         (conTests() ? '<div class="cal-campo"><div class="cal-campo-t">Test del Específico</div><div data-test-campo></div></div>' : '') +
         (conLegis() ? '<div class="cal-campo"><div class="cal-campo-t">Test de Legislación</div><div data-legis-campo></div></div>' : '') +
+        (conSimc() ? '<div class="cal-campo"><div class="cal-campo-t">Simulacro conjunto</div><div data-simc-campo></div></div>' : '') +
         '<div class="cal-campo"><div class="cal-campo-t">Día</div><div class="cal-segs" data-dias></div></div>' +
         '<div class="cal-campo"><div class="cal-campo-t">Nota</div><textarea class="cal-in" name="nota" rows="2" maxlength="1000" placeholder="Páginas, artículos, cuántos tests…">' + esc(base.nota || '') + '</textarea></div>' +
         (t && t.serie && siguientes(t).length ? '<div class="cal-campo"><div class="cal-campo-t">Aplicar los cambios a</div><div class="cal-segs cal-segs-full" data-alcance></div></div>' : '') +
@@ -538,6 +591,11 @@ const CAL = (function(){
         h.tests = todos ? h.tests.filter(x => !ids.includes(x)) : h.tests.concat(ids.filter(x => !h.tests.includes(x)));
         autoTitulo(f);
       }
+      else if(b.dataset.sc === 'anadir'){
+        h.simc = true;
+        if(!f.titulo.value.trim() || f.titulo.dataset.auto){ f.titulo.value = 'Simulacro conjunto'; f.titulo.dataset.auto = '1'; h.cat = 'test'; }
+      }
+      else if(b.dataset.sc === 'quitar'){ h.simc = false; }
       else if(b.dataset.lg === 'anadir'){ h.legis = { temas: [], modo: 'estudio', cuantas: 20, fuente: 'todas', titulos: {} }; }
       else if(b.dataset.lg === 'quitar'){ h.legis = null; }
       else if(b.dataset.lg === 'ley'){ const k = b.dataset.t, L = h.legis; L.temas = L.temas.includes(k) ? L.temas.filter(x => x !== k) : L.temas.concat(k); autoTituloLegis(f); }
@@ -582,6 +640,11 @@ const CAL = (function(){
     if(ct) ct.innerHTML = campoTest();
     const cl = f.querySelector('[data-legis-campo]');
     if(cl) cl.innerHTML = campoLegis();
+    const cs = f.querySelector('[data-simc-campo]');
+    if(cs) cs.innerHTML = h.simc
+      ? '<div class="cal-legis"><div class="cal-hasta-res">Ese día te sale con su botón «Hacer»: eliges cuántas preguntas de Legislación y del Específico y el tiempo al empezar. Al terminarlo, la tarea queda hecha.</div>' +
+        '<button type="button" class="cal-chip" data-sc="quitar">Quitar el simulacro</button></div>'
+      : '<button type="button" class="cal-test-anadir" data-sc="anadir"><span>+</span> Añadir el Simulacro conjunto</button>';
     f.querySelectorAll('.cal-cat-op').forEach(b => b.classList.toggle('on', b.dataset.cat === h.cat));
     const rapidos = [[hh, 'Hoy'], [masDias(hh, 1), 'Mañana'], [masDias(hh, 2), 'Pasado']];
     const otro = !rapidos.some(r => r[0] === h.fecha);
@@ -709,7 +772,7 @@ const CAL = (function(){
   }
   const ahora = () => new Date().toISOString();
   const fila = (fecha, d, serie, hecho) => ({ id: crypto.randomUUID(), user_id: yo(), fecha, titulo: d.titulo, nota: d.nota, categoria: d.categoria,
-    test_id: d.test_id || null, test_ids: d.test_ids || [], progreso: null, legis: d.legis || null,
+    test_id: d.test_id || null, test_ids: d.test_ids || [], progreso: null, legis: d.legis || null, simulacro: d.simulacro || null,
     hecho: !!hecho, serie, orden: delDia(fecha).length, created_at: ahora() });
   const sinMeta = r => { const { created_at, ...x } = r; return x; };
   function recortar(p, ids){
@@ -730,6 +793,7 @@ const CAL = (function(){
       if(h.legis && !h.legis.temas.length){ uiToast('Elige al menos una ley para el test de Legislación', 'error'); return; }
       d.legis = h.legis ? Object.assign(copiaLegis(h.legis), { cuantas: h.legis.cuantas || null, run: null }) : null;
     }
+    if(conSimc()) d.simulacro = h.simc ? { fin: false, nota: null } : null;
     const { t, fecha, rep, hasta } = h;
     const alcance = t && t.serie && siguientes(t).length ? h.alcance : 'serie';
     cerrarHoja();
@@ -751,8 +815,9 @@ const CAL = (function(){
         // De los tests que se quitan, fuera su avance (el de los que siguen se guarda).
         const prog = 'test_ids' in d ? recortar(x.progreso, d.test_ids) : x.progreso;
         const lg = 'legis' in d ? conRun(x, d.legis) : x.legis;
-        Object.assign(x, d, { progreso: prog, legis: lg }); if(delta) x.fecha = masDias(x.fecha, delta);
-        ops.push(sb.from('calendario_tareas').update({ ...d, progreso: prog, legis: lg, fecha: x.fecha, serie: x.serie, updated_at: ahora() }).eq('id', x.id));
+        const sm = 'simulacro' in d ? (d.simulacro ? x.simulacro || d.simulacro : null) : x.simulacro;
+        Object.assign(x, d, { progreso: prog, legis: lg, simulacro: sm }); if(delta) x.fecha = masDias(x.fecha, delta);
+        ops.push(sb.from('calendario_tareas').update({ ...d, progreso: prog, legis: lg, simulacro: sm, fecha: x.fecha, serie: x.serie, updated_at: ahora() }).eq('id', x.id));
       });
       if(alcance === 'una' && t.serie && rep !== h.repIni) t.serie = null;
     } else {
@@ -764,6 +829,7 @@ const CAL = (function(){
       const fechas = fechasRepetidas(fecha, rep, hasta), serie = fechas.length > 1 ? (t.serie || crypto.randomUUID()) : null;
       if('test_ids' in d) d.progreso = recortar(t.progreso, d.test_ids);
       const lgT = 'legis' in d ? conRun(t, d.legis) : t.legis;
+      if('simulacro' in d && d.simulacro && t.simulacro) d.simulacro = t.simulacro;
       Object.assign(t, d, { fecha, serie, legis: lgT });
       const nuevas = fechas.slice(1).map(x => fila(x, d, serie, hechas.has(x)));
       tareas.push(...nuevas);
@@ -820,8 +886,10 @@ const CAL = (function(){
         break;
       }
       case 'ir': if(IR[el.dataset.k]) showScreen(IR[el.dataset.k]); break;
+      case 'examen': if(typeof EXA !== 'undefined') EXA.abrir(); break;
       case 'test': if(t) hacerTest(t, el.dataset.test); break;
       case 'legis': if(t) hacerLegis(t); break;
+      case 'simc': if(t) hacerSimc(t); break;
     }
   }
 
@@ -846,7 +914,7 @@ const CAL = (function(){
     const h = hoy(), lista = delDia(h);
     return {
       lista: lista.map(t => ({ id: t.id, titulo: t.titulo, nota: t.nota, hecho: t.hecho, cat: CAT[t.categoria].n, color: CAT[t.categoria].c, icono: ICONO[t.categoria],
-        test: conTareaTest(t) ? avanceTotal(t) : null })),
+        test: conTareaTest(t) ? avanceTotal(t) : null, simc: !!t.simulacro })),
       hechas: lista.filter(t => t.hecho).length,
       racha: racha(),
       atrasadas: atrasadas().length,
@@ -864,6 +932,17 @@ const CAL = (function(){
     });
     return { dias, racha: racha(), atrasadas: atrasadas().length };
   }
+  // Lo próximo apuntado después de hoy (sin hacer): undefined mientras carga, null si no hay nada.
+  function proxima(){
+    if(!yo() || dueño !== yo() || (!cargado && !tareas.length && cargando)) return undefined;
+    const h = hoy(), t = tareas.find(x => x.fecha > h && !x.hecho);
+    if(!t) return null;
+    const d = deIso(t.fecha), rel = t.fecha === masDias(h, 1) ? 'Mañana' : null;
+    const dia = DIAS[d.getDay()];
+    return { f: t.fecha, titulo: t.titulo, color: CAT[t.categoria].c,
+      cuando: rel || dia.charAt(0).toUpperCase() + dia.slice(1) + ' ' + d.getDate(),
+      mas: delDia(t.fecha).filter(x => !x.hecho).length - 1 };
+  }
   // Desde Inicio: el calendario abierto en ese día.
   function abrirDia(f){ abrir.dia = hoy(); irA(f); showScreen('screen-calendario'); }
   function marcarId(id){ marcar(tareas.find(x => x.id === id)); }
@@ -874,7 +953,8 @@ const CAL = (function(){
     const ids = t.test_ids || [], pend = ids.find(x => !terminado(avance(t, x)));
     if(pend) return hacerTest(t, pend);
     if(t.legis && !terminado(avanceLegis(t))) return hacerLegis(t);
+    if(t.simulacro && !t.simulacro.fin) return hacerSimc(t);
     uiToast(avanceTotal(t).tests > 1 ? 'Todos los tests de esta tarea están completados' : 'Este test ya está completado', 'info');
   }
-  return { avanceTestLegis, terminarTestLegis, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, semana, abrirDia, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
+  return { avanceTestLegis, terminarTestLegis, terminarSimulacro, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, semana, proxima, abrirDia, pintar, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
 })();
