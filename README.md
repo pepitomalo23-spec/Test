@@ -53,7 +53,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   especifico-test.js hacer un test del Específico y ver las Preguntas marcadas (diseño de tutorbomberos)
   estadisticas-especifico.js  Estadísticas › pestaña Específico
   pruebas.js         Simulacro conjunto (Inicio) y modos del Específico (panel pj.fire), con su historial
-  importar-especifico.js  recibe las preguntas que envía el marcador de tutorbomberos.es
+  importar-especifico.js  recibe las preguntas que envía el marcador de tutorbomberos.es (Específico y Legislación)
   examen.js          Tu examen: cuenta atrás de Inicio y formato del Simulacro oficial
   inicio.js          Inicio: lo de hoy, test a medias, accesos rápidos y progreso
   arranque.js        escucha la sesión y arranca la app (siempre el último)
@@ -327,6 +327,20 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   continuarlo), las tareas de hoy del calendario (se marcan ahí mismo; tocando una tarea se abre su ventanita
   con la nota y sus tests, y el calendario completo tiene su propio botón), accesos rápidos (Test Inteligente, fallos, fichas que tocan hoy, Callejero) y el
   porcentaje del temario dominado. Se repinta cuando cambian el calendario, las estadísticas o las fichas.
+
+## Legislación de tutorbomberos
+
+- Cada pregunta de Legislación tiene su fuente (`questions.fuente`: `pj` = pj.fire, `tb` = tutorbomberos;
+  migración `20261027_preguntas_fuente.sql`) y, las de tutorbomberos, el test del que salieron (`origen_test`).
+- Van **siempre separadas**: arriba de Legislación se elige «pj.fire» o «Tutorbombero» (se recuerda en el
+  dispositivo, `pj_legis_fuente`). `QUESTIONS_ALL` lleva todas y `QUESTIONS_POOL` solo las de la fuente elegida
+  (`aplicarFuenteLegis` en `js/contenido.js`), así que tests, Fallos, Test Inteligente, Estadísticas, tareas del
+  calendario y simulacros usan solo esas. En el test, una etiqueta dice «Tutorbombero»; en admin, también.
+- Se importan con el mismo marcador del Específico: los tests de temas que no son del Específico salen en la
+  ventana de importar como «Legislación · Tutorbombero». Cada tema va a una ley (se propone la de nombre más
+  parecido; «No importar» para dejarlo fuera) y cada test, al título que diga su nombre («Título I», «Título
+  Preliminar»…) o a la ley en general. Se guarda el texto sin formato (sin imágenes); las que ya estén (mismo
+  texto en esa ley, de tutorbomberos) se actualizan, sin duplicar; las que vienen sin respuesta correcta no se guardan.
 
 ## Específico
 

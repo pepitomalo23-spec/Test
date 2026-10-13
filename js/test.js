@@ -9,6 +9,14 @@ function salirDelTest(){
   const v = (quizState && quizState.mode) ? quizState.volver : volverTrasTest;
   if(v && document.getElementById(v)) showScreen(v); else showHome();
 }
+// Arriba del test, de qué fuente son las preguntas (solo si no son las de pj.fire).
+function marcarFuenteQuiz(){
+  const el = document.getElementById('quizFuente');
+  if(!el) return;
+  const f = (ACTIVE_QUESTIONS[0] || {}).fuente;
+  el.classList.toggle('hidden', !f || f === 'pj');
+  if(f && typeof FUENTES_LEGIS !== 'undefined') el.textContent = FUENTES_LEGIS[f] || f;
+}
 function startQuiz(mode, questions, timeMinutes){
   volverTrasTest = null;
   const base = (questions && questions.length) ? questions : QUESTIONS_POOL;
@@ -22,6 +30,7 @@ function startQuiz(mode, questions, timeMinutes){
   quizState = { mode, viewMode, index:0, answered:false, answers:new Array(ACTIVE_QUESTIONS.length).fill(null), blanked:new Array(ACTIVE_QUESTIONS.length).fill(false), visited:new Array(ACTIVE_QUESTIONS.length).fill(false), startedAt:Date.now(), timeMinutes };
   saveQuizProgress();
   showScreen('screen-quiz');
+  marcarFuenteQuiz();
   document.getElementById('quizCardView').style.display = (viewMode === 'card') ? 'block' : 'none';
   document.getElementById('quizListView').style.display = (viewMode === 'list') ? 'block' : 'none';
   // el contador de progreso ahora se muestra en todos los modos, incluido
@@ -43,6 +52,7 @@ function startQuiz(mode, questions, timeMinutes){
 function resumeQuiz(){
   if(!quizState || !quizState.mode) return;
   showScreen('screen-quiz');
+  marcarFuenteQuiz();
   document.getElementById('quizCardView').style.display = (quizState.viewMode === 'card') ? 'block' : 'none';
   document.getElementById('quizListView').style.display = (quizState.viewMode === 'list') ? 'block' : 'none';
   document.getElementById('quizCount').style.display = '';
