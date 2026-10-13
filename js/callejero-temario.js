@@ -32,7 +32,7 @@
    «Todo lo que te ha mandado» (CJT.abrirProfesor) junta todas las tareas.
    ============================================================ */
 const CJT = (function(){
-  const ARCHIVO = 'datos/callejero-temario.json?v=1d879c227e';
+  const ARCHIVO = 'datos/callejero-temario.json?v=e8d5c71c05';
   const PARQUE_NOMBRE = { central: 'Parque Central', granadal: 'Parque del Granadal' };
   // Los dos parques de bomberos en los lugares del mapa (salida de los recorridos).
   const PARQUE_LUGAR = { central: 11215900007629, granadal: 11215900007679 };
@@ -624,6 +624,27 @@ const CJT = (function(){
     });
   }
   function preguntarClave(k){ preguntar([k]); }
+  /* ---------- Aprender paso a paso (js/callejero.js) ----------
+     Cada apartado de cada ficha es un paso: cuántas cosas tiene que se pueden
+     preguntar y cuántas están ya dominadas. «Preguntar» saca solo lo que aún
+     no se domina (lo fallado primero), de 20 en 20, hasta saberlo todo. */
+  function pasos(){
+    if(!asegurar()) return null;
+    const prog = CJ.progreso();
+    return T.fichas.map(f => ({ id: f.id, titulo: f.titulo, secciones: f.secciones.map(s => {
+      const r = cuenta(prog, s.items);
+      return { clave: claveDe(s), titulo: s.titulo, total: r.total, dominadas: r.dominada };
+    }).filter(x => x.total) })).filter(f => f.secciones.length);
+  }
+  function aprenderSec(k){
+    if(!T) return;
+    const [fid, sid] = k.split('/');
+    const s = T.fichaPorId.get(fid).secciones.find(x => x.id === sid);
+    const prog = CJ.progreso(), orden = { fallada: 0, progreso: 1, nueva: 2 };
+    const pend = s.items.filter(x => preguntable(x) && estado(prog, x) !== 'dominada').sort((a, b) => orden[estado(prog, a)] - orden[estado(prog, b)]);
+    if(!pend.length){ preguntar([k]); return; }
+    preguntar(pend.slice(0, 20).map(x => k + '/' + x.id), null, s.titulo, 'f:' + k);
+  }
   // Un apartado de la pantalla: entero o, en una tarea, solo lo elegido de él.
   function clavesSec(k){
     const [fid, sid] = k.split('/');
@@ -1699,7 +1720,7 @@ const CJT = (function(){
   }
 
   return {
-    cargar, listo, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
+    cargar, listo, pasos, aprenderSec, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
     filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, preguntasFalladas, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
