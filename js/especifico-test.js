@@ -191,9 +191,11 @@ const ESPT = (function(){
     }
     if(!marcadasCargadas) await cargarMarcadas();
     if(tarea && !error){
-      // Solo cuentan las preguntas que siguen en el test; se guarda cuántas tiene.
+      // Solo cuentan las preguntas que siguen en el test. Al abrir no se guarda nada
+      // (salvo que el test haya cambiado): solo se guarda al responder.
+      const antes = Object.keys(resp).length;
       Object.keys(resp).forEach(id => { if(!preguntas.some(p => p.id === id)) delete resp[id]; });
-      avisarTarea();
+      if(Object.keys(resp).length !== antes || ((op && op.progreso) || {}).total !== preguntas.length) avisarTarea();
     }
     pintar();
     if(tarea) irAPendiente();

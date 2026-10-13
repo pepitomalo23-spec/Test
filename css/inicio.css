@@ -119,3 +119,5 @@ button.ini-prog-fila:hover{ background: var(--card-hi); }
 .simc-oficial{ display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:6px 12px; margin-top:10px; font-size:12.5px; color: var(--muted); }
 .simc-veredicto{ padding:3px 10px; border-radius:99px; font-weight:800; font-size:12px; color:#fff; background: var(--green); }
 .simc-veredicto.mal{ background: var(--coral); }
+/* Test de la tarea ya completado: no se abre */
+.ini-tarea-ir.hecho{ cursor:default; background:none; border-color: transparent; color: var(--green); }
