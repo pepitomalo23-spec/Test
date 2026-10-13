@@ -358,6 +358,11 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   nuevas que se importan sin título se colocan solas. Para las que ya están: Administración › Temario ›
   **«Tutorbombero: colocar preguntas»**, por ley: «Colocar automáticamente» propone el sitio de cada una (con el
   motivo), se cambia a mano el que haga falta y «Guardar».
+- **Títulos bloqueados** (`nodos_temario.bloqueado`, migración `20261030_nodos_bloqueados.sql`): los títulos que
+  se crean al colocar (no estaban en el temario propio) nacen bloqueados. Sus preguntas no salen en ningún test ni
+  cuentan en Estadísticas (`nodoBloqueado`: QUESTIONS_POOL no las incluye) hasta desbloquearlos: al preparar un test
+  salen con candado y «Bloqueado» (tocarlo, siendo administrador, pregunta si desbloquearlo) y en Administración ›
+  Temario cada nivel tiene en su menú (⋮) Bloquear / Desbloquear.
 
 ## Específico
 

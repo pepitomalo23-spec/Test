@@ -171,10 +171,19 @@ function renderTopicGroupList(topicId, topicSelected){
   const selected = configState.nodeSelections[topicId] || new Set();
   // Con tutorbomberos, cada título dice cuántas preguntas tiene de la fuente
   // elegida; con una fuente concreta, los títulos sin ninguna no salen.
-  const cuentas = hayTutorbombero() ? cuentasPorGrupo(topicId) : null;
+  const hayBloq = groups.some(g => NODES_BY_ID[g.id] && NODES_BY_ID[g.id].bloqueado);
+  const cuentas = (hayTutorbombero() || hayBloq) ? cuentasPorGrupo(topicId) : null;
   const visibles = (cuentas && configState.fuente !== 'todas') ? groups.filter(g => cuentas[g.id] || selected.has(g.id)) : groups;
   if(!visibles.length) return '<div class="article-list"><div class="article-vacio">Ningún título tiene preguntas de ' + FUENTES_LEGIS[configState.fuente] + ': son generales de la ley.</div></div>';
   return '<div class="article-list">' + visibles.map(g => {
+    // Título bloqueado: no se puede elegir; tocarlo pregunta si desbloquearlo.
+    if(NODES_BY_ID[g.id] && NODES_BY_ID[g.id].bloqueado){
+      return '<div class="article-row bloqueada" role="button" tabindex="0" onclick="pedirDesbloqueo(\'' + g.id + '\')" ' +
+        'onkeydown="if(event.key===\'Enter\'){event.preventDefault();pedirDesbloqueo(\'' + g.id + '\');}">' +
+        '<span class="article-check">' + ICONS.lock + '</span><span class="article-name">' + esc(g.label) + ' <span class="article-bloq">Bloqueado</span></span>' +
+        (cuentas ? '<span class="article-cuenta">' + (cuentas[g.id] || 0).toLocaleString('es-ES') + '</span>' : '') +
+      '</div>';
+    }
     // El marcado de cada título es independiente de si el tema está
     // encendido o apagado: se ve igual en ambos casos (el check del tema
     // solo decide si el tema entra o no en el test, no toca esto).
@@ -186,6 +195,14 @@ function renderTopicGroupList(topicId, topicSelected){
       (cuentas ? '<span class="article-cuenta">' + (cuentas[g.id] || 0).toLocaleString('es-ES') + '</span>' : '') +
     '</div>';
   }).join('') + '</div>';
+}
+async function pedirDesbloqueo(nodoId){
+  const n = NODES_BY_ID[nodoId];
+  if(!n) return;
+  if(!currentUserIsAdmin){ uiToast('Este título está bloqueado: se desbloquea desde Administración.', 'info'); return; }
+  const num = QUESTIONS_ALL.filter(q => q.nodo_id && (q.nodo_id === nodoId || nodeIsInSelectedGroups(q.nodo_id, new Set([nodoId])))).length;
+  if(!await uiConfirm('¿Desbloquear «' + nodeDisplayName(n) + '»?\n\nSus ' + num + ' preguntas empezarán a salir en los tests.')) return;
+  if(await bloquearNodo(nodoId, false)){ uiToast('Desbloqueado', 'success'); renderTemas(); }
 }
 function toggleTopicGroup(topicId, groupId){
   // Tocar un título enciende el tema automáticamente si estaba apagado, para
@@ -282,7 +299,7 @@ function desgloseTema(topicId){
 // Cuántas preguntas de la fuente elegida hay dentro de cada título del tema.
 function cuentasPorGrupo(topicId){
   const ids = new Set((TOPIC_GROUPS[topicId] || []).map(g => g.id)), out = {};
-  QUESTIONS_POOL.forEach(q => {
+  QUESTIONS_ALL.forEach(q => {   // también las de títulos bloqueados (para decir cuántas tienen)
     if(q.topic_id !== topicId || !q.nodo_id || !deFuente(q, configState.fuente)) return;
     let cur = NODES_BY_ID[q.nodo_id];
     while(cur && !ids.has(cur.id)) cur = cur.padre_id ? NODES_BY_ID[cur.padre_id] : null;

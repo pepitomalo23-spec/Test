@@ -517,6 +517,7 @@ function renderNode(n){
               : '<span class="tree-chevron-spacer"></span>')) +
           '<span class="node-badge '+(isGeneralNode(n) ? 'general-node' : n.tipo)+'">'+(isGeneralNode(n) ? 'General' : NODE_TYPE_LABEL[n.tipo])+'</span>' +
           (isGeneralNode(n) ? '' : '<span class="tree-node-name">'+esc(nodeDisplayName(n))+'</span>') +
+          (n.bloqueado ? '<span class="node-bloq" title="Sus preguntas no salen en los tests">'+ICONS.lock+'Bloqueado</span>' : '') +
           (directGeneral ? '<span class="node-general-badge" onclick="event.stopPropagation();toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+directGeneral+' general'+(directGeneral===1?'':'es')+' aquí</span>' : '') +
           (count && !directGeneral ? '<span class="node-qcount" onclick="event.stopPropagation();toggleNodeQuestions(\''+n.id+'\')">'+(isOpen?'▾':'▸')+' '+count+' preg.</span>' : '') +
           (count && directGeneral && count > directGeneral ? '<span class="node-qcount" onclick="event.stopPropagation();toggleNodeQuestions(\''+n.id+'\')">'+count+' en total</span>' : '') +
@@ -530,6 +531,7 @@ function renderNode(n){
           (canHaveChildren ? '<div class="tree-menu-item" onclick="adminOpenNodeForm(\''+n.id+'\')">'+ICONS.plus+'<span>Añadir subnivel</span></div>' : '') +
           '<div class="tree-menu-item" onclick="adminOpenTreeQuestionForm(\''+n.id+'\')">'+ICONS.plus+'<span>'+questionLabel+'</span></div>' +
           '<div class="tree-menu-item" onclick="adminEditNode(\''+n.id+'\')">'+ICONS.check+'<span>Editar</span></div>' +
+          '<div class="tree-menu-item" onclick="adminBloquearNodo(\''+n.id+'\')">'+ICONS.lock+'<span>'+(n.bloqueado ? 'Desbloquear' : 'Bloquear')+' (sus preguntas '+(n.bloqueado ? 'vuelven a salir' : 'dejan de salir')+' en los tests)</span></div>' +
           '<div class="tree-menu-item" onclick="adminOpenMoveNode(\''+n.id+'\')">'+ICONS.move+'<span>Mover a otro título / sección…</span></div>' +
           '<div class="tree-menu-item danger" onclick="adminDeleteNode(\''+n.id+'\')">'+ICONS.cross+'<span>Borrar</span></div>' +
         '</div>'
@@ -575,6 +577,14 @@ function adminEditNode(id){
   document.getElementById('adminNodeNumber').value = n.numero || '';
   document.getElementById('adminNodeName').value = n.nombre || '';
   document.getElementById('adminStatus-node').textContent = '';
+  renderTree();
+}
+// Bloquear / desbloquear un título (o cualquier nivel): sus preguntas salen o no en los tests.
+async function adminBloquearNodo(id){
+  const n = adminData.nodes.find(x => x.id === id);
+  if(!n) return;
+  treeNodeMenuOpen = null;
+  if(await bloquearNodo(id, !n.bloqueado)){ n.bloqueado = !n.bloqueado; uiToast(n.bloqueado ? 'Bloqueado' : 'Desbloqueado', 'success'); }
   renderTree();
 }
 function adminCancelNodeForm(){

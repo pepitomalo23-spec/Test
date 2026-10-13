@@ -136,7 +136,7 @@ const COLOCAR = (function(){
     const ya = Object.values(NODES_BY_ID).find(n => n.topic_id === topicId && n.tipo === 'titulo' && !n.padre_id && mismoNumero(n.numero, numero));
     if(ya) return Promise.resolve(ya.id);
     const k = topicId + '|' + numero;
-    if(!creando.has(k)) creando.set(k, sb.from('nodos_temario').insert({ topic_id: topicId, tipo: 'titulo', numero, orden: 0 }).select('*').single()
+    if(!creando.has(k)) creando.set(k, sb.from('nodos_temario').insert({ topic_id: topicId, tipo: 'titulo', numero, orden: 0, bloqueado: true }).select('*').single()
       .then(({ data, error }) => { if(error) throw error; NODES_BY_ID[data.id] = data; olvidar(); return data.id; })
       .finally(() => creando.delete(k)));
     return creando.get(k);
@@ -157,7 +157,7 @@ const COLOCAR = (function(){
     const ns = Object.values(NODES_BY_ID).filter(n => n.topic_id === ley && n.tipo !== 'articulo').sort((a, b) => nodeFullPath(a.id).localeCompare(nodeFullPath(b.id), 'es', { numeric: true }));
     const out = [['', 'La ley en general']].concat(ns.map(n => [n.id, nodeFullPath(n.id)]));
     const p = propios(ley, nombreLey(ley));
-    (p.titulos || []).forEach(([num]) => { if(!ns.some(n => n.tipo === 'titulo' && !n.padre_id && mismoNumero(n.numero, num))) out.push(['nuevo:' + num, 'Título ' + (num === 'Preliminar' ? 'Preliminar' : num) + ' (se creará)']); });
+    (p.titulos || []).forEach(([num]) => { if(!ns.some(n => n.tipo === 'titulo' && !n.padre_id && mismoNumero(n.numero, num))) out.push(['nuevo:' + num, 'Título ' + (num === 'Preliminar' ? 'Preliminar' : num) + ' (se creará bloqueado)']); });
     return out;
   }
   const valorDe = q => q.nodo_id || '';
