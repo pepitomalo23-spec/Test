@@ -286,7 +286,7 @@ async function onLoggedIn(user, isFreshSignIn){
   handleDeepLink(location.href);
   if(typeof CJ !== 'undefined') CJ.comprobarAvisos(true);
 
-  const globalStatsSessionsPromise = sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
+  const globalStatsSessionsPromise = sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id).eq('fuente', fuenteLegis());
   let startupDone = false, datosHechos = false, historialHecho = false;
   const startupWatch = setTimeout(() => {
     if(!startupDone) reportarAtasco('Los datos de Inicio (preguntas/historial) seguían sin cargar 20 s después de entrar.',

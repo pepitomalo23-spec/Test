@@ -152,6 +152,8 @@ async function finishQuizInner(){
   const sessionPayload = {
     user_id: currentUser ? currentUser.id : null,
     mode: quizState.mode,
+    // De qué fuente eran las preguntas (pj.fire o tutorbomberos): historial y estadísticas van aparte.
+    fuente: (ACTIVE_QUESTIONS[0] && ACTIVE_QUESTIONS[0].fuente) || fuenteLegis(),
     score: Number(notaNum.toFixed(2)),
     total, ok: quizState.correctCount, bad, pending: blank,
     time_seconds: elapsedSec
