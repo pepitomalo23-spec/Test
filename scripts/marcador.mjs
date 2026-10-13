@@ -4,6 +4,7 @@
    código legible y los deja listos para pegar en el navegador:
      scripts/marcador/tutorbomberos.js       → datos/marcador-tutorbomberos.txt (un test)
      scripts/marcador/tutorbomberos-todo.js  → datos/marcador-tutorbomberos-todo.txt (todos)
+     scripts/marcador/tutorbomberos-legislacion.js → datos/marcador-tutorbomberos-legislacion.txt (Legislación, por tema)
                                              y datos/marcador-tutorbomberos-revisar.txt (revisar cambios)
    Los copian los botones de Administración › Específico.
 
@@ -19,6 +20,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const marcadores = [
   ['tutorbomberos', 'tutorbomberos'],
   ['tutorbomberos-todo', 'tutorbomberos-todo'],
+  // Legislación: los temas de «Preguntas por tema», enteros (van a Legislación como Tutorbombero).
+  ['tutorbomberos-legislacion', 'tutorbomberos-legislacion'],
   // «Revisar cambios»: el mismo código que «Extraer todo» con otro modo.
   ['tutorbomberos-revisar', 'tutorbomberos-todo', s => s.replace('const MODO = "todo";', 'const MODO = "revisar";')],
 ];

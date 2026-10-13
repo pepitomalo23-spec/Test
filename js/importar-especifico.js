@@ -310,7 +310,8 @@ const IMP = (function(){
       const avisos = (t && Array.isArray(t.avisos) ? t.avisos : []).map(a => String(a).slice(0, 200)).slice(0, 10);
       if(quedan < llegan) avisos.push((llegan - quedan) + ' sin opciones (no se guardan)');
       return {
-        clave: TEMAS_TB[String(t && t.temaId)] || '',
+        // Del marcador «Legislación» (preguntas por tema): siempre a Legislación, nunca al Específico.
+        clave: p.porTema ? '' : TEMAS_TB[String(t && t.temaId)] || '',
         temaTb: String((t && t.tema) || 'Tema ' + (t && t.temaId)).slice(0, 200),
         titulo: String((t && t.titulo) || '').replace(/^\s*test\s*-\s*/i, '').trim().slice(0, 200),
         avisos,
@@ -326,7 +327,7 @@ const IMP = (function(){
     })).filter(t => t.clave && t.titulo);
     const noEstan = Array.isArray(p.noEstan) ? p.noEstan.slice(0, 1000).map(t => ({ tema: String((t && t.tema) || ''), titulo: String((t && t.titulo) || '') })) : null;
     if(!ts.length && !(modo === 'revisar' && (nuevos.length || noEstan))) return null;
-    return { origen, total, modo, tests: ts, nuevos, noEstan };
+    return { origen, total, modo, porTema: !!p.porTema, tests: ts, nuevos, noEstan };
   }
   function ventana(titulo){
     abierto = true;
@@ -374,7 +375,7 @@ const IMP = (function(){
   const palabras = s => new Set(sinTildes(s).replace(/[^a-z0-9/ ]+/g, ' ').split(/\s+/).filter(w => /\d/.test(w) || (w.length > 2 && !VACIAS.has(w))));
   // La ley de nombre más parecido (los números, como «31/1995», cuentan más).
   function leyParecida(nombre){
-    const a = palabras(nombre);
+    const a = palabras(String(nombre).replace(/^\s*derecho\s*-\s*/i, ''));   // «Derecho - Constitución Española»
     let mejor = '', punt = 0;
     (typeof TOPICS_DATA !== 'undefined' ? TOPICS_DATA : []).forEach(t => {
       const b = palabras(t.name + ' ' + t.id);
@@ -410,7 +411,7 @@ const IMP = (function(){
     if(!legis || !legis.length) return '';
     const leyes = typeof TOPICS_DATA !== 'undefined' ? TOPICS_DATA : [];
     return '<div class="imp-legis-sec"><h3>Legislación · Tutorbombero</h3>' +
-      '<p class="imp-nota">Estos temas no son del Específico. Elige a qué ley va cada uno (o «No importar»). Irán aparte de las tuyas: se ven eligiendo «Tutorbombero» arriba de Legislación.</p>' +
+      (lote.porTema ? '<p class="imp-nota">Elige a qué ley va cada tema (o «No importar»).' : '<p class="imp-nota">Estos temas no son del Específico. Elige a qué ley va cada uno (o «No importar»).') + ' Irán aparte de las tuyas: se ven eligiendo «Tutorbombero» arriba de Legislación.</p>' +
       legis.map((g, i) => {
         const n = g.tests.reduce((k, t) => k + t.preguntas.length, 0), tits = g.ley ? titulosDe(g.ley) : [];
         return '<div class="imp-legis"><div class="imp-legis-cab"><b>' + escapeHtml(g.temaTb) + '</b><span>' + g.tests.length + (g.tests.length === 1 ? ' test · ' : ' tests · ') + n + ' preguntas</span></div>' +
