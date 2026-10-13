@@ -310,8 +310,8 @@ const ESPT = (function(){
   function pie(){
     const n = preguntas.length, hechas = preguntas.filter(p => resp[p.id]).length;
     const bien = preguntas.filter(p => resp[p.id] && resp[p.id] === p.correcta).length;
-    return '<div class="espt-pie"><span>' + hechas + ' de ' + n + ' respondidas · ' + bien + (bien === 1 ? ' acierto' : ' aciertos') + ' · ' + (hechas - bien) + (hechas - bien === 1 ? ' fallo' : ' fallos') + '</span>' +
-      (hechas ? '<button type="button" data-espt="reiniciar">Volver a empezar</button>' : '') + '</div>';
+    // Sin «Volver a empezar»: de un toque se perdía todo lo respondido (también el avance de la tarea del calendario).
+    return '<div class="espt-pie"><span>' + hechas + ' de ' + n + ' respondidas · ' + bien + (bien === 1 ? ' acierto' : ' aciertos') + ' · ' + (hechas - bien) + (hechas - bien === 1 ? ' fallo' : ' fallos') + '</span></div>';
   }
   function lista(){
     if(modo !== 'marcadas') return '<div class="espt-lista">' + preguntas.map(tarjeta).join('') + '</div>';
@@ -456,7 +456,6 @@ const ESPT = (function(){
         }
         repintar(id);
       }); break;
-      case 'reiniciar': resp = {}; abiertas = new Set(); sesion = null; ultima = null; avisarTarea(); pintar(); arriba(); break;
     }
   }
   const enganchar = () => { const r = root(); if(r) r.addEventListener('click', onClick); };
