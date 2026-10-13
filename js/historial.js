@@ -220,9 +220,10 @@ async function loadHistory(){
   if(!currentUser){ HISTORY = []; SMART_HISTORY = []; renderHistory(); renderSmartHistory(); return; }
   const [{ data, error }, { data: smartData, error: smartError }] = await Promise.all([
     // El Simulacro conjunto («conjunto») tiene su propio historial (js/pruebas.js): aquí no sale.
-    sb.from('test_sessions').select('*').eq('user_id', currentUser.id).not('mode', 'in', '(inteligente,conjunto)')
+    // Cada fuente de Legislación (pj.fire / Tutorbombero) con su propio historial.
+    sb.from('test_sessions').select('*').eq('user_id', currentUser.id).eq('fuente', fuenteLegis()).not('mode', 'in', '(inteligente,conjunto)')
       .order('created_at', { ascending: false }).limit(50),
-    sb.from('test_sessions').select('*').eq('user_id', currentUser.id).eq('mode', 'inteligente')
+    sb.from('test_sessions').select('*').eq('user_id', currentUser.id).eq('fuente', fuenteLegis()).eq('mode', 'inteligente')
       .order('created_at', { ascending: false }).limit(30)
   ]);
   if(error) console.error('Error cargando historial', error);

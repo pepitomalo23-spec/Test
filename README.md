@@ -336,6 +336,9 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   dispositivo, `pj_legis_fuente`). `QUESTIONS_ALL` lleva todas y `QUESTIONS_POOL` solo las de la fuente elegida
   (`aplicarFuenteLegis` en `js/contenido.js`), así que tests, Fallos, Test Inteligente, Estadísticas, tareas del
   calendario y simulacros usan solo esas. En el test, una etiqueta dice «Tutorbombero»; en admin, también.
+- También el historial y las estadísticas van aparte: cada sesión guarda su fuente (`test_sessions.fuente`, migración
+  `20261028_sesiones_fuente.sql`; las de antes se clasificaron por sus respuestas) y el historial de Legislación, el
+  del Test Inteligente y las cifras de Estadísticas › Legislación (que tiene el mismo selector) solo leen las suyas.
 - Se importan con el marcador **«Legislación»** (`scripts/marcador/tutorbomberos-legislacion.js` →
   `datos/marcador-tutorbomberos-legislacion.txt`, se copia en Administración › Específico): en tutorbomberos.es ›
   Realizar test › Preguntas por tema se eligen los temas (agrupados por bloque) y saca todas las preguntas de

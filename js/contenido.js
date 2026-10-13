@@ -244,13 +244,14 @@ function aplicarFuenteLegis(){
   pintarFuenteLegis();
 }
 // El selector de arriba de Legislación (con cuántas preguntas tiene cada fuente).
+// Sale arriba de Legislación y de Estadísticas › Legislación ([data-legis-fuente]); el historial dice cuál es.
 function pintarFuenteLegis(){
-  const el = document.getElementById('legisFuente');
-  if(!el) return;
   const f = fuenteLegis(), n = k => QUESTIONS_ALL.filter(q => (q.fuente || 'pj') === k).length;
-  el.innerHTML = Object.keys(FUENTES_LEGIS).map(k =>
+  const tit = document.getElementById('historyTitulo');
+  if(tit) tit.textContent = 'Historial · ' + FUENTES_LEGIS[f];
+  document.querySelectorAll('[data-legis-fuente]').forEach(el => el.innerHTML = Object.keys(FUENTES_LEGIS).map(k =>
     '<button type="button" class="legis-fuente-op' + (k === f ? ' on' : '') + '" onclick="cambiarFuenteLegis(\'' + k + '\')" aria-pressed="' + (k === f) + '">' +
-      FUENTES_LEGIS[k] + '<span>' + n(k).toLocaleString('es-ES') + '</span></button>').join('');
+      FUENTES_LEGIS[k] + '<span>' + n(k).toLocaleString('es-ES') + '</span></button>').join(''));
   const vacio = document.getElementById('legisFuenteVacia');
   if(vacio) vacio.classList.toggle('hidden', !(QUESTIONS_ALL.length && !QUESTIONS_POOL.length));
 }
@@ -260,7 +261,7 @@ async function cambiarFuenteLegis(f){
   try{ localStorage.setItem(FUENTE_LEGIS_KEY, f); }catch(e){}
   aplicarFuenteLegis();
   configState.topics = new Set(); configState.nodeSelections = {};
-  try{ await refreshGlobalStats(); }catch(e){}
+  try{ await Promise.all([refreshGlobalStats(), loadHistory()]); }catch(e){}
   if(typeof INICIO !== 'undefined') INICIO.pintar();
   uiToast('Legislación: preguntas de ' + FUENTES_LEGIS[f], 'success');
 }

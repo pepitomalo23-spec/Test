@@ -424,7 +424,8 @@ async function refreshGlobalStats(sessionsPromise){
   // Admite recibir la consulta ya lanzada (ver onLoggedIn) para que ese
   // viaje de ida y vuelta a Supabase se solape con loadAppData()/loadHistory()
   // en vez de esperar a que terminen para empezarlo.
-  const { data: sessions } = await (sessionsPromise || sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id));
+  // Solo las sesiones de la fuente elegida en Legislación (pj.fire o Tutorbombero).
+  const { data: sessions } = await (sessionsPromise || sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id).eq('fuente', fuenteLegis()));
   const list = sessions || [];
   const questionsDone = list.reduce((s,r) => s + (r.total || 0), 0);
 

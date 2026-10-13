@@ -850,7 +850,7 @@ const PRU = (function(){
     if(L.items.length && currentUser) await guardarLegis(L, est.res.l, segundos, pid);
   }
   async function guardarLegis(L, r, segundos, pid){
-    const sesion = { user_id: currentUser.id, prueba_id: pid, mode: 'conjunto', score: Number(r.nota.toFixed(2)), total: r.total, ok: r.bien, bad: r.mal, pending: r.blanco, time_seconds: segundos };
+    const sesion = { user_id: currentUser.id, prueba_id: pid, mode: 'conjunto', fuente: fuenteLegis(), score: Number(r.nota.toFixed(2)), total: r.total, ok: r.bien, bad: r.mal, pending: r.blanco, time_seconds: segundos };
     const filas = sid => L.items.map((it, j) => {
       const a = L.resp[j];
       return { session_id: sid, user_id: currentUser.id, question_id: it.id,
