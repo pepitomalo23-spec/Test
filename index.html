@@ -57,11 +57,11 @@
 <link rel="stylesheet" href="css/base.css?v=bbb68d177e">
 <link rel="stylesheet" href="css/admin.css?v=2aa7b6d0f2">
 <link rel="stylesheet" href="css/pantallas.css?v=7ad66e36d5">
-<link rel="stylesheet" href="css/test.css?v=7a7272337a">
+<link rel="stylesheet" href="css/test.css?v=c7f0a45fe9">
 <link rel="stylesheet" href="css/normativas.css?v=55964752d6">
 <link rel="stylesheet" href="css/callejero.css?v=5b4acfcd80">
 <link rel="stylesheet" href="css/calendario.css?v=74303af9bc">
-<link rel="stylesheet" href="css/especifico.css?v=d21dd12a5e">
+<link rel="stylesheet" href="css/especifico.css?v=da7f28c84c">
 <link rel="stylesheet" href="css/inicio.css?v=3dd3e397fa">
 <link rel="stylesheet" href="css/mnemotecnia.css?v=7933e62382">
 </head>
@@ -240,6 +240,9 @@
 
     <section class="screen" id="screen-home">
       <h1>Elige un tipo de test</h1>
+      <!-- De qué preguntas: las de pj.fire o las de tutorbomberos (siempre por separado; ver aplicarFuenteLegis) -->
+      <div class="legis-fuente" id="legisFuente" role="group" aria-label="Preguntas de"></div>
+      <p class="legis-fuente-vacia hidden" id="legisFuenteVacia">Todavía no hay preguntas de esta fuente. Se importan con el marcador de tutorbomberos.</p>
       <div class="modes">
         <div class="mode-card estudio" id="modeCardEstudio" role="button" tabindex="0" onclick="openConfig('estudio')">
           <div class="mode-emblem">
@@ -1057,6 +1060,7 @@
         </span>
         <div class="quiz-head-right">
           <div class="quiz-upload-tray" id="quizUploadTray"></div>
+          <span class="quiz-fuente hidden" id="quizFuente">Tutorbombero</span>
           <span class="quiz-progress" id="quizCount">1 / 4</span>
           <span class="quiz-timer" id="quizTimer">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><line x1="12" y1="12" x2="12" y2="7.8"/><line x1="12" y1="12" x2="15" y2="13.5"/></svg>
@@ -1192,22 +1196,22 @@
 <script src="js/alturas.js?v=cb41af982f"></script>
 <script src="js/permisos.js?v=12c06b175b"></script>
 <script src="js/dispositivo.js?v=c9392ff647"></script>
-<script src="js/datos.js?v=473c64d00a"></script>
+<script src="js/datos.js?v=ac453f7641"></script>
 <script src="js/temario.js?v=313da6bd23"></script>
 <script src="js/estadisticas.js?v=eaac726aba"></script>
-<script src="js/contenido.js?v=284326574e"></script>
+<script src="js/contenido.js?v=63c2ca19f7"></script>
 <script src="js/historial.js?v=0532a7d497"></script>
 <script src="js/navegacion.js?v=74e39b767c"></script>
 <script src="js/configuracion-test.js?v=76c8074998"></script>
 <script src="js/test-inteligente.js?v=db51ff0fdd"></script>
-<script src="js/test.js?v=f3a6eb7752"></script>
+<script src="js/test.js?v=77d836b02c"></script>
 <script src="js/visor-imagen.js?v=1bec9b7237"></script>
 <script src="js/splash.js?v=21521df2b0"></script>
 <script src="js/notas.js?v=f2bfde0c15"></script>
 <script src="js/ia.js?v=e9d8fff760"></script>
 <script src="js/aportaciones.js?v=824eb0002d"></script>
 <script src="js/examen-revision.js?v=10f65ac591"></script>
-<script src="js/cuenta.js?v=819ba819cb"></script>
+<script src="js/cuenta.js?v=5882498014"></script>
 <script src="js/tema.js?v=e96fc2a4ed"></script>
 <script src="js/admin/panel.js?v=9e8ff5b7b8"></script>
 <script src="js/admin/actividad.js?v=7e043c23e6"></script>
@@ -1215,7 +1219,7 @@
 <script src="js/admin/copias.js?v=b2d3baa792"></script>
 <script src="js/admin/errores.js?v=8e7ee98d6c"></script>
 <script src="js/admin/boe.js?v=0a4ab61cfd"></script>
-<script src="js/admin/temario.js?v=45b68f00ea"></script>
+<script src="js/admin/temario.js?v=81d7054663"></script>
 <script src="js/admin/importar-ia.js?v=26e496cad5"></script>
 <script src="js/admin/especifico.js?v=851f5e8ced"></script>
 <script src="js/admin/callejero.js?v=5d85c58ac1"></script>
@@ -1226,7 +1230,7 @@
 <script src="js/mnemotecnia.js?v=c08acd5057"></script>
 <script src="js/calendario.js?v=e8c37d7dd9"></script>
 <script src="js/especifico.js?v=3fa7d8fb8a"></script>
-<script src="js/importar-especifico.js?v=235f566bb9"></script>
+<script src="js/importar-especifico.js?v=ac544b18ca"></script>
 <script src="js/especifico-test.js?v=947c56e36c"></script>
 <script src="js/estadisticas-especifico.js?v=3c8c840a8a"></script>
 <script src="js/pruebas.js?v=a9016fc0f7"></script>

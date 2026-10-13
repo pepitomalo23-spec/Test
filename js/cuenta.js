@@ -408,6 +408,7 @@ function onLoggedOut(){
   SMART_HISTORY = [];
   TOPICS = [];
   QUESTIONS_POOL = [];
+  QUESTIONS_ALL = [];
   quizState = { mode:null, index:0, correctCount:0, answered:false };
   quizSecondsLeft = null;
   renderHistory();

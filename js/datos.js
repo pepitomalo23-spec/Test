@@ -38,7 +38,8 @@ const SAMPLE_QUESTIONS = [
 let TOPICS = [];                // topics, with live `fails` count from DB
 let TOPIC_GROUPS = {};          // { [topicId]: [{id,label}] } — grupos raíz (títulos u otro nivel), nunca artículos
 let NODES_BY_ID = {};           // { [nodeId]: fila de nodos_temario } del árbol de temario
-let QUESTIONS_POOL = [];        // all questions (DB rows mapped to quiz shape)
+let QUESTIONS_POOL = [];        // las preguntas de la fuente elegida (pj.fire o Tutorbombero), en forma de test
+let QUESTIONS_ALL = [];         // todas, de las dos fuentes (QUESTIONS_POOL sale de aquí: ver aplicarFuenteLegis)
 // Intentos "en crudo" (session_answers ya ordenados cronológicamente) de la
 // última llamada a computeQuestionMastery(), indexados por question_id. Se
 // reutiliza para calcular rachas a nivel de ARTÍCULO (varias preguntas a la
@@ -131,6 +132,7 @@ function mapDbQuestionToQuiz(row){
     art: node ? nodeFullPath(row.nodo_id) : null,
     general: !node || node.tipo !== 'articulo',
     difficulty: row.difficulty,
+    fuente: row.fuente || 'pj',   // 'pj' (pj.fire) o 'tb' (tutorbomberos)
     q: row.question,
     options: row.options,
     correct: row.correct_index,

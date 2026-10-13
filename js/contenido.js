@@ -186,7 +186,7 @@ async function loadAppData(){
     if(myNotesErr) console.error('Error cargando notas/explicaciones propias', myNotesErr);
     (myNotesData || []).forEach(d => { myNotesMap[d.question_id] = { own_note: d.own_note || null, ai_explain: d.ai_explain || null }; });
   }
-  QUESTIONS_POOL = (questionsData || []).map(row => {
+  QUESTIONS_ALL = (questionsData || []).map(row => {
     const m = masteryByQuestion[row.id];
     row._failCount = m ? m.failCount : 0;
     row._timesSeen = m ? m.timesSeen : 0;
@@ -207,6 +207,27 @@ async function loadAppData(){
     return mapDbQuestionToQuiz(row);
   });
 
+  TOPICS_DATA = topicsData || [];
+  aplicarFuenteLegis();
+  // Antes esto marcaba todos los temas como seleccionados nada más cargar
+  // la app. Ahora se deja vacío: nada preseleccionado hasta que el
+  // usuario elija temas o pulse "Seleccionar todo" él mismo.
+  configState.nodeSelections = {};
+}
+
+/* ---------- Legislación por fuente: pj.fire o Tutorbombero ----------
+   Las preguntas de tutorbomberos (fuente 'tb', se importan con el
+   marcador) van siempre aparte de las de pj.fire: arriba de Legislación se
+   elige la fuente (se recuerda en el dispositivo) y QUESTIONS_POOL, que es
+   lo que usan los tests, Fallos, el Test Inteligente y las Estadísticas,
+   solo lleva las suyas. */
+const FUENTES_LEGIS = { pj: 'pj.fire', tb: 'Tutorbombero' };
+const FUENTE_LEGIS_KEY = 'pj_legis_fuente';
+let TOPICS_DATA = [];
+function fuenteLegis(){ try{ return localStorage.getItem(FUENTE_LEGIS_KEY) === 'tb' ? 'tb' : 'pj'; }catch(e){ return 'pj'; } }
+function aplicarFuenteLegis(){
+  const f = fuenteLegis();
+  QUESTIONS_POOL = QUESTIONS_ALL.filter(q => (q.fuente || 'pj') === f);
   const redByTopic = {};
   QUESTIONS_POOL.forEach(q => {
     if(!q.topic_id) return;
@@ -216,13 +237,30 @@ async function loadAppData(){
     // directamente y no miran fallosHidden).
     if(q.masteryStatus === 'red' && !q.fallosHidden) redByTopic[q.topic_id] = (redByTopic[q.topic_id] || 0) + 1;
   });
-
-  TOPICS = (topicsData || []).map(t => ({
+  TOPICS = TOPICS_DATA.map(t => ({
     id: t.id, category: t.category, name: t.name, desc: t.description, enabled: t.enabled,
     fails: redByTopic[t.id] || 0
   }));
-  // Antes esto marcaba todos los temas como seleccionados nada más cargar
-  // la app. Ahora se deja vacío: nada preseleccionado hasta que el
-  // usuario elija temas o pulse "Seleccionar todo" él mismo.
-  configState.nodeSelections = {};
+  pintarFuenteLegis();
+}
+// El selector de arriba de Legislación (con cuántas preguntas tiene cada fuente).
+function pintarFuenteLegis(){
+  const el = document.getElementById('legisFuente');
+  if(!el) return;
+  const f = fuenteLegis(), n = k => QUESTIONS_ALL.filter(q => (q.fuente || 'pj') === k).length;
+  el.innerHTML = Object.keys(FUENTES_LEGIS).map(k =>
+    '<button type="button" class="legis-fuente-op' + (k === f ? ' on' : '') + '" onclick="cambiarFuenteLegis(\'' + k + '\')" aria-pressed="' + (k === f) + '">' +
+      FUENTES_LEGIS[k] + '<span>' + n(k).toLocaleString('es-ES') + '</span></button>').join('');
+  const vacio = document.getElementById('legisFuenteVacia');
+  if(vacio) vacio.classList.toggle('hidden', !(QUESTIONS_ALL.length && !QUESTIONS_POOL.length));
+}
+async function cambiarFuenteLegis(f){
+  if(f === fuenteLegis()) return;
+  if(quizState && quizState.mode){ uiToast('Tienes un test a medias: termínalo antes de cambiar de fuente.', 'info'); return; }
+  try{ localStorage.setItem(FUENTE_LEGIS_KEY, f); }catch(e){}
+  aplicarFuenteLegis();
+  configState.topics = new Set(); configState.nodeSelections = {};
+  try{ await refreshGlobalStats(); }catch(e){}
+  if(typeof INICIO !== 'undefined') INICIO.pintar();
+  uiToast('Legislación: preguntas de ' + FUENTES_LEGIS[f], 'success');
 }

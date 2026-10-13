@@ -336,6 +336,7 @@ const IMP = (function(){
     bg.innerHTML = '<div class="imp-panel" role="dialog" aria-modal="true" aria-labelledby="impTit"><h2 id="impTit">' + titulo + '</h2><div class="imp-cuerpo"><div class="cal-cargando">Cargando tus tests…</div></div></div>';
     document.body.appendChild(bg);
     bg.addEventListener('click', onClick);
+    bg.addEventListener('change', e => { if(legis) onLegisChange(e); });
     return bg;
   }
   // Cada test que llega se empareja con uno que ya exista (mismo tema y título; cada uno una vez).
@@ -358,12 +359,138 @@ const IMP = (function(){
       (conAvisos.length ? '<details class="imp-detalles"><summary>Revisa ' + conAvisos.length + (conAvisos.length === 1 ? ' test' : ' tests') + '</summary><ul class="imp-resumen">' +
         conAvisos.map(t => '<li><b>' + escapeHtml(t.titulo) + '</b>: ' + escapeHtml(t.avisos.join(', ')) + '</li>').join('') + '</ul></details>' : '');
   }
+
+  /* ---------- Legislación de tutorbomberos ----------
+     Los tests de temas que no son del Específico pueden ir a Legislación,
+     como preguntas de la fuente «Tutorbombero» (questions.fuente = 'tb'),
+     siempre aparte de las de pj.fire. Cada tema de tutorbomberos va a una
+     ley (se propone la de nombre más parecido; se puede cambiar o dejar
+     fuera) y cada test, al título que diga su nombre («Título I», «Título
+     Preliminar»…) o a la ley en general. Al volver a pasar el marcador,
+     las que ya estén (mismo texto en esa ley) se actualizan, sin duplicar. */
+  let legis = null;   // [{ temaTb, ley, tests: [{ titulo, preguntas, nodo }] }]
+  const sinTildes = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const VACIAS = new Set(['del', 'las', 'los', 'ley', 'para', 'por', 'con', 'sobre', 'test', 'tema', 'temas', 'una']);
+  const palabras = s => new Set(sinTildes(s).replace(/[^a-z0-9/ ]+/g, ' ').split(/\s+/).filter(w => /\d/.test(w) || (w.length > 2 && !VACIAS.has(w))));
+  // La ley de nombre más parecido (los números, como «31/1995», cuentan más).
+  function leyParecida(nombre){
+    const a = palabras(nombre);
+    let mejor = '', punt = 0;
+    (typeof TOPICS_DATA !== 'undefined' ? TOPICS_DATA : []).forEach(t => {
+      const b = palabras(t.name + ' ' + t.id);
+      let p = 0;
+      a.forEach(w => { if(b.has(w)) p += /\d/.test(w) ? 3 : 1; });
+      if(p > punt){ punt = p; mejor = t.id; }
+    });
+    return punt >= 2 ? mejor : '';
+  }
+  const titulosDe = ley => Object.values(typeof NODES_BY_ID !== 'undefined' ? NODES_BY_ID : {}).filter(n => n.topic_id === ley && !n.padre_id && n.tipo !== 'articulo').sort(compareNodes);
+  const deRomano = r => { const v = { i: 1, v: 5, x: 10, l: 50, c: 100 }; let n = 0; for(let i = 0; i < r.length; i++){ const a = v[r[i]], b = v[r[i + 1]] || 0; n += a < b ? -a : a; } return n; };
+  function numeroTitulo(texto){
+    const m = sinTildes(texto).match(/titulo\s+(preliminar|[ivxlc]+\b|\d+)/);
+    if(!m) return null;
+    return m[1] === 'preliminar' ? 'preliminar' : /^\d+$/.test(m[1]) ? Number(m[1]) : deRomano(m[1]);
+  }
+  function tituloParecido(ley, texto){
+    const k = numeroTitulo(texto);
+    if(k == null) return '';
+    const n = titulosDe(ley).find(x => x.tipo === 'titulo' && numeroTitulo('titulo ' + (x.numero || x.nombre || '')) === k);
+    return n ? n.id : '';
+  }
+  function prepararLegis(){
+    const grupos = new Map();
+    lote.tests.filter(t => !t.clave).forEach(t => {
+      if(!grupos.has(t.temaTb)) grupos.set(t.temaTb, { temaTb: t.temaTb, ley: leyParecida(t.temaTb), tests: [] });
+      grupos.get(t.temaTb).tests.push({ titulo: t.titulo, preguntas: t.preguntas, nodo: '' });
+    });
+    legis = [...grupos.values()];
+    legis.forEach(g => g.tests.forEach(t => { t.nodo = g.ley ? tituloParecido(g.ley, t.titulo) : ''; }));
+  }
+  function legisHtml(){
+    if(!legis || !legis.length) return '';
+    const leyes = typeof TOPICS_DATA !== 'undefined' ? TOPICS_DATA : [];
+    return '<div class="imp-legis-sec"><h3>Legislación · Tutorbombero</h3>' +
+      '<p class="imp-nota">Estos temas no son del Específico. Elige a qué ley va cada uno (o «No importar»). Irán aparte de las tuyas: se ven eligiendo «Tutorbombero» arriba de Legislación.</p>' +
+      legis.map((g, i) => {
+        const n = g.tests.reduce((k, t) => k + t.preguntas.length, 0), tits = g.ley ? titulosDe(g.ley) : [];
+        return '<div class="imp-legis"><div class="imp-legis-cab"><b>' + escapeHtml(g.temaTb) + '</b><span>' + g.tests.length + (g.tests.length === 1 ? ' test · ' : ' tests · ') + n + ' preguntas</span></div>' +
+          '<select class="cal-in" data-legis-ley="' + i + '"><option value="">No importar</option>' +
+            leyes.map(t => '<option value="' + escapeHtml(t.id) + '"' + (t.id === g.ley ? ' selected' : '') + '>' + escapeHtml(t.name) + '</option>').join('') + '</select>' +
+          (g.ley ? '<details class="imp-detalles"><summary>Dónde va cada test</summary>' + g.tests.map((t, j) =>
+            '<div class="imp-legis-test"><span>' + escapeHtml(t.titulo) + ' <small>(' + t.preguntas.length + ')</small></span>' +
+            '<select class="cal-in" data-legis-test="' + i + ':' + j + '"><option value="">La ley en general</option>' +
+              tits.map(x => '<option value="' + x.id + '"' + (x.id === t.nodo ? ' selected' : '') + '>' + escapeHtml(nodeDisplayName(x)) + '</option>').join('') + '</select></div>').join('') + '</details>' : '') +
+        '</div>';
+      }).join('') + '</div>';
+  }
+  function onLegisChange(e){
+    const a = e.target.dataset.legisLey, b = e.target.dataset.legisTest;
+    if(a != null){ const g = legis[+a]; g.ley = e.target.value; g.tests.forEach(t => { t.nodo = g.ley ? tituloParecido(g.ley, t.titulo) : ''; }); }
+    else if(b != null){ const [i, j] = b.split(':').map(Number); legis[i].tests[j].nodo = e.target.value; }
+    else return;
+    const sec = document.querySelector('.imp-legis-sec');
+    const abiertos = [...document.querySelectorAll('.imp-legis details')].map(d => d.open);
+    if(sec) sec.outerHTML = legisHtml();
+    document.querySelectorAll('.imp-legis details').forEach((d, k) => { if(abiertos[k]) d.open = true; });
+    const btn = document.querySelector('[data-imp="lote"]');
+    if(btn) btn.disabled = !(plan.length || legis.some(g => g.ley));
+  }
+  // Texto sin formato (Legislación guarda texto): saltos de línea donde había <br>; sin imágenes.
+  const aTexto = h => String(h || '').replace(/<br\s*\/?>/gi, '\n').replace(/<img[^>]*>/gi, ' ').replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+    .replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  const claveP = t => sinTildes(t).replace(/[^a-z0-9]+/g, ' ').trim();
+  async function guardarLegis(aviso){
+    const r = { tests: 0, nuevas: 0, cambiadas: 0, sinCorrecta: 0, conImagen: 0, fallos: [] };
+    const grupos = (legis || []).filter(g => g.ley);
+    for(const g of grupos){
+      let ya;
+      try{ ya = await supabaseTodas(o => sb.from('questions').select('id,question', o).eq('topic_id', g.ley).eq('fuente', 'tb').order('id')); }
+      catch(e){ r.fallos.push('«' + g.temaTb + '»: ' + (e.message || e)); continue; }
+      const porTexto = new Map(ya.map(q => [claveP(q.question), q.id]));
+      for(const t of g.tests){
+        aviso('Legislación · ' + g.temaTb + ': ' + t.titulo);
+        try{
+          const filas = [];
+          t.preguntas.forEach(q => {
+            const ci = q.opciones.findIndex(o => o.l === q.correcta);
+            if(ci < 0){ r.sinCorrecta++; return; }
+            if(/<img/i.test(q.enunciado + q.opciones.map(o => o.html).join(''))) r.conImagen++;
+            filas.push({ topic_id: g.ley, nodo_id: t.nodo || null, question: aTexto(q.enunciado) || 'Pregunta', options: q.opciones.map(o => aTexto(o.html)),
+              correct_index: ci, explain: aTexto(q.explicacion), difficulty: q.dificultad || 'media', fuente: 'tb', origen_test: t.titulo });
+          });
+          const nuevas = [], viejas = [];
+          filas.forEach(f => { const id = porTexto.get(claveP(f.question)); if(id) viejas.push([id, f]); else { nuevas.push(f); porTexto.set(claveP(f.question), -1); } });
+          for(let k = 0; k < nuevas.length; k += 200){
+            const { error } = await sb.from('questions').insert(nuevas.slice(k, k + 200));
+            if(error) throw error;
+          }
+          for(let k = 0; k < viejas.length; k += 20){
+            const rs = await Promise.all(viejas.slice(k, k + 20).filter(([id]) => id > 0).map(([id, f]) => sb.from('questions').update(Object.assign({}, f, { updated_at: new Date().toISOString() })).eq('id', id)));
+            const mal = rs.find(x => x.error);
+            if(mal) throw mal.error;
+          }
+          r.tests++; r.nuevas += nuevas.length; r.cambiadas += viejas.length;
+        }catch(e){ r.fallos.push('«' + t.titulo + '»: ' + (e.message || e)); }
+      }
+    }
+    return r;
+  }
   async function mostrarLote(){
     if(abierto) return;
     const bg = ventana('Importar todo');
     const cuerpo = bg.querySelector('.imp-cuerpo');
     if(!(await cargarTests(cuerpo))) return;
     const { fuera } = emparejar();
+    // Lo que no es del Específico puede ir a Legislación (necesita las leyes y su temario cargados).
+    if(lote.tests.some(t => !t.clave)){
+      if(typeof appDataReady !== 'undefined' && !appDataReady){
+        cuerpo.innerHTML = '<div class="cal-cargando">Cargando las leyes…</div>';
+        for(let k = 0; k < 60 && !appDataReady; k++) await new Promise(r => setTimeout(r, 500));
+      }
+      prepararLegis();
+      Object.keys(fuera).forEach(k => delete fuera[k]);   // ya no se «dejan fuera»: se eligen abajo
+    }
     const nPreg = plan.reduce((n, t) => n + t.preguntas.length, 0);
     const filas = ESP.temas().map((tm, i) => {
       const ts = plan.filter(t => t.clave === tm.clave);
@@ -372,12 +499,14 @@ const IMP = (function(){
       return '<li><b>' + (i + 1) + '. ' + escapeHtml(tm.titulo) + '</b>: ' + ts.length + (ts.length === 1 ? ' test' : ' tests') +
         (nuevos ? ' <span class="imp-nuevo">(' + (nuevos === ts.length ? (nuevos === 1 ? 'nuevo' : 'todos nuevos') : nuevos + (nuevos === 1 ? ' nuevo' : ' nuevos')) + ')</span>' : '') + '</li>';
     }).join('');
-    cuerpo.innerHTML = plan.length
-      ? '<p><b>' + plan.length + (plan.length === 1 ? ' test' : ' tests') + '</b> con <b>' + nPreg + (nPreg === 1 ? ' pregunta' : ' preguntas') + '</b>.</p>' +
+    const hayLegis = !!(legis && legis.length);
+    cuerpo.innerHTML = plan.length || hayLegis
+      ? (plan.length ? '<p><b>' + plan.length + (plan.length === 1 ? ' test' : ' tests') + '</b> con <b>' + nPreg + (nPreg === 1 ? ' pregunta' : ' preguntas') + '</b>.</p>' +
         '<ul class="imp-resumen">' + filas + '</ul>' +
-        '<p class="imp-nota">Los tests que ya tienes con el mismo título se actualizan (sin perder las preguntas marcadas); los demás se crean al final de su tema.</p>' +
-        notasLote(fuera) +
-        '<div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">Cancelar</button><button type="button" class="imp-btn primario" data-imp="lote">Importar todo</button></div>'
+        '<p class="imp-nota">Los tests que ya tienes con el mismo título se actualizan (sin perder las preguntas marcadas); los demás se crean al final de su tema.</p>' : '') +
+        notasLote(fuera) + legisHtml() +
+        '<div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">Cancelar</button><button type="button" class="imp-btn primario" data-imp="lote"' +
+          (plan.length || (legis || []).some(g => g.ley) ? '' : ' disabled') + '>Importar todo</button></div>'
       : '<p>Ninguno de los tests es de un tema de pj.fire.</p><div class="imp-botones"><button type="button" class="imp-btn" data-imp="cerrar">Cerrar</button></div>';
   }
   async function guardarLote(bg){
@@ -403,8 +532,26 @@ const IMP = (function(){
         hechos++; nPreg += t.preguntas.length;
       }catch(e){ fallos.push('«' + t.titulo + '»: ' + (e.message || e)); }
     }
+    const rl = legis && legis.some(g => g.ley) ? await guardarLegis(txt => { cuerpo.innerHTML = '<p>' + escapeHtml(txt) + '</p><p class="imp-nota">No cierres esta pestaña.</p>'; }) : null;
+    legis = null;
     lote = null;
     guardando = false;
+    if(rl){
+      // Legislación: se recargan las preguntas y se enseña el resumen.
+      try{ await loadAppData(); if(typeof refreshGlobalStats === 'function') await refreshGlobalStats(); }catch(e){}
+      fallos.push(...rl.fallos);
+      cuerpo.innerHTML = (plan.length ? '<p>Específico: ' + hechos + ' de ' + plan.length + ' tests (' + nPreg + ' preguntas).</p>' : '') +
+        '<p>Legislación · Tutorbombero: <b>' + rl.tests + (rl.tests === 1 ? ' test' : ' tests') + '</b>, ' + rl.nuevas + ' preguntas nuevas' + (rl.cambiadas ? ' y ' + rl.cambiadas + ' actualizadas' : '') + '.</p>' +
+        (rl.sinCorrecta ? '<p class="imp-aviso">' + rl.sinCorrecta + ' sin respuesta correcta: no se guardan.</p>' : '') +
+        (rl.conImagen ? '<p class="imp-nota">' + rl.conImagen + ' tenían imagen: en Legislación se guardan solo con el texto.</p>' : '') +
+        (fallos.length ? '<p class="imp-aviso">Fallaron ' + fallos.length + ':</p><ul class="imp-resumen">' + fallos.map(f => '<li>' + escapeHtml(f) + '</li>').join('') + '</ul>' : '') +
+        (sinImg ? '<p class="imp-aviso">' + sinImg + (sinImg === 1 ? ' imagen no se pudo descargar.' : ' imágenes no se pudieron descargar.') + '</p>' : '') +
+        '<p class="imp-nota">Para verlas: Legislación › arriba, «Tutorbombero».</p>' +
+        '<div class="imp-botones"><button type="button" class="imp-btn primario" data-imp="cerrar">Cerrar</button></div>';
+      plan = null;
+      showScreen('screen-home');
+      return;
+    }
     if(fallos.length || sinImg){
       cuerpo.innerHTML = '<p>Guardados ' + hechos + ' de ' + plan.length + ' tests (' + nPreg + ' preguntas).' +
           (fallos.length ? ' <span class="imp-aviso">Fallaron ' + fallos.length + ':</span>' : '') + '</p>' +

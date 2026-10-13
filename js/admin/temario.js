@@ -164,7 +164,8 @@ function renderQuestionCard(q){
       (selectionMode ? '<input type="checkbox" class="qcard-checkbox" '+(selected?'checked':'')+' onclick="event.stopPropagation();toggleQuestionSelected(\''+q.id+'\')">' : '') +
       '<div class="question-card-body">' +
         '<div class="question-card-text">'+esc(q.question)+'</div>' +
-        '<div class="question-card-meta"><span class="q-diff q-diff-'+esc(diff)+'">'+esc(DIFICULTAD_LABELS[diff]||diff)+'</span></div>' +
+        '<div class="question-card-meta"><span class="q-diff q-diff-'+esc(diff)+'">'+esc(DIFICULTAD_LABELS[diff]||diff)+'</span>' +
+          (q.fuente === 'tb' ? '<span class="q-fuente-tb" title="De tutorbomberos'+(q.origen_test ? ' · '+esc(q.origen_test) : '')+'">Tutorbombero</span>' : '') + '</div>' +
       '</div>' +
       (!selectionMode ? (
       '<div class="question-card-actions">' +

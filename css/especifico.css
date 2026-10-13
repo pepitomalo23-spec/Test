@@ -203,3 +203,13 @@
 .espn-btn.peligro{ color: var(--coral); }
 .espn-btn:disabled{ opacity:.6; cursor:default; }
 .espt-iconos{ gap:5px; }
+
+/* Importar: tests de Legislación de tutorbomberos (cada tema a una ley; cada test a un título) */
+.imp-legis-sec{ margin:14px 0 6px; padding-top:12px; border-top:1px solid var(--line); }
+.imp-legis-sec h3{ font-size:15px; margin:0 0 6px; }
+.imp-legis{ display:flex; flex-direction:column; gap:8px; padding:10px 12px; margin:8px 0; border:1px solid var(--line); border-radius:12px; background: var(--card); }
+.imp-legis-cab{ display:flex; justify-content:space-between; gap:10px; font-size:14px; }
+.imp-legis-cab span{ color: var(--muted); font-size:12.5px; white-space:nowrap; }
+.imp-legis select{ width:100%; }
+.imp-legis-test{ display:flex; flex-direction:column; gap:4px; margin:8px 0; font-size:13px; }
+.imp-legis-test small{ color: var(--muted); }
