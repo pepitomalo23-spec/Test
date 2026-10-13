@@ -332,13 +332,14 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
 
 - Cada pregunta de Legislación tiene su fuente (`questions.fuente`: `pj` = pj.fire, `tb` = tutorbomberos;
   migración `20261027_preguntas_fuente.sql`) y, las de tutorbomberos, el test del que salieron (`origen_test`).
-- Van **siempre separadas**: arriba de Legislación se elige «pj.fire» o «Tutorbombero» (se recuerda en el
-  dispositivo, `pj_legis_fuente`). `QUESTIONS_ALL` lleva todas y `QUESTIONS_POOL` solo las de la fuente elegida
-  (`aplicarFuenteLegis` en `js/contenido.js`), así que tests, Fallos, Test Inteligente, Estadísticas, tareas del
-  calendario y simulacros usan solo esas. En el test, una etiqueta dice «Tutorbombero»; en admin, también.
-- También el historial y las estadísticas van aparte: cada sesión guarda su fuente (`test_sessions.fuente`, migración
-  `20261028_sesiones_fuente.sql`; las de antes se clasificaron por sus respuestas) y el historial de Legislación, el
-  del Test Inteligente y las cifras de Estadísticas › Legislación (que tiene el mismo selector) solo leen las suyas.
+- Legislación es **una sola**: todas las preguntas juntas (un solo historial, Fallos, Test Inteligente y
+  estadísticas). Al preparar un test (Estudio, Examen, Simulacro) la fila **«Preguntas de»** elige Todas (por
+  defecto), pj.fire o Tutorbombero, con cuántas hay de cada una; cada ley dice cuántas tiene de cada fuente. Solo
+  sale si hay preguntas de tutorbomberos. En el test y en la corrección, las de tutorbomberos llevan su etiqueta.
+- Cada sesión guarda de qué fuente eran sus preguntas (`test_sessions.fuente`: `pj`, `tb` o `mix`; migraciones
+  `20261028_sesiones_fuente.sql` y `20261029_sesiones_fuente_mix.sql`): en el historial, «Tutorbombero» o «Mixto».
+- Estadísticas › Legislación tiene un filtro opcional Todas / pj.fire / Tutorbombero (`fuenteStats`, Todas por
+  defecto) para ver el dominio, la nota, el ranking y las preguntas hechas de una sola fuente.
 - Se importan con el marcador **«Legislación»** (`scripts/marcador/tutorbomberos-legislacion.js` →
   `datos/marcador-tutorbomberos-legislacion.txt`, se copia en Administración › Específico): en tutorbomberos.es ›
   Realizar test › Preguntas por tema se eligen los temas (agrupados por bloque) y saca todas las preguntas de

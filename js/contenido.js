@@ -215,19 +215,27 @@ async function loadAppData(){
   configState.nodeSelections = {};
 }
 
-/* ---------- Legislación por fuente: pj.fire o Tutorbombero ----------
-   Las preguntas de tutorbomberos (fuente 'tb', se importan con el
-   marcador) van siempre aparte de las de pj.fire: arriba de Legislación se
-   elige la fuente (se recuerda en el dispositivo) y QUESTIONS_POOL, que es
-   lo que usan los tests, Fallos, el Test Inteligente y las Estadísticas,
-   solo lleva las suyas. */
+/* ---------- Legislación: preguntas de pj.fire y de tutorbomberos ----------
+   Todas van juntas (un solo Legislación, historial, Fallos y estadísticas).
+   Cada pregunta sabe de dónde es (q.fuente: 'pj' o 'tb') y al preparar un
+   test se elige de cuáles («Preguntas de»: Todas, pj.fire o Tutorbombero;
+   configState.fuente). En Estadísticas › Legislación hay un filtro opcional
+   (fuenteStats, Todas por defecto). Cada sesión guarda de qué fuente eran
+   sus preguntas ('pj', 'tb' o 'mix'). */
 const FUENTES_LEGIS = { pj: 'pj.fire', tb: 'Tutorbombero' };
-const FUENTE_LEGIS_KEY = 'pj_legis_fuente';
 let TOPICS_DATA = [];
-function fuenteLegis(){ try{ return localStorage.getItem(FUENTE_LEGIS_KEY) === 'tb' ? 'tb' : 'pj'; }catch(e){ return 'pj'; } }
+let fuenteStats = 'todas';
+const fuenteDe = q => (q && q.fuente) || 'pj';
+// ¿Esta pregunta entra con la fuente elegida? ('todas', 'pj' o 'tb')
+const deFuente = (q, f) => !f || f === 'todas' || fuenteDe(q) === f;
+// La fuente de un conjunto de preguntas: 'pj', 'tb' o 'mix'.
+function fuenteDeConjunto(preguntas){
+  const fs = new Set((preguntas || []).map(fuenteDe));
+  return fs.size > 1 ? 'mix' : fs.has('tb') ? 'tb' : 'pj';
+}
+const hayTutorbombero = () => QUESTIONS_ALL.some(q => fuenteDe(q) === 'tb');
 function aplicarFuenteLegis(){
-  const f = fuenteLegis();
-  QUESTIONS_POOL = QUESTIONS_ALL.filter(q => (q.fuente || 'pj') === f);
+  QUESTIONS_POOL = QUESTIONS_ALL;
   const redByTopic = {};
   QUESTIONS_POOL.forEach(q => {
     if(!q.topic_id) return;
@@ -241,27 +249,23 @@ function aplicarFuenteLegis(){
     id: t.id, category: t.category, name: t.name, desc: t.description, enabled: t.enabled,
     fails: redByTopic[t.id] || 0
   }));
-  pintarFuenteLegis();
+  pintarFuenteStats();
 }
-// El selector de arriba de Legislación (con cuántas preguntas tiene cada fuente).
-// Sale arriba de Legislación y de Estadísticas › Legislación ([data-legis-fuente]); el historial dice cuál es.
-function pintarFuenteLegis(){
-  const f = fuenteLegis(), n = k => QUESTIONS_ALL.filter(q => (q.fuente || 'pj') === k).length;
-  const tit = document.getElementById('historyTitulo');
-  if(tit) tit.textContent = 'Historial · ' + FUENTES_LEGIS[f];
-  document.querySelectorAll('[data-legis-fuente]').forEach(el => el.innerHTML = Object.keys(FUENTES_LEGIS).map(k =>
-    '<button type="button" class="legis-fuente-op' + (k === f ? ' on' : '') + '" onclick="cambiarFuenteLegis(\'' + k + '\')" aria-pressed="' + (k === f) + '">' +
-      FUENTES_LEGIS[k] + '<span>' + n(k).toLocaleString('es-ES') + '</span></button>').join(''));
-  const vacio = document.getElementById('legisFuenteVacia');
-  if(vacio) vacio.classList.toggle('hidden', !(QUESTIONS_ALL.length && !QUESTIONS_POOL.length));
+// Las preguntas que miran las Estadísticas de Legislación (todas o las de una fuente).
+const poolStats = () => fuenteStats === 'todas' ? QUESTIONS_POOL : QUESTIONS_POOL.filter(q => fuenteDe(q) === fuenteStats);
+// Filtro de Estadísticas › Legislación: solo sale si hay preguntas de tutorbomberos.
+function pintarFuenteStats(){
+  const el = document.getElementById('statsFuente');
+  if(!el) return;
+  if(!hayTutorbombero()){ el.innerHTML = ''; fuenteStats = 'todas'; return; }
+  const n = k => (k === 'todas' ? QUESTIONS_ALL : QUESTIONS_ALL.filter(q => fuenteDe(q) === k)).length;
+  el.innerHTML = [['todas', 'Todas'], ['pj', FUENTES_LEGIS.pj], ['tb', FUENTES_LEGIS.tb]].map(([k, t]) =>
+    '<button type="button" class="legis-fuente-op' + (k === fuenteStats ? ' on' : '') + '" onclick="cambiarFuenteStats(\'' + k + '\')" aria-pressed="' + (k === fuenteStats) + '">' +
+      t + '<span>' + n(k).toLocaleString('es-ES') + '</span></button>').join('');
 }
-async function cambiarFuenteLegis(f){
-  if(f === fuenteLegis()) return;
-  if(quizState && quizState.mode){ uiToast('Tienes un test a medias: termínalo antes de cambiar de fuente.', 'info'); return; }
-  try{ localStorage.setItem(FUENTE_LEGIS_KEY, f); }catch(e){}
-  aplicarFuenteLegis();
-  configState.topics = new Set(); configState.nodeSelections = {};
-  try{ await Promise.all([refreshGlobalStats(), loadHistory()]); }catch(e){}
-  if(typeof INICIO !== 'undefined') INICIO.pintar();
-  uiToast('Legislación: preguntas de ' + FUENTES_LEGIS[f], 'success');
+async function cambiarFuenteStats(f){
+  if(f === fuenteStats) return;
+  fuenteStats = f;
+  pintarFuenteStats();
+  try{ await refreshGlobalStats(); }catch(e){}
 }

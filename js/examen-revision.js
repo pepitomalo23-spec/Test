@@ -14,7 +14,7 @@ function renderQuizList(){
     }).join('');
     return (
       '<div class="quiz-list-item" data-qi="' + qi + '">' +
-        '<div class="question">' + (qi + 1) + '. ' + esc(q.q) + '</div>' +
+        '<div class="question">' + etiquetaFuente(q) + (qi + 1) + '. ' + esc(q.q) + '</div>' +
         '<div class="options">' + optsHtml + '</div>' +
       '</div>'
     );
@@ -152,8 +152,8 @@ async function finishQuizInner(){
   const sessionPayload = {
     user_id: currentUser ? currentUser.id : null,
     mode: quizState.mode,
-    // De qué fuente eran las preguntas (pj.fire o tutorbomberos): historial y estadísticas van aparte.
-    fuente: (ACTIVE_QUESTIONS[0] && ACTIVE_QUESTIONS[0].fuente) || fuenteLegis(),
+    // De qué fuente eran las preguntas: 'pj', 'tb' (tutorbomberos) o 'mix' (las dos).
+    fuente: fuenteDeConjunto(SESSION_QUESTIONS),
     score: Number(notaNum.toFixed(2)),
     total, ok: quizState.correctCount, bad, pending: blank,
     time_seconds: elapsedSec
@@ -239,6 +239,7 @@ async function finishQuizInner(){
     ok: quizState.correctCount,
     bad: bad,
     pending: blank,
+    fuente: sessionPayload.fuente,
     review: { questions: SESSION_QUESTIONS.slice(), answers: SESSION_ANSWERS.slice() }
   };
   // El Test Inteligente va a su propio historial (dentro de su pantalla),
@@ -337,7 +338,7 @@ function renderReviewList(){
 
     let html = '<div class="quiz-list-item">';
     html += '<div class="review-report" role="button" tabindex="0" onclick="reportReviewQuestion(' + qi + ')">' + ICONS.warn + ' Impugnar</div>';
-    html += '<div class="question">' + (qi + 1) + '. ' + q.q + '</div>';
+    html += '<div class="question">' + etiquetaFuente(q) + (qi + 1) + '. ' + q.q + '</div>';
     html += '<div class="options">';
     q.options.forEach((opt, i) => {
       let cls = 'option', icon = '';

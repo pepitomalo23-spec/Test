@@ -57,7 +57,7 @@
 <link rel="stylesheet" href="css/base.css?v=bbb68d177e">
 <link rel="stylesheet" href="css/admin.css?v=2aa7b6d0f2">
 <link rel="stylesheet" href="css/pantallas.css?v=7ad66e36d5">
-<link rel="stylesheet" href="css/test.css?v=c7f0a45fe9">
+<link rel="stylesheet" href="css/test.css?v=96cede1e1d">
 <link rel="stylesheet" href="css/normativas.css?v=55964752d6">
 <link rel="stylesheet" href="css/callejero.css?v=5b4acfcd80">
 <link rel="stylesheet" href="css/calendario.css?v=74303af9bc">
@@ -240,9 +240,6 @@
 
     <section class="screen" id="screen-home">
       <h1>Elige un tipo de test</h1>
-      <!-- De qué preguntas: las de pj.fire o las de tutorbomberos (siempre por separado; ver aplicarFuenteLegis) -->
-      <div class="legis-fuente" id="legisFuente" data-legis-fuente role="group" aria-label="Preguntas de"></div>
-      <p class="legis-fuente-vacia hidden" id="legisFuenteVacia">Todavía no hay preguntas de esta fuente. Se importan con el marcador de tutorbomberos.</p>
       <div class="modes">
         <div class="mode-card estudio" id="modeCardEstudio" role="button" tabindex="0" onclick="openConfig('estudio')">
           <div class="mode-emblem">
@@ -333,7 +330,7 @@
       </div>
 
       <div id="historySection" data-feature="historial" class="hidden">
-      <div class="section-row"><div class="section-title" id="historyTitulo">Historial</div><div class="section-rule"></div></div>
+      <div class="section-row"><div class="section-title">Historial</div><div class="section-rule"></div></div>
       <div class="history" id="historyList">
         <div id="historyLoadingPlaceholder"><div class="skel-list"><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:60%"></span><span class="skel skel-line" style="width:35%;opacity:.7"></span></span></div><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:72%"></span><span class="skel skel-line" style="width:40%;opacity:.7"></span></span></div><div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:50%"></span><span class="skel skel-line" style="width:30%;opacity:.7"></span></span></div></div></div>
       </div>
@@ -539,7 +536,8 @@
         <button type="button" class="stats-tab" data-stats-tab="esp" role="tab" aria-selected="false">Específico</button>
       </div>
       <div id="statsLegis">
-      <div class="legis-fuente" data-legis-fuente role="group" aria-label="Estadísticas de"></div>
+      <!-- Filtro opcional por fuente (Todas / pj.fire / Tutorbombero): solo si hay preguntas de tutorbomberos -->
+      <div class="legis-fuente tres" id="statsFuente" role="group" aria-label="Estadísticas de"></div>
       <div class="mastery-card">
         <div class="mastery-head">
           <div class="mastery-title-row">
@@ -966,6 +964,11 @@
         <div class="modal-body">
         <div class="config-sub" id="configSub">Selecciona uno o varios temas. El test se generará solo con preguntas de la legislación elegida.</div>
 
+        <div class="config-block hidden" id="configFuenteBlock">
+          <div class="config-block-head"><div class="config-block-label">Preguntas de</div></div>
+          <div class="legis-fuente tres" id="fuenteOptions" role="group" aria-label="Preguntas de"></div>
+        </div>
+
         <div class="config-block" id="configSettingsBlock">
           <div class="settings-list" id="settingsList"></div>
         </div>
@@ -1204,20 +1207,20 @@
 <script src="js/dispositivo.js?v=c9392ff647"></script>
 <script src="js/datos.js?v=ac453f7641"></script>
 <script src="js/temario.js?v=313da6bd23"></script>
-<script src="js/estadisticas.js?v=49fa5933c6"></script>
-<script src="js/contenido.js?v=f45f32c429"></script>
-<script src="js/historial.js?v=b2d9867586"></script>
+<script src="js/estadisticas.js?v=6e0b1df2f8"></script>
+<script src="js/contenido.js?v=f6015b2210"></script>
+<script src="js/historial.js?v=d7dcaaa68d"></script>
 <script src="js/navegacion.js?v=74e39b767c"></script>
-<script src="js/configuracion-test.js?v=76c8074998"></script>
+<script src="js/configuracion-test.js?v=b32c45f3b3"></script>
 <script src="js/test-inteligente.js?v=db51ff0fdd"></script>
-<script src="js/test.js?v=77d836b02c"></script>
+<script src="js/test.js?v=9b56980fc1"></script>
 <script src="js/visor-imagen.js?v=1bec9b7237"></script>
 <script src="js/splash.js?v=21521df2b0"></script>
 <script src="js/notas.js?v=f2bfde0c15"></script>
 <script src="js/ia.js?v=e9d8fff760"></script>
 <script src="js/aportaciones.js?v=824eb0002d"></script>
-<script src="js/examen-revision.js?v=f6135db274"></script>
-<script src="js/cuenta.js?v=682af2b063"></script>
+<script src="js/examen-revision.js?v=da757ebd1e"></script>
+<script src="js/cuenta.js?v=5882498014"></script>
 <script src="js/tema.js?v=e96fc2a4ed"></script>
 <script src="js/admin/panel.js?v=9e8ff5b7b8"></script>
 <script src="js/admin/actividad.js?v=7e043c23e6"></script>
@@ -1236,10 +1239,10 @@
 <script src="js/mnemotecnia.js?v=c08acd5057"></script>
 <script src="js/calendario.js?v=e8c37d7dd9"></script>
 <script src="js/especifico.js?v=3fa7d8fb8a"></script>
-<script src="js/importar-especifico.js?v=788f2da484"></script>
+<script src="js/importar-especifico.js?v=6b29f5cfb9"></script>
 <script src="js/especifico-test.js?v=947c56e36c"></script>
 <script src="js/estadisticas-especifico.js?v=3c8c840a8a"></script>
-<script src="js/pruebas.js?v=6ff19a0001"></script>
+<script src="js/pruebas.js?v=c7f4578920"></script>
 <script src="js/examen.js?v=f3b90eb709"></script>
 <script src="js/inicio.js?v=7395a81f57"></script>
 <script src="js/arranque.js?v=838162d6bd"></script>

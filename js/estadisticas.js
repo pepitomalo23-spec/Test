@@ -77,7 +77,7 @@ function isArticleRecovered(g){
 }
 function computeArticleStreakStats(){
   const groups = {};
-  QUESTIONS_POOL.forEach(q => {
+  poolStats().forEach(q => {
     if(!q.nodo_id) return;
     const node = NODES_BY_ID[q.nodo_id];
     if(!node || node.tipo !== 'articulo') return; // solo artículos reales
@@ -231,7 +231,7 @@ function openArticuloPreguntas(nodoId, mode, returnScreen){
   if(title) title.textContent = node ? nodeDisplayName(node) : 'Artículo';
 
   const topicName = node ? topicTitle(node.topic_id) : '';
-  let questions = QUESTIONS_POOL.filter(q => q.nodo_id === nodoId);
+  let questions = poolStats().filter(q => q.nodo_id === nodoId);
   if(mode === 'fail') questions = questions.filter(q => (q.failCount || 0) > 0);
 
   if(sub) sub.textContent =
@@ -290,7 +290,7 @@ function masteryDonutSegPath(cx, cy, rOuter, rInner, startAngle, endAngle){
    segmento de color por cada estado (verde/amarillo/rojo/azul), con su
    porcentaje, más el porcentaje de dominadas en grande en el centro. */
 function renderMasteryBar(){
-  const pool = QUESTIONS_POOL;
+  const pool = poolStats();   // todas o las de la fuente del filtro de Estadísticas
   const total = pool.length;
   const green = pool.filter(q => q.masteryStatus === 'green').length;
   const yellow = pool.filter(q => q.masteryStatus === 'yellow').length;
@@ -373,7 +373,7 @@ function renderTopicRanking(){
   // Mismo criterio que el "Nivel general": de todas las preguntas de un tema
   // (incluidas las que aún no se han hecho), qué % está realmente dominado (verde).
   const ranking = TOPICS.map(t => {
-    const topicQuestions = QUESTIONS_POOL.filter(q => q.topic_id === t.id);
+    const topicQuestions = poolStats().filter(q => q.topic_id === t.id);
     const total = topicQuestions.length;
     const green = topicQuestions.filter(q => q.masteryStatus === 'green').length;
     const pct = total ? (green / total * 100) : null; // valor exacto, sin redondear a entero
@@ -424,8 +424,10 @@ async function refreshGlobalStats(sessionsPromise){
   // Admite recibir la consulta ya lanzada (ver onLoggedIn) para que ese
   // viaje de ida y vuelta a Supabase se solape con loadAppData()/loadHistory()
   // en vez de esperar a que terminen para empezarlo.
-  // Solo las sesiones de la fuente elegida en Legislación (pj.fire o Tutorbombero).
-  const { data: sessions } = await (sessionsPromise || sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id).eq('fuente', fuenteLegis()));
+  // Con el filtro de Estadísticas puesto (pj.fire o Tutorbombero), solo los tests de esa fuente.
+  let qs = sb.from('test_sessions').select('score, total, created_at').eq('user_id', currentUser.id);
+  if(fuenteStats !== 'todas') qs = qs.eq('fuente', fuenteStats);
+  const { data: sessions } = await (fuenteStats === 'todas' && sessionsPromise ? sessionsPromise : qs);
   const list = sessions || [];
   const questionsDone = list.reduce((s,r) => s + (r.total || 0), 0);
 
@@ -447,8 +449,8 @@ async function refreshGlobalStats(sessionsPromise){
   // incluidas), no solo sobre los tests que ya has hecho. Las falladas y
   // las que aún no se han hecho restan por igual, no puntúan: es la nota
   // que tendrías ahora mismo si te examinaran de todo.
-  const totalQuestions = QUESTIONS_POOL.length;
-  const greenCount = QUESTIONS_POOL.filter(q => q.masteryStatus === 'green').length;
+  const totalQuestions = poolStats().length;
+  const greenCount = poolStats().filter(q => q.masteryStatus === 'green').length;
   // Porcentaje exacto (sin redondear al entero) para que "Nivel general"
   // refleje el dato real, no una aproximación.
   const levelPct = totalQuestions ? (greenCount / totalQuestions) * 100 : null;

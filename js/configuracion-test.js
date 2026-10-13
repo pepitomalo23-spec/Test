@@ -7,6 +7,7 @@ function openConfig(mode){
   if(whenAppDataReady(() => openConfig(mode))) return;
   if(quizState && quizState.mode && quizState.mode !== mode) return; // hay un test en curso en otro apartado
   configState.mode = mode;
+  configState.fuente = 'todas';   // «Preguntas de»: siempre empieza en Todas
   // Antes se marcaban todos los temas por defecto al abrir esta pantalla
   // por primera vez. Ahora "Seleccionar todo" y cada tema individual se
   // quedan desactivados salvo que el usuario los active él mismo.
@@ -31,11 +32,32 @@ function openConfig(mode){
   document.getElementById('configSettingsBlock').style.display = (mode === 'estudio' || mode === 'simulacro') ? 'block' : 'none';
   document.getElementById('configSub').style.display = (mode === 'estudio') ? 'none' : 'block';
 
+  renderFuenteOptions();
   renderSettings();
   renderTemas();
   renderParamOptions();
   showScreen('screen-home');
   openOverlay('screen-config');
+}
+
+/* ---------- «Preguntas de»: Todas, pj.fire o Tutorbombero ----------
+   Solo sale si hay preguntas de tutorbomberos. Cada opción dice cuántas hay
+   (de los temas elegidos; si no hay ninguno, de todo). */
+function renderFuenteOptions(){
+  const block = document.getElementById('configFuenteBlock');
+  if(!block) return;
+  block.classList.toggle('hidden', !hayTutorbombero());
+  if(!hayTutorbombero()){ configState.fuente = 'todas'; return; }
+  const base = (configState.mode !== 'simulacro' && configState.topics.size) ? buildQuestionsFromTopics(configState.topics, 'todas') : QUESTIONS_POOL;
+  const n = k => (k === 'todas' ? base : base.filter(q => fuenteDe(q) === k)).length;
+  document.getElementById('fuenteOptions').innerHTML = [['todas', 'Todas'], ['pj', FUENTES_LEGIS.pj], ['tb', FUENTES_LEGIS.tb]].map(([k, t]) =>
+    '<button type="button" class="legis-fuente-op' + (k === configState.fuente ? ' on' : '') + '" onclick="elegirFuenteTest(\'' + k + '\')" aria-pressed="' + (k === configState.fuente) + '">' +
+      t + '<span>' + n(k).toLocaleString('es-ES') + '</span></button>').join('');
+}
+function elegirFuenteTest(f){
+  configState.fuente = f;
+  renderFuenteOptions();
+  renderTemas();
 }
 
 /* ---------- ajustes (minutos / preguntas / dificultad / ayuda / repaso) ---------- */
@@ -211,7 +233,7 @@ function renderTemas(){
     const isPartial = !!(topicSelected && restriction && restriction.size < groups.length);
     row.innerHTML =
       '<span class="topic-check' + (isPartial ? ' indeterminate' : '') + '">' + ICONS.check + '</span>' +
-      '<span class="topic-text"><span class="topic-name">' + esc(t.name) + badge + '</span></span>' +
+      '<span class="topic-text"><span class="topic-name">' + esc(t.name) + badge + '</span>' + desgloseTema(t.id) + '</span>' +
       (hasGroups ? '<span class="topic-row-chevron' + (isOpen ? ' open' : '') + '">' + ICONS.chevron + '</span>' : '');
     row.querySelector('.topic-check').onclick = (e) => { e.stopPropagation(); toggleTopic(t.id); };
     if(hasGroups){
@@ -227,6 +249,17 @@ function renderTemas(){
   });
   el.appendChild(card);
   updateConfigFooter();
+  if(!renderTemas.desdeFuente){ renderTemas.desdeFuente = true; renderFuenteOptions(); renderTemas.desdeFuente = false; }
+}
+
+// Debajo de cada ley, cuántas preguntas tiene de cada fuente (solo si tiene de tutorbomberos).
+function desgloseTema(topicId){
+  if(!hayTutorbombero()) return '';
+  let pj = 0, tb = 0;
+  QUESTIONS_POOL.forEach(q => { if(q.topic_id === topicId){ if(fuenteDe(q) === 'tb') tb++; else pj++; } });
+  if(!tb) return '';
+  const f = configState.fuente, txt = (k, n, nom) => '<span class="topic-fuente' + (f !== 'todas' && f !== k ? ' fuera' : '') + '">' + n.toLocaleString('es-ES') + ' ' + nom + '</span>';
+  return '<span class="topic-desglose">' + txt('pj', pj, FUENTES_LEGIS.pj) + ' · ' + txt('tb', tb, FUENTES_LEGIS.tb) + '</span>';
 }
 
 function toggleTopic(id){
@@ -314,9 +347,11 @@ function updateConfigFooter(){
   }
 }
 
-function buildQuestionsFromTopics(topicIdSet){
+function buildQuestionsFromTopics(topicIdSet, fuente){
+  const f = fuente || configState.fuente || 'todas';
   return QUESTIONS_POOL.filter(q => {
     if(!q.topic_id || !topicIdSet.has(q.topic_id)) return false;
+    if(!deFuente(q, f)) return false;   // «Preguntas de»
     const sel = configState.nodeSelections[q.topic_id];
     if(!sel) return true; // sin restricción de títulos: todas las preguntas del tema
     if(!q.nodo_id) return false; // pregunta "general de todo el tema": no pertenece a ningún título concreto
@@ -428,7 +463,7 @@ function startFromConfig(){
     const questions = buildQuestionSet(pool, configState.count);
     startQuiz('examen', questions, configState.time);
   } else if(mode === 'simulacro'){
-    const questions = buildQuestionSet(QUESTIONS_POOL, configState.count);
+    const questions = buildQuestionSet(QUESTIONS_POOL.filter(q => deFuente(q, configState.fuente)), configState.count);
     startQuiz('simulacro', questions, configState.time);
   }
 }
