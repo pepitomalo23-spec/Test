@@ -352,8 +352,9 @@ solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
   Preliminar»…) o a la ley en general. Se guarda el texto sin formato (sin imágenes); las que ya estén (mismo
   texto en esa ley, de tutorbomberos) se actualizan sin duplicar y sin mover de sitio; las que vienen sin respuesta correcta no se guardan.
 - **Dónde va cada una** (`js/colocar-tb.js`, `COLOCAR`): por el artículo que cita (si es de esa ley y existe en
-  el árbol), por el título que le toca según la estructura conocida de la CE, la 7/1985 y el TREBEP (si el título no
-  existe, se crea), por si es de estructura o por su parecido con una de pj.fire; si no, a la ley en general. Las
+  el árbol), por el título que le toca según la estructura conocida de la CE, la 7/1985, el TREBEP y la 12/2007 (si el título no
+  existe, se crea), por si es de estructura o por su parecido con una de pj.fire; si no, a la ley en general.
+  Las que hablan de otra ley (otro número de ley o una orgánica) sin nombrar la suya se quedan en general. Las
   nuevas que se importan sin título se colocan solas. Para las que ya están: Administración › Temario ›
   **«Tutorbombero: colocar preguntas»**, por ley: «Colocar automáticamente» propone el sitio de cada una (con el
   motivo), se cambia a mano el que haga falta y «Guardar».
