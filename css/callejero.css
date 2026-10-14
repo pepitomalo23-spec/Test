@@ -736,7 +736,7 @@
     border:solid var(--muted); border-width:0 2px 2px 0; transform: rotate(45deg); }
   #screen-callejero.cj-completa .cj-info.plegada::after{ top:18px; transform: rotate(-135deg); }
   #screen-callejero.cj-completa .cj-info.plegada{ padding-top:7px; padding-bottom:7px; }
-  #screen-callejero.cj-completa .cj-info.plegada :is(.cj-info-extra, .cj-info-cruce, .cj-info-accion){ display:none; }
+  #screen-callejero.cj-completa .cj-info.plegada :is(.cj-info-extra, .cj-info-cruce, .cj-info-accion, .cj-info-kv, .cj-info-repaso){ display:none; }
   #screen-callejero.cj-completa .cj-info.plegada .cj-info-nombre{ font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   /* Los créditos, en un botón «i» que se abre al tocarlo */
   #screen-callejero.cj-completa .leaflet-control-attribution:not(.abierta){ position:relative; width:22px; height:22px; margin:0 8px 8px 0; padding:0;
@@ -849,6 +849,12 @@
   .cj-info-nota-txt{ font-size:13.5px; line-height:1.4; white-space:pre-line; }
   .cj-info-nota-btn{ align-self:flex-start; padding:6px 12px; border-radius:99px; border:1px solid var(--line); background: var(--card-hi, var(--card)); color: var(--text);
     font: inherit; font-size:13px; font-weight:700; cursor:pointer; }
+  /* Ficha de Aprender: calle, barrio y distrito, y el botón de mandarlo a Repasar */
+  .cj-info-kv{ font-size:13.5px; margin-top:3px; line-height:1.35; }
+  .cj-info-kv span{ display:inline-block; min-width:64px; margin-right:6px; font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color: var(--muted); }
+  .cj-info-repaso{ display:inline-block; margin:8px 8px 0 0; padding:6px 12px; border-radius:99px; border:1px solid var(--line); background: var(--card-hi, var(--card)); color: var(--text);
+    font: inherit; font-size:13px; font-weight:700; cursor:pointer; }
+  .cj-info-repaso.on{ border-color: var(--green); color: var(--green); }
   .cj-nota-fila img{ width:44px; height:44px; object-fit:cover; border-radius:10px; flex-shrink:0; }
   /* A pantalla completa, la nota bajo el recuadro de la pregunta (si no, quedaría tapada) */
   #screen-callejero.cj-completa .cj-nota{ top: calc(var(--cj-arriba, 56px) + 8px); left:8px; max-width:min(60%, 260px); }

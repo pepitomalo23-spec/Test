@@ -604,9 +604,8 @@ const CJ = (function(){
   function lugaresAprendidos(){
     return vistos('l').map(id => datos.lugarPorId.get(Number(id))).filter(Boolean);
   }
-  // Lo que se mira en Aprender (una cosa del mapa: js «it» del visor) se apunta para Repasar.
-  function apuntarItem(it){
-    if(!currentUser || !it) return;
+  // Las claves de Repasar de una cosa del visor de Aprender.
+  function clavesItem(it){
     const ks = [];
     if(it.distrito) ks.push('d:' + it.distrito);
     else{
@@ -616,12 +615,25 @@ const CJ = (function(){
       // Las calles (no la calle donde está un lugar).
       if(!it.lugar && !it.dir) [...new Set((it.vias || []).map(v => v.nombre))].forEach(n => ks.push('v:' + n));
     }
-    const nuevas = ks.filter(k => !aprendido.has(k));
-    if(!nuevas.length) return;
-    nuevas.forEach(k => aprendido.add(k));
-    guardarAprendido();
-    sb.from('callejero_aprendido').upsert(nuevas.map(clave => ({ user_id: currentUser.id, clave }))).then(() => {}, () => {});
+    return ks;
   }
+  const enRepaso = it => { const ks = clavesItem(it); return ks.length > 0 && ks.every(k => aprendido.has(k)); };
+  // «+ A repasar» de la ficha: lo elige uno (formulario: «que salga lo que yo seleccione»).
+  async function alternarRepaso(){
+    const it = itemInfo;
+    if(!currentUser || !it) return;
+    const ks = clavesItem(it);
+    if(!ks.length) return;
+    const quitar = enRepaso(it);
+    ks.forEach(k => quitar ? aprendido.delete(k) : aprendido.add(k));
+    guardarAprendido();
+    if(infoActual) infoActual();
+    const r = quitar ? await sb.from('callejero_aprendido').delete().eq('user_id', currentUser.id).in('clave', ks)
+      : await sb.from('callejero_aprendido').upsert(ks.map(clave => ({ user_id: currentUser.id, clave })));
+    if(r && r.error) uiToast('No se ha podido guardar: ' + r.error.message, 'error');
+    else uiToast(quitar ? 'Quitado de Repasar' : 'Hecho: sale en Repasar', 'success');
+  }
+  let itemInfo = null;   // lo que enseña la ficha del visor
   async function cargarNotas(){
     if(!currentUser) return;
     const { data, error } = await sb.from('callejero_notas').select('clave, texto, imagen, updated_at');
@@ -2978,8 +2990,7 @@ const CJ = (function(){
         const fs = con26 ? [v.nombre].concat(v.alias || []).flatMap(n => CJ26.filasDe(n, v.tipo)) : [];
         fs.forEach(f => usadas.add(f.i));
         anadir({ nombre: v.nombre, tipo: tipoBonito(v.tipo), vias: vs, lugar: null, grupo: distritoDeVias(vs),
-          calle26: fs.length ? null : { nombre: v.nombre, tipo: v.tipo }, filas26: fs.length ? [...new Set(fs.map(f => f.i))] : undefined,
-          detalle: [bs.map(x => x.nombre).join(', ')].filter(Boolean) });
+          calle26: fs.length ? null : { nombre: v.nombre, tipo: v.tipo }, filas26: fs.length ? [...new Set(fs.map(f => f.i))] : undefined, detalle: [] });
       });
       // Las del Callejero 2026 que el mapa no tiene dibujadas.
       if(con26) CJ26.lista(vf.siglas).forEach(f => {
@@ -3244,13 +3255,12 @@ const CJ = (function(){
     // Las calles de una lista, una por nombre (con todos sus tramos) y con su distrito.
     const calles = vias => [...porNombre(vias)].sort((x, y) => x[0].nombre.localeCompare(y[0].nombre, 'es')).map(vs => {
       const bs = [...new Set(vs.flatMap(v => v.barrios))];
-      return { nombre: vs[0].nombre, tipo: tipoBonito(vs[0].tipo), vias: vs, lugar: null, grupo: bs.length ? bs[0].distrito : null,
-        detalle: [bs.map(x => x.nombre).join(', ')].filter(Boolean) };
+      return { nombre: vs[0].nombre, tipo: tipoBonito(vs[0].tipo), vias: vs, lugar: null, grupo: bs.length ? bs[0].distrito : null, detalle: [] };
     });
     let extra = null;
     if(k === 'distritos'){
       const color = coloresDe('distritos');
-      extra = { titulo: 'Distritos', nombres: true, items: datos.distritos.map(d => {
+      extra = { titulo: 'Distritos', items: datos.distritos.map(d => {
         const bs = barriosFijos().filter(x => x.distrito === d);
         return { nombre: conNumero(d), tipo: 'Distrito', vias: [], lugar: null, barrios: datos.barrios.filter(b => b.distrito === d), distrito: d, color: color.get(d),
           detalle: [bs.length + (bs.length === 1 ? ' barrio: ' : ' barrios: ') + bs.map(x => x.n).join(', ')] };
@@ -3258,7 +3268,7 @@ const CJ = (function(){
     }else if(k === 'barrios'){
       // La lista fija (la del temario): cada barrio con su contorno; las pedanías, solo en la lista.
       const color = coloresDe('barrios');
-      extra = { titulo: 'Barrios', nombres: true, nombresDesde: 14, porGrupos: true, items: barriosFijos().sort((a, b) => a.n.localeCompare(b.n, 'es'))
+      extra = { titulo: 'Barrios', porGrupos: true, items: barriosFijos().sort((a, b) => a.n.localeCompare(b.n, 'es'))
         .map(x => ({ nombre: x.n, tipo: x.barrio ? 'Barrio' : 'Pedanía', vias: [], lugar: null, barrios: x.barrio ? [x.barrio] : [], grupo: x.distrito,
           color: x.barrio ? color.get(x.barrio.nombre) : null, detalle: ['Distrito ' + conNumero(x.distrito)].concat(x.barrio && x.barrio.nombre !== x.n ? ['En el mapa, junto con otro: ' + x.barrio.nombre] : []) })) };
     }else if(k.startsWith('barrio:')){
@@ -4491,14 +4501,26 @@ const CJ = (function(){
     }
     const pts = puntosItem(it);
     if(centrar && pts.length) mapa.flyToBounds(L.latLngBounds(pts), { paddingTopLeft: [50, 50], paddingBottomRight: [50, 150], maxZoom: 17, duration: 0.7 });
+    // Su nombre en el mapa (solo el de lo elegido).
+    const pn = it.lugar ? [it.lugar.lat, it.lugar.lng] : barriosItem(it).length ? puntoNombre(barriosItem(it)) : pts.length ? L.latLngBounds(pts).getCenter() : null;
+    if(pn && !it.distrito) L.marker(pn, { interactive: false, keyboard: false, icon: L.divIcon({ className: 'cj-marcado-nombre', html: '<span>' + escapeHtml(it.nombre) + '</span>', iconSize: null }) }).addTo(capaMarcas);
+    // Barrio y distrito (los de su sitio en el mapa).
+    const bs = it.distrito ? [] : [...new Set(barriosItem(it).concat(it.lugar ? it.lugar.barrios || [] : [], it.vias.flatMap(v => v.barrios)))];
+    const ds = it.distrito ? [] : [...new Set(bs.map(b => b.distrito).filter(Boolean))];
+    const linea = (k, v) => v ? '<div class="cj-info-kv"><span>' + k + '</span>' + escapeHtml(v) + '</div>' : '';
+    itemInfo = it;
+    const ks = clavesItem(it), yaRep = enRepaso(it);
     el('cjInfo').innerHTML =
       '<div class="cj-info-tipo">' + escapeHtml(it.tipo) + '</div>' +
       '<div class="cj-info-nombre">' + escapeHtml(it.nombre) + '</div>' +
-      (it.detalle || []).map(d => '<div class="cj-info-extra">' + escapeHtml(d) + '</div>').join('') +
+      (it.detalle || []).filter(d => !(it.lugar && d === it.dir)).map(d => '<div class="cj-info-extra">' + escapeHtml(d) + '</div>').join('') +
+      linea('Calle', it.dir && it.lugar ? it.dir : '') +
+      linea(bs.length > 1 ? 'Barrios' : 'Barrio', bs.slice(0, 4).map(b => b.nombre).join(', ') + (bs.length > 4 ? '…' : '')) +
+      linea(ds.length > 1 ? 'Distritos' : 'Distrito', ds.map(conNumero).join(', ')) +
+      (ks.length && currentUser ? '<button type="button" class="cj-info-repaso' + (yaRep ? ' on' : '') + '" onclick="CJ.alternarRepaso()">' + (yaRep ? '✓ En Repasar' : '+ A repasar') + '</button>' : '') +
       (it.filas26 && !it.calle26 && typeof CJ26 !== 'undefined' && CJ26.listo() ? '<div class="cj26-fila">' + CJ26.botonFilas(it.filas26) + '</div>' : it.calle26 ? boton26(it.calle26.nombre, it.calle26.tipo) : it.dir ? boton26(null, null, it.dir) : it.vias.length === 1 || (it.vias.length && it.vias.every(v => v.nombre === it.vias[0].nombre)) ? boton26(it.vias[0].nombre, it.vias[0].tipo) : '') +
       (it.lugar && it.lugar.id ? notaInfoHtml(claveLugar(it.lugar)) : it.vias.length ? notaInfoHtml(claveVia(it.vias[0])) : '');
     infoActual = () => mostrarItemTemario(i, false);
-    if(modo === 'estudio') apuntarItem(it);
     el('cjInfo').classList.remove('hidden');
     el('cjPista').classList.add('hidden');
   }
@@ -5388,7 +5410,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)
