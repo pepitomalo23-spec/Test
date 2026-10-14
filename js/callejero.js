@@ -5005,7 +5005,7 @@ const CJ = (function(){
     const empiezan = [], contienen = [];
     if(!soloLugares) for(const v of datos.vias){
       // Eligiendo, cada vía por separado: hay nombres repetidos en distintas barriadas.
-      if((!eligiendo && vistos.has(v.clave)) || !v.clave.includes(q)) continue;
+      if(v.oculta || (!eligiendo && vistos.has(v.clave)) || !v.clave.includes(q)) continue;
       vistos.add(v.clave);
       // «calle feria» también encuentra «Calle Feria»; «feria» prioriza
       // las que tienen esa palabra al principio del nombre sin el tipo.
