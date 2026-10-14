@@ -182,7 +182,7 @@ const CJT = (function(){
     if(!T || !(claves || []).length) return [];
     return itemsDe(claves).map(x => {
       const g = geoDe(x);
-      return g && (g.vias.length || g.lugar) ? { nombre: textoItem(x), tipo: x._s.titulo, vias: g.vias, lugar: g.lugar } : null;
+      return g && (g.vias.length || g.lugar) ? { id: x.id, nombre: textoItem(x), tipo: x._s.titulo, vias: g.vias, lugar: g.lugar } : null;
     }).filter(Boolean);
   }
   // Punto de referencia de un elemento (para buscar los cercanos).
@@ -1567,6 +1567,8 @@ const CJT = (function(){
   function falladas(){ return itemsFallados().map(x => ({ id: x.id, nombre: textoItem(x) })); }
   // Para «Hacer solo fallos»: las preguntas de lo fallado del temario.
   function preguntasFalladas(){ return crearPreguntas(itemsFallados()); }
+  // Repasar (js/callejero.js): todas las preguntas de unas claves, sin tope.
+  function preguntasDeClaves(claves){ return T && claves.length ? crearPreguntas(itemsDe(claves), false, true, Infinity) : []; }
   function repasarFalladas(){
     if(!T){ asegurar(); uiToast('Cargando el temario…', 'info'); return; }
     const ids = new Set(falladas().map(x => x.id));
@@ -1799,7 +1801,7 @@ const CJT = (function(){
 
   return {
     cargar, listo, contarSecciones, clavesSecciones, listaBarrios, clavesBarrio, clavesDistrito, comprimir, itemsCategoria, verEnFicha, auditar, repasarClaves, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
-    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, preguntasFalladas, fuente, reintentar, geoClaves,
+    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, preguntasFalladas, preguntasDeClaves, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
     clicPlano, pintarPlano, marcarPlano, verEnPlano

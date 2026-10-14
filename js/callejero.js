@@ -2681,10 +2681,10 @@ const CJ = (function(){
   }
   // La pantalla de cada botón, con su cabecera para volver.
   function subHtml(){
-    const titulos = { tareas: 'Lo que te has mandado', repasar: 'Repasar', aprender: 'Aprender', callesbarrio: 'Calles de cada barrio', temario: 'Temario de la academia', todo: 'Todo lo dado hasta ahora', notas: 'Mis notas' };
-    const cuerpo = subInicio === 'tareas' ? tareasHtml() : subInicio === 'repasar' ? repasarHtml() : subInicio === 'todo' ? todoHtml()
+    const titulos = { tareas: 'Lo que te has mandado', repasar: 'Repasar', aprender: 'Aprender', callesbarrio: 'Calles de cada barrio', temario: 'Temario de la academia', todo: 'Todo lo dado hasta ahora', notas: 'Mis notas', repasoelegir: 'Elige qué repasar' };
+    const cuerpo = subInicio === 'tareas' ? tareasHtml() : subInicio === 'repasar' ? repasarHtml() : subInicio === 'repasoelegir' ? repasoElegirHtml() : subInicio === 'todo' ? todoHtml()
       : subInicio === 'temario' ? temarioHtml() : subInicio === 'notas' ? notasHtml() : subInicio === 'callesbarrio' ? callesBarrioHtml() : aprenderHtml();
-    const atras = subInicio === 'todo' ? 'repasar' : subInicio === 'temario' || subInicio === 'notas' || subInicio === 'callesbarrio' ? 'aprender' : '';
+    const atras = subInicio === 'todo' || subInicio === 'repasoelegir' ? 'repasar' : subInicio === 'temario' || subInicio === 'notas' || subInicio === 'callesbarrio' ? 'aprender' : '';
     return '<div class="cjt-cab"><button type="button" class="cj-salir" onclick="CJ.irA(\'' + atras + '\')" aria-label="Volver">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>' +
         '<div><div class="cjt-cab-etq">Callejero</div><h2>' + titulos[subInicio] + '</h2></div></div>' + cuerpo;
@@ -2833,7 +2833,164 @@ const CJ = (function(){
   }
   // Repasar: el alumno elige el modo; cada uno, con lo que le toca hoy.
   // Repasar: todo lo dado hasta ahora (ver todoHtml).
-  function repasarHtml(){ return todoHtml(); }
+  /* ---------- Repasar: un solo botón (formulario) ----------
+     1 · Qué: lo que fallas, lo visto en Aprender («A repasar»), lo que te
+     has mandado y/o lo que elijas de la lista de Aprender. 2 · Cómo: ¿Qué es?
+     (te lo marco, piensas el nombre, «Ver respuesta» y dices si lo sabías),
+     ¿Dónde está? (lo tocas) o mezclado. Y, si se quiere, las preguntas tipo
+     test del temario de lo elegido. Sin límite: lo fallado vuelve a salir
+     un poco más adelante; se para cuando se quiere. */
+  const REPASO_KEY = 'cj_repaso_';
+  let repasoCfg = null;
+  function cfgRepaso(){
+    if(repasoCfg) return repasoCfg;
+    let c = {};
+    try{ c = JSON.parse(localStorage.getItem(REPASO_KEY + (currentUser ? currentUser.id : '')) || '{}') || {}; }catch(e){}
+    repasoCfg = Object.assign({ fallos: true, visto: true, mandado: false, lista: false, forma: 'mezcla', temario: true }, c);
+    return repasoCfg;
+  }
+  function guardarCfgRepaso(){ try{ localStorage.setItem(REPASO_KEY + (currentUser ? currentUser.id : ''), JSON.stringify(repasoCfg)); }catch(e){} }
+  function cambiarRepaso(k, v){
+    const c = cfgRepaso();
+    c[k] = v === undefined ? !c[k] : v;
+    guardarCfgRepaso();
+    if(k === 'lista' && c.lista && !contarLista()){ irA('repasoelegir'); return; }
+    pintarInicio();
+  }
+  // Lo elegido en la lista de Aprender (la misma que la de «Mandarme algo»).
+  function contarLista(){ return eleccionPropia ? [...eleccionPropia.sel.values()].reduce((a, x) => a + x.size, 0) : 0; }
+  const temarioClaves = ids => typeof CJT === 'undefined' ? [] : [...new Set(ids.map(id => { const k = CJT.claveDeItem(id); return k ? k + '/' + id : null; }).filter(Boolean))];
+  // Todo lo de las fuentes elegidas: calles (por nombre), barrios, distritos,
+  // lugares, claves del temario y las preguntas del temario fallado.
+  function poolRepaso(c){
+    const vias = new Map(), barrios = new Set(), distritos = new Set(), lugares = new Map(), claves = new Set();
+    let temFallos = false;
+    const via = v => { if(v && v.jugable && !v.oculta && !vias.has(v.nombre)) vias.set(v.nombre, v); };
+    const lugar = l => { if(l && !lugares.has(l.id)) lugares.set(l.id, l); };
+    if(c.fallos){
+      const f = fallados();
+      Object.values(f.calles).forEach(m => m.forEach(via));
+      f.barrios.forEach(b => barrios.add(b));
+      f.distritos.forEach(d => distritos.add(d));
+      progreso.forEach((p, k) => { const id = Number(k.split('|')[1]); if(id < 0 && esFallo(p)) lugar(datos.lugarPorId.get(-id)); });
+      temFallos = true;
+    }
+    if(c.visto){
+      callesAprendidas().forEach(via);
+      zonasAprendidas(false).forEach(b => barrios.add(b));
+      zonasAprendidas(true).forEach(d => distritos.add(d));
+      lugaresAprendidos().forEach(lugar);
+      temarioClaves(vistos('t')).forEach(k => claves.add(k));
+    }
+    if(c.mandado){
+      tareasActivas().forEach(t => {
+        if(tieneCalles(t)){
+          const f = filtroDe('t:' + t.id, t);
+          datos.jugables.forEach(v => { if(f.via(v)) via(v); });
+          datos.lugares.forEach(l => { if(f.lugar(l)) lugar(l); });
+        }
+        (t.fichas || []).forEach(k => claves.add(k));
+      });
+    }
+    if(c.lista && eleccionPropia){
+      const r = resultadoElegir();
+      r.vias.forEach(id => via(datos.viaPorId.get(Number(id))));
+      r.lugares.forEach(id => lugar(datos.lugarPorId.get(Number(id))));
+      r.fichas.forEach(k => claves.add(k));
+      eleccionPropia.sel.forEach((sel, k) => {
+        const its = itemsElegir(k) || [];
+        sel.forEach(i => { const it = its[i]; if(!it) return;
+          if(it.distritoFila) distritos.add(it.distritoFila);
+          if(it.barrioFila && it.barrioFila.barrio) barrios.add(it.barrioFila.barrio.nombre); });
+      });
+    }
+    return { vias: [...vias.values()], barrios: [...barrios].filter(n => datos.barrios.some(b => b.nombre === n)),
+      distritos: [...distritos].filter(d => datos.distritos.includes(d)), lugares: [...lugares.values()], claves: [...claves], temFallos };
+  }
+  function preguntaVozLugar(l){
+    return { lugar: l, id: -l.id, etiqueta: '¿Qué es lo marcado?', texto: '', nombre: l.nombre, detalle: l.categoria,
+      antes: () => {
+        L.circleMarker([l.lat, l.lng], { radius: 11, color: '#fff', weight: 3, fillColor: '#F2665C', fillOpacity: 1, interactive: false }).addTo(capaMarcas);
+        mapa.flyTo([l.lat, l.lng], Math.max(mapa.getZoom(), 16), { duration: 0.6 });
+      } };
+  }
+  // Las preguntas de una vuelta: cada cosa una vez, de la forma elegida.
+  function preguntasRepaso(c, pool){
+    const qs = [];
+    const forma = () => c.forma === 'mezcla' ? (Math.random() < 0.5 ? 'que' : 'donde') : c.forma;
+    const anadir = (m, lista) => lista.forEach(q => { q.modo = m; qs.push(q); });
+    const repartir = lista => { const a = [], b = []; lista.forEach(x => (forma() === 'que' ? a : b).push(x)); return [a, b]; };
+    try{
+      const [vq, vd] = repartir(pool.vias);
+      if(vq.length){ limiteRonda = vq; anadir('voz', crearPreguntas('voz')); }
+      if(vd.length){ limiteRonda = vd; anadir('localiza', crearPreguntas('localiza')); }
+      limiteRonda = null;
+      const [bq, bd] = repartir(pool.barrios);
+      if(bq.length){ limiteZonas = bq; anadir('vozbarrios', crearPreguntas('vozbarrios')); }
+      if(bd.length){ limiteZonas = bd; anadir('mapabarrios', crearPreguntas('mapabarrios')); }
+      const [dq, dd] = repartir(pool.distritos);
+      if(dq.length){ limiteZonas = dq; anadir('vozdistritos', crearPreguntas('vozdistritos')); }
+      if(dd.length){ limiteZonas = dd; anadir('mapadistritos', crearPreguntas('mapadistritos')); }
+      limiteZonas = null;
+      const [lq, ld] = repartir(pool.lugares);
+      anadir('voz', lq.map(preguntaVozLugar));
+      if(ld.length){ limiteLugares = ld; anadir('lugares', crearPreguntas('lugares')); }
+    }finally{ limiteRonda = null; limiteZonas = null; limiteLugares = null; }
+    if(typeof CJT !== 'undefined' && CJT.listo()){
+      // Lo del temario que está en el mapa: «¿Qué es?» lo marca (si es un
+      // sitio) y «¿Dónde está?» son sus preguntas de tocar en el mapa o en
+      // su plano. Las de tipo test (a, b, c, d), si se ha marcado.
+      if(pool.claves.length){
+        if(c.forma !== 'donde') CJT.geoClaves(pool.claves).filter(g => g.lugar && !g.vias.length && forma() === 'que')
+          .forEach(g => { const q = preguntaVozLugar(g.lugar); Object.assign(q, { id: g.id, nombre: g.nombre, detalle: g.tipo }); q.modo = 'voz'; qs.push(q); });
+        anadir('temario', CJT.preguntasDeClaves(pool.claves).filter(q => q.respuesta === 'opciones' && !q.plano ? c.temario : c.forma !== 'que'));
+      }
+      if(pool.temFallos) anadir('temario', CJT.preguntasFalladas());
+    }
+    return barajar(qs);
+  }
+  async function empezarRepaso(){
+    try{ await Promise.all([cargarLeaflet(), cargarDatos()]); }catch(e){ uiToast(e.message, 'error'); return; }
+    if(typeof CJT !== 'undefined'){ try{ await CJT.cargar(); }catch(e){} }
+    actualizarFiltro();
+    const c = cfgRepaso();
+    if(!c.fallos && !c.visto && !c.mandado && !c.lista){ uiToast('Elige qué quieres repasar.', 'info'); return; }
+    const pool = poolRepaso(c);
+    const crear = () => preguntasRepaso(c, pool);
+    const qs = crear();
+    if(!qs.length){ uiToast('No hay nada que repasar con esto. Elige otra cosa (o marca «+ A repasar» en Aprender).', 'info'); return; }
+    empezarMixta('Repasar', qs, { tipo: 'repaso' }, crear);
+  }
+  function repasarHtml(){
+    const c = cfgRepaso();
+    if(typeof CJT !== 'undefined' && !CJT.listo()) CJT.cargar().then(() => { if(vistaActual === 'inicio' && subInicio === 'repasar') pintarInicio(); }, () => {});
+    const n = k => k.toLocaleString('es-ES');
+    const nf = resumenFallos().total;
+    const nv = new Set(callesAprendidas().map(v => v.nombre)).size + zonasAprendidas(false).length + zonasAprendidas(true).length + lugaresAprendidos().length + vistos('t').length;
+    const nt = tareasActivas().length, nl = contarLista();
+    const check = (k, titulo, sub, vacio) => '<button type="button" class="cjr-op' + (c[k] ? ' on' : '') + '" aria-pressed="' + !!c[k] + '" onclick="CJ.cambiarRepaso(\'' + k + '\')">' +
+      '<span class="cje-check' + (c[k] ? ' on' : '') + '">' + (c[k] ? svgIcono('M20 6 9 17l-5-5') : '') + '</span>' +
+      '<span class="cjr-op-txt"><b>' + titulo + '</b><small>' + sub + '</small></span>' + (vacio ? '' : '') + '</button>';
+    const forma = (k, titulo, sub) => '<button type="button" role="radio" aria-checked="' + (c.forma === k) + '" class="cjr-forma' + (c.forma === k ? ' on' : '') + '" onclick="CJ.cambiarRepaso(\'forma\', \'' + k + '\')"><b>' + titulo + '</b><small>' + sub + '</small></button>';
+    return '<div class="cj-seccion cj-paso"><span class="cj-paso-n">1</span>Qué quieres repasar</div><div class="cj-card cjr-card">' +
+        check('fallos', 'Lo que fallas', nf ? n(nf) + (nf === 1 ? ' cosa' : ' cosas') : 'Nada ahora mismo') +
+        check('visto', 'Lo que has marcado en Aprender', nv ? n(nv) + ' · con «+ A repasar»' : 'En Aprender, toca algo y dale a «+ A repasar»') +
+        check('mandado', 'Lo que te has mandado', nt ? nt + (nt === 1 ? ' tarea' : ' tareas') : 'Nada mandado') +
+        '<div class="cjr-lista">' + check('lista', 'Elegir de la lista de Aprender', nl ? n(nl) + ' elegidas' : 'Lo que tú quieras, cosa a cosa') +
+          (c.lista ? '<button type="button" class="cjr-cambiar" onclick="CJ.irA(\'repasoelegir\')">' + (nl ? 'Cambiar' : 'Elegir') + ' ›</button>' : '') + '</div>' +
+      '</div>' +
+      '<div class="cj-seccion cj-paso"><span class="cj-paso-n">2</span>Cómo</div><div class="cjr-formas" role="radiogroup">' +
+        forma('que', '¿Qué es?', 'Te lo marco') + forma('donde', '¿Dónde está?', 'Lo tocas') + forma('mezcla', 'Mezclado', 'De las dos') +
+      '</div>' +
+      '<div class="cj-card cjr-card">' + check('temario', 'Y las preguntas del temario', 'Tipo test (a, b, c, d) de lo elegido, también lo que no va en el mapa') + '</div>' +
+      '<button type="button" class="cjr-empezar" onclick="CJ.empezarRepaso()">Empezar<small>sin límite, paras cuando quieras</small></button>';
+  }
+  function repasoElegirHtml(){
+    if(!eleccionPropia) empezarElegir();
+    return '<div class="cj-repaso-vacio cjr-nota">Marca lo que quieras repasar: una fila entera, un distrito o cosa a cosa.</div>' + elegirHtml() +
+      '<button type="button" class="cjr-empezar cjr-listo" onclick="CJ.listoElegirRepaso()">Listo</button>';
+  }
+  function listoElegirRepaso(){ const c = cfgRepaso(); c.lista = contarLista() > 0; guardarCfgRepaso(); irA('repasar'); }
   // Aprender: ver en el mapa, con su nombre, los distritos, los barrios,
   // todas las calles (sin lo del profesor), las plazas y los lugares por
   // tipo; y el temario. Se toca cualquier cosa (o se elige de la lista) y
@@ -3104,13 +3261,13 @@ const CJ = (function(){
     ver(k);
   }
   // Una ronda con preguntas de varios modos (cada una lleva el suyo).
-  function empezarMixta(titulo, qs, guia){
+  function empezarMixta(titulo, qs, guia, sinFin){
     if(!qs.length){ uiToast('No hay nada que preguntar.', 'info'); return; }
     actualizarFiltro();
     desdeTemario = false;
     verTemario = null;
     ronda = { id: nuevoUid(), preguntas: qs, i: 0, aciertos: 0, respondidas: 0, fallos: [], respondida: false, zona, tareaId: null,
-      mixta: true, titulo, encuadre: null };
+      mixta: true, titulo, encuadre: null, sinFin: sinFin || null };
     rondaGuiada = guia;
     modo = ronda.preguntas[0].modo;
     mostrarVista('juego');
@@ -3441,7 +3598,7 @@ const CJ = (function(){
       const [hab, s] = k.split('|'), id = Number(s);
       let c = null;
       if(HAB_CALLES.includes(hab) && id > 0 && id < ID_TEMARIO){ const v = datos.viaPorId.get(id); if(v) c = 'v:' + v.nombre; }
-      else if(hab === 'lugares' && id < 0) c = 'l:' + (-id);
+      else if((hab === 'lugares' || hab === 'nombre') && id < 0) c = 'l:' + (-id);
       else if(hab === 'barrios' && porIdBarrio.has(id)) c = 'b:' + porIdBarrio.get(id);
       if(!c) return;
       const e = estadoDe(p);
@@ -4926,10 +5083,10 @@ const CJ = (function(){
     acabarSeleccion(null);
   }
 
-  function textoAciertos(){ return ronda.aciertos + (ronda.aciertos === 1 ? ' acierto' : ' aciertos'); }
+  function textoAciertos(){ return ronda.sinFin ? ronda.aciertos + ' bien · ' + (ronda.respondidas - ronda.aciertos) + ' mal' : ronda.aciertos + (ronda.aciertos === 1 ? ' acierto' : ' aciertos'); }
   function pintarCabecera(){
     const q = ronda.preguntas[ronda.i];
-    el('cjContador').textContent = (ronda.i + 1) + ' / ' + ronda.preguntas.length;
+    el('cjContador').textContent = ronda.sinFin ? ronda.respondidas + (ronda.respondidas === 1 ? ' hecha' : ' hechas') : (ronda.i + 1) + ' / ' + ronda.preguntas.length;
     el('cjAciertos').textContent = textoAciertos();
     el('cjPreguntaLabel').textContent = q.etiqueta;
     el('cjPregunta').textContent = q.texto;
@@ -4949,6 +5106,7 @@ const CJ = (function(){
 
   function siguientePregunta(primera){
     if(!primera) ronda.i++;
+    if(ronda.i >= ronda.preguntas.length && ronda.sinFin) ronda.preguntas.push(...ronda.sinFin());
     if(ronda.i >= ronda.preguntas.length){ terminar(); return; }
     // Solo fallos: cada pregunta, con su modo.
     if(ronda.mixta && ronda.preguntas[ronda.i].modo !== modo){
@@ -5008,12 +5166,15 @@ const CJ = (function(){
     ronda.respondidas++;
     const q = ronda.preguntas[ronda.i];
     if(acierto) ronda.aciertos++; else ronda.fallos.push(q);
+    // Repasar sin límite: lo fallado vuelve a salir unas preguntas más adelante.
+    if(!acierto && ronda.sinFin) ronda.preguntas.splice(ronda.i + 4 + Math.floor(Math.random() * 4), 0, Object.assign({}, q));
     if(rondaGuiada && rondaGuiada.tipo === 'vuelta' && q.via) marcarVista(rondaGuiada.modo, [q.via.nombre]);
     anotarIntento(q.id, modoIntento || MODOS[modo].registra || modo, acierto, distancia);
     el('cjResultado').className = 'cj-resultado ' + (acierto ? 'ok' : 'ko');
     el('cjResultadoTexto').innerHTML = textoHtml;
     el('cjAciertos').textContent = textoAciertos();
-    el('cjSiguiente').textContent = ronda.i + 1 >= ronda.preguntas.length ? 'Ver resultado' : 'Siguiente';
+    if(ronda.sinFin) el('cjContador').textContent = ronda.respondidas + (ronda.respondidas === 1 ? ' hecha' : ' hechas');
+    el('cjSiguiente').textContent = ronda.i + 1 >= ronda.preguntas.length && !ronda.sinFin ? 'Ver resultado' : 'Siguiente';
     tarjetaNota(true);
   }
 
@@ -5398,8 +5559,9 @@ const CJ = (function(){
   }
 
   function terminar(){
-    const total = ronda.preguntas.length;
-    const fallos = ronda.fallos;
+    const sinFin = !!ronda.sinFin;
+    const total = sinFin ? ronda.respondidas : ronda.preguntas.length;
+    const fallos = sinFin ? [...new Map(ronda.fallos.map(q => [q.modo + '|' + q.id, q])).values()] : ronda.fallos;
     const m = modo;
     const mixta = !!ronda.mixta;
     const titulo = mixta ? ronda.titulo : m === 'temario' ? 'Temario · ' + ronda.titulo : MODOS[m].titulo;
@@ -5411,12 +5573,12 @@ const CJ = (function(){
         '<div class="cj-pct"><span>' + ronda.aciertos + '</span> de ' + total + '</div>' +
         notaTarea(m) +
         (fallos.length
-          ? '<div class="cj-fin-sub">Para repasar (saldrán primero la próxima vez):</div><ul class="cj-fallos">' +
+          ? '<div class="cj-fin-sub">' + (sinFin ? 'Lo que has fallado (sale en «Lo que fallas»):' : 'Para repasar (saldrán primero la próxima vez):') + '</div><ul class="cj-fallos">' +
             fallos.map(q => '<li>' + escapeHtml(q.nombre) + (m === 'parque' ? ' <span class="cj-dir">· ' + escapeHtml(PARQUES[q.parque]) + '</span>' : '') +
               (m === 'temario' && q.resumen && q.respuesta === 'opciones' ? ' <span class="cj-dir">· ' + escapeHtml(q.resumen) + '</span>' : '') + '</li>').join('') + '</ul>'
           : '<div class="cj-fin-sub">¡Todas bien!</div>') +
         '<div class="cj-fin-actions">' +
-          '<button type="button" class="btn btn-primary btn-light" onclick="' + (mixta ? 'CJ.empezarFallos()' : m === 'temario' ? 'CJ.otraRonda()' : rondaGuiada ? 'CJ.seguirGuiada()' : 'CJ.empezar(\'' + m + '\'' + (m === 'lugares' ? ', \'' + grupoLugares + '\'' : '') + ')') + '">' +
+          '<button type="button" class="btn btn-primary btn-light" onclick="' + (sinFin ? 'CJ.empezarRepaso()' : mixta ? 'CJ.empezarFallos()' : m === 'temario' ? 'CJ.otraRonda()' : rondaGuiada ? 'CJ.seguirGuiada()' : 'CJ.empezar(\'' + m + '\'' + (m === 'lugares' ? ', \'' + grupoLugares + '\'' : '') + ')') + '">' +
             (rondaGuiada && rondaGuiada.tipo !== 'nivel' ? 'Seguir repasando' : rondaGuiada ? 'Seguir aprendiendo' : 'Otra ronda') + '</button>' +
           '<button type="button" class="btn btn-ghost" onclick="CJ.salir()">Volver</button>' +
         '</div>' +
@@ -5447,6 +5609,7 @@ const CJ = (function(){
   }
   async function confirmarSalir(){
     if(modo === 'seleccion'){ cancelarSeleccion(); return; }
+    if(ronda && ronda.sinFin){ if(ronda.respondidas){ pararEscucha(); terminar(); } else salir(); return; }
     if(modo !== 'estudio' && modo !== 'nombrar' && ronda && ronda.i > 0 && !(await uiConfirm('¿Salir de la ronda? Lo que ya has respondido queda guardado.'))) return;
     salir();
   }
@@ -5466,7 +5629,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, cambiarRepaso, empezarRepaso, listoElegirRepaso, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)
