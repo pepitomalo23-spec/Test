@@ -1567,6 +1567,8 @@ const CJT = (function(){
   function falladas(){ return itemsFallados().map(x => ({ id: x.id, nombre: textoItem(x) })); }
   // Para «Hacer solo fallos»: las preguntas de lo fallado del temario.
   function preguntasFalladas(){ return crearPreguntas(itemsFallados()); }
+  // Los ids de las cosas de unas claves (lo ya mandado, en «Mandarme algo»).
+  function idsDeClaves(claves){ return T && claves.length ? itemsDe(claves).map(x => x.id) : []; }
   // Repasar (js/callejero.js): todas las preguntas de unas claves, sin tope.
   function preguntasDeClaves(claves){ return T && claves.length ? crearPreguntas(itemsDe(claves), false, true, Infinity) : []; }
   function repasarFalladas(){
@@ -1801,7 +1803,7 @@ const CJT = (function(){
 
   return {
     cargar, listo, contarSecciones, clavesSecciones, listaBarrios, clavesBarrio, clavesDistrito, comprimir, itemsCategoria, verEnFicha, auditar, repasarClaves, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
-    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, preguntasFalladas, preguntasDeClaves, fuente, reintentar, geoClaves,
+    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, preguntasFalladas, preguntasDeClaves, idsDeClaves, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
     clicPlano, pintarPlano, marcarPlano, verEnPlano

@@ -1021,3 +1021,17 @@
   .cjr-empezar small{ font-size:12.5px; font-weight:600; opacity:.85; }
   .cjr-listo{ position:sticky; bottom:12px; }
   .cjr-nota{ margin-bottom:10px; }
+
+  /* ---------- Mandarme algo: lo ya mandado en gris y elegir en el mapa ---------- */
+  .cje-fila.ya .cje-txt, .cje-item.ya{ opacity:.5; }
+  .cje-ya{ border-style:dashed; cursor:default; }
+  .cje-item.ya em{ margin-left:auto; font-style:normal; font-size:12px; color: var(--muted); white-space:nowrap; }
+  .cje-mapa{ flex-shrink:0; display:flex; align-items:center; gap:5px; padding:6px 10px; border-radius:99px; border:1px solid var(--line); background: var(--card-hi, var(--card));
+    color: var(--text); font: inherit; font-size:12.5px; font-weight:700; cursor:pointer; }
+  .cje-mapa svg{ width:15px; height:15px; }
+  .cje-panel-cab{ display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:16px; }
+  .cje-panel-listo{ padding:8px 16px; border-radius:99px; border:0; background: var(--coral); color:#fff; font: inherit; font-size:14px; font-weight:700; cursor:pointer; }
+  .cje-panel-lista{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; max-height:120px; overflow-y:auto; }
+  .cje-chip{ display:inline-flex; align-items:center; gap:6px; padding:4px 6px 4px 10px; border-radius:99px; background: rgba(52,211,153,.14); border:1px solid rgba(52,211,153,.45); font-size:12.5px; }
+  .cje-chip button{ border:0; background:none; color: var(--muted); font-size:12px; cursor:pointer; padding:0 4px; }
+  .cje-gris{ display:inline-block; width:10px; height:10px; border-radius:3px; background:#8B8F98; margin-right:6px; vertical-align:-1px; }

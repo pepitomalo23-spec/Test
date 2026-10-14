@@ -2858,7 +2858,7 @@ const CJ = (function(){
     pintarInicio();
   }
   // Lo elegido en la lista de Aprender (la misma que la de «Mandarme algo»).
-  function contarLista(){ return eleccionPropia ? [...eleccionPropia.sel.values()].reduce((a, x) => a + x.size, 0) : 0; }
+  function contarLista(){ return eleccionPropia && eleccionPropia.repaso ? [...eleccionPropia.sel.values()].reduce((a, x) => a + x.size, 0) : 0; }
   const temarioClaves = ids => typeof CJT === 'undefined' ? [] : [...new Set(ids.map(id => { const k = CJT.claveDeItem(id); return k ? k + '/' + id : null; }).filter(Boolean))];
   // Todo lo de las fuentes elegidas: calles (por nombre), barrios, distritos,
   // lugares, claves del temario y las preguntas del temario fallado.
@@ -2892,7 +2892,7 @@ const CJ = (function(){
         (t.fichas || []).forEach(k => claves.add(k));
       });
     }
-    if(c.lista && eleccionPropia){
+    if(c.lista && eleccionPropia && eleccionPropia.repaso){
       const r = resultadoElegir();
       r.vias.forEach(id => via(datos.viaPorId.get(Number(id))));
       r.lugares.forEach(id => lugar(datos.lugarPorId.get(Number(id))));
@@ -2986,7 +2986,7 @@ const CJ = (function(){
       '<button type="button" class="cjr-empezar" onclick="CJ.empezarRepaso()">Empezar<small>sin límite, paras cuando quieras</small></button>';
   }
   function repasoElegirHtml(){
-    if(!eleccionPropia) empezarElegir();
+    if(!eleccionPropia || !eleccionPropia.repaso) empezarElegir(true);
     return '<div class="cj-repaso-vacio cjr-nota">Marca lo que quieras repasar: una fila entera, un distrito o cosa a cosa.</div>' + elegirHtml() +
       '<button type="button" class="cjr-empezar cjr-listo" onclick="CJ.listoElegirRepaso()">Listo</button>';
   }
@@ -3310,7 +3310,33 @@ const CJ = (function(){
      mapa (lugares) y lo del temario (fichas). */
   let eleccionPropia = null;   // { sel: Map(fila → Set(índices)), abierta, grupos: Set(fila|grupo abiertos) }
   const cacheElegir = new Map();
-  function empezarElegir(){ eleccionPropia = { sel: new Map(), abierta: null, grupos: new Set() }; cacheElegir.clear(); }
+  function empezarElegir(repaso){ eleccionPropia = { sel: new Map(), abierta: null, grupos: new Set(), repaso: !!repaso, ya: null }; cacheElegir.clear(); }
+  /* Lo que ya te has mandado (en tus tareas): sale en gris y no se puede
+     volver a mandar (en la lista y en el mapa). En Repasar no cuenta. */
+  function yaMandado(){
+    if(eleccionPropia.ya) return eleccionPropia.ya;
+    const ts = tareasActivas();
+    const vias = new Set(ts.flatMap(t => (t.vias || []).map(Number))), lugares = new Set(ts.flatMap(t => (t.lugares || []).map(Number)));
+    const zonas = ts.filter(t => t.zona !== null && t.zona !== undefined).map(t => filtroDe('t:' + t.id, Object.assign({}, t, { vias: [], lugares: [] })));
+    const fichas = ts.flatMap(t => t.fichas || []);
+    const tem = new Set(typeof CJT !== 'undefined' && CJT.listo() && fichas.length ? CJT.idsDeClaves(fichas) : []);
+    eleccionPropia.ya = { vias, lugares, zonas, tem, nada: !ts.length };
+    return eleccionPropia.ya;
+  }
+  function itemMandado(it){
+    if(!eleccionPropia || eleccionPropia.repaso || !datos) return false;
+    const y = yaMandado();
+    if(y.nada) return false;
+    const temTodo = ks => { const ids = typeof CJT !== 'undefined' ? CJT.idsDeClaves(ks) : []; return ids.length > 0 && ids.every(id => y.tem.has(id)); };
+    if(it.distritoFila) return temTodo(CJT.clavesDistrito(it.distritoFila));
+    if(it.barrioFila) return temTodo(CJT.clavesBarrio(it.nombre));
+    if(it.temario && it.id) return y.tem.has(Number(it.id));
+    if(it.lugar && it.lugar.id > 0) return y.lugares.has(it.lugar.id) || y.zonas.some(f => f.lugar(it.lugar));
+    const vs = it.vias || [];
+    return vs.length > 0 && vs.every(v => y.vias.has(v.id) || (v.ids || []).some(id => y.vias.has(id)) || y.zonas.some(f => f.via(v)));
+  }
+  // Las que se pueden elegir de una fila (sin lo ya mandado).
+  const libresDe = (its, idx) => (idx || its.map((x, i) => i)).filter(i => !its[i].mandado);
   // Las cosas de cada fila (null mientras se descarga algo).
   function itemsElegir(k){
     if(cacheElegir.has(k)) return cacheElegir.get(k);
@@ -3322,6 +3348,7 @@ const CJ = (function(){
     else if(k.startsWith('tem:') && typeof CJT !== 'undefined') its = CJT.itemsCategoria(k.slice(4).split('+'));
     if(its){
       its = its.slice().sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
+      its.forEach(it => { it.mandado = itemMandado(it); });
       cacheElegir.set(k, its);
     }
     return its;
@@ -3336,14 +3363,15 @@ const CJ = (function(){
     APRENDER.forEach((g, gi) => {
       h += '<div class="cj-seccion cj-paso"><span class="cj-paso-n">' + (g.aparte ? '·' : gi + 1) + '</span>' + escapeHtml(g.g) + '</div><div class="cj-card cj-aprender cje-card cj-cat-' + g.c + '">';
       g.filas.forEach(f => {
-        const its = itemsElegir(f.k), sel = eleccionPropia.sel.get(f.k), n = sel ? sel.size : 0, total = its ? its.length : 0;
+        const its = itemsElegir(f.k), sel = eleccionPropia.sel.get(f.k), n = sel ? sel.size : 0, total = its ? libresDe(its).length : 0, ya = its ? its.length - total : 0;
         const abierta = eleccionPropia.abierta === f.k, ka = escapeHtml(JSON.stringify(f.k));
-        h += '<div class="cje-fila' + (abierta ? ' abierta' : '') + '">' +
-          (its ? casilla(estadoDe3(n, total), 'CJ.elegirFila(' + ka + ')', 'Elegir todo: ' + f.t) : '<span class="cje-check cje-cargando"></span>') +
+        h += '<div class="cje-fila' + (abierta ? ' abierta' : '') + (its && !total && ya ? ' ya' : '') + '">' +
+          (its && total ? casilla(estadoDe3(n, total), 'CJ.elegirFila(' + ka + ')', 'Elegir todo: ' + f.t) : its ? '<span class="cje-check cje-ya"></span>' : '<span class="cje-check cje-cargando"></span>') +
           '<button type="button" class="cje-txt" onclick="CJ.abrirElegir(' + ka + ')"' + (its ? '' : ' disabled') + '>' +
             '<span class="cj-cat-icono">' + svgIcono(ICONOS[f.i] || ICONOS.localiza) + '</span>' +
-            '<span class="cj-cat-txt"><b>' + escapeHtml(f.t) + '</b><small>' + (!its ? 'Cargando…' : n ? n.toLocaleString('es-ES') + ' de ' + total.toLocaleString('es-ES') + ' elegidas' : total.toLocaleString('es-ES') + ' · toca para elegir una a una') + '</small></span>' +
-            '<svg class="cje-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button></div>' +
+            '<span class="cj-cat-txt"><b>' + escapeHtml(f.t) + '</b><small>' + (!its ? 'Cargando…' : !total && ya ? 'Ya te lo has mandado todo' : (n ? n.toLocaleString('es-ES') + ' de ' + total.toLocaleString('es-ES') + ' elegidas' : total.toLocaleString('es-ES') + ' · toca para elegir una a una') + (ya ? ' · ' + ya.toLocaleString('es-ES') + ' ya mandadas' : '')) + '</small></span>' +
+            '<svg class="cje-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>' +
+          (its && total && conMapa(f.k, its) ? '<button type="button" class="cje-mapa" onclick="CJ.elegirEnMapa(' + ka + ')" aria-label="Elegir en el mapa: ' + escapeHtml(f.t) + '">' + svgIcono(ICONOS.mapa || ICONOS.localiza) + '<span>Mapa</span></button>' : '') + '</div>' +
           (abierta && its ? detalleElegir(f.k, its) : '');
       });
       h += '</div>';
@@ -3355,13 +3383,15 @@ const CJ = (function(){
     const sel = selDe(k), ka = escapeHtml(JSON.stringify(k));
     const grupos = ordenDistritos(its.map(it => it.grupo || 'Otros'));
     return '<div class="cje-detalle">' + grupos.map(g => {
-      const idx = its.map((it, i) => i).filter(i => (its[i].grupo || 'Otros') === g);
+      const idx = its.map((it, i) => i).filter(i => (its[i].grupo || 'Otros') === g), libres = libresDe(its, idx);
       const n = idx.filter(i => sel.has(i)).length, ga = escapeHtml(JSON.stringify(g)), abierto = eleccionPropia.grupos.has(k + '|' + g) || grupos.length === 1;
       return '<div class="cje-grupo">' +
-        '<div class="cje-grupo-cab">' + casilla(estadoDe3(n, idx.length), 'CJ.elegirGrupo(' + ka + ',' + ga + ')', 'Elegir todo ' + g) +
-          '<button type="button" class="cje-grupo-txt" onclick="CJ.abrirGrupoElegir(' + ka + ',' + ga + ')"><b>' + escapeHtml(conNumero(g)) + '</b><span>' + n + ' de ' + idx.length + '</span>' +
+        '<div class="cje-grupo-cab">' + (libres.length ? casilla(estadoDe3(n, libres.length), 'CJ.elegirGrupo(' + ka + ',' + ga + ')', 'Elegir todo ' + g) : '<span class="cje-check cje-ya"></span>') +
+          '<button type="button" class="cje-grupo-txt" onclick="CJ.abrirGrupoElegir(' + ka + ',' + ga + ')"><b>' + escapeHtml(conNumero(g)) + '</b><span>' + (libres.length ? n + ' de ' + libres.length : 'ya mandado') + '</span>' +
           (grupos.length > 1 ? '<svg class="cje-flecha' + (abierto ? ' abierta' : '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>' : '') + '</button></div>' +
-        (abierto ? '<div class="cje-items">' + idx.map(i => '<div class="cje-item">' + casilla(sel.has(i) ? 2 : 0, 'CJ.elegirItem(' + ka + ',' + i + ')', its[i].nombre) +
+        (abierto ? '<div class="cje-items">' + idx.map(i => its[i].mandado
+          ? '<div class="cje-item ya"><span class="cje-check cje-ya"></span><span>' + escapeHtml(its[i].nombre) + '</span><em>ya mandada</em></div>'
+          : '<div class="cje-item">' + casilla(sel.has(i) ? 2 : 0, 'CJ.elegirItem(' + ka + ',' + i + ')', its[i].nombre) +
           '<span>' + escapeHtml(its[i].nombre) + '</span></div>').join('') + '</div>' : '') +
       '</div>';
     }).join('') + '</div>';
@@ -3371,20 +3401,80 @@ const CJ = (function(){
   function elegirFila(k){
     const its = itemsElegir(k);
     if(!its) return;
-    const sel = selDe(k);
-    if(sel.size >= its.length) sel.clear(); else its.forEach((it, i) => sel.add(i));
+    const sel = selDe(k), libres = libresDe(its);
+    if(sel.size >= libres.length) sel.clear(); else libres.forEach(i => sel.add(i));
     repintarElegir();
   }
   function abrirElegir(k){ eleccionPropia.abierta = eleccionPropia.abierta === k ? null : k; repintarElegir(); }
   function elegirGrupo(k, g){
     const its = itemsElegir(k), sel = selDe(k);
-    const idx = its.map((it, i) => i).filter(i => (its[i].grupo || 'Otros') === g);
+    const idx = libresDe(its, its.map((it, i) => i).filter(i => (its[i].grupo || 'Otros') === g));
     const todos = idx.every(i => sel.has(i));
     idx.forEach(i => todos ? sel.delete(i) : sel.add(i));
     repintarElegir();
   }
   function abrirGrupoElegir(k, g){ const c = k + '|' + g; eleccionPropia.grupos.has(c) ? eleccionPropia.grupos.delete(c) : eleccionPropia.grupos.add(c); repintarElegir(); }
-  function elegirItem(k, i){ const sel = selDe(k); sel.has(i) ? sel.delete(i) : sel.add(i); repintarElegir(); }
+  function elegirItem(k, i){ const its = itemsElegir(k); if(its && its[i] && its[i].mandado) return; const sel = selDe(k); sel.has(i) ? sel.delete(i) : sel.add(i); repintarElegir(); }
+  /* ---------- Elegir en el mapa (a pantalla completa, como en Aprender) ----------
+     Lo de la fila en azul, lo elegido en verde y lo ya mandado en gris. Al
+     tocar algo, se elige (y su ficha deja quitarlo); abajo, lo elegido y «Listo». */
+  const conMapa = (k, its) => k !== 'tem:datos' && its.some(it => (it.vias && it.vias.length) || it.lugar || it.barrio || it.barrios || it.distrito || it.distritoFila || it.barrioFila);
+  // Las cosas de la fila para el visor: los distritos y barrios, con su zona.
+  function itemsMapaElegir(k){
+    const its = itemsElegir(k) || [];
+    return its.map(it => {
+      if(it.distritoFila) return Object.assign(it, { vias: it.vias || [], distrito: it.distritoFila, barrios: datos.barrios.filter(b => b.distrito === it.distritoFila), tipo: 'Distrito' });
+      if(it.barrioFila) return Object.assign(it, { vias: it.vias || [], barrio: it.barrioFila.barrio || null, tipo: 'Barrio', grupo: it.grupo });
+      if(!it.vias) it.vias = [];
+      return it;
+    }).filter(it => it.vias.length || it.lugar || it.barrio || it.barrios);
+  }
+  let filaMapa = null;   // la fila que se está eligiendo en el mapa
+  async function elegirEnMapa(k){
+    const f = filaAprender(k);
+    const items = itemsMapaElegir(k);
+    if(!items.length){ uiToast('Esto no va en el mapa.', 'info'); return; }
+    filaMapa = k;
+    await estudio({ titulo: (eleccionPropia.repaso ? 'Repasar · ' : 'Mandarme algo · ') + (f ? f.t : ''), items, foco: -1, distritos: [], porGrupos: true, lista: 'Lista',
+      elegir: k, pista: 'Toca lo que quieras' + (eleccionPropia.repaso ? ' repasar' : ' mandarte') });
+    panelElegir();
+  }
+  const colorElegir = it => it.mandado ? '#8B8F98' : selDe(filaMapa).has((itemsElegir(filaMapa) || []).indexOf(it)) ? '#34D399' : null;
+  function alternarElegidoMapa(it, solo){
+    const its = itemsElegir(filaMapa), i = its ? its.indexOf(it) : -1;
+    if(i < 0 || it.mandado) return;
+    const sel = selDe(filaMapa);
+    if(sel.has(i)){ if(!solo) sel.delete(i); } else sel.add(i);
+    pintarVerTemario(true);
+  }
+  // Abajo: cuántas, la lista (con quitar) y «Listo».
+  function panelElegir(){
+    if(!verTemario || !verTemario.elegir) return;
+    const its = itemsElegir(filaMapa) || [], sel = selDe(filaMapa);
+    const elegidas = [...sel].map(i => its[i]).filter(Boolean), ya = its.filter(it => it.mandado).length;
+    el('cjInfo').innerHTML = '<div class="cje-panel">' +
+      '<div class="cje-panel-cab"><b>' + (elegidas.length === 1 ? '1 elegida' : elegidas.length + ' elegidas') + '</b>' +
+        '<button type="button" class="cje-panel-listo" onclick="CJ.listoMapa()">Listo ›</button></div>' +
+      (elegidas.length ? '<div class="cje-panel-lista">' + elegidas.slice(0, 60).map(it => '<span class="cje-chip">' + escapeHtml(it.nombre) +
+          '<button type="button" aria-label="Quitar ' + escapeHtml(it.nombre) + '" onclick="event.stopPropagation(); CJ.quitarElegidoMapa(' + its.indexOf(it) + ')">✕</button></span>').join('') +
+        (elegidas.length > 60 ? '<span class="cje-chip">y ' + (elegidas.length - 60) + ' más</span>' : '') + '</div>'
+        : '<div class="cj-info-extra">Toca en el mapa (o elige de la lista) lo que quieras' + (eleccionPropia.repaso ? ' repasar.' : ' mandarte.') + '</div>') +
+      (ya ? '<div class="cj-info-extra"><i class="cje-gris"></i>En gris, lo que ya te has mandado (' + ya + ').</div>' : '') + '</div>';
+    el('cjInfo').classList.remove('hidden');
+    el('cjPista').classList.add('hidden');
+    infoActual = panelElegir;
+  }
+  function quitarElegidoMapa(i){ selDe(filaMapa).delete(i); pintarVerTemario(true); panelElegir(); }
+  function quitarFichaMapa(){ const it = itemInfo; if(!it) return; alternarElegidoMapa(it); panelElegir(); }
+  function listoMapa(){
+    filaMapa = null;
+    const repaso = eleccionPropia.repaso;
+    eleccionPropia.ya = null;
+    verTemario = null;
+    modo = null;
+    if(repaso){ mostrarVista('inicio'); irA('repasoelegir'); return; }
+    if(typeof CJP !== 'undefined') CJP.volverAlFormulario();
+  }
   // Lo elegido, para la tarea: { vias, lugares, fichas, resumen, titulo, sinPreguntas }.
   function resultadoElegir(){
     const vias = new Set(), lugares = new Set(), fichas = new Set(), partes = [];
@@ -4649,7 +4739,7 @@ const CJ = (function(){
     if(ver && !capaPuntos.hasLayer(capaNombres)) capaPuntos.addLayer(capaNombres);
     if(!ver && capaPuntos.hasLayer(capaNombres)) capaPuntos.removeLayer(capaNombres);
   }
-  function pintarVerTemario(){
+  function pintarVerTemario(sinEncuadre){
     capaZona.clearLayers();
     capaPuntos.clearLayers();
     contornoDistritos(verTemario.distritos);
@@ -4660,13 +4750,15 @@ const CJ = (function(){
     if(!vigilandoNombres){ vigilandoNombres = true; mapa.on('zoomend', ponerNombres); }
     verTemario.items.forEach(it => {
       const bs = barriosItem(it);
+      // Eligiendo en el mapa: lo elegido en verde y lo ya mandado en gris.
+      const azul = (verTemario.elegir && colorElegir(it)) || '#4E9BF7';
       bs.forEach(b => {
-        L.polygon(b.anillos, it.color
+        L.polygon(b.anillos, it.color && !verTemario.elegir
           ? { color: it.distrito ? it.color : '#0b0b0b', weight: it.distrito ? 0 : 1, fillColor: it.color, fillOpacity: 0.4, interactive: false }
-          : { color: azul, weight: 2, fillColor: azul, fillOpacity: 0.08, interactive: false }).addTo(capaZona);
+          : { color: azul, weight: 2, fillColor: azul, fillOpacity: azul === '#4E9BF7' ? 0.08 : 0.3, interactive: false }).addTo(capaZona);
         b.anillos.forEach(a => a.forEach(p => pts.push(p)));
       });
-      if(it.distrito) L.polyline(contornoDistrito(it.distrito), { color: it.color || azul, weight: 2.5, opacity: 1, interactive: false }).addTo(capaZona);
+      if(it.distrito) L.polyline(contornoDistrito(it.distrito), { color: (!verTemario.elegir && it.color) || azul, weight: 2.5, opacity: 1, interactive: false }).addTo(capaZona);
       if(verTemario.nombres && bs.length) L.marker(puntoNombre(bs), {
         icon: L.divIcon({ className: 'cj-marcado-nombre' + (verTemario.nombresDesde ? ' cj-nombre-chico' : ''), html: '<span>' + escapeHtml(it.nombre) + '</span>', iconSize: null }),
         interactive: false, keyboard: false
@@ -4677,6 +4769,7 @@ const CJ = (function(){
       if(it.lugar) L.circleMarker([it.lugar.lat, it.lugar.lng], { radius: 7, color: '#fff', weight: 2, fillColor: azul, fillOpacity: 1, interactive: false }).addTo(capaPuntos);
       puntosItem(it).forEach(p => pts.push(p));
     });
+    if(sinEncuadre){ ponerNombres(); return; }
     const foco = verTemario.foco >= 0 ? verTemario.items[verTemario.foco] : null;
     const ptsFoco = foco ? puntosItem(foco) : [];
     const b = L.latLngBounds(ptsFoco.length ? ptsFoco : pts.length ? pts : [CENTRO]);
@@ -4722,7 +4815,8 @@ const CJ = (function(){
     const ds = it.distrito ? [] : [...new Set(bs.map(b => b.distrito).filter(Boolean))];
     const linea = (k, v) => v ? '<div class="cj-info-kv"><span>' + k + '</span>' + escapeHtml(v) + '</div>' : '';
     itemInfo = it;
-    const ks = clavesItem(it), yaRep = enRepaso(it);
+    if(verTemario.elegir && !it.mandado) alternarElegidoMapa(it, true);
+    const ks = verTemario.elegir ? [] : clavesItem(it), yaRep = enRepaso(it);
     el('cjInfo').innerHTML =
       '<div class="cj-info-tipo">' + escapeHtml(it.tipo) + '</div>' +
       '<div class="cj-info-nombre">' + escapeHtml(it.nombre) + '</div>' +
@@ -4730,6 +4824,9 @@ const CJ = (function(){
       linea('Calle', it.dir && it.lugar ? it.dir : '') +
       linea(bs.length > 1 ? 'Barrios' : 'Barrio', bs.slice(0, 4).map(b => b.nombre).join(', ') + (bs.length > 4 ? '…' : '')) +
       linea(ds.length > 1 ? 'Distritos' : 'Distrito', ds.map(conNumero).join(', ')) +
+      (verTemario.elegir ? (it.mandado ? '<div class="cj-info-extra"><i class="cje-gris"></i>Ya te lo has mandado.</div>'
+        : '<button type="button" class="cj-info-repaso on" onclick="event.stopPropagation(); CJ.quitarFichaMapa()">✓ Elegida · quitar</button>') +
+        '<button type="button" class="cj-info-repaso" onclick="event.stopPropagation(); CJ.panelElegir()">Ver lo elegido (' + selDe(filaMapa).size + ')</button>' : '') +
       (ks.length && currentUser ? '<button type="button" class="cj-info-repaso' + (yaRep ? ' on' : '') + '" onclick="CJ.alternarRepaso()">' + (yaRep ? '✓ En Repasar' : '+ A repasar') + '</button>' : '') +
       (it.filas26 && !it.calle26 && typeof CJ26 !== 'undefined' && CJ26.listo() ? '<div class="cj26-fila">' + CJ26.botonFilas(it.filas26) + '</div>' : it.calle26 ? boton26(it.calle26.nombre, it.calle26.tipo) : it.dir ? boton26(null, null, it.dir) : it.vias.length === 1 || (it.vias.length && it.vias.every(v => v.nombre === it.vias[0].nombre)) ? boton26(it.vias[0].nombre, it.vias[0].tipo) : '') +
       (it.lugar && it.lugar.id ? notaInfoHtml(claveLugar(it.lugar)) : it.vias.length ? notaInfoHtml(claveVia(it.vias[0])) : '');
@@ -5593,6 +5690,7 @@ const CJ = (function(){
     pararEscucha();
     if(ronda && modo !== 'estudio' && !(modo === 'nombrar' && nombrar && nombrar.terminado)) guardarRondaLocal();
     if(ronda && modo !== 'estudio') refrescarTrasRonda();
+    if(verTemario && verTemario.elegir){ listoMapa(); return; }
     nombrar = null;
     ronda = null;
     modo = null;
@@ -5629,7 +5727,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, cambiarRepaso, empezarRepaso, listoElegirRepaso, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, elegirEnMapa, panelElegir, quitarElegidoMapa, quitarFichaMapa, listoMapa, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, cambiarRepaso, empezarRepaso, listoElegirRepaso, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)

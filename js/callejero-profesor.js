@@ -314,6 +314,8 @@ const CJP = (function(){
     const unico = alumnos && alumnos.length === 1 ? alumnos[0].alumno_id : null;
     nuevaTarea(unico, { partes: new Set(['temario']), fichas: claves.slice(), titulo: (titulo || '').slice(0, 120), volverA: null, volverTemario: true });
   }
+  // Al volver de elegir en el mapa: el formulario tal cual estaba.
+  function volverAlFormulario(){ if(borrador) pintarFormulario(); else { CJ.mostrarVista('inicio'); CJ.repintar(); } }
   function volverAlTemario(){ CJ.mostrarVista('temario'); CJT.repintar(); }
   function editarTarea(id){
     const t = ficha && ficha.tareas.find(x => x.id === id);
@@ -649,6 +651,6 @@ const CJP = (function(){
   function reiniciar(){ alumnos = null; alumnosAt = 0; ficha = null; borrador = null; hilo = null; }
 
   return { pintarAlumnos, abrirAlumno, volverALista, cambiarPestana, cambiarZonaFicha, alternarRondas, tareaConFalladas,
-    nuevaTarea, nuevaPropia, editarTarea, irAlPaso, alternarParte, elegirEnMapa, elegirEnTemario, mandarTemario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
+    nuevaTarea, nuevaPropia, editarTarea, irAlPaso, alternarParte, elegirEnMapa, elegirEnTemario, mandarTemario, volverAlFormulario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
     abrirMensajes, enviarMensaje, cerrarMensajes, reiniciar };
 })();
