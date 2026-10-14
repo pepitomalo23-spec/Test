@@ -182,7 +182,7 @@ const CJT = (function(){
     if(!T || !(claves || []).length) return [];
     return itemsDe(claves).map(x => {
       const g = geoDe(x);
-      return g && (g.vias.length || g.lugar) ? { nombre: textoItem(x), tipo: x._s.titulo, vias: g.vias, lugar: g.lugar } : null;
+      return g && (g.vias.length || g.lugar) ? { id: x.id, nombre: textoItem(x), tipo: x._s.titulo, vias: g.vias, lugar: g.lugar } : null;
     }).filter(Boolean);
   }
   // Punto de referencia de un elemento (para buscar los cercanos).
@@ -744,7 +744,7 @@ const CJT = (function(){
     const ts = CJ.tareasDelRepaso().filter(t => (t.fichas || []).length);
     if(hay && !ts.length){ uiToast('Marca una tarea con «Ya la he visto» y su temario saldrá aquí.', 'info'); return; }
     const claves = ts.length ? temarioMandado() : T.fichas.map(f => f.id);
-    preguntar(claves, ts.length === 1 ? ts[0].id : null, ts.length ? 'Lo que te ha mandado · sin mapa' : 'Temario · sin mapa', ts.length === 1 ? null : 'f:sinmapa', true);
+    preguntar(claves, ts.length === 1 ? ts[0].id : null, ts.length ? 'Lo que te has mandado · sin mapa' : 'Temario · sin mapa', ts.length === 1 ? null : 'f:sinmapa', true);
   }
   function preguntarTarea(id){
     const t = CJ.tareas().find(x => x.id === id);
@@ -948,10 +948,10 @@ const CJT = (function(){
         '<br><button type="button" class="btn btn-light" onclick="CJT.volver()">Volver</button></div>';
       return;
     }
-    // En una tarea, los apartados de los que se ha elegido solo una parte (o
-    // el único, si no lleva también calles) se abren ya desplegados.
+    // En una tarea, por partes (formulario: «más claro, rápido y
+    // estructurado», no todo seguido): todas plegadas; si solo tiene una, abierta.
     const unico = vista && vista.tarea && !CJ.tieneCalles(vista.tarea);
-    if(vista && vista.tarea && !abiertas.size) seccionesDe(vista.claves).forEach((s, i, todas) => { if((todas.length === 1 && unico) || !s.items.every(vista.inc)) abiertas.add(claveDe(s)); });
+    if(vista && vista.tarea && !abiertas.size && unico && seccionesDe(vista.claves).length === 1) abiertas.add(claveDe(seccionesDe(vista.claves)[0]));
     pintar();
   }
   // Atrás: del documento abierto desde la lista, a la lista; eligiendo, de la
@@ -1032,7 +1032,7 @@ const CJT = (function(){
     if(!pestanas.some(p => p[0] === vista.pestana)) vista.pestana = 'lista';
     const p = vista.pestana;
     root.innerHTML =
-      cabecera(t ? 'Tarea de tu profesor' : vista.acumulado ? 'De tu profesor' : vista.soloVer ? 'Aprender' : 'Temario', vista.titulo, r.total && !vista.soloVer ? pct(r) : null) +
+      cabecera(t ? (t.profesor_id === t.alumno_id ? 'Tu tarea' : 'Tarea de tu profesor') : vista.acumulado ? 'De tu profesor' : vista.soloVer ? 'Aprender' : 'Temario', vista.titulo, r.total && !vista.soloVer ? pct(r) : null) +
       (t ? tarjetaTarea(t) : '') +
       (esProfe() && !t && !vista.acumulado ? barraMandar() : '') +
       '<div class="cj-segmento cj-pestanas cjt-pestanas" role="tablist">' + pestanas.map(([k, texto]) =>
@@ -1093,6 +1093,16 @@ const CJT = (function(){
   function htmlLista(fichas, secciones, prog){
     const calles = callesPropias();
     const titulos = fichas.length > 1 || calles || vista.acumulado;
+    // Una tarea, por partes: numeradas, con su progreso y «sigue por aquí» en la primera sin acabar.
+    if(vista.tarea){
+      const partes = fichas.flatMap(f => secciones.filter(s => s._f === f));
+      const hechas = partes.map(s => { const r = cuenta(prog, s.items.filter(vista.inc)); return r.total > 0 && pct(r) === 100; });
+      const sig = hechas.indexOf(false);
+      const n = partes.length + (calles ? 1 : 0);
+      return '<div class="cjt-partes-ayuda">' + (n > 1 ? n + ' partes. ' : '') + 'Ábrela, mírala en el mapa y pregúntatela; luego, la siguiente.</div>' +
+        '<div class="cj-card cjt-secs cjt-partes">' + partes.map((s, i) => tarjetaSeccion(s, prog, s.items.filter(vista.inc), { n: i + 1, hecha: hechas[i], siguiente: i === sig })).join('') + '</div>' +
+        (calles ? '<div class="cj-card cjt-secs cjt-partes">' + parteCalles(partes.length + 1) + '</div>' : '');
+    }
     return (vista.acumulado ? filasTareas() : '') +
       fichas.map(f => (titulos ? '<div class="cj-seccion">' + escapeHtml(f.titulo) + '</div>' : '') +
         '<div class="cj-card cjt-secs">' + secciones.filter(s => s._f === f).map(s => tarjetaSeccion(s, prog, s.items.filter(vista.inc))).join('') + '</div>').join('') +
@@ -1137,15 +1147,25 @@ const CJT = (function(){
         todas.slice(VISIBLES).map(fila).join('') + '</div></details>' : '') +
     '</div>';
   }
-  function tarjetaSeccion(s, prog, items){
+  // Las calles y lugares de la tarea, como su última parte (plegada).
+  function parteCalles(n){
+    const abierta = abiertas.has('_calles');
+    return '<div class="cjt-sec' + (abierta ? ' abierta' : '') + '"><button type="button" class="cjt-sec-cab" onclick="CJT.alternar(\'_calles\')" aria-expanded="' + abierta + '">' +
+        '<span class="cjt-parte-n">' + n + '</span><span class="cjt-sec-titulo">Calles y lugares</span>' +
+        '<svg class="cjt-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>' +
+      (abierta ? tarjetaCalles(zonaCalles()) : '') + '</div>';
+  }
+  function tarjetaSeccion(s, prog, items, parte){
     const k = claveDe(s);
     const r = cuenta(prog, items), ver = !!(vista && vista.soloVer);   // desde Aprender: sin preguntar ni porcentaje
     const abierta = abiertas.has(k);
     const conMapa = items.some(x => tieneGeo(x) || x.pv);
-    const parte = items.length < s.items.length;
-    return '<div class="cjt-sec' + (abierta ? ' abierta' : '') + '">' +
+    const trozo = items.length < s.items.length;
+    return '<div class="cjt-sec' + (abierta ? ' abierta' : '') + (parte && parte.siguiente ? ' siguiente' : '') + '">' +
       '<button type="button" class="cjt-sec-cab" onclick="CJT.alternar(\'' + escapeHtml(k) + '\')" aria-expanded="' + abierta + '">' +
-        '<span class="cjt-sec-titulo">' + escapeHtml(s.titulo) + ' <small>' + (parte ? items.length + ' de ' + s.items.length : s.items.length) + '</small></span>' +
+        (parte ? '<span class="cjt-parte-n' + (parte.hecha ? ' hecha' : '') + '">' + (parte.hecha ? '✓' : parte.n) + '</span>' : '') +
+        '<span class="cjt-sec-titulo">' + escapeHtml(s.titulo) + ' <small>' + (trozo ? items.length + ' de ' + s.items.length : s.items.length) + '</small>' +
+          (parte && parte.siguiente && !abierta ? '<em class="cjt-sigue">Sigue por aquí</em>' : '') + '</span>' +
         (r.total && !ver ? '<b>' + pct(r) + '%</b>' : '') +
         '<svg class="cjt-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>' +
       '</button>' +
@@ -1567,6 +1587,10 @@ const CJT = (function(){
   function falladas(){ return itemsFallados().map(x => ({ id: x.id, nombre: textoItem(x) })); }
   // Para «Hacer solo fallos»: las preguntas de lo fallado del temario.
   function preguntasFalladas(){ return crearPreguntas(itemsFallados()); }
+  // Los ids de las cosas de unas claves (lo ya mandado, en «Mandarme algo»).
+  function idsDeClaves(claves){ return T && claves.length ? itemsDe(claves).map(x => x.id) : []; }
+  // Repasar (js/callejero.js): todas las preguntas de unas claves, sin tope.
+  function preguntasDeClaves(claves){ return T && claves.length ? crearPreguntas(itemsDe(claves), false, true, Infinity) : []; }
   function repasarFalladas(){
     if(!T){ asegurar(); uiToast('Cargando el temario…', 'info'); return; }
     const ids = new Set(falladas().map(x => x.id));
@@ -1799,7 +1823,7 @@ const CJT = (function(){
 
   return {
     cargar, listo, contarSecciones, clavesSecciones, listaBarrios, clavesBarrio, clavesDistrito, comprimir, itemsCategoria, verEnFicha, auditar, repasarClaves, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
-    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, preguntasFalladas, fuente, reintentar, geoClaves,
+    filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, preguntasFalladas, preguntasDeClaves, idsDeClaves, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
     clicPlano, pintarPlano, marcarPlano, verEnPlano

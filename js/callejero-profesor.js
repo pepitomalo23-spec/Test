@@ -295,8 +295,8 @@ const CJP = (function(){
     pintarFormulario();
   }
   // El alumno se manda a sí mismo lo que quiere estudiar (desde Aprender o
-  // «Lo que te ha mandado»): el mismo formulario, «para ti», sin «solo esto».
-  // Sale en «Lo que te ha mandado» como las del profesor.
+  // «Lo que te has mandado»): el mismo formulario, «para ti», sin «solo esto».
+  // Sale en «Lo que te has mandado» como las del profesor.
   // El paso 1 es la lista de Aprender (CJ.elegirHtml): se elige como allí, fila
   // entera, por distrito o cosa a cosa.
   async function nuevaPropia(){
@@ -314,6 +314,8 @@ const CJP = (function(){
     const unico = alumnos && alumnos.length === 1 ? alumnos[0].alumno_id : null;
     nuevaTarea(unico, { partes: new Set(['temario']), fichas: claves.slice(), titulo: (titulo || '').slice(0, 120), volverA: null, volverTemario: true });
   }
+  // Al volver de elegir en el mapa: el formulario tal cual estaba.
+  function volverAlFormulario(){ if(borrador) pintarFormulario(); else { CJ.mostrarVista('inicio'); CJ.repintar(); } }
   function volverAlTemario(){ CJ.mostrarVista('temario'); CJT.repintar(); }
   function editarTarea(id){
     const t = ficha && ficha.tareas.find(x => x.id === id);
@@ -383,7 +385,7 @@ const CJP = (function(){
       zona: () => '<select id="cjpZona" class="cj-zona-select" aria-label="Zona">' + (datos ? CJ.opcionesZona(b.zona) : '') + '</select>'
     };
     panel(cabecera(titulo, 'CJP.cancelarFormulario()') + pasos(b) +
-      '<div class="cj-hab-det cjp-nota">' + (b.propia ? 'Marca lo que quieres estudiar: una cosa, dos o las tres juntas. Saldrá en «Lo que te ha mandado».'
+      '<div class="cj-hab-det cjp-nota">' + (b.propia ? 'Marca lo que quieres estudiar: una cosa, dos o las tres juntas. Saldrá en «Lo que te has mandado».'
         : 'Marca lo que quieras mandarle: una cosa, dos o las tres juntas en la misma tarea.') + '</div>' +
       '<div class="cj-card cjt-filas cjp-tipos">' + TIPOS.map(([k, t, d]) => {
         const on = b.partes.has(k);
@@ -566,7 +568,7 @@ const CJP = (function(){
       return;
     }
     if(b.propia){
-      uiToast('Hecho: está en «Lo que te ha mandado».', 'success');
+      uiToast('Hecho: está en «Lo que te has mandado».', 'success');
       borrador = null;
       CJ.mostrarVista('inicio');
       await CJ.recargarTareas();
@@ -649,6 +651,6 @@ const CJP = (function(){
   function reiniciar(){ alumnos = null; alumnosAt = 0; ficha = null; borrador = null; hilo = null; }
 
   return { pintarAlumnos, abrirAlumno, volverALista, cambiarPestana, cambiarZonaFicha, alternarRondas, tareaConFalladas,
-    nuevaTarea, nuevaPropia, editarTarea, irAlPaso, alternarParte, elegirEnMapa, elegirEnTemario, mandarTemario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
+    nuevaTarea, nuevaPropia, editarTarea, irAlPaso, alternarParte, elegirEnMapa, elegirEnTemario, mandarTemario, volverAlFormulario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
     abrirMensajes, enviarMensaje, cerrarMensajes, reiniciar };
 })();

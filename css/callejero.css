@@ -736,7 +736,7 @@
     border:solid var(--muted); border-width:0 2px 2px 0; transform: rotate(45deg); }
   #screen-callejero.cj-completa .cj-info.plegada::after{ top:18px; transform: rotate(-135deg); }
   #screen-callejero.cj-completa .cj-info.plegada{ padding-top:7px; padding-bottom:7px; }
-  #screen-callejero.cj-completa .cj-info.plegada :is(.cj-info-extra, .cj-info-cruce, .cj-info-accion){ display:none; }
+  #screen-callejero.cj-completa .cj-info.plegada :is(.cj-info-extra, .cj-info-cruce, .cj-info-accion, .cj-info-kv, .cj-info-repaso){ display:none; }
   #screen-callejero.cj-completa .cj-info.plegada .cj-info-nombre{ font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   /* Los créditos, en un botón «i» que se abre al tocarlo */
   #screen-callejero.cj-completa .leaflet-control-attribution:not(.abierta){ position:relative; width:22px; height:22px; margin:0 8px 8px 0; padding:0;
@@ -785,6 +785,23 @@
   #screen-callejero.cj-completa .cj-cabeza.plegada .cj-nombrar .cj-zona-select{ display:none; }
 
   /* ---------- pantalla principal: tres botones grandes ---------- */
+  /* Arriba: lo que fallas y cuánto te sabes (por distrito, con su número) */
+  .cj-ini-tarjetas{ display:grid; grid-template-columns: 1fr; gap:12px; margin:6px 0 14px; }
+  @media (min-width: 700px){ .cj-ini-tarjetas{ grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); } }
+  .cj-ini-tarjetas .cj-card{ margin:0; padding:14px 16px; }
+  .cj-ini-etq{ font-size:11.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color: var(--muted); }
+  .cj-ini-fallas{ border-color: rgba(242,102,92,.45); }
+  .cj-ini-fallas .cj-ini-etq{ color: var(--coral); }
+  .cj-ini-num{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:30px; font-weight:800; margin-top:2px; line-height:1.15; }
+  .cj-ini-num small{ font-size:13px; font-weight:600; color: var(--muted); }
+  .cj-ini-sub{ font-size:13.5px; color: var(--muted); margin-top:4px; line-height:1.4; }
+  .cj-ini-btn{ margin-top:10px; padding:8px 16px; border-radius:99px; border:0; background: var(--coral); color:#fff; font: inherit; font-size:14px; font-weight:700; cursor:pointer; }
+  .cj-ini-dist{ display:grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap:6px 16px; margin-top:10px; }
+  .cj-ini-d{ display:flex; align-items:center; gap:8px; font-size:13px; min-width:0; }
+  .cj-ini-d span{ flex:0 0 118px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cj-ini-d i{ flex:1; height:6px; border-radius:99px; background: var(--line); overflow:hidden; }
+  .cj-ini-d i b{ display:block; height:100%; background: var(--green, #34c759); border-radius:99px; }
+  .cj-ini-d em{ font-style:normal; font-weight:700; min-width:38px; text-align:right; color: var(--muted); }
   .cj-grandes{ display:flex; flex-direction:column; gap:14px; margin-top:6px; }
   .cj-grande{ display:flex; align-items:center; gap:16px; width:100%; min-height:96px; padding:18px; border-radius:20px; border:1px solid var(--line);
     background: var(--card); color: var(--text); font: inherit; text-align:left; cursor:pointer; }
@@ -849,6 +866,12 @@
   .cj-info-nota-txt{ font-size:13.5px; line-height:1.4; white-space:pre-line; }
   .cj-info-nota-btn{ align-self:flex-start; padding:6px 12px; border-radius:99px; border:1px solid var(--line); background: var(--card-hi, var(--card)); color: var(--text);
     font: inherit; font-size:13px; font-weight:700; cursor:pointer; }
+  /* Ficha de Aprender: calle, barrio y distrito, y el botón de mandarlo a Repasar */
+  .cj-info-kv{ font-size:13.5px; margin-top:3px; line-height:1.35; }
+  .cj-info-kv span{ display:inline-block; min-width:64px; margin-right:6px; font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color: var(--muted); }
+  .cj-info-repaso{ display:inline-block; margin:8px 8px 0 0; padding:6px 12px; border-radius:99px; border:1px solid var(--line); background: var(--card-hi, var(--card)); color: var(--text);
+    font: inherit; font-size:13px; font-weight:700; cursor:pointer; }
+  .cj-info-repaso.on{ border-color: var(--green); color: var(--green); }
   .cj-nota-fila img{ width:44px; height:44px; object-fit:cover; border-radius:10px; flex-shrink:0; }
   /* A pantalla completa, la nota bajo el recuadro de la pregunta (si no, quedaría tapada) */
   #screen-callejero.cj-completa .cj-nota{ top: calc(var(--cj-arriba, 56px) + 8px); left:8px; max-width:min(60%, 260px); }
@@ -977,3 +1000,56 @@
   .cje-item .cje-check{ width:20px; height:20px; border-radius:6px; }
   .cje-item .cje-check svg{ width:13px; height:13px; }
   .cje-acciones{ position:sticky; bottom:0; background: var(--bg); padding:10px 0; }
+
+  /* ---------- Repasar: qué y cómo ---------- */
+  .cjr-card{ padding:6px 8px; }
+  .cjr-op{ display:flex; align-items:center; gap:12px; width:100%; padding:10px 8px; border:0; background:none; color: var(--text); font: inherit; text-align:left; cursor:pointer; border-radius:12px; }
+  .cjr-op:hover{ background: rgba(255,255,255,.04); }
+  .cjr-op .cje-check{ pointer-events:none; }
+  .cjr-op-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .cjr-op-txt b{ font-size:15.5px; }
+  .cjr-op-txt small{ font-size:13px; color: var(--muted); }
+  .cjr-lista{ display:flex; align-items:center; gap:6px; }
+  .cjr-cambiar{ flex-shrink:0; padding:7px 12px; border-radius:99px; border:1px solid var(--line); background: var(--card-hi, var(--card)); color: var(--text); font: inherit; font-size:13px; font-weight:700; cursor:pointer; }
+  .cjr-formas{ display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:8px; margin-bottom:12px; }
+  .cjr-forma{ display:flex; flex-direction:column; gap:3px; padding:12px 10px; border-radius:14px; border:1px solid var(--line); background: var(--card); color: var(--text); font: inherit; text-align:center; cursor:pointer; }
+  .cjr-forma b{ font-size:15px; }
+  .cjr-forma small{ font-size:12px; color: var(--muted); }
+  .cjr-forma.on{ border-color: var(--coral); background: rgba(242,102,92,.12); }
+  .cjr-forma.on b{ color: var(--coral); }
+  .cjr-empezar{ display:flex; flex-direction:column; align-items:center; gap:2px; width:100%; margin:16px 0 8px; padding:14px; border-radius:16px; border:0; background: var(--coral); color:#fff; font: inherit; font-size:17px; font-weight:800; cursor:pointer; }
+  .cjr-empezar small{ font-size:12.5px; font-weight:600; opacity:.85; }
+  .cjr-listo{ position:sticky; bottom:12px; }
+  .cjr-nota{ margin-bottom:10px; }
+
+  /* ---------- Mandarme algo: lo ya mandado en gris y elegir en el mapa ---------- */
+  .cje-fila.ya .cje-txt, .cje-item.ya{ opacity:.5; }
+  .cje-ya{ border-style:dashed; cursor:default; }
+  .cje-item.ya em{ margin-left:auto; font-style:normal; font-size:12px; color: var(--muted); white-space:nowrap; }
+  .cje-mapa{ flex-shrink:0; display:flex; align-items:center; gap:5px; padding:6px 10px; border-radius:99px; border:1px solid var(--line); background: var(--card-hi, var(--card));
+    color: var(--text); font: inherit; font-size:12.5px; font-weight:700; cursor:pointer; }
+  .cje-mapa svg{ width:15px; height:15px; }
+  .cje-panel-cab{ display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:16px; }
+  .cje-panel-listo{ padding:8px 16px; border-radius:99px; border:0; background: var(--coral); color:#fff; font: inherit; font-size:14px; font-weight:700; cursor:pointer; }
+  .cje-panel-lista{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; max-height:120px; overflow-y:auto; }
+  .cje-chip{ display:inline-flex; align-items:center; gap:6px; padding:4px 6px 4px 10px; border-radius:99px; background: rgba(52,211,153,.14); border:1px solid rgba(52,211,153,.45); font-size:12.5px; }
+  .cje-chip button{ border:0; background:none; color: var(--muted); font-size:12px; cursor:pointer; padding:0 4px; }
+  .cje-gris{ display:inline-block; width:10px; height:10px; border-radius:3px; background:#8B8F98; margin-right:6px; vertical-align:-1px; }
+
+  /* ---------- Una tarea, por partes ---------- */
+  .cjt-partes-ayuda{ font-size:13.5px; color: var(--muted); margin:4px 2px 10px; line-height:1.4; }
+  .cjt-partes + .cjt-partes{ margin-top:10px; }
+  .cjt-parte-n{ flex-shrink:0; width:26px; height:26px; border-radius:99px; display:inline-flex; align-items:center; justify-content:center; margin-right:10px;
+    background: var(--line); color: var(--text); font-size:13px; font-weight:800; }
+  .cjt-parte-n.hecha{ background: rgba(52,211,153,.18); color:#34D399; }
+  .cjt-sec.siguiente .cjt-parte-n{ background: var(--coral); color:#fff; }
+  .cjt-sigue{ display:block; font-style:normal; font-size:12px; font-weight:700; color: var(--coral); margin-top:2px; }
+  .cjt-partes .cjt-calles{ border:0; background:none; padding:4px 0 0; margin:0; box-shadow:none; }
+
+  /* ---------- Estadísticas: el callejero ---------- */
+  .cj-stats{ margin:0 0 16px; }
+  .cj-stats-cab{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; font-size:17px; }
+  .cj-stats-ir{ padding:6px 12px; border-radius:99px; border:1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size:13px; font-weight:700; cursor:pointer; }
+  .cj-stats .cj-ini-sabes{ margin:0; padding:14px 16px; }
+  .cj-stats-fallas{ font-size:13.5px; color: var(--muted); margin-top:8px; }
+  .cj-stats-fallas b{ color: var(--coral); }
