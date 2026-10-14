@@ -526,6 +526,7 @@ const CJ = (function(){
     const { data, error } = await sb.rpc('callejero_progreso');
     if(error) return;
     progreso = progresoDesdeFilas(data);
+    progresoCargado = true;
     misPendientes().forEach(p => sumar(progreso, HABILIDAD[p.modo] || 'nombre', p.id_vial, p.acierto));
   }
 
@@ -3715,6 +3716,27 @@ const CJ = (function(){
     return { total, sabe: n, distritos: lista };
   }
   const porciento = (a, b) => b ? Math.round(a * 100 / b) : 0;
+  /* Estadísticas (formulario: el progreso del callejero también allí): lo
+     que te sabes, en general y por distrito, y lo que fallas. Solo si ya se
+     ha estudiado algo del callejero (si no, no descarga el mapa). */
+  let progresoCargado = false;
+  async function tarjetaEstadisticas(){
+    const caja = document.getElementById('statsCallejero');
+    if(!caja || !currentUser) return;
+    try{
+      if(!progresoCargado){
+        const { data, error } = await sb.rpc('callejero_progreso');
+        if(error || !(data || []).length){ caja.innerHTML = ''; return; }
+        await cargarDatos();
+        await cargarProgreso();
+      }else await cargarDatos();
+    }catch(e){ caja.innerHTML = ''; return; }
+    const f = resumenFallos();
+    caja.innerHTML = '<div class="cj-stats"><div class="cj-stats-cab"><b>Callejero</b>' +
+        '<button type="button" class="cj-stats-ir" onclick="showScreen(\'screen-callejero\')">Ir al callejero ›</button></div>' +
+      sabesHtml() +
+      '<div class="cj-stats-fallas">' + (f.total ? '<b>' + f.total + '</b> por repasar (lo que fallas): ' + escapeHtml(f.partes) : 'Nada fallado ahora mismo.') + '</div></div>';
+  }
   function sabesHtml(){
     const c = cuantoSabes();
     return '<div class="cj-card cj-ini-sabes"><div class="cj-ini-etq">Te sabes</div>' +
@@ -5727,7 +5749,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, elegirEnMapa, panelElegir, quitarElegidoMapa, quitarFichaMapa, listoMapa, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, cambiarRepaso, empezarRepaso, listoElegirRepaso, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, elegirEnMapa, panelElegir, quitarElegidoMapa, quitarFichaMapa, listoMapa, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, tarjetaEstadisticas, cambiarRepaso, empezarRepaso, listoElegirRepaso, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)
