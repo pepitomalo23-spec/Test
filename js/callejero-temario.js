@@ -32,7 +32,7 @@
    «Todo lo que te ha mandado» (CJT.abrirProfesor) junta todas las tareas.
    ============================================================ */
 const CJT = (function(){
-  const ARCHIVO = 'datos/callejero-temario.json?v=5248a8418b';
+  const ARCHIVO = 'datos/callejero-temario.json?v=1dc3e354e8';
   const PARQUE_NOMBRE = { central: 'Parque Central', granadal: 'Parque del Granadal' };
   // Los dos parques de bomberos en los lugares del mapa (salida de los recorridos).
   const PARQUE_LUGAR = { central: 11215900007629, granadal: 11215900007679 };
@@ -302,6 +302,11 @@ const CJT = (function(){
 
   /* ---------- preguntas ---------- */
   // Tipos de pregunta que admite cada elemento (según su apartado y sus datos).
+  // Una pregunta por cada paso de un recorrido (todas se llaman qRecorridoPaso, para
+  // quitarlas o contarlas juntas).
+  function porPaso(pasos){
+    return pasos.slice(1).map((p, i) => Object.defineProperty(x => qRecorridoPaso(x, i + 1), 'name', { value: 'qRecorridoPaso' }));
+  }
   function generadores(x){
     const s = x._s, g = [];
     const geo = tieneGeo(x);
@@ -314,8 +319,9 @@ const CJT = (function(){
       case 'urbanizaciones': g.push(qUrbanizacion); break;
       case 'poligonos':
         g.push(qPoligonoDistrito, qParque, qPoligonoAcceso);
-        if(x.industrias && x.industrias.length) g.push(qPoligonoIndustria);
-        if(x.recorrido && x.recorrido.length > 1) g.push(qRecorridoPaso);
+        // Una pregunta por cada empresa del polígono.
+        g.push(...industriasPropias(x).map((e, k) => Object.defineProperty(y => qPoligonoIndustria(y, k), 'name', { value: 'qPoligonoIndustria' })));
+        if(x.recorrido && x.recorrido.length > 1) g.push(...porPaso(x.recorrido));
         if(geo) g.push(qTocar);
         break;
       case 'lugares': if(x.dir) g.push(qCalleDe); if(geo) g.push(qTocar); break;
@@ -334,7 +340,7 @@ const CJT = (function(){
       case 'otro_nombre': g.push(qNombreReal, qNombreColoquial); if(geo) g.push(qTocar); break;
       case 'plano': g.push(qPlanoTocar, qPlanoQueEs); break;
       case 'barrios': if(x.b) g.push(qTocar, qMarcado); else g.push(qBarrioDistrito); break;
-      case 'recorridos': g.push(qParque); if(x.pasos && x.pasos.length > 1) g.push(qRecorridoPaso); break;
+      case 'recorridos': g.push(qParque); if(x.pasos && x.pasos.length > 1) g.push(...porPaso(x.pasos)); break;
       case 'plazas': case 'jardines': if(geo) g.push(qTocar, qMarcado); if(x.barrio) g.push(qBarrioDe); break;
     }
     return g;
@@ -485,17 +491,23 @@ const CJT = (function(){
     return opciones(x, '¿Por dónde se accede?', x.n, x.acceso, barajar(x._s.items.filter(y => y !== x).map(y => y.acceso)),
       { resumen: x.acceso + '.', detalle: x.pemuco || '', despues: verDespues(x) });
   }
-  function qPoligonoIndustria(x){
+  // Las empresas que solo están en este polígono (las que se pueden preguntar).
+  function industriasPropias(x){
     const otros = x._s.items.filter(y => y !== x);
-    const propias = x.industrias.filter(i => !otros.some(y => (y.industrias || []).some(j => normalizar(j) === normalizar(i))));
+    return (x.industrias || []).filter(i => !otros.some(y => (y.industrias || []).some(j => normalizar(j) === normalizar(i))));
+  }
+  // ¿En qué polígono está la empresa n.º k? (sin k, una al azar).
+  function qPoligonoIndustria(x, k){
+    const otros = x._s.items.filter(y => y !== x), propias = industriasPropias(x);
     if(!propias.length) return null;
-    const i = propias[Math.floor(Math.random() * propias.length)];
+    const i = propias[k >= 0 && k < propias.length ? k : Math.floor(Math.random() * propias.length)];
     return opciones(x, '¿En qué polígono está?', i, x.n, barajar(otros.map(y => y.n)), { resumen: i + ' está en el ' + x.n + '.', despues: verDespues(x) });
   }
-  function qRecorridoPaso(x){
+  // Un paso del recorrido (k): ¿qué viene después del anterior? (sin k, uno al azar).
+  function qRecorridoPaso(x, k){
     const pasos = x.pasos || x.recorrido;
     if(!pasos || pasos.length < 2) return null;
-    const k = 1 + Math.floor(Math.random() * (pasos.length - 1));
+    if(!(k >= 1 && k < pasos.length)) k = 1 + Math.floor(Math.random() * (pasos.length - 1));
     const prohibidas = new Set([normalizar(pasos[k]), normalizar(pasos[k - 1])]);
     const otrosPasos = x._f.secciones.filter(s => s.tipo === 'recorridos' || s.tipo === 'poligonos').flatMap(s => s.items)
       .filter(y => y !== x).flatMap(y => y.pasos || y.recorrido || []);
