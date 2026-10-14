@@ -254,9 +254,40 @@ const CJ = (function(){
       lugares.forEach(l => { if(!l.barrios.includes(b) && dentroDeBarrio(l.lat, l.lng, b)) l.barrios.push(b); });
     });
   }
+  /* Una carretera que el CDAU trae en varios trozos (con nombres distintos o
+     un tramo suelto lejos: la A-431 «a Lora del Río» y «- Palma del Río», la
+     N-432 con un cacho de 200 m) es una sola vía: todos sus tramos juntos, con
+     el nombre de su código («Carretera A-431»). Los nombres de antes quedan en
+     v.alias (para buscarla y para el Callejero 2026) y sus ids llevan a ella. */
+  function codigoCarretera(v){
+    if(!/^(CARRETERA|AUTOVIA|VIA)$/.test(v.tipo)) return null;
+    const m = v.nombre.match(/\b(AP|CO|CP|CV|CH|A|N|E)-\s?(IV|\d{1,4}[a-z]?)\b/i);
+    return m ? (m[1] + '-' + m[2]).toUpperCase() : null;
+  }
+  function unirCarreteras(vias){
+    const grupos = new Map();
+    vias.forEach(v => { const c = codigoCarretera(v); if(c){ if(!grupos.has(c)) grupos.set(c, []); grupos.get(c).push(v); } });
+    const quitar = new Map();   // id de un trozo → la vía que lo junta todo
+    grupos.forEach((vs, c) => {
+      if(vs.length < 2) return;
+      const largo = v => v.lineas.reduce((a, l) => a + l.length, 0);
+      const base = vs.slice().sort((a, b) => largo(b) - largo(a))[0];
+      const una = Object.assign({}, base, {
+        nombre: (vs.some(v => v.tipo === 'AUTOVIA') ? 'Autovía ' : 'Carretera ') + c,
+        lineas: vs.flatMap(v => v.lineas), jugable: vs.some(v => v.jugable),
+        barrios: [...new Set(vs.flatMap(v => v.barrios))], alias: [...new Set(vs.map(v => v.nombre))], ids: vs.map(v => v.id)
+      });
+      una.caja = cajaDe(una.lineas);
+      una.clave = normalizar(una.nombre);
+      vs.forEach(v => quitar.set(v.id, una));
+    });
+    if(!quitar.size) return { vias, juntas: quitar };
+    const vistas = new Set();
+    return { vias: vias.map(v => quitar.get(v.id) || v).filter(v => !vistas.has(v) && vistas.add(v)), juntas: quitar };
+  }
   function decodificar(doc){
     const barrios = ((doc.zonas && doc.zonas.barrios) || []).map(([nombre, distrito, anillos]) => ({ nombre, distrito, anillos: decodificarLineas(anillos) }));
-    const vias = doc.vias.map(([id, nombre, tipo, jugable, lineas, enBarrios, parque]) => {
+    let vias = doc.vias.map(([id, nombre, tipo, jugable, lineas, enBarrios, parque]) => {
       const l = decodificarLineas(lineas);
       return { id, nombre, tipo, jugable: jugable === 1, lineas: l, caja: cajaDe(l), clave: normalizar(nombre), barrios: (enBarrios || []).map(i => barrios[i]).filter(Boolean), parque: parque || 0 };
     });
@@ -266,6 +297,8 @@ const CJ = (function(){
       id, nombre, categoria, direccion, lat: y / 1e5, lng: x / 1e5, clave: normalizar(nombre),
       barrios: (enBarrios || []).map(i => barrios[i]).filter(Boolean), parque: parque || 0, radio: radio || 0
     }));
+    const unidas = unirCarreteras(vias);
+    vias = unidas.vias;
     corregirBarrios(barrios, vias, lugares);
     const lineaParques = doc.parques && doc.parques.linea ? decodificarLineas([doc.parques.linea])[0] : null;
     const porNombre = new Map();
@@ -276,7 +309,7 @@ const CJ = (function(){
     });
     const distritos = [...new Set(barrios.map(b => b.distrito).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
     return { version: doc.version, vias, porNombre, jugables: vias.filter(v => v.jugable), rio: decodificarLineas(doc.rio || []), barrios, distritos, lugares, lineaParques,
-      viaPorId: new Map(vias.map(v => [v.id, v])), lugarPorId: new Map(lugares.map(l => [l.id, l])) };
+      viaPorId: new Map(vias.map(v => [v.id, v]).concat([...unidas.juntas])), lugarPorId: new Map(lugares.map(l => [l.id, l])) };
   }
 
   /* ---------- zonas ---------- */
@@ -324,7 +357,8 @@ const CJ = (function(){
     if(t){
       const sv = new Set((t.vias || []).map(Number)), sl = new Set((t.lugares || []).map(Number));
       const zt = t.zona === null || t.zona === undefined ? null : t.zona;
-      return { via: v => sv.has(v.id) || (zt !== null && enZonaBase(v, zt)), lugar: l => sl.has(l.id) || (zt !== null && enZonaBase(l, zt)) };
+      // (una carretera juntada vale si la tarea lleva cualquiera de sus tramos)
+      return { via: v => sv.has(v.id) || (!!v.ids && v.ids.some(i => sv.has(i))) || (zt !== null && enZonaBase(v, zt)), lugar: l => sl.has(l.id) || (zt !== null && enZonaBase(l, zt)) };
     }
     return { via: v => enZonaBase(v, z), lugar: l => enZonaBase(l, z) };
   }
@@ -2880,9 +2914,10 @@ const CJ = (function(){
       const usadas = new Set();
       porNombre(datos.vias.filter(v => !vf.tipos || vf.tipos.has(v.tipo))).forEach(vs => {
         const v = vs[0], bs = [...new Set(vs.flatMap(x => x.barrios))];
-        const fs = con26 ? CJ26.filasDe(v.nombre, v.tipo) : [];
+        const fs = con26 ? [v.nombre].concat(v.alias || []).flatMap(n => CJ26.filasDe(n, v.tipo)) : [];
         fs.forEach(f => usadas.add(f.i));
-        anadir({ nombre: v.nombre, tipo: tipoBonito(v.tipo), vias: vs, lugar: null, grupo: distritoDeVias(vs), calle26: { nombre: v.nombre, tipo: v.tipo },
+        anadir({ nombre: v.nombre, tipo: tipoBonito(v.tipo), vias: vs, lugar: null, grupo: distritoDeVias(vs),
+          calle26: fs.length ? null : { nombre: v.nombre, tipo: v.tipo }, filas26: fs.length ? [...new Set(fs.map(f => f.i))] : undefined,
           detalle: [bs.map(x => x.nombre).join(', ')].filter(Boolean) });
       });
       // Las del Callejero 2026 que el mapa no tiene dibujadas.
@@ -4497,6 +4532,12 @@ const CJ = (function(){
     if(!CJ26.listo()){ CJ26.cargar().then(() => { if(infoActual) infoActual(); }, () => {}); return ''; }
     return '<div class="cj26-fila">' + (nombre ? CJ26.botonHtml(nombre, tipo) : CJ26.botonDireccion(dir)) + '</div>';
   }
+  // El de una calle: por su nombre o, si es una carretera juntada, por los nombres de sus tramos.
+  function boton26Via(v){
+    if(typeof CJ26 === 'undefined' || !CJ26.listo()) return boton26(v.nombre, v.tipo);
+    const n = [v.nombre].concat(v.alias || []).find(x => CJ26.filasDe(x).length);
+    return n ? boton26(n) : '';
+  }
   function mostrarVia(v, centrar, cruce){
     const iguales = datos.porNombre.get(v.nombre.toLowerCase()) || [v];
     capaMarcas.clearLayers();
@@ -4513,7 +4554,8 @@ const CJ = (function(){
       (cruce && cruce.length ? '<div class="cj-info-cruce">En el cruce con ' + cruce.map(escapeHtml).join(' y ') + '</div>' : '') +
       (iguales.length > 1 ? '<div class="cj-info-extra">Hay ' + iguales.length + ' vías con este nombre (todas marcadas en el mapa).</div>' : '') +
       (v.parque && datos.lineaParques ? '<div class="cj-info-extra">Acude el ' + escapeHtml(PARQUES[v.parque]) + '.</div>' : '') +
-      '<div class="cj-info-extra">' + escapeHtml(extra) + '</div>' + boton26(v.nombre, v.tipo) + notaInfoHtml(claveVia(v));
+      (v.alias ? '<div class="cj-info-extra">En el callejero, en ' + v.alias.length + ' tramos: ' + v.alias.map(escapeHtml).join(' · ') + '</div>' : '') +
+      '<div class="cj-info-extra">' + escapeHtml(extra) + '</div>' + boton26Via(v) + notaInfoHtml(claveVia(v));
     infoActual = () => mostrarVia(v, false, cruce);
     el('cjInfo').classList.remove('hidden');
     el('cjPista').classList.add('hidden');

@@ -25,8 +25,10 @@ const CJ26 = (() => {
   const darVuelta = n => { const m = String(n).match(/^(.*),\s*(DE|DEL|DE LA|DE LOS|DE LAS|LA|LAS|LOS|EL)\s*$/i); return m ? m[2] + ' ' + m[1] : n; };
   // Sin lo que va entre paréntesis o guiones («Calle Osio (Encinarejo)», «GITANOS -CAMPO DE LA VERDAD-»).
   const sinAñadidos = t => String(t || '').replace(/\([^)]*\)?/g, ' ').replace(/\s-[^-]*-?\s*$/, ' ');
+  // Los códigos de carretera, de una pieza («A-431» → «a431»: si no, la «a» sería una palabra vacía).
+  const conCodigos = t => String(t || '').replace(/\b(AP|CO|CP|CV|CH|A|N|E)-\s?(\d{1,4}[A-Za-z]?|IV)\b/gi, (m, a, b) => ' ' + (a + b).toLowerCase() + ' ');
   function clave(t){
-    let w = palabras(sinAñadidos(t)).map(x => ABREV[x] || x);
+    let w = palabras(sinAñadidos(conCodigos(t))).map(x => ABREV[x] || x);
     while(w.length > 1 && TIPOS.has(w[0])) w = w.slice(1);
     return w.join(' ');
   }
@@ -99,6 +101,11 @@ const CJ26 = (() => {
         if(dd < mejor){ mejor = dd; fs = lista; }
       });
       if(mejor > (j.length >= 12 ? 2 : 1)) fs = [];
+    }
+    // Una carretera, por su código («a 431», «n 432»…): las filas que empiezan por él.
+    if(!fs.length){
+      const m = k.match(/^(ap|co|cp|cv|ch|a|n|e)(\d{1,4}[a-z]?|iv)\b/);
+      if(m){ const cod = m[0]; fs = (porPrimera.get(cod) || []).filter(f => f.k === cod || f.k.startsWith(cod + ' ')); }
     }
     if(fs.length > 1 && tipo){
       const t = String(tipo).toUpperCase(), mismo = fs.filter(f => SIGLA[f.sig] === t);

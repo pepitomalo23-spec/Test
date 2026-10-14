@@ -168,7 +168,8 @@ const CJT = (function(){
   function geoDe(x){
     const d = CJ.datos();
     if(!d) return null;
-    const vias = (x.v || []).map(id => d.viaPorId.get(id)).filter(Boolean);
+    // (los tramos de una carretera llevan a la misma vía: una sola vez)
+    const vias = [...new Set((x.v || []).map(id => d.viaPorId.get(id)).filter(Boolean))];
     const lugar = x.l ? d.lugarPorId.get(x.l) || null : null;
     const barrio = x.b ? d.barrios.find(b => b.nombre === x.b) || null : null;
     if(!vias.length && !lugar && !barrio) return null;
