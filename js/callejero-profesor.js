@@ -294,6 +294,13 @@ const CJP = (function(){
     if(borrador.partes.has('temario') && !CJT.listo()) CJT.cargar().then(() => { if(borrador){ leerFormulario(); pintarFormulario(); } }, () => {});
     pintarFormulario();
   }
+  // El alumno se manda a sí mismo lo que quiere estudiar (desde Aprender o
+  // «Lo que te ha mandado»): el mismo formulario, «para ti», sin «solo esto».
+  // Sale en «Lo que te ha mandado» como las del profesor.
+  function nuevaPropia(){
+    if(!currentUser) return;
+    nuevaTarea(currentUser.id, { propia: true, paso: 1 });
+  }
   // Desde el temario: manda una ficha, un apartado o lo elegido. Con un solo
   // alumno ya sale marcado; al acabar (o cancelar) se vuelve al temario.
   async function mandarTemario(claves, titulo){
@@ -334,11 +341,11 @@ const CJP = (function(){
   function conCalles(b){ return b.partes.has('lista') || b.partes.has('zona'); }
   function pasos(b){
     return '<div class="cjp-pasos"><span class="' + (b.paso === 1 ? 'activo' : 'hecho') + '"><b>1</b> Qué</span><i></i>' +
-      '<span class="' + (b.paso === 2 ? 'activo' : '') + '"><b>2</b> Para quién y cómo</span></div>';
+      '<span class="' + (b.paso === 2 ? 'activo' : '') + '"><b>2</b> ' + (b.propia ? 'Cómo' : 'Para quién y cómo') + '</span></div>';
   }
   function pintarFormulario(){
     const b = borrador;
-    const titulo = b.id ? 'Editar tarea' : 'Nueva tarea';
+    const titulo = b.propia ? 'Mandarme algo para estudiar' : b.id ? 'Editar tarea' : 'Nueva tarea';
     if(b.paso !== 2){ pintarPaso1(titulo); return; }
     pintarPaso2(titulo);
   }
@@ -359,7 +366,8 @@ const CJP = (function(){
       zona: () => '<select id="cjpZona" class="cj-zona-select" aria-label="Zona">' + (datos ? CJ.opcionesZona(b.zona) : '') + '</select>'
     };
     panel(cabecera(titulo, 'CJP.cancelarFormulario()') + pasos(b) +
-      '<div class="cj-hab-det cjp-nota">Marca lo que quieras mandarle: una cosa, dos o las tres juntas en la misma tarea.</div>' +
+      '<div class="cj-hab-det cjp-nota">' + (b.propia ? 'Marca lo que quieres estudiar: una cosa, dos o las tres juntas. Saldrá en «Lo que te ha mandado».'
+        : 'Marca lo que quieras mandarle: una cosa, dos o las tres juntas en la misma tarea.') + '</div>' +
       '<div class="cj-card cjt-filas cjp-tipos">' + TIPOS.map(([k, t, d]) => {
         const on = b.partes.has(k);
         return '<div class="cjp-parte' + (on ? ' activa' : '') + '">' +
@@ -375,7 +383,7 @@ const CJP = (function(){
   }
   function pintarPaso2(titulo){
     const b = borrador;
-    const para = b.id
+    const para = b.propia ? '<div class="cjp-para">Para ti</div>' : b.id
       ? '<div class="cjp-para">' + escapeHtml(((alumnos || []).find(a => a.alumno_id === [...b.alumnos][0]) || {}).email || '') + '</div>'
       : (alumnos || []).map(a => '<label class="cjp-check"><input type="checkbox" value="' + a.alumno_id + '" class="cjp-alumno-check"' +
           (b.alumnos.has(a.alumno_id) ? ' checked' : '') + '> ' + escapeHtml(a.email) + '</label>').join('');
@@ -390,8 +398,8 @@ const CJP = (function(){
         '<label>Para</label>' + (para || '<div class="cj-hab-det">No tienes alumnos.</div>') +
         '<label for="cjpTitulo">Título</label>' +
         '<input id="cjpTitulo" maxlength="120" placeholder="Por ejemplo: Casco histórico, semana 1" value="' + escapeHtml(b.titulo) + '">' +
-        '<label for="cjpMensaje">Mensaje (opcional)</label>' +
-        '<textarea id="cjpMensaje" maxlength="2000" placeholder="Explícale qué quieres que haga, en qué fijarse…">' + escapeHtml(b.mensaje) + '</textarea>' +
+        '<label for="cjpMensaje">' + (b.propia ? 'Nota (opcional)' : 'Mensaje (opcional)') + '</label>' +
+        '<textarea id="cjpMensaje" maxlength="2000" placeholder="' + (b.propia ? 'En qué quieres fijarte…' : 'Explícale qué quieres que haga, en qué fijarse…') + '">' + escapeHtml(b.mensaje) + '</textarea>' +
         '<details class="cjp-opciones"' + (cambiadas ? ' open' : '') + '><summary>Más opciones <small>' + escapeHtml(resumenOp) + '</small></summary>' +
           '<div class="cjp-fila">' +
             '<div><label for="cjpRondas">Rondas</label><input id="cjpRondas" type="number" min="1" max="50" value="' + b.rondas + '"></div>' +
@@ -404,13 +412,13 @@ const CJP = (function(){
             '<label>Modos que cuentan con las calles <small>(si no marcas ninguno, vale cualquiera' + (b.partes.has('temario') ? '; las preguntas del temario cuentan siempre' : '') + ')</small></label>' +
             '<div class="cjp-modos">' + Object.keys(CJ.MODOS).filter(m => m !== 'temario').map(m => '<label class="cjp-check"><input type="checkbox" class="cjp-modo" value="' + m + '"' +
               (b.modos.has(m) ? ' checked' : '') + '> ' + escapeHtml(CJ.MODOS[m].titulo) + '</label>').join('') + '</div>') +
-          '<label class="cjp-check cjp-solo"><input type="checkbox" id="cjpSolo"' + (b.solo_esto ? ' checked' : '') + '> ' +
-            '<span><b>Solo esto.</b> Mientras la tarea esté activa, el alumno solo puede estudiar tus tareas. Se quita al archivarla o al desmarcarlo.</span></label>' +
+          (b.propia ? '' : '<label class="cjp-check cjp-solo"><input type="checkbox" id="cjpSolo"' + (b.solo_esto ? ' checked' : '') + '> ' +
+            '<span><b>Solo esto.</b> Mientras la tarea esté activa, el alumno solo puede estudiar tus tareas. Se quita al archivarla o al desmarcarlo.</span></label>') +
         '</details>' +
         '<div class="admin-form-actions">' +
           (b.id ? '<button type="button" class="btn btn-ghost" onclick="CJP.cancelarFormulario()">Cancelar</button>'
                 : '<button type="button" class="btn btn-ghost" onclick="CJP.irAlPaso(1)">Atrás</button>') +
-          '<button type="button" class="btn btn-primary btn-light" id="cjpGuardar" onclick="CJP.guardarTarea()">' + (b.id ? 'Guardar' : 'Mandar tarea') + '</button>' +
+          '<button type="button" class="btn btn-primary btn-light" id="cjpGuardar" onclick="CJP.guardarTarea()">' + (b.id ? 'Guardar' : b.propia ? 'Mandármelo' : 'Mandar tarea') + '</button>' +
         '</div>' +
       '</div>');
   }
@@ -419,7 +427,7 @@ const CJP = (function(){
     const b = borrador;
     if(!b) return;
     if(el('cjpTitulo')) b.titulo = el('cjpTitulo').value.trim();
-    if(!b.id && el('cjpTitulo')) b.alumnos = new Set([...document.querySelectorAll('.cjp-alumno-check')].filter(c => c.checked).map(c => c.value));
+    if(!b.id && !b.propia && el('cjpTitulo')) b.alumnos = new Set([...document.querySelectorAll('.cjp-alumno-check')].filter(c => c.checked).map(c => c.value));
     if(el('cjpZona')) b.zona = el('cjpZona').value;
     if(document.querySelector('.cjp-modo')) b.modos = new Set([...document.querySelectorAll('.cjp-modo')].filter(c => c.checked).map(c => c.value));
     if(el('cjpRondas')) b.rondas = Math.max(1, Math.min(50, parseInt(el('cjpRondas').value, 10) || 1));
@@ -486,7 +494,8 @@ const CJP = (function(){
     const escrito = b && !b.id && (b.titulo || b.mensaje || b.vias.length || b.lugares.length || b.fichas.length);
     if(escrito && !(await uiConfirm('¿Salir sin mandar la tarea?'))) return;
     borrador = null;
-    if(b && b.volverTemario) volverAlTemario();
+    if(b && b.propia){ CJ.mostrarVista('inicio'); CJ.irA('aprender'); }
+    else if(b && b.volverTemario) volverAlTemario();
     else if(b && b.volverA && ficha) pintarFicha();
     else volverALista();
   }
@@ -505,8 +514,9 @@ const CJP = (function(){
       titulo: b.titulo, mensaje: b.mensaje || null,
       vias: lista ? b.vias : [], lugares: lista ? b.lugares : [], zona: b.partes.has('zona') ? b.zona : null,
       fichas: temario ? b.fichas : [], modos,
-      rondas: b.rondas, minimo: b.minimo, fecha_limite: b.fecha || null, solo_esto: b.solo_esto
+      rondas: b.rondas, minimo: b.minimo, fecha_limite: b.fecha || null, solo_esto: b.propia ? false : b.solo_esto
     };
+    if(b.propia && !b.id) fila.vista_at = new Date().toISOString();   // ya la ha visto: sin el aviso de «tarea nueva»
     const boton = el('cjpGuardar');
     if(boton){ boton.disabled = true; boton.textContent = 'Guardando…'; }
     let error;
@@ -515,11 +525,19 @@ const CJP = (function(){
     }else{
       const res = await sb.from('callejero_tareas').insert([...b.alumnos].map(a => Object.assign({ alumno_id: a }, fila))).select('id');
       error = res.error;
-      if(!error) (res.data || []).forEach(t => avisar('tarea', t.id));
+      if(!error && !b.propia) (res.data || []).forEach(t => avisar('tarea', t.id));
     }
     if(error){
-      if(boton){ boton.disabled = false; boton.textContent = b.id ? 'Guardar' : 'Mandar tarea'; }
+      if(boton){ boton.disabled = false; boton.textContent = b.id ? 'Guardar' : b.propia ? 'Mandármelo' : 'Mandar tarea'; }
       uiToast('No se ha podido guardar la tarea: ' + error.message, 'error');
+      return;
+    }
+    if(b.propia){
+      uiToast('Hecho: está en «Lo que te ha mandado».', 'success');
+      borrador = null;
+      CJ.mostrarVista('inicio');
+      await CJ.recargarTareas();
+      CJ.irA('tareas');
       return;
     }
     uiToast(b.id ? 'Tarea guardada.' : (b.alumnos.size > 1 ? 'Tarea mandada a ' + b.alumnos.size + ' alumnos.' : 'Tarea mandada.'), 'success');
@@ -598,6 +616,6 @@ const CJP = (function(){
   function reiniciar(){ alumnos = null; alumnosAt = 0; ficha = null; borrador = null; hilo = null; }
 
   return { pintarAlumnos, abrirAlumno, volverALista, cambiarPestana, cambiarZonaFicha, alternarRondas, tareaConFalladas,
-    nuevaTarea, editarTarea, irAlPaso, alternarParte, elegirEnMapa, elegirEnTemario, mandarTemario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
+    nuevaTarea, nuevaPropia, editarTarea, irAlPaso, alternarParte, elegirEnMapa, elegirEnTemario, mandarTemario, cancelarFormulario, guardarTarea, archivarTarea, borrarTarea,
     abrirMensajes, enviarMensaje, cerrarMensajes, reiniciar };
 })();

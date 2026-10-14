@@ -2462,6 +2462,18 @@ const CJ = (function(){
   // Todo lo que ha mandado el profesor, dentro de una sola caja: una fila
   // por tarea sin terminar (se pulsa y se abre) y, al final, todo junto.
   const FLECHA_FILA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+  // Una tarea que se ha mandado uno mismo (desde Aprender): «Tuya» y se puede quitar.
+  const tareaPropia = t => currentUser && t.profesor_id === currentUser.id && t.alumno_id === currentUser.id;
+  // La miniopción de mandarse algo para estudiar (el formulario del profesor, «para ti»).
+  function botonPropia(){
+    return typeof CJP === 'undefined' ? '' : '<button type="button" class="cj-mini-propia" onclick="CJP.nuevaPropia()">' + svgIcono(ICONOS.aprender) + 'Mandarme algo para estudiar</button>';
+  }
+  async function quitarPropia(id){
+    if(!await uiConfirm('Se borra la tarea y sale de «Lo que te ha mandado».', { title: '¿Quitar esta tarea tuya?', ok: 'Quitar' })) return;
+    const { error } = await sb.from('callejero_tareas').delete().eq('id', id);
+    if(error){ uiToast('No se ha podido quitar: ' + error.message, 'error'); return; }
+    await recargarTareas();
+  }
   function filaTarea(t){
     const vencida = t.fecha_limite && new Date(t.fecha_limite + 'T23:59:59') < new Date();
     const det = [describirTarea(t).que, Math.min(t.rondas_validas, t.rondas) + '/' + t.rondas + (t.rondas === 1 ? ' ronda' : ' rondas'),
@@ -2469,20 +2481,21 @@ const CJ = (function(){
     const marcada = tareaMarcada(t);
     return '<div class="cj-tarea-linea"><button type="button" class="cjt-ficha cj-tarea-fila" onclick="CJT.abrirTarea(' + t.id + ')">' +
       '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">' + escapeHtml(t.titulo) +
-        (!t.vista_at ? ' <span class="cj-tarea-solo">Nueva</span>' : '') +
+        (tareaPropia(t) ? ' <span class="cj-tarea-tuya">Tuya</span>' : !t.vista_at ? ' <span class="cj-tarea-solo">Nueva</span>' : '') +
         (t.sin_leer ? ' <span class="cj-tarea-msgs">' + t.sin_leer + (t.sin_leer === 1 ? ' mensaje' : ' mensajes') + '</span>' : '') + '</span>' +
         '<span class="cjt-ficha-d">' + escapeHtml(det) + '</span></span>' + FLECHA_FILA + '</button>' +
       '<button type="button" class="cj-check' + (marcada ? ' on' : '') + '" aria-pressed="' + marcada + '" onclick="CJ.marcarTarea(' + t.id + ')">' +
-        '<span class="cj-check-caja">' + (marcada ? svgIcono('M20 6 9 17l-5-5') : '') + '</span>' + (marcada ? 'Vista · en Repasar' : 'Ya la he visto') + '</button></div>';
+        '<span class="cj-check-caja">' + (marcada ? svgIcono('M20 6 9 17l-5-5') : '') + '</span>' + (marcada ? 'Vista · en Repasar' : 'Ya la he visto') + '</button>' +
+      (tareaPropia(t) ? '<button type="button" class="cj-tarea-quitar" onclick="CJ.quitarPropia(' + t.id + ')">Quitar</button>' : '') + '</div>';
   }
   function tareasHtml(){
     const ts = tareasActivas();
     const porHacer = ts.filter(t => !tareaMarcada(t)), hechas = ts.filter(tareaMarcada);
     return (porHacer.length ? '<div class="cj-repaso-vacio cj-tareas-ayuda">Cuando termines de ver una tarea, márcala con «Ya la he visto»: entonces pasa a Repasar.</div>' +
           '<div class="cj-card cjt-inicio">' + porHacer.map(filaTarea).join('') + '</div>'
-        : '<div class="cj-card"><div class="cj-repaso-vacio">' + (ts.length ? 'Las tienes todas vistas: todo está en Repasar.' : 'Tu profesor no te ha mandado nada.') + '</div></div>') +
+        : '<div class="cj-card"><div class="cj-repaso-vacio">' + (ts.length ? 'Las tienes todas vistas: todo está en Repasar.' : 'No tienes nada mandado: ni de tu profesor ni tuyo.') + '</div></div>') +
       (hechas.length ? '<div class="cj-seccion">Ya vistas · en Repasar</div><div class="cj-card cjt-inicio">' + hechas.map(filaTarea).join('') + '</div>' : '') +
-      (ts.length > 1 ? '<button type="button" class="cj-hoy-otro" onclick="CJT.abrirProfesor()">Verlo todo junto ›</button>' : '');
+      (ts.length > 1 ? '<button type="button" class="cj-hoy-otro" onclick="CJT.abrirProfesor()">Verlo todo junto ›</button>' : '') + botonPropia();
   }
   const marcandoVista = new Set();
   function marcarVistas(){
@@ -2917,7 +2930,8 @@ const CJ = (function(){
     return out;
   }
   function aprenderHtml(){
-    let h = '<p class="cj-aprender-intro">Para ver lo que hay, de lo más general a lo más concreto. Toca una fila: sale en el mapa con su lista y, arriba, eliges el distrito. Lo que toques en el mapa o elijas de la lista pasa a Repasar.</p>';
+    let h = '<p class="cj-aprender-intro">Para ver lo que hay, de lo más general a lo más concreto. Toca una fila: sale en el mapa con su lista y, arriba, eliges el distrito. Lo que toques en el mapa o elijas de la lista pasa a Repasar.</p>' +
+      botonPropia();
     APRENDER.forEach((g, i) => {
       h += '<div class="cj-seccion cj-paso"><span class="cj-paso-n">' + (i + 1) + '</span>' + escapeHtml(g.g) + '</div><div class="cj-card cj-aprender cj-cat-' + g.c + '">' +
         g.filas.map(f => {
@@ -5161,7 +5175,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)
