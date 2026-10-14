@@ -285,6 +285,56 @@ const CJ = (function(){
     const vistas = new Set();
     return { vias: vias.map(v => quitar.get(v.id) || v).filter(v => !vistas.has(v) && vistas.add(v)), juntas: quitar };
   }
+  /* Lo que no entra de normal (respuestas del formulario del callejero):
+     - v.oculta: calles «sin nombre», enlaces y vías de servicio de autovía;
+       no se preguntan ni salen en las listas (siguen dibujadas en el mapa).
+     - v.campo: cortijos, fincas, caminos, urbanizaciones sueltas…: aparte, en
+       «Campo y afueras» de Aprender; solo entran si se eligen uno a uno. */
+  const TIPOS_CAMPO = new Set(['CORTIJO', 'FINCA', 'HUERTA, HUERTO', 'CHALET', 'DISEMINADO', 'EXTRARRADIO', 'PARAJE', 'CAMINO', 'CAMINO VIEJO',
+    'VEREDA', 'SENDERO', 'URBANIZACION', 'ALDEA', 'LUGAR', 'GENERICA', 'GRUPO', 'BARRIADA', 'VIA VERDE', 'ZONA']);
+  function marcarCampo(vias){
+    vias.forEach(v => {
+      if(/sin nombre/i.test(v.nombre) || /^(ENLACE|VIA DE SERVICIO)$/.test(v.tipo) || (v.tipo === 'ACCESO' && /salida/i.test(v.nombre))){ v.oculta = true; v.jugable = false; }
+      else if(TIPOS_CAMPO.has(v.tipo)) v.campo = true;
+    });
+  }
+  // Numeración oficial de los distritos (datos abiertos del Ayuntamiento).
+  const NUM_DISTRITO = { 'Centro': '00', 'Sur': '01', 'Sureste': '02', 'Levante': '03', 'Norte Sierra': '04', 'Noroeste': '05',
+    'Poniente Norte': '06', 'Poniente Sur': '07', 'Periurbano Oeste-Sierra': '08', 'Periurbano Este-Campiña': '09' };
+  const conNumero = d => NUM_DISTRITO[d] ? NUM_DISTRITO[d] + ' ' + d : d;
+  // Las carreteras, con su código y su destino oficial (el del Callejero Fiscal 2026:
+  // «A-431 Córdoba - Palma del Río»); sin él, el del CDAU sin «Carretera». Al llegar el PDF.
+  const TILDES = { cordoba: 'Córdoba', rio: 'Río', almodovar: 'Almodóvar', malaga: 'Málaga', jaen: 'Jaén', almaden: 'Almadén', guadalcazar: 'Guadalcázar',
+    nunez: 'Núñez', fernan: 'Fernán', campina: 'Campiña', penarroya: 'Peñarroya', obejo: 'Obejo', badajoz: 'Badajoz', granada: 'Granada', aeropuerto: 'Aeropuerto' };
+  function nombresDeCarreteras(){
+    if(!datos || typeof CJ26 === 'undefined' || !CJ26.listo() || datos.carreterasNombradas) return;
+    datos.carreterasNombradas = true;
+    let cambio = false;
+    datos.vias.forEach(v => {
+      const c = codigoCarretera(v);
+      if(!c || v.oculta) return;
+      const fs = CJ26.filasDe(c).filter(f => /^(CR|AV|EX|)$/.test(f.sig)).sort((a, b) => a.nombre.length - b.nombre.length);
+      let n;
+      if(fs.length){
+        const resto = fs[0].nombre.replace(/^\s*(?:CR\s+|CTRA\.?\s+)?[A-Z]+\s*-\s*(\d+[A-Z]?|IV)\b\s*/i, '').replace(/\s*-\s*/g, ' - ').replace(/\s+-\s*$/, '').trim().toLowerCase()
+          .replace(/[a-zñ]+/g, w => TILDES[w] || (/^(de|del|la|las|los|el|y|a)$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)));
+        n = c + (resto ? ' ' + resto : '');
+      }else{
+        // Sin fila en el PDF: el código y lo que el CDAU pone detrás («A-4 del Sur»).
+        const m = v.nombre.match(/\b(AP|CO|CP|CV|CH|A|N|E)-\s?(IV|\d{1,4}[a-z]?)\b/i);
+        const resto = m ? v.nombre.slice(m.index + m[0].length).replace(/^[\s-]+/, '').trim() : '';
+        n = c + (resto ? ' ' + resto : '');
+      }
+      if(n && n !== v.nombre){
+        v.alias = [...new Set((v.alias || []).concat(v.nombre))];
+        v.nombre = n; v.clave = normalizar(n); cambio = true;
+      }
+    });
+    if(!cambio) return;
+    datos.porNombre = new Map();
+    datos.vias.forEach(v => { const k = v.nombre.toLowerCase(); if(!datos.porNombre.has(k)) datos.porNombre.set(k, []); datos.porNombre.get(k).push(v); });
+    cacheFilas.clear();
+  }
   function decodificar(doc){
     const barrios = ((doc.zonas && doc.zonas.barrios) || []).map(([nombre, distrito, anillos]) => ({ nombre, distrito, anillos: decodificarLineas(anillos) }));
     let vias = doc.vias.map(([id, nombre, tipo, jugable, lineas, enBarrios, parque]) => {
@@ -299,6 +349,7 @@ const CJ = (function(){
     }));
     const unidas = unirCarreteras(vias);
     vias = unidas.vias;
+    marcarCampo(vias);
     corregirBarrios(barrios, vias, lugares);
     const lineaParques = doc.parques && doc.parques.linea ? decodificarLineas([doc.parques.linea])[0] : null;
     const porNombre = new Map();
@@ -340,6 +391,7 @@ const CJ = (function(){
     return false;
   }
   function enZonaBase(x, z){
+    if(x.campo) return false;   // el campo (cortijos, caminos…) solo si se elige uno a uno
     if(!z) return true;
     if(z === 'fuera') return x.barrios.length === 0;
     if(z.startsWith('d:')) return x.barrios.some(b => b.distrito === z.slice(2));
@@ -435,7 +487,7 @@ const CJ = (function(){
       const resp = await fetch(url);
       if(!resp.ok) throw new Error('No se pudo descargar el callejero (' + resp.status + ')');
       datos = decodificar(await resp.json());
-      if(typeof CJ26 !== 'undefined') CJ26.cargar().catch(() => {});   // el Callejero 2026, para sus botones
+      if(typeof CJ26 !== 'undefined') CJ26.cargar().then(() => { nombresDeCarreteras(); if(vistaActual === 'inicio') pintarInicio(); }, () => {});   // el Callejero 2026: sus botones y los nombres oficiales de las carreteras
       return datos;
     })();
     try{ return await cargando; }
@@ -2191,7 +2243,7 @@ const CJ = (function(){
     const f = verTemario.filtro, todos = verTemario.todos;
     const b = (k, texto, n) => '<button type="button" role="tab" aria-selected="' + (f === k) + '" class="cj-chip' + (f === k ? ' activo' : '') +
       '" onclick="CJ.filtrarGrupo(' + escapeHtml(JSON.stringify(k)) + ')">' + escapeHtml(texto) + ' <span class="cj-chip-n">' + n + '</span></button>';
-    caja.innerHTML = b('', 'Todos', todos.length) + gs.map(g => b(g, g, todos.filter(it => it.grupo === g).length)).join('');
+    caja.innerHTML = b('', 'Todos', todos.length) + gs.map(g => b(g, conNumero(g), todos.filter(it => it.grupo === g).length)).join('');
   }
   function filtrarGrupo(g){
     if(!verTemario || !verTemario.porGrupos) return;
@@ -2832,7 +2884,11 @@ const CJ = (function(){
       { k: 'tem:feria', t: 'Feria de la Salud', s: 'Su plano: casetas y calles', i: 'localiza' },
       { k: 'transporte', t: 'Transporte y cementerios', s: 'Estaciones, aeropuerto y cementerios', i: 'lugares' }] },
     { g: 'Datos generales', c: 'gris', filas: [
-      { k: 'tem:datos', t: 'Datos de Córdoba', s: 'Término, pedanías, población…', i: 'estudio' }] }
+      { k: 'tem:datos', t: 'Datos de Córdoba', s: 'Término, pedanías, población…', i: 'estudio' }] },
+    { g: 'Aparte · Campo y afueras', c: 'gris', aparte: true, filas: [
+      { k: 'campo-urb', t: 'Urbanizaciones y barriadas', s: 'Del mapa y del Callejero 2026', i: 'localiza' },
+      { k: 'campo-caminos', t: 'Caminos y veredas', i: 'mapa' },
+      { k: 'campo-cortijos', t: 'Cortijos, fincas y diseminados', i: 'lugares' }] }
   ];
   const filaAprender = k => APRENDER.flatMap(g => g.filas).find(f => f.k === k);
   function porNombre(vias){
@@ -2874,7 +2930,12 @@ const CJ = (function(){
   const VIAS_FILA = {
     grandes: { tipos: TIPOS_PRINCIPALES, siglas: ['AV', 'PS', 'BV', 'CR'] },
     'tem:plazas': { tipos: new Set(['PLAZA', 'GLORIETA', 'PLAZUELA']), siglas: ['PZ', 'GL', 'PL'] },
-    todas: { tipos: null, siglas: null }
+    // Todas, sin el campo (ni del PDF: extrarradio, diseminados, caminos, urbanizaciones, zonas).
+    todas: { tipos: null, siglas: ['CL', 'PZ', 'GL', 'AV', 'PJ', 'PS', 'CR', 'CJ', 'JD', 'TR', 'PQ', 'BV', 'PG', 'PT', 'AC', 'PL', 'CTR', 'SEU', ''] },
+    // Campo y afueras (aparte: solo entran si se eligen).
+    'campo-urb': { campo: true, tipos: new Set(['URBANIZACION', 'BARRIADA', 'GRUPO']), siglas: ['UR', 'BD', 'BDA'] },
+    'campo-caminos': { campo: true, tipos: new Set(['CAMINO', 'CAMINO VIEJO', 'VEREDA', 'SENDERO', 'VIA VERDE']), siglas: ['CM'] },
+    'campo-cortijos': { campo: true, tipos: new Set(['CORTIJO', 'FINCA', 'HUERTA, HUERTO', 'CHALET', 'DISEMINADO', 'EXTRARRADIO', 'PARAJE', 'ALDEA', 'LUGAR', 'GENERICA', 'ZONA']), siglas: ['EX', 'SD', 'ZO'] }
   };
   // Lugares: las categorías del mapa que van en cada fila.
   const LUGARES_FILA = {
@@ -2912,7 +2973,7 @@ const CJ = (function(){
     if(vf){
       // Las del mapa (una por nombre, con todos sus tramos) y, con su fila, las del Callejero 2026.
       const usadas = new Set();
-      porNombre(datos.vias.filter(v => !vf.tipos || vf.tipos.has(v.tipo))).forEach(vs => {
+      porNombre(datos.vias.filter(v => !v.oculta && !!v.campo === !!vf.campo && (!vf.tipos || vf.tipos.has(v.tipo)))).forEach(vs => {
         const v = vs[0], bs = [...new Set(vs.flatMap(x => x.barrios))];
         const fs = con26 ? [v.nombre].concat(v.alias || []).flatMap(n => CJ26.filasDe(n, v.tipo)) : [];
         fs.forEach(f => usadas.add(f.i));
@@ -2921,7 +2982,7 @@ const CJ = (function(){
           detalle: [bs.map(x => x.nombre).join(', ')].filter(Boolean) });
       });
       // Las del Callejero 2026 que el mapa no tiene dibujadas.
-      if(con26) (vf.siglas ? CJ26.lista(vf.siglas) : CJ26.lista(Object.keys(CJ26.SIGLA).concat(['']))).forEach(f => {
+      if(con26) CJ26.lista(vf.siglas).forEach(f => {
         if(usadas.has(f.i)) return;
         const n = CJ26.nombreFila(f), c = clave(n);
         if(porClave.has(c)){ const it = porClave.get(c); it.filas26 = (it.filas26 || []).concat(f.i); return; }
@@ -2968,7 +3029,7 @@ const CJ = (function(){
     let h = '<p class="cj-aprender-intro">Para ver lo que hay, de lo más general a lo más concreto. Toca una fila: sale en el mapa con su lista y, arriba, eliges el distrito. Lo que toques en el mapa o elijas de la lista pasa a Repasar.</p>' +
       botonPropia();
     APRENDER.forEach((g, i) => {
-      h += '<div class="cj-seccion cj-paso"><span class="cj-paso-n">' + (i + 1) + '</span>' + escapeHtml(g.g) + '</div><div class="cj-card cj-aprender cj-cat-' + g.c + '">' +
+      h += '<div class="cj-seccion cj-paso"><span class="cj-paso-n">' + (g.aparte ? '·' : i + 1) + '</span>' + escapeHtml(g.g) + '</div><div class="cj-card cj-aprender cj-cat-' + g.c + '">' +
         g.filas.map(f => {
           const n = cuantasAprender(f.k);
           return '<button type="button" class="cj-cat-fila" onclick="CJ.verCat(' + escapeHtml(JSON.stringify(f.k)) + ')">' +
@@ -2988,7 +3049,7 @@ const CJ = (function(){
       ordenDistritos(bs.map(x => x.distrito)).map(d => {
         const de = bs.filter(x => x.distrito === d).sort((a, b) => a.n.localeCompare(b.n, 'es'));
         return '<details class="cj-distrito-calles"' + (abiertoAprender === d ? ' open' : '') + ' data-d="' + escapeHtml(d) + '" ontoggle="if(this.open)CJ.abrirAprender(this.dataset.d)">' +
-          '<summary><b>' + escapeHtml(d) + '</b><span>' + de.length + (de.length === 1 ? ' barrio' : ' barrios') + '</span></summary>' +
+          '<summary><b>' + escapeHtml(conNumero(d)) + '</b><span>' + de.length + (de.length === 1 ? ' barrio' : ' barrios') + '</span></summary>' +
           de.map(x => {
             const n = porNombre(callesBarrio(x.barrio.nombre)).length;
             return '<button type="button" class="cj-cat-fila cj-cat-sub" onclick="CJ.verCat(' + escapeHtml(JSON.stringify('barrio:' + x.barrio.nombre)) + ')">' +
@@ -3096,7 +3157,7 @@ const CJ = (function(){
     if(!eleccionPropia) empezarElegir();
     let h = '';
     APRENDER.forEach((g, gi) => {
-      h += '<div class="cj-seccion cj-paso"><span class="cj-paso-n">' + (gi + 1) + '</span>' + escapeHtml(g.g) + '</div><div class="cj-card cj-aprender cje-card cj-cat-' + g.c + '">';
+      h += '<div class="cj-seccion cj-paso"><span class="cj-paso-n">' + (g.aparte ? '·' : gi + 1) + '</span>' + escapeHtml(g.g) + '</div><div class="cj-card cj-aprender cje-card cj-cat-' + g.c + '">';
       g.filas.forEach(f => {
         const its = itemsElegir(f.k), sel = eleccionPropia.sel.get(f.k), n = sel ? sel.size : 0, total = its ? its.length : 0;
         const abierta = eleccionPropia.abierta === f.k, ka = escapeHtml(JSON.stringify(f.k));
@@ -3121,7 +3182,7 @@ const CJ = (function(){
       const n = idx.filter(i => sel.has(i)).length, ga = escapeHtml(JSON.stringify(g)), abierto = eleccionPropia.grupos.has(k + '|' + g) || grupos.length === 1;
       return '<div class="cje-grupo">' +
         '<div class="cje-grupo-cab">' + casilla(estadoDe3(n, idx.length), 'CJ.elegirGrupo(' + ka + ',' + ga + ')', 'Elegir todo ' + g) +
-          '<button type="button" class="cje-grupo-txt" onclick="CJ.abrirGrupoElegir(' + ka + ',' + ga + ')"><b>' + escapeHtml(g) + '</b><span>' + n + ' de ' + idx.length + '</span>' +
+          '<button type="button" class="cje-grupo-txt" onclick="CJ.abrirGrupoElegir(' + ka + ',' + ga + ')"><b>' + escapeHtml(conNumero(g)) + '</b><span>' + n + ' de ' + idx.length + '</span>' +
           (grupos.length > 1 ? '<svg class="cje-flecha' + (abierto ? ' abierta' : '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>' : '') + '</button></div>' +
         (abierto ? '<div class="cje-items">' + idx.map(i => '<div class="cje-item">' + casilla(sel.has(i) ? 2 : 0, 'CJ.elegirItem(' + ka + ',' + i + ')', its[i].nombre) +
           '<span>' + escapeHtml(its[i].nombre) + '</span></div>').join('') + '</div>' : '') +
@@ -3191,7 +3252,7 @@ const CJ = (function(){
       const color = coloresDe('distritos');
       extra = { titulo: 'Distritos', nombres: true, items: datos.distritos.map(d => {
         const bs = barriosFijos().filter(x => x.distrito === d);
-        return { nombre: d, tipo: 'Distrito', vias: [], lugar: null, barrios: datos.barrios.filter(b => b.distrito === d), distrito: d, color: color.get(d),
+        return { nombre: conNumero(d), tipo: 'Distrito', vias: [], lugar: null, barrios: datos.barrios.filter(b => b.distrito === d), distrito: d, color: color.get(d),
           detalle: [bs.length + (bs.length === 1 ? ' barrio: ' : ' barrios: ') + bs.map(x => x.n).join(', ')] };
       }) };
     }else if(k === 'barrios'){
@@ -3199,7 +3260,7 @@ const CJ = (function(){
       const color = coloresDe('barrios');
       extra = { titulo: 'Barrios', nombres: true, nombresDesde: 14, porGrupos: true, items: barriosFijos().sort((a, b) => a.n.localeCompare(b.n, 'es'))
         .map(x => ({ nombre: x.n, tipo: x.barrio ? 'Barrio' : 'Pedanía', vias: [], lugar: null, barrios: x.barrio ? [x.barrio] : [], grupo: x.distrito,
-          color: x.barrio ? color.get(x.barrio.nombre) : null, detalle: ['Distrito ' + x.distrito].concat(x.barrio && x.barrio.nombre !== x.n ? ['En el mapa, junto con otro: ' + x.barrio.nombre] : []) })) };
+          color: x.barrio ? color.get(x.barrio.nombre) : null, detalle: ['Distrito ' + conNumero(x.distrito)].concat(x.barrio && x.barrio.nombre !== x.n ? ['En el mapa, junto con otro: ' + x.barrio.nombre] : []) })) };
     }else if(k.startsWith('barrio:')){
       const b = datos.barrios.find(x => x.nombre === k.slice(7));
       if(!b) return;
@@ -4263,7 +4324,7 @@ const CJ = (function(){
       const gs = verTemario.porGrupos ? ordenDistritos(verTemario.items.map(it => it.grupo || '')) : [];
       caja.innerHTML = gs.length > 1 ? gs.map(g => {
         const de = idx.filter(i => (verTemario.items[i].grupo || '') === g);
-        return '<div class="cj-lista-cab">' + escapeHtml(g || 'Otros') + '<span>' + de.length + '</span></div>' + de.map(fila).join('');
+        return '<div class="cj-lista-cab">' + escapeHtml(conNumero(g) || 'Otros') + '<span>' + de.length + '</span></div>' + de.map(fila).join('');
       }).join('') : idx.map(fila).join('');
       caja.scrollTop = 0;
       caja.classList.remove('hidden');
