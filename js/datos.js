@@ -318,7 +318,7 @@ function quizProgressKey(){
 function saveQuizProgress(){
   try{
     if(!quizState || !quizState.mode){
-      localStorage.removeItem(quizProgressKey());
+      if(localStorage.getItem(quizProgressKey()) != null){ localStorage.removeItem(quizProgressKey()); SINC.cambiado('legis'); }
       return;
     }
     // Test de una tarea del calendario: su avance va también a la tarea (para seguir en otro dispositivo).
@@ -326,11 +326,27 @@ function saveQuizProgress(){
     localStorage.setItem(quizProgressKey(), JSON.stringify({
       quizState, activeQuestions: ACTIVE_QUESTIONS, quizSecondsLeft, savedAt: Date.now()
     }));
+    SINC.cambiado('legis');   // y a la cuenta, para seguir en otro dispositivo
   }catch(e){ /* localStorage no disponible: seguimos sin persistir */ }
 }
 function clearQuizProgress(){
-  try{ localStorage.removeItem(quizProgressKey()); }catch(e){}
+  try{ if(localStorage.getItem(quizProgressKey()) != null){ localStorage.removeItem(quizProgressKey()); SINC.cambiado('legis'); } }catch(e){}
 }
+/* Llega de otro dispositivo un test de Legislación más nuevo (o que allí se
+   terminó): se coge. Si se está haciendo aquí, se sigue en su pregunta. */
+SINC.registrar('legis', quizProgressKey, () => {
+  const aqui = SINC.enPantalla('screen-quiz');
+  try{ clearInterval(timerInterval); }catch(e){}
+  quizState = { mode:null, index:0, correctCount:0, answered:false };
+  ACTIVE_QUESTIONS = SAMPLE_QUESTIONS;
+  quizSecondsLeft = null;
+  restoreQuizProgress();
+  if(aqui){
+    if(quizState && quizState.mode){ resumeQuiz(); uiToast('Sigues donde lo dejaste en el otro dispositivo', 'info'); }
+    else { showScreen('screen-inicio'); uiToast('Ese test ya lo terminaste en otro dispositivo', 'info'); }
+  }
+  if(typeof INICIO !== 'undefined') INICIO.pintar();
+});
 /* Se llama una vez al arrancar/loguearse: si hay un test guardado del
    usuario actual, lo recupera en memoria (no cambia de pantalla; el
    usuario lo retoma pulsando "Reanudar" en la tarjeta correspondiente,

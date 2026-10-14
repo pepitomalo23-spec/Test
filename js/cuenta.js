@@ -127,6 +127,8 @@ async function onLoggedIn(user, isFreshSignIn){
   // como "en curso" con su botón "Reanudar", igual que si nunca se
   // hubiera cerrado la app.
   restoreQuizProgress();
+  // Lo que se dejó a medias en otro dispositivo (si es más nuevo que lo de aquí).
+  SINC.bajar().then(() => { if(typeof INICIO !== 'undefined') INICIO.pintar(); });
   // Mientras llegan los permisos, solo lo que ya se sabía que tiene (o nada).
   loadCachedFeatureFlags(user.id);
   if(typeof ESPT !== 'undefined') ESPT.enviarRespuestas();   // respuestas del Específico que quedaran sin enviar

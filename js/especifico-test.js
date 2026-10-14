@@ -1,7 +1,8 @@
 /* Específico: hacer un test (preguntas de especifico_preguntas) y ver las
    preguntas marcadas, con el diseño del aula virtual de tutorbomberos:
    cabecera naranja y todas las preguntas seguidas.
-   - Cada vez que se entra, el test empieza de cero. Lo que se responde va
+   - Un test a medias se sigue donde se dejó (aquí o en otro dispositivo:
+     js/sincro.js); «Empezar de cero» lo vacía. Lo que se responde va
      a Estadísticas y, como una prueba más, al historial del Específico
      (modo 'esp-tb' de js/pruebas.js), desde donde se revisa o se borra.
    - Una sola respuesta por pregunta: queda fija, con ✓ si es la correcta o
@@ -162,21 +163,77 @@ const ESPT = (function(){
     if(!notas.has(id) && matchMedia('(hover: hover)').matches) setTimeout(() => bg.querySelector('.espn-texto').focus(), 50);
   }
 
+  /* ---------- tests a medias (para seguir aquí o en otro dispositivo) ----------
+     De cada test sin terminar: lo respondido, la prueba del historial y la
+     última respondida. En el dispositivo y en la cuenta (js/sincro.js). Los
+     de una tarea del calendario van con la tarea, como siempre. */
+  const CURSO = 'pj_esp_curso:';
+  const claveCurso = () => currentUser ? CURSO + currentUser.id : null;
+  function leerCurso(){ try{ return JSON.parse(localStorage.getItem(claveCurso()) || '{}') || {}; }catch(e){ return {}; } }
+  function escribirCurso(c){
+    if(!claveCurso()) return;
+    // Los 15 más recientes bastan.
+    const ids = Object.keys(c).sort((a, b) => (c[b].at || 0) - (c[a].at || 0));
+    ids.slice(15).forEach(id => delete c[id]);
+    try{ Object.keys(c).length ? localStorage.setItem(claveCurso(), JSON.stringify(c)) : localStorage.removeItem(claveCurso()); }catch(e){}
+    SINC.cambiado('esp');
+  }
+  function guardarCurso(){
+    if(modo !== 'test' || tarea || !test || !preguntas.length) return;
+    const c = leerCurso(), n = Object.keys(resp).length;
+    if(!n || n >= preguntas.length) delete c[test.id];   // sin empezar o ya terminado: nada a medias
+    else c[test.id] = { test: { id: test.id, titulo: test.titulo, tema: test.tema }, resp: Object.assign({}, resp), sesion, ultima, total: preguntas.length, at: Date.now() };
+    escribirCurso(c);
+  }
+  // Para Inicio: el test a medias más reciente.
+  function aMedias(){
+    const c = leerCurso(), x = Object.values(c).sort((a, b) => (b.at || 0) - (a.at || 0))[0];
+    return x ? { id: x.test.id, titulo: x.test.titulo, hechas: Object.keys(x.resp || {}).length, total: x.total || 0 } : null;
+  }
+  function continuarCurso(id){
+    const x = leerCurso()[id];
+    if(x) abrir(x.test, null, 'screen-inicio');
+  }
+  function empezarDeCero(){
+    if(!test) return;
+    uiConfirm('Se borra lo que llevas de este test (lo ya respondido sigue en tu historial y en Estadísticas).', { title: '¿Empezar de cero?', ok: 'Empezar de cero', danger: true }).then(ok => {
+      if(!ok) return;
+      resp = {}; sesion = null; ultima = null; reanudado = false;
+      const c = leerCurso(); delete c[test.id]; escribirCurso(c);
+      pintar(); arriba();
+    });
+  }
+  let reanudado = false;   // se ha seguido un test a medias (sale «Empezar de cero»)
+  // Llega de otro dispositivo algo más nuevo: si se está con ese test, se coge lo de allí.
+  SINC.registrar('esp', claveCurso, () => {
+    const enTest = modo === 'test' && test && !tarea && SINC.enPantalla('screen-esp-test');
+    if(enTest){
+      const x = leerCurso()[test.id];
+      if(x){ resp = Object.assign({}, x.resp); sesion = x.sesion || sesion; ultima = x.ultima || null; reanudado = true; pintar(); irAPendiente(); }
+    }
+    if(typeof INICIO !== 'undefined') INICIO.pintar();
+  });
+
   /* ---------- abrir ---------- */
   function empezar(m){
-    modo = m; preguntas = []; resp = {}; abiertas = new Set(); error = ''; sesion = null; tarea = null; volverA = null; ultima = null;
+    modo = m; preguntas = []; resp = {}; abiertas = new Set(); error = ''; sesion = null; tarea = null; volverA = null; ultima = null; reanudado = false;
     enviarRespuestas();   // las que quedaran pendientes de otra vez
     showScreen('screen-esp-test');
     arriba();
   }
   // op (desde el calendario): { tarea, progreso, volver } para seguir por donde se dejó.
-  async function abrir(t, op){
+  async function abrir(t, op, volver){
     empezar('test'); test = t;
+    if(volver) volverA = volver;
     cargarNotas().then(() => { if(modo === 'test' && test === t) pintar(); });
     if(op && op.tarea){
       tarea = op.tarea; volverA = op.volver || null;
       const p = op.progreso || {};
       resp = Object.assign({}, p.resp); sesion = p.sesion || null; ultima = p.ultima || null;
+    }else{
+      // Sin tarea: si se dejó a medias (aquí o en otro dispositivo), se sigue.
+      const x = leerCurso()[t.id];
+      if(x){ resp = Object.assign({}, x.resp); sesion = x.sesion || null; ultima = x.ultima || null; reanudado = true; }
     }
     if(cache.has(t.id)) preguntas = cache.get(t.id);
     else{
@@ -197,8 +254,13 @@ const ESPT = (function(){
       Object.keys(resp).forEach(id => { if(!preguntas.some(p => p.id === id)) delete resp[id]; });
       if(Object.keys(resp).length !== antes || ((op && op.progreso) || {}).total !== preguntas.length) avisarTarea();
     }
+    if(reanudado){
+      // Solo cuentan las que siguen en el test.
+      Object.keys(resp).forEach(id => { if(!preguntas.some(p => p.id === id)) delete resp[id]; });
+      if(!Object.keys(resp).length) reanudado = false;
+    }
     pintar();
-    if(tarea) irAPendiente();
+    if(tarea || reanudado) irAPendiente();
   }
   // Para la tarea del calendario: lo respondido, cuántas tiene y si ya está todo.
   function avisarTarea(){
@@ -280,7 +342,9 @@ const ESPT = (function(){
       '<div class="espt-cab">' +
         '<div class="espt-etiqueta">Tema:</div><div class="espt-campo">' + escapeHtml(test ? temaDe(test.tema) : '') + '</div>' +
         '<div class="espt-etiqueta">Descripción:</div><div class="espt-campo">' + escapeHtml(test ? test.titulo : '') + '</div>' +
-      '</div>';
+      '</div>' +
+      (reanudado && !tarea && Object.keys(resp).length ? '<div class="espt-sigue">Sigues donde lo dejaste: ' + Object.keys(resp).length + ' de ' + preguntas.length + ' respondidas.' +
+        ' <button type="button" data-espt="cero">Empezar de cero</button></div>' : '');
   }
   function tarjeta(p){
     const elegida = resp[p.id];
@@ -383,6 +447,7 @@ const ESPT = (function(){
     registrar([{ pregunta_id: id, acierto, prueba_id: sesion ? sesion.id : null }]);
     if(pru) guardarSesion();
     avisarTarea();
+    guardarCurso();
   }
   // El historial: las respondidas, en el orden del test, con su nota (como en las pruebas).
   function guardarSesion(){
@@ -444,6 +509,7 @@ const ESPT = (function(){
     switch(b.dataset.espt){
       case 'volver': showScreen(volverA || 'screen-especifico'); break;
       case 'filtro': elegirMarcadas(b.dataset.f || null); break;
+      case 'cero': empezarDeCero(); break;
       case 'exp':
         if(abiertas.has(id)){ abiertas.delete(id); repintar(id); break; }
         abiertas.add(id); repintar(id);
@@ -467,5 +533,5 @@ const ESPT = (function(){
   function reiniciar(){ notas = new Map(); notasDe = null; marcadas = new Set(); marcadasCargadas = false; cache.clear(); expl.clear(); }
   // También las usa el diseño de tutorbomberos de js/pruebas.js.
   async function alternarMarcaDesde(id){ if(!marcadasCargadas) await cargarMarcadas(); return alternarMarca(id); }
-  return { cargarNotas, notaHtml, abrirNota, onNotaClick, tieneNota: id => notas.has(id), estaMarcada: id => marcadas.has(id), alternarMarca: alternarMarcaDesde, abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar, olvidarPrueba, explicacion };
+  return { cargarNotas, notaHtml, abrirNota, onNotaClick, tieneNota: id => notas.has(id), estaMarcada: id => marcadas.has(id), alternarMarca: alternarMarcaDesde, abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar, olvidarPrueba, explicacion, aMedias, continuarCurso };
 })();

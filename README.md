@@ -24,6 +24,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   alturas.js         alturas reales de las cabeceras (variables CSS)
   permisos.js        permisos por función de cada usuario
   dispositivo.js     identificación del dispositivo e intentos de acceso
+  sincro.js          lo que va a medias (tests, simulacros…), en la cuenta: seguir en otro dispositivo
   datos.js           datos en memoria, utilidades comunes, test en curso guardado
   temario.js         utilidades del árbol del temario (alumno y admin)
   estadisticas.js    pantalla de entrada y Estadísticas (pestaña Legislación)
