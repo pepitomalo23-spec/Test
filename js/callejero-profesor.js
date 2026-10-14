@@ -297,9 +297,15 @@ const CJP = (function(){
   // El alumno se manda a sí mismo lo que quiere estudiar (desde Aprender o
   // «Lo que te ha mandado»): el mismo formulario, «para ti», sin «solo esto».
   // Sale en «Lo que te ha mandado» como las del profesor.
-  function nuevaPropia(){
+  // El paso 1 es la lista de Aprender (CJ.elegirHtml): se elige como allí, fila
+  // entera, por distrito o cosa a cosa.
+  async function nuevaPropia(){
     if(!currentUser) return;
-    nuevaTarea(currentUser.id, { propia: true, paso: 1 });
+    CJ.empezarElegir();
+    panel(cabecera('Mandarme algo para estudiar', 'CJP.cancelarFormulario()') + '<div class="cj-card">' + skelList(4) + '</div>');
+    try{ await Promise.all([CJ.cargarDatos(), CJT.cargar(), typeof CJ26 !== 'undefined' ? CJ26.cargar() : null]); }
+    catch(e){ uiToast(e.message, 'error'); }
+    nuevaTarea(currentUser.id, { propia: true, paso: 1, partes: new Set() });
   }
   // Desde el temario: manda una ficha, un apartado o lo elegido. Con un solo
   // alumno ya sale marcado; al acabar (o cancelar) se vuelve al temario.
@@ -332,6 +338,7 @@ const CJP = (function(){
   const n = (k, uno, varios) => k + ' ' + (k === 1 ? uno : varios);
   // Lo elegido, en una línea (paso 2).
   function resumenQue(b){
+    if(b.propia && b.resumenPropio) return b.resumenPropio;
     const partes = [];
     if(b.partes.has('temario')) partes.push(n(CJT.contarElegidas(b.fichas), 'cosa elegida', 'cosas elegidas') + ' del temario: ' + CJT.describirFichas(b.fichas));
     if(b.partes.has('lista')) partes.push(n(b.vias.length, 'calle', 'calles') + ' y ' + n(b.lugares.length, 'lugar', 'lugares') + ' elegidos en el mapa');
@@ -351,6 +358,16 @@ const CJP = (function(){
   }
   function pintarPaso1(titulo){
     const b = borrador;
+    if(b.propia){
+      panel(cabecera(titulo, 'CJP.cancelarFormulario()') + pasos(b) +
+        '<div class="cj-hab-det cjp-nota">Elige como en Aprender: marca una fila entera, o ábrela y marca un distrito o las cosas que quieras.</div>' +
+        CJ.elegirHtml() +
+        '<div class="admin-form-actions cje-acciones">' +
+          '<button type="button" class="btn btn-ghost" onclick="CJP.cancelarFormulario()">Cancelar</button>' +
+          '<button type="button" class="btn btn-primary btn-light" id="cjpSiguiente" onclick="CJP.irAlPaso(2)">Siguiente</button>' +
+        '</div>');
+      return;
+    }
     const datos = CJ.datos();
     const nombres = b.vias.map(id => datos && datos.viaPorId.get(id)).filter(Boolean).map(v => v.nombre)
       .concat(b.lugares.map(id => datos && datos.lugarPorId.get(id)).filter(Boolean).map(l => l.nombre))
@@ -439,6 +456,22 @@ const CJP = (function(){
   function irAlPaso(p){
     leerFormulario();
     const b = borrador;
+    if(p === 2 && b.propia){
+      // Lo elegido en la lista de Aprender pasa a la tarea.
+      const r = CJ.resultadoElegir();
+      if(!r.vias.length && !r.lugares.length && !r.fichas.length){
+        uiToast(r.resumen ? 'Eso no tiene preguntas (no está en el mapa ni en el temario). Elige otra cosa.' : 'Elige algo para estudiar.', 'info');
+        return;
+      }
+      if(r.vias.length > 5000 || r.lugares.length > 1000 || r.fichas.length > 2000){ uiToast('Es demasiado para una tarea: elige menos (por distritos, por ejemplo).', 'info'); return; }
+      b.vias = r.vias; b.lugares = r.lugares; b.fichas = r.fichas; b.resumenPropio = r.resumen;
+      b.partes = new Set([].concat(r.fichas.length ? ['temario'] : [], r.vias.length + r.lugares.length ? ['lista'] : []));
+      if(!b.titulo) b.titulo = r.titulo;
+      if(r.sinPreguntas) uiToast(r.sinPreguntas + (r.sinPreguntas === 1 ? ' cosa elegida no tiene' : ' cosas elegidas no tienen') + ' preguntas (no están en el mapa ni en el temario).', 'info');
+      b.paso = 2;
+      pintarFormulario();
+      return;
+    }
     if(p === 2){
       const falta = queFalta(b);
       if(falta){ uiToast(falta, 'info'); return; }
@@ -491,7 +524,7 @@ const CJP = (function(){
   async function cancelarFormulario(){
     const b = borrador;
     leerFormulario();
-    const escrito = b && !b.id && (b.titulo || b.mensaje || b.vias.length || b.lugares.length || b.fichas.length);
+    const escrito = b && !b.id && (b.titulo || b.mensaje || b.vias.length || b.lugares.length || b.fichas.length || (b.propia && CJ.resultadoElegir().resumen));
     if(escrito && !(await uiConfirm('¿Salir sin mandar la tarea?'))) return;
     borrador = null;
     if(b && b.propia){ CJ.mostrarVista('inicio'); CJ.irA('aprender'); }

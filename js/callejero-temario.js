@@ -93,6 +93,7 @@ const CJT = (function(){
   }
   // Las claves más cortas para unos elementos elegidos (fichas y apartados enteros juntos).
   function comprimir(ids){
+    ids = ids instanceof Set ? ids : new Set(ids);
     const out = [];
     T.fichas.forEach(f => {
       const todos = f.secciones.flatMap(s => s.items);
@@ -683,6 +684,21 @@ const CJT = (function(){
       out.push({ n: x.n, distrito: f.titulo, b: x.b || null });
     })));
     return out;
+  }
+  // Para mandarse algo (js/callejero.js): las claves del temario de un barrio
+  // (en la lista general y en la ficha de su distrito) o de todos los de un distrito.
+  function clavesBarrio(nombre){
+    if(!T) return [];
+    const k = normalizar(nombre);
+    return T.fichas.flatMap(f => f.secciones.filter(s => s.id === 'distritos' || s.id === 'barrios')
+      .flatMap(s => s.items.filter(x => normalizar(x.n) === k).map(x => claveDe(s) + '/' + x.id)));
+  }
+  function clavesDistrito(d){
+    if(!T) return [];
+    const g = T.fichaPorId.get('general'), sg = g && g.secciones.find(s => s.id === 'distritos');
+    const f = T.fichas.find(x => x.titulo === d), sb = f && f.secciones.find(s => s.id === 'barrios');
+    return (sg ? sg.items.filter(x => x.distrito === d).map(x => claveDe(sg) + '/' + x.id) : [])
+      .concat(sb ? sb.items.map(x => claveDe(sb) + '/' + x.id) : []);
   }
   // Lo de una categoría, con su distrito (para elegirlo arriba). Lo que no está
   // en el mapa también, con su ficha (null mientras se descarga el temario).
@@ -1781,7 +1797,7 @@ const CJT = (function(){
   }
 
   return {
-    cargar, listo, contarSecciones, clavesSecciones, listaBarrios, itemsCategoria, verEnFicha, auditar, repasarClaves, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
+    cargar, listo, contarSecciones, clavesSecciones, listaBarrios, clavesBarrio, clavesDistrito, comprimir, itemsCategoria, verEnFicha, auditar, repasarClaves, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
     filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, preguntasFalladas, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
     abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,

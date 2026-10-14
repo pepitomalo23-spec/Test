@@ -955,3 +955,25 @@
   .cj-mini-propia svg{ width:14px; height:14px; color: var(--coral); }
   .cj-tarea-tuya{ font-size:11px; font-weight:700; color: var(--coral); border:1px solid color-mix(in srgb, var(--coral) 50%, transparent); border-radius:99px; padding:1px 7px; }
   .cj-tarea-quitar{ align-self:flex-start; margin:2px 0 0 4px; padding:2px 6px; border:none; background:none; color: var(--muted-2); font:inherit; font-size:12px; cursor:pointer; text-decoration:underline; }
+  /* Mandarme algo: elegir como en Aprender (casillas en cada fila, distrito y cosa) */
+  .cje-card{ padding:8px 14px; }
+  .cje-fila{ display:flex; align-items:center; gap:10px; border-top:1px solid var(--line); }
+  .cje-card > .cje-fila:first-child{ border-top:0; }
+  .cje-txt{ flex:1; min-width:0; display:flex; align-items:center; gap:12px; padding:10px 0; border:0; background:none; color: var(--text); font:inherit; text-align:left; cursor:pointer; }
+  .cje-txt:disabled{ opacity:.6; cursor:default; }
+  .cje-flecha{ width:16px; height:16px; flex-shrink:0; color: var(--muted-2); transition: transform .15s; }
+  .cje-fila.abierta .cje-flecha, .cje-flecha.abierta{ transform: rotate(180deg); }
+  .cje-check{ flex-shrink:0; width:24px; height:24px; border-radius:7px; border:2px solid var(--line); background:none; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer; color:#fff; }
+  .cje-check svg{ width:15px; height:15px; stroke-width:3; }
+  .cje-check.on{ background: var(--coral); border-color: var(--coral); }
+  .cje-check.medio{ background: color-mix(in srgb, var(--coral) 35%, transparent); border-color: var(--coral); }
+  .cje-cargando{ opacity:.4; cursor:default; }
+  .cje-detalle{ margin:0 0 10px 34px; border-left:2px solid var(--line); padding-left:10px; }
+  .cje-grupo-cab{ display:flex; align-items:center; gap:10px; }
+  .cje-grupo-txt{ flex:1; display:flex; align-items:center; gap:8px; padding:8px 0; border:0; background:none; color: var(--text); font:inherit; font-size:14px; text-align:left; cursor:pointer; }
+  .cje-grupo-txt span{ margin-left:auto; font-size:12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .cje-items{ margin:0 0 6px 34px; }
+  .cje-item{ display:flex; align-items:center; gap:10px; padding:5px 0; font-size:13.5px; }
+  .cje-item .cje-check{ width:20px; height:20px; border-radius:6px; }
+  .cje-item .cje-check svg{ width:13px; height:13px; }
+  .cje-acciones{ position:sticky; bottom:0; background: var(--bg); padding:10px 0; }
