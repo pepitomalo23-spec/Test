@@ -228,3 +228,7 @@
 .imp-cuerpo .col-sitio select{ flex:1 1 260px; width:auto; min-width:0; max-width:100%; text-overflow:ellipsis; padding:8px 10px; font-size:13.5px; }
 .col-motivo{ font-size:12px; padding:3px 8px; border-radius:999px; background: var(--card-hi); color: var(--muted); }
 .col-pie{ position:sticky; bottom:-20px; background: var(--bg); padding:10px 0; border-top:1px solid var(--line); }
+
+/* Un test a medias: se sigue donde se dejó (aquí o en otro dispositivo) */
+.espt-sigue{ margin:-24px 0 28px; padding:10px 14px; border-radius:4px; background: rgba(255,149,51,.12); border:1px solid rgba(255,149,51,.45); font-size:14px; line-height:1.4; }
+.espt-sigue button{ margin-left:6px; padding:4px 10px; border-radius:4px; border:1px solid currentColor; background:none; color:inherit; font: inherit; font-size:13px; font-weight:700; cursor:pointer; }

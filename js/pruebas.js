@@ -535,6 +535,7 @@ const PRU = (function(){
     try{
       localStorage.setItem(clave(), JSON.stringify({ v: 2, modo: est.modo, pen: est.pen, inicio: est.inicio, fin: est.fin, i: est.i, resp: est.resp, vistas: est.vistas, blancas: est.blancas || null,
         items: est.items.map(it => it.k === 'l' ? { k: 'l', id: it.id, orden: it.orden } : { k: 'e', id: it.id }) }));
+      SINC.cambiado('prueba');   // y a la cuenta, para seguir en otro dispositivo
     }catch(e){}
   }
   function guardado(){
@@ -543,7 +544,21 @@ const PRU = (function(){
       return g && MODOS[g.modo] ? g : null;
     }catch(e){ return null; }
   }
-  function borrarGuardado(){ try{ if(clave()) localStorage.removeItem(clave()); }catch(e){} }
+  function borrarGuardado(){ try{ if(clave() && localStorage.getItem(clave()) != null){ localStorage.removeItem(clave()); SINC.cambiado('prueba'); } }catch(e){} }
+  /* Llega de otro dispositivo una prueba más nueva (o que allí se terminó o
+     se descartó): la de aquí se olvida; si se estaba haciendo, se sigue por
+     donde va en el otro. */
+  SINC.registrar('prueba', clave, () => {
+    if(est && (est.terminado || est.revision)) return;   // aquí se está viendo un resultado: nada que cambiar
+    const aqui = $('screen-pru') && $('screen-pru').classList.contains('active');
+    clearInterval(reloj);
+    est = null;
+    if(aqui){
+      if(guardado()){ continuar(); uiToast('Sigues donde lo dejaste en el otro dispositivo', 'info'); }
+      else { showScreen('screen-inicio'); uiToast('Esa prueba ya la terminaste o descartaste en otro dispositivo', 'info'); }
+    }
+    if(typeof INICIO !== 'undefined') INICIO.pintar();
+  });
   // Rehace las preguntas a partir de sus ids (para continuar o revisar).
   async function rehacer(lista){
     const ids = lista.filter(x => x.k === 'e').map(x => x.id);

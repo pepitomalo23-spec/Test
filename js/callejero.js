@@ -2850,7 +2850,9 @@ const CJ = (function(){
     repasoCfg = Object.assign({ fallos: true, visto: true, mandado: false, lista: false, forma: 'mezcla', temario: true }, c);
     return repasoCfg;
   }
-  function guardarCfgRepaso(){ try{ localStorage.setItem(REPASO_KEY + (currentUser ? currentUser.id : ''), JSON.stringify(repasoCfg)); }catch(e){} }
+  function guardarCfgRepaso(){ try{ localStorage.setItem(REPASO_KEY + (currentUser ? currentUser.id : ''), JSON.stringify(repasoCfg)); SINC.cambiado('cj-repaso'); }catch(e){} }
+  // Cómo se repasa, igual en todos los dispositivos (js/sincro.js).
+  SINC.registrar('cj-repaso', () => currentUser ? REPASO_KEY + currentUser.id : null, () => { repasoCfg = null; if(vistaActual === 'inicio' && subInicio === 'repasar') pintarInicio(); });
   function cambiarRepaso(k, v){
     const c = cfgRepaso();
     c[k] = v === undefined ? !c[k] : v;
