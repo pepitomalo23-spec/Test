@@ -744,7 +744,7 @@ const CJT = (function(){
     const ts = CJ.tareasDelRepaso().filter(t => (t.fichas || []).length);
     if(hay && !ts.length){ uiToast('Marca una tarea con «Ya la he visto» y su temario saldrá aquí.', 'info'); return; }
     const claves = ts.length ? temarioMandado() : T.fichas.map(f => f.id);
-    preguntar(claves, ts.length === 1 ? ts[0].id : null, ts.length ? 'Lo que te ha mandado · sin mapa' : 'Temario · sin mapa', ts.length === 1 ? null : 'f:sinmapa', true);
+    preguntar(claves, ts.length === 1 ? ts[0].id : null, ts.length ? 'Lo que te has mandado · sin mapa' : 'Temario · sin mapa', ts.length === 1 ? null : 'f:sinmapa', true);
   }
   function preguntarTarea(id){
     const t = CJ.tareas().find(x => x.id === id);

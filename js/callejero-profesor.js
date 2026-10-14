@@ -295,8 +295,8 @@ const CJP = (function(){
     pintarFormulario();
   }
   // El alumno se manda a sí mismo lo que quiere estudiar (desde Aprender o
-  // «Lo que te ha mandado»): el mismo formulario, «para ti», sin «solo esto».
-  // Sale en «Lo que te ha mandado» como las del profesor.
+  // «Lo que te has mandado»): el mismo formulario, «para ti», sin «solo esto».
+  // Sale en «Lo que te has mandado» como las del profesor.
   // El paso 1 es la lista de Aprender (CJ.elegirHtml): se elige como allí, fila
   // entera, por distrito o cosa a cosa.
   async function nuevaPropia(){
@@ -383,7 +383,7 @@ const CJP = (function(){
       zona: () => '<select id="cjpZona" class="cj-zona-select" aria-label="Zona">' + (datos ? CJ.opcionesZona(b.zona) : '') + '</select>'
     };
     panel(cabecera(titulo, 'CJP.cancelarFormulario()') + pasos(b) +
-      '<div class="cj-hab-det cjp-nota">' + (b.propia ? 'Marca lo que quieres estudiar: una cosa, dos o las tres juntas. Saldrá en «Lo que te ha mandado».'
+      '<div class="cj-hab-det cjp-nota">' + (b.propia ? 'Marca lo que quieres estudiar: una cosa, dos o las tres juntas. Saldrá en «Lo que te has mandado».'
         : 'Marca lo que quieras mandarle: una cosa, dos o las tres juntas en la misma tarea.') + '</div>' +
       '<div class="cj-card cjt-filas cjp-tipos">' + TIPOS.map(([k, t, d]) => {
         const on = b.partes.has(k);
@@ -566,7 +566,7 @@ const CJP = (function(){
       return;
     }
     if(b.propia){
-      uiToast('Hecho: está en «Lo que te ha mandado».', 'success');
+      uiToast('Hecho: está en «Lo que te has mandado».', 'success');
       borrador = null;
       CJ.mostrarVista('inicio');
       await CJ.recargarTareas();
