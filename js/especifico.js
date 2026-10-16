@@ -91,9 +91,10 @@ const ESP = (function(){
     botonVista(v);
     if(v === 'pj'){ root.innerHTML = PRU.panelHtml(); return; }
     const nm = typeof ESPT !== 'undefined' ? ESPT.numMarcadas() : null;
+    const qh = typeof ESPT !== 'undefined' && ESPT.cuantasHoy ? ESPT.cuantasHoy() : null;
     root.innerHTML = '<button type="button" class="esp-marcadas" data-marcadas="1">' +
         '<span class="esp-marcadas-ico"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17l-5.9 3.3 1.3-6.5L2.5 9.3l6.6-.8z"/></svg></span><span class="esp-marcadas-txt"><b>Preguntas marcadas</b>' +
-        '<span>' + (nm == null ? 'Las que guardas con la estrella' : nm ? nm + (nm === 1 ? ' pregunta guardada' : ' preguntas guardadas') : 'Todavía no has guardado ninguna') + '</span></span>' +
+        '<span>' + (nm == null ? 'Las que guardas con la estrella' : nm ? nm + (nm === 1 ? ' pregunta guardada' : ' preguntas guardadas') + (qh && qh.total ? ' · <b>' + qh.total + ' tocan hoy</b>' : '') : 'Todavía no has guardado ninguna') + '</span></span>' +
         '<span class="esp-marcadas-flecha">›</span></button>' +
       '<ul class="esp-lista">' + TEMAS.map(([k, t, i]) => {
       return '<li class="esp-tema' + (k === abierto ? ' abierto' : '') + '">' +
