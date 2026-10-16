@@ -3685,7 +3685,7 @@ const CJ = (function(){
      las calles de la ciudad y las pedanías (sin el campo), los barrios y los
      lugares del mapa, lo dominado y sin un fallo pendiente, por distrito. */
   function cuantoSabes(){
-    const sabe = new Set(), falla = new Set();
+    const sabe = new Set(), falla = new Set(), visto = new Set(), fallos = new Map();
     const porIdBarrio = new Map(datos.barrios.map(b => [idBarrio(b), b.nombre]));
     progreso.forEach((p, k) => {
       const [hab, s] = k.split('|'), id = Number(s);
@@ -3695,14 +3695,21 @@ const CJ = (function(){
       else if(hab === 'barrios' && porIdBarrio.has(id)) c = 'b:' + porIdBarrio.get(id);
       if(!c) return;
       const e = estadoDe(p);
+      if(p.intentos) visto.add(c);
+      if(p.fallos) fallos.set(c, (fallos.get(c) || 0) + p.fallos);
       if(e === 'dominada') sabe.add(c); else if(e === 'fallada') falla.add(c);
     });
+    // Cada cosa: sabida (verde), en progreso (amarilla), fallada (roja) o sin ver (azul).
+    const estados = { green: 0, yellow: 0, red: 0, blue: 0 };
     const dist = new Map();
     const contar = (d, c) => {
       if(!d) return;
       const x = dist.get(d) || { d, total: 0, sabe: 0 };
       x.total++;
-      if(sabe.has(c) && !falla.has(c)) x.sabe++;
+      if(sabe.has(c) && !falla.has(c)){ x.sabe++; estados.green++; }
+      else if(falla.has(c)) estados.red++;
+      else if(visto.has(c)) estados.yellow++;
+      else estados.blue++;
       dist.set(d, x);
     };
     const vistas = new Set();
@@ -3715,7 +3722,7 @@ const CJ = (function(){
     datos.lugares.forEach(l => { if(l.id && l.barrios.length) contar(l.barrios[0].distrito, 'l:' + l.id); });
     const lista = ordenDistritos([...dist.keys()]).map(d => dist.get(d));
     const total = lista.reduce((a, x) => a + x.total, 0), n = lista.reduce((a, x) => a + x.sabe, 0);
-    return { total, sabe: n, distritos: lista };
+    return { total, sabe: n, distritos: lista, estados, fallos, falla };
   }
   const porciento = (a, b) => b ? Math.round(a * 100 / b) : 0;
   /* Estadísticas (formulario: el progreso del callejero también allí): lo
@@ -3723,22 +3730,78 @@ const CJ = (function(){
      ha estudiado algo del callejero (si no, no descarga el mapa). */
   let progresoCargado = false;
   async function tarjetaEstadisticas(){
-    const caja = document.getElementById('statsCallejero');
+    const caja = document.getElementById('statsCj');
     if(!caja || !currentUser) return;
+    if(!datos || !progresoCargado) caja.innerHTML = '<div class="ranking-empty">Cargando tus estadísticas del callejero…</div>';
     try{
       if(!progresoCargado){
         const { data, error } = await sb.rpc('callejero_progreso');
-        if(error || !(data || []).length){ caja.innerHTML = ''; return; }
+        if(error) throw error;
+        if(!(data || []).length){
+          caja.innerHTML = '<div class="cjs-vacio">Todavía no has respondido nada del callejero. Cuando lo hagas, aquí verás cuánto te sabes, por distrito y lo que más fallas.' +
+            '<button type="button" class="cjs-ir" onclick="showScreen(\'screen-callejero\')">Ir al callejero ›</button></div>';
+          return;
+        }
         await cargarDatos();
         await cargarProgreso();
       }else await cargarDatos();
-    }catch(e){ caja.innerHTML = ''; return; }
-    const f = resumenFallos();
-    caja.innerHTML = '<div class="cj-stats"><div class="cj-stats-cab"><b>Callejero</b>' +
-        '<button type="button" class="cj-stats-ir" onclick="showScreen(\'screen-callejero\')">Ir al callejero ›</button></div>' +
-      sabesHtml() +
-      '<div class="cj-stats-fallas">' + (f.total ? '<b>' + f.total + '</b> por repasar (lo que fallas): ' + escapeHtml(f.partes) : 'Nada fallado ahora mismo.') + '</div></div>';
+      if(typeof CJT !== 'undefined' && !CJT.listo()) CJT.cargar().then(() => { if(document.getElementById('statsCj') && !document.getElementById('statsCj').classList.contains('hidden')) tarjetaEstadisticas(); }, () => {});
+    }catch(e){ caja.innerHTML = '<div class="ranking-empty">No se pudieron cargar tus estadísticas del callejero: ' + escapeHtml(e.message || String(e)) + '</div>'; return; }
+    caja.innerHTML = estadisticasHtml();
   }
+  const pctBonito = v => typeof formatPctExact === 'function' ? formatPctExact(v) : Math.round(v) + '%';
+  const colorDe = v => v >= 70 ? 'var(--green)' : v >= 40 ? 'var(--amber)' : 'var(--coral)';
+  function estadisticasHtml(){
+    const c = cuantoSabes(), f = resumenFallos(), e = c.estados, tot = c.total || 1;
+    // Lo respondido y el acierto, por forma de preguntar.
+    const porHab = new Map();
+    progreso.forEach((p, k) => {
+      const hab = k.split('|')[0], x = porHab.get(hab) || { intentos: 0, aciertos: 0 };
+      x.intentos += p.intentos || 0; x.aciertos += p.aciertos || 0; porHab.set(hab, x);
+    });
+    const intentos = [...porHab.values()].reduce((a, x) => a + x.intentos, 0), aciertos = [...porHab.values()].reduce((a, x) => a + x.aciertos, 0);
+    const n = v => v.toLocaleString('es-ES');
+    const leyenda = (clase, txt, v) => '<div class="mastery-legend-item"><span class="mastery-dot ' + clase + '"></span>' + txt +
+      ' <span class="mastery-legend-value">' + n(v) + '</span></div>';
+    let h = '<div class="mastery-card">' +
+        '<div class="mastery-head"><div class="mastery-title">Lo que te sabes</div><div class="mastery-total"><span>' + n(c.total) + '</span> calles, barrios y lugares</div></div>' +
+        '<div class="mastery-donut-wrap"><svg class="mastery-donut" viewBox="0 0 220 125">' + masteryDonutSvg(e.green, e.yellow, e.red, e.blue) + '</svg>' +
+          '<div class="mastery-donut-center"><span class="mastery-donut-pct">' + pctBonito(e.green / tot * 100) + '</span><span class="mastery-donut-sublabel">te sabes</span></div></div>' +
+        '<div class="mastery-legend">' + leyenda('mastery-green', 'Te las sabes', e.green) + leyenda('mastery-yellow', 'Empezadas', e.yellow) +
+          leyenda('mastery-red', 'Las fallas', e.red) + leyenda('mastery-blue', 'Sin ver', e.blue) + '</div>' +
+      '</div>' +
+      '<div class="stats-grid cjs-cifras">' +
+        '<div class="stat-card"><div class="stat-label">Respuestas</div><div class="stat-value purple">' + n(intentos) + '</div></div>' +
+        '<div class="stat-card"><div class="stat-label">Acierto</div><div class="stat-value blue">' + (intentos ? Math.round(aciertos * 100 / intentos) + '%' : '—') + '</div></div>' +
+        '<div class="stat-card cjs-clic" role="button" tabindex="0" onclick="CJ.irARepasarFallos()"><div class="stat-label">Por repasar</div><div class="stat-value coral">' + n(f.total) + '</div>' +
+          (f.total ? '<div class="stat-sub">' + escapeHtml(f.partes) + '</div>' : '<div class="stat-sub">Nada fallado</div>') + '</div>' +
+      '</div>';
+    // Por distrito: una cuadrícula (no una lista larga).
+    h += '<div class="ranking-card"><div class="ranking-head"><div class="ranking-title">Por distrito</div><div class="ranking-sub">% que te sabes</div></div>' +
+      '<div class="cjs-dist">' + c.distritos.map(x => {
+        const pc = x.total ? x.sabe * 100 / x.total : 0, num = NUM_DISTRITO[x.d] || '';
+        return '<div class="cjs-d"><div class="cjs-d-cab">' + (num ? '<span class="cjs-d-num">' + num + '</span>' : '') + '<span class="cjs-d-n">' + escapeHtml(x.d) + '</span></div>' +
+          '<div class="cjs-d-pct" style="color:' + (pc ? colorDe(pc) : 'var(--muted-2)') + '">' + Math.round(pc) + '<small>%</small></div>' +
+          '<div class="ranking-track"><div class="ranking-fill" style="width:' + pc + '%; background:' + colorDe(pc) + '"></div></div>' +
+          '<div class="cjs-d-sub">' + n(x.sabe) + ' de ' + n(x.total) + '</div></div>';
+      }).join('') + '</div></div>';
+    // Cómo vas en cada forma de preguntar.
+    const NOMBRES = { nombre: '¿Qué calle es?', localiza: '¿Dónde está? (calles)', lugares: '¿Dónde está? (lugares)', barrios: 'Barrios y distritos', cruces: 'Cruces y paralelas', parque: '¿Qué parque acude?', temario: 'Temario (tipo test)', memoria: 'Nombrar calles' };
+    const habs = Object.keys(NOMBRES).filter(k => (porHab.get(k) || {}).intentos);
+    if(habs.length) h += '<div class="ranking-card"><div class="ranking-head"><div class="ranking-title">Cómo vas en cada forma</div><div class="ranking-sub">% de acierto</div></div><div class="cjs-formas">' +
+      habs.map(k => { const x = porHab.get(k), pc = x.aciertos * 100 / x.intentos;
+        return '<div class="cjs-f"><span class="cjs-f-n">' + NOMBRES[k] + '</span><span class="cjs-f-sub">' + n(x.intentos) + ' resp.</span>' +
+          '<span class="cjs-f-pct" style="color:' + colorDe(pc) + '">' + Math.round(pc) + '%</span>' +
+          '<span class="ranking-track"><span class="ranking-fill" style="width:' + pc + '%; background:' + colorDe(pc) + '"></span></span></div>'; }).join('') + '</div></div>';
+    // Lo que más fallas: lo que sigue fallado, con más fallos primero.
+    const nombreDe = k => { const [t, v] = [k[0], k.slice(2)]; if(t === 'l'){ const l = datos.lugarPorId.get(Number(v)); return l ? [l.nombre, l.categoria] : null; } return [v, t === 'b' ? 'Barrio' : 'Calle']; };
+    const peores = [...c.fallos].filter(([k]) => c.falla.has(k)).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, v]) => { const x = nombreDe(k); return x ? { nombre: x[0], tipo: x[1], fallos: v } : null; }).filter(Boolean);
+    if(peores.length) h += '<div class="ranking-card"><div class="ranking-head"><div class="ranking-title">Lo que más fallas</div><div class="ranking-sub">Veces falladas</div></div><div class="cjs-peores">' +
+      peores.map((x, i) => '<div class="cjs-p"><span class="ranking-pos">' + (i + 1) + '</span><span class="cjs-p-n">' + escapeHtml(x.nombre) + '<small>' + escapeHtml(x.tipo) + '</small></span><b>' + x.fallos + '</b></div>').join('') +
+      '</div><button type="button" class="cjs-ir" onclick="CJ.irARepasarFallos()">Repasar lo que fallas ›</button></div>';
+    return h;
+  }
+  function irARepasarFallos(){ showScreen('screen-callejero'); setTimeout(() => { if(resumenFallos().total) empezarFallos(); else irA('repasar'); }, 0); }
   function sabesHtml(){
     const c = cuantoSabes();
     return '<div class="cj-card cj-ini-sabes"><div class="cj-ini-etq">Te sabes</div>' +
@@ -5751,7 +5814,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, elegirEnMapa, panelElegir, quitarElegidoMapa, quitarFichaMapa, listoMapa, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, tarjetaEstadisticas, cambiarRepaso, empezarRepaso, listoElegirRepaso, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, elegirEnMapa, panelElegir, quitarElegidoMapa, quitarFichaMapa, listoMapa, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, tarjetaEstadisticas, irARepasarFallos, cambiarRepaso, empezarRepaso, listoElegirRepaso, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)

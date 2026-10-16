@@ -11,12 +11,22 @@ const ESTE = (function(){
   const root = () => document.getElementById('statsEsp');
   const enPantalla = () => { const s = document.getElementById('screen-stats'); return !!(s && s.classList.contains('active')); };
 
+  // Pestañas: Legislación siempre; Específico y Callejero, a quien los tiene.
+  const FEAT = { esp: 'especifico', cj: 'callejero' };
+  const hay = k => !FEAT[k] || typeof featureEnabled !== 'function' || featureEnabled(FEAT[k]);
   function pestana(){
-    if(typeof featureEnabled === 'function' && !featureEnabled('especifico')) return 'legis';
-    try{ return localStorage.getItem(PESTANA) === 'esp' ? 'esp' : 'legis'; }catch(e){ return 'legis'; }
+    let p = 'legis';
+    try{ p = localStorage.getItem(PESTANA) || 'legis'; }catch(e){}
+    return ['legis', 'esp', 'cj'].includes(p) && hay(p) ? p : 'legis';
   }
   function aplicarPestana(){
     const p = pestana();
+    document.querySelectorAll('[data-stats-tab]').forEach(b => b.classList.toggle('hidden', !hay(b.dataset.statsTab)));
+    const tabs = document.getElementById('statsTabs');
+    if(tabs) tabs.classList.toggle('hidden', !(hay('esp') || hay('cj')));
+    const cj = document.getElementById('statsCj');
+    if(cj) cj.classList.toggle('hidden', p !== 'cj');
+    if(p === 'cj' && enPantalla() && typeof CJ !== 'undefined') CJ.tarjetaEstadisticas();
     document.querySelectorAll('[data-stats-tab]').forEach(b => {
       const activa = b.dataset.statsTab === p;
       b.classList.toggle('active', activa);
