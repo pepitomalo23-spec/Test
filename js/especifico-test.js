@@ -150,7 +150,7 @@ const ESPT = (function(){
     while(!d.empezadas.length && !d.nuevas.length && d.quedanNuevas && mas2 < 50) d = deHoy(++mas2);
     const ids = new Set(d.empezadas.concat(d.nuevas));
     const lista = todasMarcadas.filter(p => ids.has(p.id));
-    hoyRep = { antes: new Map(lista.map(p => [p.id, Object.assign({}, plan.get(p.id))])), dudadas: new Set(), mas: mas2, quedanNuevas: d.quedanNuevas };
+    hoyRep = { antes: new Map(lista.map(p => [p.id, Object.assign({}, plan.get(p.id))])), dudadas: new Set(), mas: mas2, quedanNuevas: d.quedanNuevas, i: 0 };
     // Todos los temas mezclados.
     preguntas = shuffleArray(lista).map(barajarOps);
     pintar(); arriba();
@@ -454,9 +454,7 @@ const ESPT = (function(){
   /* ---------- pintar ---------- */
   function cabecera(){
     if(modo === 'hoy') return '<nav class="espt-migas"><button type="button" data-espt="volver">' + ({ 'screen-inicio': 'Inicio' }[volverA] || 'Específico') + '</button> <span>›</span> <button type="button" data-espt="marcadas">Preguntas marcadas</button> <span>›</span> <b>De hoy</b></nav>' +
-      '<h2 class="espt-h">Marcadas de hoy</h2>' +
-      '<div class="espt-cab"><div class="espt-etiqueta">Todos los temas, mezclados</div>' +
-      '<div class="espt-cab-txt">Aciertas sin dudar: sube un escalón y vuelve más tarde (1, 3, 7, 15, 30 y 60 días). Si dudas, tócalo: se queda. Si fallas, vuelve a empezar. Tras el último escalón, se quita sola.</div></div>';
+      '<h2 class="espt-h">Marcadas de hoy</h2>';
     if(modo === 'marcadas' && filtro === 'sabidas') return '<nav class="espt-migas"><button type="button" data-espt="volver">Específico</button> <span>›</span> <button type="button" data-espt="marcadas">Preguntas marcadas</button> <span>›</span> <b>Ya te las sabes</b></nav>' +
       '<h2 class="espt-h">Ya te las sabes</h2>' +
       '<div class="espt-cab"><div class="espt-cab-txt">Las que pasaron todos los escalones. Si una se te olvida, márcala otra vez con la estrella y vuelve a empezar.</div></div>';
@@ -507,6 +505,7 @@ const ESPT = (function(){
       (modo === 'hoy' && elegida === p.correcta ? '<button type="button" class="espm-dude' + (hoyRep && hoyRep.dudadas.has(p.id) ? ' on' : '') + '" data-espt="dude" data-p="' + p.id + '">' +
         (hoyRep && hoyRep.dudadas.has(p.id) ? '✓ Dudé: se queda en su escalón' : '¿Dudaste? Toca aquí') + '</button>' : '') +
       (modo === 'hoy' && elegida ? resultadoHoy(p.id) : modo === 'marcadas' ? escalonHtml(p.id) : '') +
+      (modo === 'hoy' && elegida && hoyRep ? '<button type="button" class="espm-sig" data-espt="sig">' + (hoyRep.i + 1 < preguntas.length ? 'Siguiente ›' : 'Terminar') + '</button>' : '') +
       // La explicación (al pulsar el «?») y, dentro, tu nota.
       (abiertas.has(p.id) ? '<div class="espt-exp">' + (!p.tiene_explicacion ? '' : expl.has(p.id) ? html(expl.get(p.id)) : '<span class="espt-cargando">Cargando explicación…</span>') + notaHtml(p.id) + '</div>' : '') +
       '</article>';
@@ -525,8 +524,8 @@ const ESPT = (function(){
       const hechas = preguntas.filter(p => resp[p.id]), n = preguntas.length;
       const c = k => hechas.filter(p => (plan.get(p.id) || {}).como === k && !(plan.get(p.id) || {}).sabida).length;
       const sab = hechas.filter(p => (plan.get(p.id) || {}).sabida).length;
-      const fin = hechas.length >= n;
-      return '<div class="espt-pie espm-pie"><span>' + hechas.length + ' de ' + n + ' hechas · ' + c('bien') + ' suben · ' + c('dude') + ' dudadas · ' + c('mal') + ' al principio' +
+      const fin = hoyRep.i >= n;
+      return '<div class="espt-pie espm-pie' + (fin ? ' fin' : '') + '"><span>' + hechas.length + ' de ' + n + ' hechas · ' + c('bien') + ' suben · ' + c('dude') + ' dudadas · ' + c('mal') + ' al principio' +
         (sab ? ' · ' + sab + ' ya te las sabes' : '') + '</span>' +
         (fin ? '<div class="espm-fin">' + (hoyRep.quedanNuevas ? '¡Hecho por hoy! Quedan ' + hoyRep.quedanNuevas + ' marcadas nuevas sin empezar. <button type="button" data-espt="mas">Hacer ' + Math.min(NUEVAS_DIA, hoyRep.quedanNuevas) + ' más</button>' : '¡Hecho por hoy! Mañana, las que toquen.') +
           ' <button type="button" data-espt="marcadas">Ver mis marcadas</button></div>' : '') + '</div>';
@@ -537,6 +536,15 @@ const ESPT = (function(){
     return '<div class="espt-pie"><span>' + hechas + ' de ' + n + ' respondidas · ' + bien + (bien === 1 ? ' acierto' : ' aciertos') + ' · ' + (hechas - bien) + (hechas - bien === 1 ? ' fallo' : ' fallos') + '</span></div>';
   }
   function lista(){
+    // Marcadas de hoy: de una en una. Al salir y volver, solo las que faltan
+    // (lo respondido ya no toca hoy).
+    if(modo === 'hoy' && hoyRep){
+      const p = preguntas[hoyRep.i];
+      if(!p) return '';
+      return '<div class="espm-paso"><span>Pregunta ' + (hoyRep.i + 1) + ' de ' + preguntas.length + '</span>' +
+        '<span class="espm-paso-barra"><i style="width:' + Math.round(hoyRep.i * 100 / preguntas.length) + '%"></i></span></div>' +
+        '<div class="espt-lista">' + tarjeta(p) + '</div>';
+    }
     if(modo !== 'marcadas' || filtro === 'sabidas') return '<div class="espt-lista">' + preguntas.map(tarjeta).join('') + '</div>';
     // Marcadas: con el tema y el test encima de cada grupo.
     let out = '', tema = null, testId = null;
@@ -572,6 +580,7 @@ const ESPT = (function(){
   }
   // Solo se repinta la pregunta tocada (y el pie), para no saltar de sitio.
   function repintar(id){
+    if(modo === 'hoy'){ const y = (document.getElementById('app') || {}).scrollTop; pintar(); const a = document.getElementById('app'); if(a && y != null) a.scrollTop = y; return; }
     const p = preguntas.find(x => x.id === id), el = document.getElementById('espt-' + id);
     if(!p || !el) return pintar();
     el.outerHTML = tarjeta(p);
@@ -680,6 +689,7 @@ const ESPT = (function(){
       case 'filtro': elegirMarcadas(b.dataset.f || null); break;
       case 'cero': empezarDeCero(); break;
       case 'dude': dude(id); break;
+      case 'sig': if(hoyRep){ hoyRep.i++; pintar(); arriba(); } break;
       case 'hoy': abrirHoy(); break;
       case 'mas': abrirHoy(true); break;
       case 'sabidas': abrirSabidas(); break;

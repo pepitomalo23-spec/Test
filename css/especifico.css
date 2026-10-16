@@ -252,3 +252,8 @@
 .espm-pie{ flex-direction:column; align-items:stretch; gap:10px; }
 .espm-fin{ font-weight:600; }
 .espm-fin button, .espm-link{ margin:6px 6px 0 0; padding:6px 12px; border-radius:4px; border:1px solid var(--esp-naranja); background:none; color: var(--esp-naranja); font:inherit; font-size:13.5px; font-weight:700; cursor:pointer; }
+.espm-paso{ display:flex; flex-direction:column; gap:8px; margin:0 0 16px; font-size:14px; font-weight:700; color: var(--muted); }
+.espm-paso-barra{ height:6px; border-radius:99px; background: var(--line); overflow:hidden; }
+.espm-paso-barra i{ display:block; height:100%; background:#3a8ee6; border-radius:99px; }
+.espm-sig{ display:block; width:100%; margin-top:14px; padding:12px; border-radius:6px; border:0; background:#3a8ee6; color:#fff; font:inherit; font-size:16px; font-weight:800; cursor:pointer; }
+.espm-pie.fin{ font-size:15px; color: var(--text); }
