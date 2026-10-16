@@ -79,10 +79,8 @@ const INICIO = (function(){
     const q = ESPT.cuantasHoy();
     if(!q){ if(!marcadasPedidas){ marcadasPedidas = true; ESPT.cargarMarcadas().then(pintar, () => {}); } return ''; }
     if(!q.total) return '';
-    return '<button type="button" class="ini-continuar ini-marcadas" data-ini="marcadas">' +
-      '<span class="ini-continuar-ico">★</span>' +
-      '<span class="ini-continuar-txt"><b>Marcadas de hoy · ' + q.total + '</b><span>Específico, todos los temas mezclados</span></span>' +
-      '<span class="ini-flecha">' + FLECHA + '</span></button>';
+    // Un botón fijo abajo (no entre lo «en curso»).
+    return '<button type="button" class="ini-fijo" data-ini="marcadas"><span class="ini-fijo-ico">★</span>Hacer marcadas de hoy<span class="ini-fijo-n">' + q.total + '</span></button>';
   }
 
   // Tarea con un test del calendario: lo que lleva y lo que falta.
@@ -181,10 +179,12 @@ const INICIO = (function(){
   function pintar(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
-    const enCurso = continuar() + pruebaAMedias() + espAMedias() + marcadasHoy();
+    const enCurso = continuar() + pruebaAMedias() + espAMedias();
+    const fijo = marcadasHoy();
     root.innerHTML = '<div class="ini-cab"><div class="ini-fecha">' + fechaHoy() + '</div><h1 class="ini-h">Hoy</h1></div>' +
       (enCurso ? '<div class="ini-encurso">' + enCurso + '</div>' : '') +
-      '<div class="ini-bento">' + hoy() + repasar() + proximo() + progreso() + semana() + '</div>';
+      '<div class="ini-bento">' + hoy() + repasar() + proximo() + progreso() + semana() + '</div>' + fijo;
+    root.classList.toggle('con-fijo', !!fijo);
   }
 
   function onClick(e){
