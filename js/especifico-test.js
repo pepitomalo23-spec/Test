@@ -34,23 +34,146 @@ const ESPT = (function(){
 
   /* ---------- marcadas (de este usuario) ---------- */
   async function cargarMarcadas(){
-    const { data, error: e } = await sb.from('especifico_marcadas').select('pregunta_id');
-    if(!e){ marcadas = new Set((data || []).map(r => r.pregunta_id)); marcadasCargadas = true; }
+    const { data, error: e } = await sb.from('especifico_marcadas').select('pregunta_id, escalon, proxima, ultima, sabida_at');
+    if(e) return;
+    const filas = data || [];
+    marcadas = new Set(filas.filter(r => !r.sabida_at).map(r => r.pregunta_id));
+    plan = new Map(filas.map(r => [r.pregunta_id, { escalon: r.escalon || 0, proxima: r.proxima || hoyISO(), ultima: r.ultima || null, sabida: !!r.sabida_at }]));
+    marcadasCargadas = true;
   }
   async function alternarMarca(id){
     const poner = !marcadas.has(id);
     if(poner) marcadas.add(id); else marcadas.delete(id);
+    const antes = plan.get(id);
+    if(poner) plan.set(id, { escalon: 0, proxima: hoyISO(), ultima: null, sabida: false }); else plan.delete(id);
     repintar(id);
-    const q = poner ? sb.from('especifico_marcadas').insert({ pregunta_id: id })
+    // Marcarla (también una que ya te sabías): empieza desde el principio, para mañana… o para hoy.
+    const q = poner ? sb.from('especifico_marcadas').upsert({ pregunta_id: id, escalon: 0, proxima: hoyISO(), ultima: null, sabida_at: null }, { onConflict: 'user_id,pregunta_id' })
                     : sb.from('especifico_marcadas').delete().eq('pregunta_id', id);
     const { error: e } = await q;
     if(e){
       if(poner) marcadas.delete(id); else marcadas.add(id);
+      if(antes) plan.set(id, antes); else plan.delete(id);
       repintar(id);
       uiToast('No se pudo ' + (poner ? 'marcar' : 'desmarcar') + ': ' + e.message, 'error');
     } else if(poner) uiToast('Guardada en Preguntas marcadas', 'success', { duration: 1800 });
   }
   function numMarcadas(){ return marcadasCargadas ? marcadas.size : null; }
+
+  /* ---------- Marcadas de hoy: el repaso de cada día ----------
+     Solo las que tú marcas. Cada una sube por escalones y vuelve a salir
+     cada vez más tarde: 1, 3, 7, 15, 30 y 60 días (unos 4 meses en total).
+       · Acertada sin dudar: sube un escalón.
+       · «Dudé» (solo sale aquí): se queda en su escalón.
+       · Fallada: vuelve al principio (sale mañana).
+       · Acertada en el último escalón: ya te la sabes y deja de salir
+         (sale en «Ya te las sabes» y se puede volver a marcar).
+     Todos los temas mezclados. Las que ya llevas empezadas salen todas las
+     que toquen; las nuevas, como mucho 30 al día (para que no se junten).
+     Una vez al día como mucho: lo que se hace en «Hacer todas juntas» o por
+     tema es práctica y no las mueve. Las opciones salen en otro orden cada
+     vez (con su letra de siempre), para no aprenderse «era la de arriba». */
+  const DIAS = [1, 3, 7, 15, 30, 60];
+  const NUEVAS_DIA = 30;
+  let plan = new Map();    // pregunta_id → { escalon, proxima ('AAAA-MM-DD'), ultima, sabida }
+  let hoyRep = null;       // en el repaso de hoy: { antes: Map(id → plan de antes), dudadas: Set, mas: n.º de tandas extra de nuevas }
+  function hoyISO(dias){
+    const d = new Date(); d.setHours(12, 0, 0, 0); if(dias) d.setDate(d.getDate() + dias);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  // Lo que toca hoy: las empezadas que tocan y hasta 30 nuevas (las primeras que marcaste).
+  function deHoy(extra){
+    const hoy = hoyISO(), toca = [...marcadas].filter(id => { const x = plan.get(id); return x && x.proxima <= hoy; });
+    const empezadas = toca.filter(id => plan.get(id).ultima), nuevas = toca.filter(id => !plan.get(id).ultima);
+    const cupo = Math.max(0, NUEVAS_DIA * (1 + (extra || 0)) - nuevasHechas());
+    return { empezadas, nuevas: nuevas.slice(0, cupo), quedanNuevas: Math.max(0, nuevas.length - cupo) };
+  }
+  // Cuántas nuevas se han empezado hoy (en este dispositivo y en la cuenta: js/sincro.js).
+  const claveNuevas = () => currentUser ? 'pj_esp_nuevas:' + currentUser.id : null;
+  function nuevasHechas(){ try{ const x = JSON.parse(localStorage.getItem(claveNuevas()) || 'null'); return x && x.dia === hoyISO() ? x.n : 0; }catch(e){ return 0; } }
+  function sumarNueva(){
+    try{ localStorage.setItem(claveNuevas(), JSON.stringify({ dia: hoyISO(), n: nuevasHechas() + 1 })); SINC.cambiado('esp-nuevas'); }catch(e){}
+  }
+  SINC.registrar('esp-nuevas', claveNuevas);
+  // Para Inicio y el índice: cuántas tocan hoy (null mientras se cargan).
+  function cuantasHoy(){
+    if(!marcadasCargadas) return null;
+    const d = deHoy();
+    return { total: d.empezadas.length + d.nuevas.length, quedanNuevas: d.quedanNuevas, marcadas: marcadas.size, sabidas: [...plan.values()].filter(x => x.sabida).length };
+  }
+  // El escalón que queda tras responder (desde el de antes de hoy).
+  function siguiente(antes, como){
+    const e = antes.escalon || 0;
+    if(como === 'mal') return { escalon: 0, proxima: hoyISO(1), sabida: false };
+    if(como === 'dude') return { escalon: e, proxima: hoyISO(e ? DIAS[e - 1] : 1), sabida: false };
+    if(e >= DIAS.length) return { escalon: e, proxima: hoyISO(DIAS[DIAS.length - 1]), sabida: true };
+    return { escalon: e + 1, proxima: hoyISO(DIAS[e]), sabida: false };
+  }
+  async function apuntarRepaso(id, como){
+    const antes = hoyRep.antes.get(id);
+    if(!antes) return;
+    const n = siguiente(antes, como), hoy = hoyISO();
+    const yaHoy = (plan.get(id) || {}).ultima === hoy;
+    plan.set(id, { escalon: n.escalon, proxima: n.proxima, ultima: hoy, sabida: n.sabida, como });
+    if(!antes.ultima && !yaHoy) sumarNueva();
+    if(n.sabida) marcadas.delete(id); else marcadas.add(id);
+    const { error: e } = await sb.from('especifico_marcadas').update({ escalon: n.escalon, proxima: n.proxima, ultima: hoy, sabida_at: n.sabida ? new Date().toISOString() : null }).eq('pregunta_id', id);
+    if(e) uiToast('No se pudo guardar el repaso: ' + e.message, 'error');
+  }
+  function dude(id){
+    const p = preguntas.find(x => x.id === id);
+    if(!hoyRep || !p || resp[id] !== p.correcta) return;
+    if(hoyRep.dudadas.has(id)){ hoyRep.dudadas.delete(id); apuntarRepaso(id, 'bien'); }
+    else { hoyRep.dudadas.add(id); apuntarRepaso(id, 'dude'); }
+    repintar(id);
+  }
+  const barajarOps = p => {
+    const ops = (p.opciones || []).slice();
+    for(let i = ops.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [ops[i], ops[j]] = [ops[j], ops[i]]; }
+    return Object.assign({}, p, { opciones: ops, _ops: p.opciones });
+  };
+  async function abrirHoy(mas){
+    const extra = hoyRep && mas ? hoyRep.mas + 1 : 0;
+    empezar('hoy'); test = null; filtro = null;
+    cargarNotas().then(() => { if(modo === 'hoy') pintar(); });
+    cargando = true; pintar();
+    if(!marcadasCargadas || !todasMarcadas.length){
+      await cargarMarcadas();
+      const { data, error: e } = await sb.from('especifico_marcadas')
+        .select('especifico_preguntas(id,orden,enunciado,opciones,correcta,tiene_explicacion,dificultad,test_id,especifico_tests(id,titulo,tema,orden))');
+      if(e){ cargando = false; error = e.message; pintar(); return; }
+      todasMarcadas = (data || []).map(r => r.especifico_preguntas).filter(p => p && p.especifico_tests);
+    }
+    cargando = false;
+    let d = deHoy(extra), mas2 = extra;
+    // Hecho lo de hoy pero quedan nuevas: «Hacer más» (otra tanda).
+    while(!d.empezadas.length && !d.nuevas.length && d.quedanNuevas && mas2 < 50) d = deHoy(++mas2);
+    const ids = new Set(d.empezadas.concat(d.nuevas));
+    const lista = todasMarcadas.filter(p => ids.has(p.id));
+    hoyRep = { antes: new Map(lista.map(p => [p.id, Object.assign({}, plan.get(p.id))])), dudadas: new Set(), mas: mas2, quedanNuevas: d.quedanNuevas };
+    // Todos los temas mezclados.
+    preguntas = shuffleArray(lista).map(barajarOps);
+    pintar(); arriba();
+  }
+  // Las que ya te sabes (para verlas o volver a marcarlas).
+  async function abrirSabidas(){
+    if(!todasMarcadas.length) await abrirMarcadas();
+    modo = 'marcadas'; filtro = 'sabidas'; resp = {}; abiertas = new Set(); sesion = null;
+    const ids = new Set([...plan].filter(([, x]) => x.sabida).map(([id]) => id));
+    preguntas = todasMarcadas.filter(p => ids.has(p.id));
+    pintar(); arriba();
+  }
+  const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  function fechaCorta(iso){ const [a, m, d] = iso.split('-').map(Number); return d + ' ' + MESES[m - 1]; }
+  // Bajo cada marcada: su escalón (●●○○○○) y cuándo vuelve.
+  function escalonHtml(id){
+    const x = plan.get(id);
+    if(!x || (!marcadas.has(id) && !x.sabida)) return '';
+    const e = Math.min(x.escalon, DIAS.length);
+    const puntos = DIAS.map((d, i) => '<i' + (i < e ? ' class="on"' : '') + '></i>').join('');
+    const cuando = x.sabida ? 'Ya te la sabes' : x.proxima <= hoyISO() ? 'Toca hoy' : 'Vuelve el ' + fechaCorta(x.proxima);
+    return '<div class="espm-escalon" title="Escalón ' + e + ' de ' + DIAS.length + '"><span class="espm-puntos">' + puntos + '</span>' + cuando + '</div>';
+  }
 
   /* ---------- nota propia de cada pregunta (tabla especifico_notas) ----------
      Texto y hasta 5 imágenes, aparte de la explicación fija; solo de quien la
@@ -217,6 +340,7 @@ const ESPT = (function(){
   /* ---------- abrir ---------- */
   function empezar(m){
     modo = m; preguntas = []; resp = {}; abiertas = new Set(); error = ''; sesion = null; tarea = null; volverA = null; ultima = null; reanudado = false;
+    if(m !== 'hoy') hoyRep = null;
     enviarRespuestas();   // las que quedaran pendientes de otra vez
     showScreen('screen-esp-test');
     arriba();
@@ -287,12 +411,11 @@ const ESPT = (function(){
     empezar('marcadas'); test = null; filtro = null; todasMarcadas = [];
     cargarNotas().then(() => { if(modo === 'marcadas' && filtro != null) pintar(); });
     cargando = true; pintar();
-    const { data, error: e } = await sb.from('especifico_marcadas')
-      .select('created_at, especifico_preguntas(id,orden,enunciado,opciones,correcta,tiene_explicacion,dificultad,test_id,especifico_tests(id,titulo,tema,orden))');
+    const [{ data, error: e }] = await Promise.all([sb.from('especifico_marcadas')
+      .select('created_at, especifico_preguntas(id,orden,enunciado,opciones,correcta,tiene_explicacion,dificultad,test_id,especifico_tests(id,titulo,tema,orden))'), cargarMarcadas()]);
     cargando = false;
     if(e){ error = e.message; pintar(); return; }
     const filas = (data || []).map(r => r.especifico_preguntas).filter(p => p && p.especifico_tests);
-    marcadas = new Set(filas.map(p => p.id)); marcadasCargadas = true;
     // Ordenadas por tema (como en la lista), test y número de pregunta.
     const posTema = k => ESP.temas().findIndex(x => x.clave === k);
     filas.sort((a, b) => posTema(a.especifico_tests.tema) - posTema(b.especifico_tests.tema)
@@ -318,19 +441,30 @@ const ESPT = (function(){
     const fila = (f, ico, titulo, sub, cant) => '<button type="button" class="espm-fila" data-espt="filtro" data-f="' + f + '">' +
       '<span class="espm-ico">' + ico + '</span><span class="espm-txt"><b>' + titulo + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</span>' +
       '<span class="espm-n">' + cant + '</span><span class="espm-flecha">›</span></button>';
-    return '<button type="button" class="espm-todas" data-espt="filtro" data-f="todas"><span class="espm-todas-txt"><b>Hacer todas juntas</b>' +
+    const q = cuantasHoy(), sab = q ? q.sabidas : 0;
+    const hoy = q ? '<button type="button" class="espm-todas espm-hoy" data-espt="hoy"' + (q.total || q.quedanNuevas ? '' : ' disabled') + '><span class="espm-todas-txt"><b>Marcadas de hoy' + (q.total ? ' · ' + q.total : '') + '</b>' +
+        '<span>' + (q.total ? 'Todos los temas mezclados' + (q.quedanNuevas ? ' · ' + q.quedanNuevas + ' nuevas esperan a otro día' : '') : q.quedanNuevas ? '¡Hecho por hoy! Si quieres, ' + Math.min(NUEVAS_DIA, q.quedanNuevas) + ' nuevas más' : '¡Nada por hoy! Vuelven cuando les toque') + '</span></span><span class="espm-flecha">›</span></button>' : '';
+    return hoy + '<h3 class="espm-sub">Practicar (no mueve los escalones)</h3>' + '<button type="button" class="espm-todas" data-espt="filtro" data-f="todas"><span class="espm-todas-txt"><b>Hacer todas juntas</b>' +
         '<span>' + vivas.length + (vivas.length === 1 ? ' pregunta' : ' preguntas') + ' de ' + temas.length + (temas.length === 1 ? ' tema' : ' temas') + ', ordenadas por tema</span></span><span class="espm-flecha">›</span></button>' +
       '<h3 class="espm-sub">Por tema</h3>' +
-      '<div class="espm-lista">' + temas.map(t => fila(t.clave, t.icono, escapeHtml(t.titulo), 'Tema ' + t.num, n[t.clave])).join('') + '</div>';
+      '<div class="espm-lista">' + temas.map(t => fila(t.clave, t.icono, escapeHtml(t.titulo), 'Tema ' + t.num, n[t.clave])).join('') + '</div>' +
+      (sab ? '<button type="button" class="espm-sabidas" data-espt="sabidas">🎉 Ya te las sabes · ' + sab + ' <span class="espm-flecha">›</span></button>' : '');
   }
 
   /* ---------- pintar ---------- */
   function cabecera(){
+    if(modo === 'hoy') return '<nav class="espt-migas"><button type="button" data-espt="volver">' + ({ 'screen-inicio': 'Inicio' }[volverA] || 'Específico') + '</button> <span>›</span> <button type="button" data-espt="marcadas">Preguntas marcadas</button> <span>›</span> <b>De hoy</b></nav>' +
+      '<h2 class="espt-h">Marcadas de hoy</h2>' +
+      '<div class="espt-cab"><div class="espt-etiqueta">Todos los temas, mezclados</div>' +
+      '<div class="espt-cab-txt">Aciertas sin dudar: sube un escalón y vuelve más tarde (1, 3, 7, 15, 30 y 60 días). Si dudas, tócalo: se queda. Si fallas, vuelve a empezar. Tras el último escalón, se quita sola.</div></div>';
+    if(modo === 'marcadas' && filtro === 'sabidas') return '<nav class="espt-migas"><button type="button" data-espt="volver">Específico</button> <span>›</span> <button type="button" data-espt="marcadas">Preguntas marcadas</button> <span>›</span> <b>Ya te las sabes</b></nav>' +
+      '<h2 class="espt-h">Ya te las sabes</h2>' +
+      '<div class="espt-cab"><div class="espt-cab-txt">Las que pasaron todos los escalones. Si una se te olvida, márcala otra vez con la estrella y vuelve a empezar.</div></div>';
     if(modo === 'marcadas'){
       if(filtro == null) return '<nav class="espt-migas"><button type="button" data-espt="volver">Específico</button> <span>›</span> <b>Preguntas marcadas</b></nav>' +
         '<h2 class="espt-h">Preguntas marcadas</h2>' +
         '<div class="espt-cab"><div class="espt-etiqueta">Tus preguntas guardadas</div>' +
-        '<div class="espt-cab-txt">Hazlas todas juntas o elige un tema. Quita la marca cuando ya te las sepas.</div></div>';
+        '<div class="espt-cab-txt">Cada día, «Marcadas de hoy»: se van espaciando y se quitan solas cuando ya te las sabes. Abajo, para practicar todas o por tema (no cuenta para los escalones).</div></div>';
       return '<nav class="espt-migas"><button type="button" data-espt="volver">Específico</button> <span>›</span> <button type="button" data-espt="filtro" data-f="">Preguntas marcadas</button> <span>›</span> <b>' + escapeHtml(nombreFiltro()) + '</b></nav>' +
         '<h2 class="espt-h">Preguntas marcadas</h2>' +
         '<div class="espt-cab"><div class="espt-etiqueta">' + (filtro === 'todas' ? 'Todas juntas' : 'Tema:') + '</div>' +
@@ -369,18 +503,41 @@ const ESPT = (function(){
       '<div class="espt-enunciado">' + html(p.enunciado) + '</div>' +
       '<div class="espt-ops">' + ops + '</div>' +
       (elegida && elegida !== p.correcta ? '<div class="espt-correcta">La correcta es la <b>' + escapeHtml(p.correcta) + ')</b></div>' : '') +
+      // Repaso de hoy: tras acertar, «Dudé» (se queda en su escalón en vez de subir).
+      (modo === 'hoy' && elegida === p.correcta ? '<button type="button" class="espm-dude' + (hoyRep && hoyRep.dudadas.has(p.id) ? ' on' : '') + '" data-espt="dude" data-p="' + p.id + '">' +
+        (hoyRep && hoyRep.dudadas.has(p.id) ? '✓ Dudé: se queda en su escalón' : '¿Dudaste? Toca aquí') + '</button>' : '') +
+      (modo === 'hoy' && elegida ? resultadoHoy(p.id) : modo === 'marcadas' ? escalonHtml(p.id) : '') +
       // La explicación (al pulsar el «?») y, dentro, tu nota.
       (abiertas.has(p.id) ? '<div class="espt-exp">' + (!p.tiene_explicacion ? '' : expl.has(p.id) ? html(expl.get(p.id)) : '<span class="espt-cargando">Cargando explicación…</span>') + notaHtml(p.id) + '</div>' : '') +
       '</article>';
   }
+  // Qué ha pasado con esa pregunta (tras responderla en el repaso de hoy).
+  function resultadoHoy(id){
+    const x = plan.get(id);
+    if(!x || !hoyRep || !hoyRep.antes.has(id)) return '';
+    const t = x.sabida ? '🎉 Ya te la sabes: deja de salir' : x.como === 'mal' ? 'Vuelve al principio: sale mañana'
+      : x.como === 'dude' ? (x.escalon ? 'Se queda en el escalón ' + x.escalon + ': vuelve el ' + fechaCorta(x.proxima) : 'Se queda al principio: sale mañana')
+      : 'Sube al escalón ' + x.escalon + ' de ' + DIAS.length + ': vuelve el ' + fechaCorta(x.proxima);
+    return '<div class="espm-res ' + (x.sabida ? 'sabida' : x.como || '') + '">' + t + '</div>';
+  }
   function pie(){
+    if(modo === 'hoy' && hoyRep){
+      const hechas = preguntas.filter(p => resp[p.id]), n = preguntas.length;
+      const c = k => hechas.filter(p => (plan.get(p.id) || {}).como === k && !(plan.get(p.id) || {}).sabida).length;
+      const sab = hechas.filter(p => (plan.get(p.id) || {}).sabida).length;
+      const fin = hechas.length >= n;
+      return '<div class="espt-pie espm-pie"><span>' + hechas.length + ' de ' + n + ' hechas · ' + c('bien') + ' suben · ' + c('dude') + ' dudadas · ' + c('mal') + ' al principio' +
+        (sab ? ' · ' + sab + ' ya te las sabes' : '') + '</span>' +
+        (fin ? '<div class="espm-fin">' + (hoyRep.quedanNuevas ? '¡Hecho por hoy! Quedan ' + hoyRep.quedanNuevas + ' marcadas nuevas sin empezar. <button type="button" data-espt="mas">Hacer ' + Math.min(NUEVAS_DIA, hoyRep.quedanNuevas) + ' más</button>' : '¡Hecho por hoy! Mañana, las que toquen.') +
+          ' <button type="button" data-espt="marcadas">Ver mis marcadas</button></div>' : '') + '</div>';
+    }
     const n = preguntas.length, hechas = preguntas.filter(p => resp[p.id]).length;
     const bien = preguntas.filter(p => resp[p.id] && resp[p.id] === p.correcta).length;
     // Sin «Volver a empezar»: de un toque se perdía todo lo respondido (también el avance de la tarea del calendario).
     return '<div class="espt-pie"><span>' + hechas + ' de ' + n + ' respondidas · ' + bien + (bien === 1 ? ' acierto' : ' aciertos') + ' · ' + (hechas - bien) + (hechas - bien === 1 ? ' fallo' : ' fallos') + '</span></div>';
   }
   function lista(){
-    if(modo !== 'marcadas') return '<div class="espt-lista">' + preguntas.map(tarjeta).join('') + '</div>';
+    if(modo !== 'marcadas' || filtro === 'sabidas') return '<div class="espt-lista">' + preguntas.map(tarjeta).join('') + '</div>';
     // Marcadas: con el tema y el test encima de cada grupo.
     let out = '', tema = null, testId = null;
     preguntas.forEach(p => {
@@ -398,7 +555,13 @@ const ESPT = (function(){
     if(!r) return;
     if(cargando){ r.innerHTML = cabecera() + '<div class="esp-vacio">Cargando preguntas…</div>'; return; }
     if(error){ r.innerHTML = cabecera() + '<div class="esp-vacio">No se pudieron cargar las preguntas: ' + escapeHtml(error) + '</div>'; return; }
-    if(modo === 'marcadas' && filtro == null && todasMarcadas.some(p => marcadas.has(p.id))){ r.innerHTML = cabecera() + indiceMarcadas(); return; }
+    if(modo === 'marcadas' && filtro == null && todasMarcadas.some(p => marcadas.has(p.id) || (plan.get(p.id) || {}).sabida)){ r.innerHTML = cabecera() + indiceMarcadas(); return; }
+    if(!preguntas.length && modo === 'hoy'){
+      const q = cuantasHoy();
+      r.innerHTML = cabecera() + '<div class="esp-vacio">' + (q && q.marcadas ? '¡Nada por hoy! Tus marcadas vuelven cuando les toque.' : 'Todavía no has marcado ninguna pregunta. En un test, pulsa el botón rojo de la estrella para guardarla aquí.') +
+        ' <button type="button" class="espm-link" data-espt="marcadas">Ver mis marcadas</button></div>';
+      return;
+    }
     if(!preguntas.length){
       r.innerHTML = cabecera() + '<div class="esp-vacio">' + (modo === 'marcadas'
         ? 'Todavía no has marcado ninguna pregunta. En un test, pulsa el botón rojo de la estrella para guardarla aquí.'
@@ -460,8 +623,8 @@ const ESPT = (function(){
     const n = hechas.length, nota = n ? Math.max(0, pts / n * 10) : 0;
     const todo = { total: n, bien, mal, blanco: 0, nota };
     PRU.guardarSesion({ id: sesion.id, modo: 'esp-tb', nota: Number(nota.toFixed(2)), segundos: Math.round((Date.now() - sesion.inicio) / 1000), created_at: sesion.created_at,
-      resumen: { todo, l: { total: 0, bien: 0, mal: 0, blanco: 0, nota: 0 }, e: todo, titulo: modo === 'marcadas' ? 'Preguntas marcadas · ' + nombreFiltro() : (test ? test.titulo : '') },
-      preguntas: hechas.map(p => ({ k: 'e', id: p.id })), respuestas: hechas.map(p => (p.opciones || []).findIndex(o => o.l === resp[p.id])) });
+      resumen: { todo, l: { total: 0, bien: 0, mal: 0, blanco: 0, nota: 0 }, e: todo, titulo: modo === 'hoy' ? 'Marcadas de hoy' : modo === 'marcadas' ? 'Preguntas marcadas · ' + nombreFiltro() : (test ? test.titulo : '') },
+      preguntas: hechas.map(p => ({ k: 'e', id: p.id })), respuestas: hechas.map(p => (p._ops || p.opciones || []).findIndex(o => o.l === resp[p.id])) });
   }
   // También las usan las pruebas de js/pruebas.js (Simulacro conjunto y modos del Específico).
   function registrar(lista){
@@ -500,6 +663,12 @@ const ESPT = (function(){
       if(!p || resp[p.id]) return;   // una sola respuesta: no se cambia
       resp[p.id] = op.dataset.op; ultima = p.id;
       guardarRespuesta(p.id, op.dataset.op === p.correcta);
+      if(modo === 'hoy' && hoyRep) apuntarRepaso(p.id, op.dataset.op === p.correcta ? 'bien' : 'mal');
+      // Al fallar (aquí), la explicación abierta.
+      if(modo === 'hoy' && op.dataset.op !== p.correcta && !abiertas.has(p.id) && (p.tiene_explicacion || notas.has(p.id))){
+        abiertas.add(p.id);
+        if(!expl.has(p.id) && p.tiene_explicacion) explicacion(p.id).then(() => { if(abiertas.has(p.id)) repintar(p.id); });
+      }
       repintar(p.id);
       return;
     }
@@ -510,6 +679,11 @@ const ESPT = (function(){
       case 'volver': showScreen(volverA || 'screen-especifico'); break;
       case 'filtro': elegirMarcadas(b.dataset.f || null); break;
       case 'cero': empezarDeCero(); break;
+      case 'dude': dude(id); break;
+      case 'hoy': abrirHoy(); break;
+      case 'mas': abrirHoy(true); break;
+      case 'sabidas': abrirSabidas(); break;
+      case 'marcadas': abrirMarcadas(); break;
       case 'exp':
         if(abiertas.has(id)){ abiertas.delete(id); repintar(id); break; }
         abiertas.add(id); repintar(id);
@@ -533,5 +707,5 @@ const ESPT = (function(){
   function reiniciar(){ notas = new Map(); notasDe = null; marcadas = new Set(); marcadasCargadas = false; cache.clear(); expl.clear(); }
   // También las usa el diseño de tutorbomberos de js/pruebas.js.
   async function alternarMarcaDesde(id){ if(!marcadasCargadas) await cargarMarcadas(); return alternarMarca(id); }
-  return { cargarNotas, notaHtml, abrirNota, onNotaClick, tieneNota: id => notas.has(id), estaMarcada: id => marcadas.has(id), alternarMarca: alternarMarcaDesde, abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar, olvidarPrueba, explicacion, aMedias, continuarCurso };
+  return { cargarNotas, notaHtml, abrirNota, onNotaClick, tieneNota: id => notas.has(id), estaMarcada: id => marcadas.has(id), alternarMarca: alternarMarcaDesde, abrir, abrirMarcadas, numMarcadas, cargarMarcadas, reiniciar, enviarRespuestas, registrar, olvidarPrueba, explicacion, aMedias, continuarCurso, cuantasHoy, abrirHoy: () => { abrirHoy(); volverA = 'screen-inicio'; } };
 })();

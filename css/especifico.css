@@ -232,3 +232,23 @@
 /* Un test a medias: se sigue donde se dejó (aquí o en otro dispositivo) */
 .espt-sigue{ margin:-24px 0 28px; padding:10px 14px; border-radius:4px; background: rgba(255,149,51,.12); border:1px solid rgba(255,149,51,.45); font-size:14px; line-height:1.4; }
 .espt-sigue button{ margin-left:6px; padding:4px 10px; border-radius:4px; border:1px solid currentColor; background:none; color:inherit; font: inherit; font-size:13px; font-weight:700; cursor:pointer; }
+
+/* Marcadas de hoy: el repaso de cada día, con escalones */
+.espm-hoy{ background: var(--esp-azul, #3a8ee6); margin-bottom:6px; }
+.espm-hoy:disabled{ opacity:.6; cursor:default; filter:none; }
+.espm-sabidas{ display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:18px; padding:13px 16px; font:inherit; font-size:15px; font-weight:600;
+  color: var(--text); background: var(--card); border:1px dashed var(--esp-borde); border-radius:4px; cursor:pointer; }
+.espm-escalon{ display:flex; align-items:center; gap:10px; margin-top:10px; font-size:13px; color: var(--muted); }
+.espm-puntos{ display:inline-flex; gap:4px; }
+.espm-puntos i{ width:9px; height:9px; border-radius:99px; border:1.5px solid var(--esp-naranja); }
+.espm-puntos i.on{ background: var(--esp-naranja); }
+.espm-dude{ margin-top:10px; padding:7px 14px; border-radius:99px; border:1px dashed var(--muted); background:none; color: var(--text); font:inherit; font-size:13.5px; font-weight:600; cursor:pointer; }
+.espm-dude.on{ border-style:solid; border-color:#e0a106; color:#e0a106; background: rgba(224,161,6,.1); }
+.espm-res{ margin-top:8px; font-size:13px; font-weight:600; color: var(--muted); }
+.espm-res.bien{ color:#3fae5a; }
+.espm-res.dude{ color:#e0a106; }
+.espm-res.mal{ color:#e8574b; }
+.espm-res.sabida{ color:#3fae5a; font-size:14px; }
+.espm-pie{ flex-direction:column; align-items:stretch; gap:10px; }
+.espm-fin{ font-weight:600; }
+.espm-fin button, .espm-link{ margin:6px 6px 0 0; padding:6px 12px; border-radius:4px; border:1px solid var(--esp-naranja); background:none; color: var(--esp-naranja); font:inherit; font-size:13.5px; font-weight:700; cursor:pointer; }

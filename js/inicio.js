@@ -72,6 +72,19 @@ const INICIO = (function(){
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }
 
+  // Marcadas del Específico que tocan hoy (el repaso de cada día).
+  let marcadasPedidas = false;
+  function marcadasHoy(){
+    if(!featureEnabled('especifico') || typeof ESPT === 'undefined' || !ESPT.cuantasHoy) return '';
+    const q = ESPT.cuantasHoy();
+    if(!q){ if(!marcadasPedidas){ marcadasPedidas = true; ESPT.cargarMarcadas().then(pintar, () => {}); } return ''; }
+    if(!q.total) return '';
+    return '<button type="button" class="ini-continuar ini-marcadas" data-ini="marcadas">' +
+      '<span class="ini-continuar-ico">★</span>' +
+      '<span class="ini-continuar-txt"><b>Marcadas de hoy · ' + q.total + '</b><span>Específico, todos los temas mezclados</span></span>' +
+      '<span class="ini-flecha">' + FLECHA + '</span></button>';
+  }
+
   // Tarea con un test del calendario: lo que lleva y lo que falta.
   function barraTest(x){
     if(!x) return '';
@@ -168,7 +181,7 @@ const INICIO = (function(){
   function pintar(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
-    const enCurso = continuar() + pruebaAMedias() + espAMedias();
+    const enCurso = continuar() + pruebaAMedias() + espAMedias() + marcadasHoy();
     root.innerHTML = '<div class="ini-cab"><div class="ini-fecha">' + fechaHoy() + '</div><h1 class="ini-h">Hoy</h1></div>' +
       (enCurso ? '<div class="ini-encurso">' + enCurso + '</div>' : '') +
       '<div class="ini-bento">' + hoy() + repasar() + proximo() + progreso() + semana() + '</div>';
@@ -186,6 +199,7 @@ const INICIO = (function(){
       case 'dia': CAL.abrirDia(el.dataset.f); break;
       case 'reanudar': resumeQuiz(); break;
       case 'esp': ESPT.continuarCurso(el.dataset.id); break;
+      case 'marcadas': ESPT.abrirHoy(); break;
       case 'prueba': PRU.continuar(); break;
       case 'stats': showScreen('screen-stats'); break;
       case 'fallos': openFallos(); break;
