@@ -79,7 +79,7 @@ const INICIO = (function(){
     const q = ESPT.cuantasHoy();
     if(!q){ if(!marcadasPedidas){ marcadasPedidas = true; ESPT.cargarMarcadas().then(pintar, () => {}); } return ''; }
     if(!q.total) return '';
-    // Un botón fijo abajo (no entre lo «en curso»).
+    // Un botón pequeño al final de la página (no entre lo «en curso»).
     return '<button type="button" class="ini-fijo" data-ini="marcadas"><span class="ini-fijo-ico">★</span>Hacer marcadas de hoy<span class="ini-fijo-n">' + q.total + '</span></button>';
   }
 
@@ -184,7 +184,6 @@ const INICIO = (function(){
     root.innerHTML = '<div class="ini-cab"><div class="ini-fecha">' + fechaHoy() + '</div><h1 class="ini-h">Hoy</h1></div>' +
       (enCurso ? '<div class="ini-encurso">' + enCurso + '</div>' : '') +
       '<div class="ini-bento">' + hoy() + repasar() + proximo() + progreso() + semana() + '</div>' + fijo;
-    root.classList.toggle('con-fijo', !!fijo);
   }
 
   function onClick(e){
