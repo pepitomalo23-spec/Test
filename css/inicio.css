@@ -116,8 +116,21 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .ini-exa-nuevo span{ font-size:12px; }
 .ini-exa-nuevo.ancho{ width:100%; align-items:flex-start; text-align:left; padding:16px; }
 .ini-exa-nuevo:hover{ border-color: var(--muted-2); }
+/* Detalle de un examen (hoja): qué entra, por bloques (Legislación con cada ley y sus títulos; Específico con sus temas) */
+.ini-entra-bloque{ display:flex; flex-direction:column; gap:10px; }
+.ini-entra-t{ display:flex; justify-content:space-between; align-items:baseline; padding-bottom:6px; border-bottom:1px solid var(--line); font-size:11.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color: var(--muted); }
+.ini-entra-t span + span{ text-transform:none; letter-spacing:0; font-weight:500; }
+.ini-ley{ display:flex; flex-direction:column; gap:8px; }
+.ini-ley-n{ font-size:15px; font-weight:700; line-height:1.3; text-wrap:balance; }
+.ini-entra{ display:flex; flex-direction:column; gap:6px; padding:11px 12px; border-radius:14px; background: var(--card); }
+.ini-entra-cab{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.ini-entra-n{ min-width:0; display:flex; flex-direction:column; gap:1px; font-size:14px; font-weight:600; line-height:1.35; }
+.ini-entra-n small{ font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); }
+.ini-entra-pct{ flex-shrink:0; font-size:18px; font-weight:800; letter-spacing:-.02em; font-variant-numeric: tabular-nums; line-height:1.2; }
+.ini-entra-pct.bien{ color: var(--green); } .ini-entra-pct.medio{ color: var(--amber); } .ini-entra-pct.flojo{ color: var(--coral); }
+.ini-ley .ini-entra{ margin-left:0; }
 /* Detalle de un examen (hoja) */
-.ini-exa-hoja .cal-hoja-cuerpo{ gap:14px; }
+.ini-exa-hoja .cal-hoja-cuerpo{ gap:18px; }
 .ini-exa-res{ display:flex; align-items:center; gap:16px; }
 .ini-nivel{ padding:3px 9px; border-radius:99px; font-size:11.5px; font-weight:700; white-space:nowrap; }
 .ini-nivel.bien{ color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }

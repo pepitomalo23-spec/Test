@@ -1126,7 +1126,12 @@ const CAL = (function(){
     const E = copiaExamen(t.examen);
     return { id: t.id, titulo: t.titulo, fecha: t.fecha, dias: Math.round((deIso(t.fecha) - deIso(h)) / 864e5), cuando: nombreDia(t.fecha, true),
       legis: E.legis.flatMap(id => { const ts = titulosExamen(E, id);
-        return ts.length ? ts.map(g => ({ id, grupo: g, nombre: nombreLey(id) + ' · ' + nombreTitulo(id, g) })) : [{ id, nombre: nombreLey(id) }]; }), esp: E.esp.map(k => ({ id: k, nombre: nombreTemaEsp(k) })),
+        // ley y parte: los nombres completos (la ley como está en el temario y el título con su nombre), para el detalle.
+        const ley = (leyes().find(x => x.id === id) || {}).name || nombreLey(id);
+        return ts.length ? ts.map(g => ({ id, grupo: g, nombre: nombreLey(id) + ' · ' + nombreTitulo(id, g), ley, parte: (gruposDe(id).find(x => x.id === g) || {}).label || nombreTitulo(id, g) }))
+          : [{ id, nombre: nombreLey(id), ley, parte: null }]; }),
+      esp: E.esp.map(k => { const i = temasEsp().findIndex(y => y.clave === k), x = temasEsp()[i];
+        return { id: k, nombre: nombreTemaEsp(k), completo: x ? x.titulo : k, n: i + 1 }; }),
       semana: { hechas: semana.filter(x => x.hecho).length, total: semana.length } };
   }
   // Desde Inicio: el calendario abierto en ese día.
