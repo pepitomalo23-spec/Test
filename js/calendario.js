@@ -64,6 +64,8 @@ const CAL = (function(){
   function guardarCache(){ try{ localStorage.setItem(CACHE + yo(), JSON.stringify(tareas)); }catch(e){} }
   const ordenar = () => tareas.sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.orden - b.orden) || String(a.created_at).localeCompare(String(b.created_at)));
   const delDia = f => tareas.filter(t => t.fecha === f);
+  // Un examen que ha puesto el administrador (o el profesor): sale sí o sí; no se mueve, ni se cambia, ni se borra.
+  const fija = t => !!(t && t.origen);
 
   async function cargar(){
     if(!yo()) return;
@@ -72,7 +74,7 @@ const CAL = (function(){
     cargando = (async () => {
       const filas = [];
       for(let desde = 0; ; desde += 1000){
-        const { data, error } = await sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,hecho,orden,serie,created_at,test_id,test_ids,progreso,legis,simulacro,examen')
+        const { data, error } = await sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,hecho,orden,serie,created_at,test_id,test_ids,progreso,legis,simulacro,examen,origen,enviado_por')
           .eq('user_id', yo()).order('fecha').order('orden').range(desde, desde + 999);
         if(error) throw error;
         filas.push(...data);
@@ -445,11 +447,12 @@ const CAL = (function(){
           (t.nota ? '<div class="cal-ver-nota">' + esc(t.nota) + '</div>' : '') +
           (tests ? '<div class="cal-ver-tests">' + bloqueTest(t) + '</div>'
             : IR[t.categoria] ? '<button type="button" class="cal-ver-ir" data-v="ir">Ir a ' + esc(c.n) + ' ›</button>' : '') +
-          (!t.nota && !tests && !IR[t.categoria] ? '<div class="cal-ver-nota vacia">Sin más detalles.</div>' : '') +
+          (!t.nota && !tests && !IR[t.categoria] && !fija(t) ? '<div class="cal-ver-nota vacia">Sin más detalles.</div>' : '') +
+          (fija(t) ? '<div class="cal-exa-de">Lo ha puesto <b>' + esc(nombreCorreo(t.enviado_por)) + '</b> para ti: no se puede mover ni borrar. Las preguntas son las mismas para todos.</div>' : '') +
         '</div>' +
-        '<div class="cal-hoja-pie"><button type="button" class="cal-btn" data-v="editar">Editar</button>' +
-          (t.hecho ? '' : '<button type="button" class="cal-btn" data-v="siguiente">Al día siguiente</button>') +
-          '<button type="button" class="cal-btn primario" data-v="hecho">' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '</button></div></div>';
+        '<div class="cal-hoja-pie">' + (fija(t) ? '' : '<button type="button" class="cal-btn" data-v="editar">Editar</button>') +
+          (t.hecho || fija(t) ? '' : '<button type="button" class="cal-btn" data-v="siguiente">Al día siguiente</button>') +
+          (fija(t) ? '<button type="button" class="cal-btn primario" data-v="cerrar">Listo</button>' : '<button type="button" class="cal-btn primario" data-v="hecho">' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '</button>') + '</div></div>';
     };
     pinta();
     document.body.appendChild(bg);
@@ -474,15 +477,15 @@ const CAL = (function(){
   function tarjeta(t, conFecha){
     const c = CAT[t.categoria];
     const abierta = !conFecha && opcionesDe === t.id;
-    return '<div class="cal-tarea' + (t.hecho ? ' hecha' : '') + (conTareaTest(t) ? ' con-test' : '') + (abierta ? ' con-opciones' : '') + '" style="--c:' + c.c + '"' + (conFecha ? '' : ' draggable="true" data-arrastra="' + t.id + '"') + '>' +
+    return '<div class="cal-tarea' + (t.hecho ? ' hecha' : '') + (conTareaTest(t) ? ' con-test' : '') + (abierta ? ' con-opciones' : '') + '" style="--c:' + c.c + '"' + (conFecha || fija(t) ? '' : ' draggable="true" data-arrastra="' + t.id + '"') + '>' +
       '<button class="cal-check" data-cal="hecho" data-id="' + t.id + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></button>' +
-      '<button class="cal-tarea-main" data-cal="editar" data-id="' + t.id + '">' +
+      '<button class="cal-tarea-main" data-cal="' + (fija(t) ? 'ver' : 'editar') + '" data-id="' + t.id + '">' +
         '<span class="cal-tarea-t">' + esc(t.titulo) + '</span>' +
-        '<span class="cal-tarea-meta"><i class="cal-punto"></i><span class="cal-cat">' + esc(c.n) + '</span>' + (conFecha ? '<span class="cal-tarea-f">' + esc(nombreDia(t.fecha, true)) + '</span>' : '') + (t.serie ? '<span class="cal-rep" title="Se repite">↻ se repite</span>' : '') + '</span>' +
+        '<span class="cal-tarea-meta"><i class="cal-punto"></i><span class="cal-cat">' + esc(c.n) + '</span>' + (conFecha ? '<span class="cal-tarea-f">' + esc(nombreDia(t.fecha, true)) + '</span>' : '') + (t.serie ? '<span class="cal-rep" title="Se repite">↻ se repite</span>' : '') + (fija(t) ? '<span class="cal-rep">Puesto por ' + esc(nombreCorreo(t.enviado_por)) + '</span>' : '') + '</span>' +
         (t.nota ? '<span class="cal-tarea-n">' + esc(t.nota) + '</span>' : '') +
       '</button>' +
-      (conFecha ? '<button class="cal-mini" data-cal="a-hoy" data-id="' + t.id + '">A hoy</button>'
+      (fija(t) ? '' : conFecha ? '<button class="cal-mini" data-cal="a-hoy" data-id="' + t.id + '">A hoy</button>'
         : (IR[t.categoria] && !t.hecho && !conTareaTest(t) ? '<button class="cal-ir" data-cal="ir" data-k="' + t.categoria + '" aria-label="Ir a ' + esc(c.n) + '">›</button>' : '') +
           '<button class="cal-ir cal-mas' + (abierta ? ' on' : '') + '" data-cal="opciones" data-id="' + t.id + '" aria-label="Mover o editar" aria-expanded="' + abierta + '">⋯</button>') +
       (abierta ? opcionesTarea(t) : '') +
@@ -512,6 +515,7 @@ const CAL = (function(){
   }
   // Mueve las tareas (cambio = { tarea: fecha nueva }) y avisa con «Deshacer».
   function moverA(lista, nuevaFecha, msg){
+    lista = lista.filter(t => !fija(t));
     if(!lista.length){ uiToast('No hay nada que mover', 'info'); return; }
     const antes = lista.map(t => [t, t.fecha]);
     lista.forEach(t => { t.fecha = nuevaFecha(t); });
@@ -596,6 +600,7 @@ const CAL = (function(){
   function siguientes(t){ return t.serie ? tareas.filter(x => x.serie === t.serie && x.fecha > t.fecha) : []; }
 
   function abrirHoja(t, cat){
+    if(fija(t)) return verTarea(t.id);
     cerrarHoja();
     const nueva = !t;
     const base = t || { titulo: '', nota: '', categoria: cat || ultimaCat, fecha: elegido };
@@ -603,7 +608,8 @@ const CAL = (function(){
     h = { t, cat: base.categoria, fecha: base.fecha, rep: serie ? serie.rep : '', hasta: serie ? serie.hasta : masDias(base.fecha, 27),
           alcance: 'una', repIni: serie ? serie.rep : '', hastaIni: serie ? serie.hasta : null,
           tests: t ? [...(t.test_ids || [])] : [], eligiendo: false, temaTest: '',
-          legis: t && t.legis ? copiaLegis(t.legis) : null, simc: !!(t && t.simulacro), examen: copiaExamen(t && t.examen) };
+          legis: t && t.legis ? copiaLegis(t.legis) : null, simc: !!(t && t.simulacro), examen: copiaExamen(t && t.examen), para: [...((t && t.examen && t.examen.para) || [])] };
+    if(!(t && t.origen)) cargarDestinos(() => { const f = document.querySelector('#calHoja form'); if(f && h.cat === 'examen') pintarHoja(f); });
     if(conTests()) ESP.cargarTests();
     const bg = document.createElement('div');
     bg.className = 'cal-hoja-bg';
@@ -676,6 +682,8 @@ const CAL = (function(){
         if(L.titulos[k].length === gruposDe(k).length) L.titulos[k] = [];
         autoTituloLegis(f);
       }
+      else if(b.dataset.para === 'todos'){ const ids = (destinos || []).map(x => x.id); h.para = ids.every(x => h.para.includes(x)) ? [] : ids; }
+      else if(b.dataset.para){ const id = b.dataset.para; h.para = h.para.includes(id) ? h.para.filter(x => x !== id) : h.para.concat(id); }
       else if(b.dataset.ex === 'titulo'){
         const E = h.examen, k = b.dataset.t, id = b.dataset.n, ts = titulosExamen(E, k);
         E.titulos[k] = ts.includes(id) ? ts.filter(x => x !== id) : ts.concat(id);
@@ -856,6 +864,9 @@ const CAL = (function(){
   }
   function campoExamen(){
     const E = h.examen, ls = leyes(), ts = temasEsp();
+    // Una copia que te han mandado: lo que entra lo decide quien lo mandó.
+    if(h.t && h.t.origen) return '<div class="cal-legis"><div class="cal-exa-de">Te lo ha mandado <b>' + esc(nombreCorreo(h.t.enviado_por)) + '</b>. Lo que entra y las preguntas son las mismas para todos.</div>' +
+      '<div class="cal-hasta-res">' + esc(nombresExamen(E).join(' · ') || 'Sin temas') + '</div></div>';
     const op = (k, id, txt, on) => '<button type="button" class="cal-test-op' + (on ? ' on' : '') + '" data-ex="' + k + '" data-t="' + esc(id) + '"><span class="cal-test-caja"></span><span class="cal-ley-txt">' + esc(txt) + '</span></button>';
     if(!ls.length && !ts.length) return '<div class="cal-hasta-res">Cargando las leyes…</div>';
     const n = E.legis.length + E.esp.length;
@@ -870,7 +881,43 @@ const CAL = (function(){
     return '<div class="cal-legis">' +
       (ls.length ? '<div class="cal-exa-grupo">Legislación</div><div class="cal-test-opciones">' + ls.map(x => op('legis', x.id, x.name, E.legis.includes(x.id)) + (E.legis.includes(x.id) ? tits(x.id) : '')).join('') + '</div>' : '') +
       (ts.length ? '<div class="cal-exa-grupo">Específico</div><div class="cal-test-opciones">' + ts.map((x, i) => op('esp', x.clave, (i + 1) + '. ' + x.titulo, E.esp.includes(x.clave))).join('') + '</div>' : '') +
-      '<div class="cal-hasta-res">' + (n ? 'Entran ' + n + (n === 1 ? ' tema' : ' temas') + '. En Inicio verás cómo vas en ellos.' : 'Elige lo que entra para ver en Inicio cómo vas para este examen') + '</div></div>';
+      '<div class="cal-hasta-res">' + (n ? 'Entran ' + n + (n === 1 ? ' tema' : ' temas') + '. En Inicio verás cómo vas en ellos.' : 'Elige lo que entra para ver en Inicio cómo vas para este examen') + '</div>' +
+      campoPara() + '</div>';
+  }
+  /* ---------- mandar el examen a otras personas ----------
+     A quién se puede (el administrador, a todas las cuentas; el profesor, a sus
+     alumnos) lo dice calendario_destinatarios. A cada una le sale una copia en
+     su calendario con las mismas preguntas (examen.fijo, que se elige al guardar). */
+  let destinos = null, pidiendoDestinos = null;
+  function cargarDestinos(alLlegar){
+    if(destinos) return;
+    if(!pidiendoDestinos) pidiendoDestinos = sb.rpc('calendario_destinatarios').then(({ data, error }) => { if(!error) destinos = data || []; })
+      .catch(() => {}).finally(() => { pidiendoDestinos = null; });
+    pidiendoDestinos.then(() => { if(destinos) alLlegar(); });
+  }
+  const nombreCorreo = c => String(c || 'otra persona').split('@')[0];
+  function campoPara(){
+    if(!destinos || !destinos.length) return '';
+    const todos = destinos.every(x => h.para.includes(x.id)), n = h.para.filter(id => destinos.some(x => x.id === id)).length;
+    return '<div class="cal-exa-grupo">Mandar también a</div><div class="cal-exa-para">' +
+      '<button type="button" class="cal-chip' + (todos ? ' on' : '') + '" data-para="todos">Todos</button>' +
+      destinos.map(x => '<button type="button" class="cal-chip' + (h.para.includes(x.id) ? ' on' : '') + '" data-para="' + esc(x.id) + '" title="' + esc(x.email) + '">' + esc(nombreCorreo(x.email)) + '</button>').join('') + '</div>' +
+      '<div class="cal-hasta-res">' + (n ? 'Les sale en su calendario el mismo día, con las mismas preguntas para todos (y para ti).' : 'Solo para ti') + '</div>';
+  }
+  // Las leyes (o sus títulos) y temas del examen, como los pide PRU para elegir las preguntas.
+  const paraPreguntas = E => ({ legis: E.legis.flatMap(id => { const ts = titulosExamen(E, id); return ts.length ? ts.map(g => ({ id, grupo: g })) : [{ id }]; }), esp: E.esp.map(id => ({ id })) });
+  // Tras guardar: pone al día las copias de los exámenes mandados (o las quita).
+  async function mandarCopias(lista, habia){
+    let n = 0;
+    for(const x of lista){
+      if(x.origen) continue;
+      const para = (x.categoria === 'examen' && x.examen && x.examen.para) || [];
+      if(!para.length && !habia) continue;
+      const { data, error } = await sb.rpc('calendario_enviar_examen', { p_id: x.id, p_users: para });
+      if(error){ uiToast('No se pudo mandar el examen: ' + error.message, 'error'); return; }
+      n = Math.max(n, data || 0);
+    }
+    if(n) uiToast('Examen mandado a ' + n + (n === 1 ? ' persona' : ' personas'), 'success');
   }
   function teclaHoja(e){ if(e.key === 'Escape'){ e.stopPropagation(); cerrarHoja(); } }
   function cerrarHoja(){
@@ -914,7 +961,28 @@ const CAL = (function(){
     if(conSimc()) d.simulacro = h.simc ? { fin: false, nota: null } : null;
     // El resultado del examen (si ya se hizo) se queda aunque se edite.
     const resultado = h.t && h.t.examen && h.t.examen.resultado;
-    d.examen = h.cat === 'examen' ? Object.assign(copiaExamen(h.examen), resultado ? { resultado } : {}) : null;
+    const habia = !!(h.t && h.t.examen && (h.t.examen.para || []).length);
+    if(h.t && h.t.origen) d.examen = h.t.examen;   // la copia de otro: lo que entra no se toca
+    else if(h.cat === 'examen'){
+      const E = copiaExamen(h.examen), para = h.para.filter(id => !destinos || destinos.some(x => x.id === id));
+      d.examen = Object.assign(E, resultado ? { resultado } : {});
+      if(para.length){
+        // Las preguntas se eligen al mandarlo y se rehacen solo si cambia lo que entra.
+        const antes = h.t && h.t.examen;
+        let fijo = antes && antes.fijo && JSON.stringify(copiaExamen(antes)) === JSON.stringify(copiaExamen(E)) ? antes.fijo : null;
+        if(!fijo){
+          if(!E.legis.length && !E.esp.length){ uiToast('Elige lo que entra antes de mandarlo', 'error'); return; }
+          const btn = f.querySelector('.cal-guardar');
+          btn.disabled = true; btn.textContent = 'Eligiendo las preguntas…';
+          try{ fijo = await PRU.fijarExamen(paraPreguntas(E), typeof EXA !== 'undefined' ? EXA.ajustes() : { preguntas: 50, minutos: 60, penalizacion: null, pct_legis: 50 }); }
+          catch(e){ fijo = null; }
+          btn.disabled = false; btn.textContent = h.t ? 'Guardar cambios' : 'Añadir tarea';
+          if(!document.getElementById('calHoja')) return;   // cerró la hoja mientras tanto
+          if(!fijo){ uiToast('No hay preguntas de lo que entra en el examen', 'error'); return; }
+        }
+        Object.assign(d.examen, { para, fijo });
+      }
+    } else d.examen = null;
     const { t, fecha, rep, hasta } = h;
     const alcance = t && t.serie && siguientes(t).length ? h.alcance : 'serie';
     cerrarHoja();
@@ -924,14 +992,15 @@ const CAL = (function(){
       const filas = fechas.map(x => fila(x, d, serie));
       tareas.push(...filas); ordenar();
       if(fechas.length > 1) uiToast('Añadida en ' + fechas.length + ' días', 'success');
-      return enviar(sb.from('calendario_tareas').insert(filas.map(sinMeta)), 'No se pudo añadir');
+      return enviar(sb.from('calendario_tareas').insert(filas.map(sinMeta)), 'No se pudo añadir').then(() => mandarCopias(filas, false));
     }
-    const ops = [];
+    const ops = [], tocadas = [t];
     const cambiaRep = rep !== h.repIni || (rep && hasta !== h.hastaIni) || (rep && fecha !== t.fecha);
     if(alcance === 'una' || !cambiaRep){
       // Mismos días: se cambian los datos (y, en la serie, también en las siguientes).
       const delta = Math.round((deIso(fecha) - deIso(t.fecha)) / 864e5);
       const grupo = alcance === 'serie' && t.serie ? [t, ...siguientes(t)] : [t];
+      tocadas.push(...grupo.slice(1));
       grupo.forEach(x => {
         // De los tests que se quitan, fuera su avance (el de los que siguen se guarda).
         const prog = 'test_ids' in d ? recortar(x.progreso, d.test_ids) : x.progreso;
@@ -953,14 +1022,14 @@ const CAL = (function(){
       if('simulacro' in d && d.simulacro && t.simulacro) d.simulacro = t.simulacro;
       Object.assign(t, d, { fecha, serie, legis: lgT });
       const nuevas = fechas.slice(1).map(x => fila(x, d, serie, hechas.has(x)));
-      tareas.push(...nuevas);
+      tareas.push(...nuevas); tocadas.push(...nuevas);
       if(ids.size) ops.push(sb.from('calendario_tareas').delete().in('id', [...ids]));
       ops.push(sb.from('calendario_tareas').update({ ...d, legis: lgT, fecha, serie, updated_at: ahora() }).eq('id', t.id));
       if(nuevas.length) ops.push(sb.from('calendario_tareas').insert(nuevas.map(sinMeta)));
       if(nuevas.length || ids.size) uiToast(serie ? 'Ahora se repite en ' + fechas.length + ' días' : 'Ya no se repite', 'success');
     }
     ordenar();
-    return enviar(Promise.all(ops).then(rs => rs.find(r => r.error) || {}), 'No se pudo guardar');
+    return enviar(Promise.all(ops).then(rs => rs.find(r => r.error) || {}), 'No se pudo guardar').then(() => mandarCopias(tocadas, habia));
   }
   async function borrar(t){
     cerrarHoja();
@@ -971,7 +1040,7 @@ const CAL = (function(){
     const ids = new Set(fuera.map(x => x.id));
     tareas = tareas.filter(x => !ids.has(x.id));
     uiToast(fuera.length > 1 ? 'Borradas ' + fuera.length + ' tareas' : 'Tarea borrada', 'success', {
-      action: 'Deshacer', onAction: () => { tareas.push(...fuera); ordenar(); enviar(sb.from('calendario_tareas').insert(fuera.map(sinMeta)), 'No se pudo recuperar'); }
+      action: 'Deshacer', onAction: () => { tareas.push(...fuera); ordenar(); enviar(sb.from('calendario_tareas').insert(fuera.map(sinMeta)), 'No se pudo recuperar').then(() => mandarCopias(fuera.filter(x => x.examen && (x.examen.para || []).length), false)); }
     });
     return enviar(sb.from('calendario_tareas').delete().in('id', [...ids]), 'No se pudo borrar');
   }
@@ -979,6 +1048,7 @@ const CAL = (function(){
   /* ---------- acciones ---------- */
   function marcar(t){
     if(!t) return;
+    if(fija(t)){ uiToast('Este examen se marca solo cuando lo haces', 'info'); return; }
     t.hecho = !t.hecho;
     if(t.hecho && t.fecha === hoy() && delDia(t.fecha).every(x => x.hecho)) uiToast('¡Todo hecho por hoy!', 'success');
     enviar(sb.from('calendario_tareas').update({ hecho: t.hecho, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo marcar');
@@ -1011,10 +1081,11 @@ const CAL = (function(){
         break;
       }
       case 'hecho': marcar(t); break;
-      case 'a-hoy': if(t){ t.fecha = hoy(); ordenar(); enviar(sb.from('calendario_tareas').update({ fecha: t.fecha, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo mover'); } break;
+      case 'ver': if(t) verTarea(t.id); break;
+      case 'a-hoy': if(t && !fija(t)){ t.fecha = hoy(); ordenar(); enviar(sb.from('calendario_tareas').update({ fecha: t.fecha, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo mover'); } break;
       case 'todas-a-hoy': {
         e.preventDefault();
-        const at = atrasadas(), h = hoy();
+        const at = atrasadas().filter(x => !fija(x)), h = hoy();
         at.forEach(x => { x.fecha = h; });
         ordenar(); elegido = h;
         enviar(sb.from('calendario_tareas').update({ fecha: h, updated_at: new Date().toISOString() }).in('id', at.map(x => x.id)), 'No se pudieron mover');
@@ -1134,7 +1205,8 @@ const CAL = (function(){
     if(antes && antes.fecha >= desde) desde = masDias(antes.fecha, 1);
     const semana = tareas.filter(x => x.categoria !== 'examen' && x.fecha >= desde && x.fecha < t.fecha);
     const E = copiaExamen(t.examen);
-    return { id: t.id, titulo: t.titulo, fecha: t.fecha, hecho: !!t.hecho, resultado: (t.examen && t.examen.resultado) || null, dias: Math.round((deIso(t.fecha) - deIso(h)) / 864e5), cuando: nombreDia(t.fecha, true),
+    return { id: t.id, titulo: t.titulo, fecha: t.fecha, hecho: !!t.hecho, fijo: (t.examen && t.examen.fijo) || null, de: t.origen ? nombreCorreo(t.enviado_por) : null,
+      para: t.origen ? 0 : ((t.examen && t.examen.para) || []).length, resultado: (t.examen && t.examen.resultado) || null, dias: Math.round((deIso(t.fecha) - deIso(h)) / 864e5), cuando: nombreDia(t.fecha, true),
       legis: E.legis.flatMap(id => { const ts = titulosExamen(E, id);
         // ley y parte: los nombres completos (la ley como está en el temario y el título con su nombre), para el detalle.
         const ley = (leyes().find(x => x.id === id) || {}).name || nombreLey(id);

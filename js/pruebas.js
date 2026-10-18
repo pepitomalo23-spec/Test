@@ -497,7 +497,9 @@ const PRU = (function(){
     const ids = elegirEsp(p.pe, p.e, p.dif).map(x => x.id);
     const esp = ids.length ? await preguntasEsp(ids) : [];
     let items = legis.map(q => itemLegis(q)).concat(esp.filter(x => (x.opciones || []).length).map(x => itemEsp(x, meta.tests)));
-    items = barajar(items);
+    return arrancarCon(modo, barajar(items), minutos, pen, tarea);
+  }
+  function arrancarCon(modo, items, minutos, pen, tarea){
     est = { modo, diseno: MODOS[modo].legis ? 'pj' : diseno(), items, resp: new Array(items.length).fill(null), vistas: new Array(items.length).fill(false), i: 0,
       inicio: Date.now(), fin: minutos ? Date.now() + minutos * 60000 : null, terminado: false, pen: pen === undefined ? null : pen, tarea: tarea || null };
     guardar();
@@ -538,6 +540,7 @@ const PRU = (function(){
   }
   // Cuántas saldrán (para las instrucciones): null si aún no se sabe lo del Específico.
   function planExamen(x, a){
+    if(x.fijo) return { l: x.fijo.preguntas.filter(y => y.k === 'l').length, e: x.fijo.preguntas.filter(y => y.k === 'e').length };
     if(x.esp.length && featureEnabled('especifico') && !metaYa()) return null;
     const { pl, pe } = poolExamen(x);
     return reparto(a.preguntas, a.pct_legis, pl.length, pe.length);
@@ -553,12 +556,31 @@ const PRU = (function(){
     if(whenAppDataReady(() => empezarExamen(x, a))) return;
     uiToast('Preparando el examen…', 'info');
     try{
+      // Examen mandado a varios: las mismas preguntas (y en el mismo orden) para todos.
+      if(x.fijo){
+        const items = (await rehacer(x.fijo.preguntas)).filter(Boolean);
+        if(!items.length){ uiToast('No hay preguntas de lo que entra en el examen.', 'error'); return; }
+        await arrancarCon('examen', items, x.fijo.minutos, x.fijo.pen == null ? null : Number(x.fijo.pen), x.id);
+        return;
+      }
       if(x.esp.length && featureEnabled('especifico') && !metaYa()) await refrescarMeta();
       const { pl, pe } = poolExamen(x);
       const r = reparto(a.preguntas, a.pct_legis, pl.length, pe.length);
       if(!r.l && !r.e){ uiToast('No hay preguntas de lo que entra en el examen.', 'error'); return; }
       await arrancar('examen', Object.assign(r, { pl, pe, dif: null }), a.minutos, a.penalizacion == null ? null : Number(a.penalizacion), x.id);
     }catch(e){ uiToast('No se pudo preparar: ' + (e.message || e), 'error'); }
+  }
+  /* Al mandar un examen a otras personas se eligen ya sus preguntas (con el
+     formato de «Tu examen» de quien lo manda), para que todos hagan el mismo:
+     { preguntas: [{ k, id, orden }], minutos, pen }. */
+  async function fijarExamen(x, a){
+    if(x.esp.length && featureEnabled('especifico') && !metaYa()) await refrescarMeta();
+    const { pl, pe } = poolExamen(x);
+    const r = reparto(a.preguntas, a.pct_legis, pl.length, pe.length);
+    if(!r.l && !r.e) return null;
+    const legis = barajar(pl).slice(0, r.l).map(q => ({ k: 'l', id: q.id, orden: shuffleQuestionOptions(q)._optionOrder || null }));
+    const esp = barajar(pe).slice(0, r.e).map(p => ({ k: 'e', id: p.id }));
+    return { preguntas: barajar(legis.concat(esp)), minutos: a.minutos, pen: a.penalizacion == null ? null : Number(a.penalizacion) };
   }
   // Cómo se corrige: cuánto resta cada fallo.
   function textoPen(pen){
@@ -1210,7 +1232,7 @@ const PRU = (function(){
   });
   function reiniciar(){ clearInterval(reloj); est = null; meta = null; cargandoMeta = null; panelMeta = null; historial = null; cfg.legis.clear(); cfg.esp.clear(); }
   return {
-    conjuntoDisponible: () => permitido('conjunto'), oficialDisponible: () => permitido('oficial'), empezarOficial, textoPen, empezarExamen, planExamen,
+    conjuntoDisponible: () => permitido('conjunto'), oficialDisponible: () => permitido('oficial'), empezarOficial, textoPen, empezarExamen, planExamen, fijarExamen,
     cargarHistorial: () => cargarHistorial(), revisarHistorial, borrarHistorial,
     abrirConfig, cerrarConfig, empezar, quitarFallos, continuar, aMedias, reiniciar, precargar,
     guardarSesion, historialHtml, nuevoId, cargarHistorialTb: () => cargarHistorial().then(repintarListas).catch(() => {}),

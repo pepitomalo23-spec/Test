@@ -279,7 +279,9 @@ const INICIO = (function(){
   function entrarExamen(id){
     const x = (exas() || []).find(y => y.id === id);
     if(!x || typeof PRU === 'undefined') return;
-    const a = typeof EXA !== 'undefined' ? EXA.ajustes() : { preguntas: 50, minutos: 60, penalizacion: null, pct_legis: 50 };
+    // Mandado a varios: el formato y las preguntas son los que se eligieron al mandarlo.
+    const a = x.fijo ? { preguntas: x.fijo.preguntas.length, minutos: x.fijo.minutos, penalizacion: x.fijo.pen, pct_legis: 50 }
+      : typeof EXA !== 'undefined' ? EXA.ajustes() : { preguntas: 50, minutos: 60, penalizacion: null, pct_legis: 50 };
     const r = PRU.planExamen(x, a), n = r ? r.l + r.e : a.preguntas;
     const pen = PRU.textoPen(a.penalizacion);
     const regla = (ico, b, txt) => '<li><span class="ini-instr-ico">' + ico + '</span><span><b>' + b + '</b>' + txt + '</span></li>';
@@ -291,8 +293,9 @@ const INICIO = (function(){
         regla(ICO_I.menos, pen.charAt(0).toUpperCase() + pen.slice(1) + '. ', 'Las que dejes en blanco no restan.') +
         regla(ICO_I.lapiz, 'Puedes cambiar tus respuestas ', 'hasta que pulses «Finalizar».') +
         regla(ICO_I.uno, 'Un solo intento. ', 'Al terminar verás tu nota y la corrección.') +
+        (x.fijo ? regla(ICO_I.mezcla, 'El mismo examen para todos. ', 'Las mismas preguntas que a ' + (x.de ? 'quien te lo mandó y a los demás' : 'las personas a las que lo mandaste') + '.') : '') +
       '</ul>' +
-      (typeof EXA !== 'undefined' ? '<button type="button" class="ini-instr-formato" data-h="formato">Cambiar preguntas, tiempo o penalización ›</button>' : '');
+      (typeof EXA !== 'undefined' && !x.fijo ? '<button type="button" class="ini-instr-formato" data-h="formato">Cambiar preguntas, tiempo o penalización ›</button>' : '');
     hoja('Antes de empezar', x.titulo, cuerpo,
       '<button type="button" class="cal-btn" data-h="cerrar">Ahora no</button><button type="button" class="cal-btn primario" data-h="empezar">Empezar examen</button>',
       (b, cerrar) => { cerrar(); if(b.dataset.h === 'empezar') PRU.empezarExamen(x, a); if(b.dataset.h === 'formato') EXA.abrir(); }, 'ini-instr-hoja');
@@ -325,10 +328,25 @@ const INICIO = (function(){
     const cuerpo =
       (p.listo ? '<div class="ini-exa-total ' + p.nivel + '"><b>' + p.pct + '<small>%</small></b><span>' + NIVELES[p.nivel][0] + '</span>' +
         '<i class="ini-exa-total-barra"><i style="width:' + p.pct + '%"></i></i></div>' : '') +
-      '<ul class="ini-entra-lista">' + p.enOrden.map(fila).join('') + '</ul>';
+      '<ul class="ini-entra-lista">' + p.enOrden.map(fila).join('') + '</ul>' +
+      (x.de || x.para ? '<div class="ini-exa-gente" data-gente><div class="ini-exa-gente-t">' + (x.de ? 'Te lo ha mandado ' + esc(x.de) : 'Mandado a ' + x.para + (x.para === 1 ? ' persona' : ' personas')) + '</div>' +
+        '<span class="skel" style="width:60%;height:14px"></span></div>' : '');
+    if(x.de || x.para) notasExamen(x);
     hoja('Examen', x.dias > 1 ? x.cuando + ' · en ' + x.dias + ' días' : x.dias ? 'Mañana' : 'Hoy', cuerpo,
-      '<button type="button" class="cal-btn" data-h="editar">Editar</button><button type="button" class="cal-btn primario" data-h="cerrar">Listo</button>',
+      (x.de ? '' : '<button type="button" class="cal-btn" data-h="editar">Editar</button>') + '<button type="button" class="cal-btn primario" data-h="cerrar">Listo</button>',
       (b, cerrar) => { cerrar(); if(b.dataset.h === 'editar') CAL.editar(x.id); }, 'ini-exa-hoja');
+  }
+
+  // Examen compartido: quién lo tiene y la nota de cada uno (o si aún no lo ha hecho).
+  async function notasExamen(x){
+    const { data, error } = await sb.rpc('calendario_notas_examen', { p_id: x.id });
+    const el = document.querySelector('#iniHoja [data-gente]');
+    if(!el) return;
+    const sk = el.querySelector('.skel');
+    if(error || !data){ if(sk) sk.remove(); return; }
+    const nombre = r => r.yo ? 'Tú' : esc(String(r.email || '').split('@')[0]);
+    if(sk) sk.outerHTML = '<ul class="ini-exa-notas">' + data.map(r => '<li' + (r.yo ? ' class="yo"' : '') + '><span>' + nombre(r) + '</span>' +
+      (r.nota != null ? '<b class="' + (r.nota >= 5 ? 'ok' : 'mal') + '">' + notaTxt(r.nota) + '</b>' : '<i>' + (r.hecho ? 'Hecho' : 'Sin hacer') + '</i>') + '</li>').join('') + '</ul>';
   }
 
   // Los días que faltan para el examen (js/examen.js), en una línea de la cabecera.
