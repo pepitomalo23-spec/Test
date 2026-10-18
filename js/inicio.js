@@ -1,9 +1,9 @@
 /* Inicio: arriba una cabecera de color con la fecha, cuántas tareas quedan
    hoy (con su anillo), los días que faltan para el examen y lo que está a
-   medias. Debajo, sin recuadros: las tareas de hoy del calendario (se marcan
-   aquí mismo; cada una abre su ventanita) con lo próximo apuntado, una fila
-   de cifras (por repasar, Legislación y Específico) y la semana con un
-   punto por tarea (cada día abre el calendario). */
+   medias. Debajo: tus exámenes del calendario en una fila que se desliza
+   (cada uno con lo dominado de lo que entra y su tema más flojo; al pulsarlo,
+   su detalle), lo de hoy como agenda (se marca aquí mismo; cada tarea abre su
+   ventanita) y la semana con un punto por tarea y los días de examen. */
 const INICIO = (function(){
   const MODOS = { estudio: 'Modo estudio', fallos: 'Fallos', inteligente: 'Test Inteligente', simulacro: 'Simulacro', examen: 'Examen' };
   const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -82,47 +82,41 @@ const INICIO = (function(){
     const barra = x.tests > 1 ? CAL.barraTramos(x.partes) : '<span class="ini-barra"><i style="width:' + pct + '%"></i></span>';
     return '<span class="ini-tarea-test">' + barra + '<span>' + txt + '</span></span>';
   }
-  // Las tareas de hoy del calendario, como lista (sin recuadro).
-  function hoy(r){
+  // Hoy, como agenda: lo primero pendiente es «Ahora», lo demás pendiente «Luego» y al final lo hecho.
+  function agenda(r){
     const n = r ? r.lista.length : 0;
-    const cab = etiqueta('Tareas de hoy', '<button type="button" class="ini-link" data-ini="calendario">Calendario ' + FLECHA + '</button>');
+    const cab = etiqueta('Hoy', '<button type="button" class="ini-link" data-ini="calendario">Calendario ' + FLECHA + '</button>');
     let cuerpo;
     if(!r) cuerpo = '<div class="skel-list">' +
       '<div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:60%"></span></span></div>' +
       '<div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:45%"></span></span></div></div>';
     else if(!n) cuerpo = '<button type="button" class="ini-anadir" data-ini="nueva"><span>+</span> Apuntar algo para hoy</button>';
     else {
-      // Primero lo pendiente, para que se vea lo que falta.
       const orden = r.lista.slice().sort((a, b) => a.hecho - b.hecho);
-      cuerpo = '<div class="ini-tareas">' + orden.slice(0, MAX_TAREAS).map(t => {
+      let primera = true;
+      cuerpo = '<div class="ini-agenda">' + orden.slice(0, MAX_TAREAS).map(t => {
         const fin = t.test && t.test.terminados === t.test.tests;
-        return '<div class="ini-tarea' + (t.hecho ? ' hecha' : '') + '" style="--c:' + t.color + '" role="button" tabindex="0" data-ini="ver" data-id="' + esc(t.id) + '" aria-label="Ver ' + esc(t.titulo) + '">' +
-          '<button type="button" class="ini-check" data-ini="marcar" data-id="' + esc(t.id) + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' + CHECK + '</button>' +
+        const cuando = t.hecho ? 'Hecha' : primera ? 'Ahora' : 'Luego';
+        if(!t.hecho) primera = false;
+        const accion = t.test && !fin && !t.hecho
+          ? '<button type="button" class="ini-tarea-ir" data-ini="test" data-id="' + esc(t.id) + '">' + (t.test.hechas ? 'Seguir' : t.simc ? 'Hacer' : 'Empezar') + '</button>'
+          : '<button type="button" class="ini-check" data-ini="marcar" data-id="' + esc(t.id) + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' + CHECK + '</button>';
+        return '<div class="ini-ag' + (t.hecho ? ' hecha' : '') + (cuando === 'Ahora' ? ' ahora' : '') + '" style="--c:' + t.color + '" role="button" tabindex="0" data-ini="ver" data-id="' + esc(t.id) + '" aria-label="Ver ' + esc(t.titulo) + '">' +
+          '<span class="ini-ag-cuando">' + cuando + '</span><i class="ini-ag-punto"></i>' +
           '<span class="ini-tarea-txt"><span class="ini-tarea-t">' + esc(t.titulo) + '</span>' +
-            '<span class="ini-tarea-cat">' + esc(t.cat) + (t.nota ? ' · ' + esc(t.nota) : '') + '</span>' + barraTest(t.test) + '</span>' +
-          (t.test ? (fin ? '<span class="ini-tarea-ir hecho">Hecho ✓</span>'
-            : '<button type="button" class="ini-tarea-ir" data-ini="test" data-id="' + esc(t.id) + '">' + (t.test.hechas ? 'Seguir' : t.simc ? 'Hacer' : 'Empezar') + '</button>') : '') +
+            '<span class="ini-tarea-cat">' + esc(t.cat) + (t.nota ? ' · ' + esc(t.nota) : '') + '</span>' + (t.hecho ? '' : barraTest(t.test)) + '</span>' + accion +
         '</div>';
       }).join('') + '</div>' +
       (n > MAX_TAREAS ? '<button type="button" class="ini-mas" data-ini="calendario">y ' + (n - MAX_TAREAS) + ' más en el calendario</button>' : '');
     }
-    return '<section class="ini-sec">' + cab + cuerpo + proximo() + '</section>';
+    return '<section class="ini-sec">' + cab + cuerpo + '</section>';
   }
 
-  // Lo próximo que hay apuntado en el calendario (después de hoy): una línea debajo de las tareas.
-  function proximo(){
-    const x = typeof CAL !== 'undefined' ? CAL.proxima() : undefined;
-    if(!x) return '';
-    return '<button type="button" class="ini-prox" data-ini="dia" data-f="' + x.f + '" style="--c:' + x.color + '">' +
-      '<span class="ini-prox-l">Próximo</span><span class="ini-prox-t">' + esc(x.titulo) + '</span>' +
-      '<span class="ini-prox-f">' + esc(x.cuando) + (x.mas ? ' · +' + x.mas : '') + '</span></button>';
-  }
-
-  // Cómo vas: una fila de cifras (por repasar, Legislación, Específico). Cada una abre lo suyo.
+  // Sin exámenes apuntados: las cifras generales (por repasar, Legislación, Específico). Cada una abre lo suyo.
   function cifra(clave, valor, txt, clase){
     return '<button type="button" class="ini-cifra' + (clase ? ' ' + clase : '') + '" data-ini="' + clave + '"><b>' + valor + '</b><span>' + txt + '</span></button>';
   }
-  const pctDe = r => r && r.total ? Math.round(r.verde / r.total * 100) : 0;
+  const pctVerde = r => r && r.total ? Math.round(r.verde / r.total * 100) : 0;
   const skelCifra = txt => '<div class="ini-cifra"><span class="skel" style="width:44px;height:24px"></span><span>' + txt + '</span></div>';
   function cifras(){
     const out = [];
@@ -132,41 +126,32 @@ const INICIO = (function(){
         const n = QUESTIONS_POOL.filter(q => q.masteryStatus === 'red' && !q.fallosHidden).length;
         out.push(cifra('fallos', n, 'por repasar', n ? 'aviso' : ''));
       }
-    } else {
-      const s = typeof CAL !== 'undefined' ? CAL.semana() : null;
-      if(s){
-        const tot = s.dias.reduce((a, d) => a + d.puntos.length, 0), hechas = s.dias.reduce((a, d) => a + d.puntos.filter(p => p.h).length, 0);
-        out.push(cifra('calendario', hechas + '<small>/' + tot + '</small>', 'tareas esta semana'));
-      }
     }
     if(featureEnabled('estadisticas')){
       if(!datosListos()) out.push(skelCifra('Legislación'));
       else {
         const pool = QUESTIONS_POOL;
-        out.push(cifra('stats-legis', pctDe({ total: pool.length, verde: pool.filter(q => q.masteryStatus === 'green').length }) + '<small>%</small>', 'Legislación'));
+        out.push(cifra('stats-legis', pctVerde({ total: pool.length, verde: pool.filter(q => q.masteryStatus === 'green').length }) + '<small>%</small>', 'Legislación'));
       }
       if(featureEnabled('especifico') && typeof ESTE !== 'undefined'){
         const r = ESTE.resumen();
-        out.push(r ? cifra('stats-esp', pctDe(r) + '<small>%</small>', 'Específico') : skelCifra('Específico'));
+        out.push(r ? cifra('stats-esp', pctVerde(r) + '<small>%</small>', 'Específico') : skelCifra('Específico'));
       }
     }
     if(!out.length) return '';
-    const programar = typeof CAL !== 'undefined' && CAL.nuevoExamen ? '<button type="button" class="ini-link" data-ini="nuevo-examen">+ Programar examen</button>' : '';
-    return '<section class="ini-sec">' + etiqueta('Cómo vas', programar) + '<div class="ini-cifras" style="--n:' + out.length + '">' + out.join('') + '</div></section>';
+    return '<section class="ini-sec">' + etiqueta('Cómo vas') + '<div class="ini-cifras" style="--n:' + out.length + '">' + out.join('') + '</div></section>';
   }
 
-  // Cómo vas para el examen más cercano del calendario: lo dominado de lo que
-  // entra (en general y tema a tema, lo más flojo primero), las falladas de
-  // esos temas y las tareas de su semana. Sin examen apuntado, las cifras generales.
-  const exaProx = () => typeof CAL !== 'undefined' && CAL.proximoExamen ? CAL.proximoExamen() : undefined;
+  /* ---------- tus exámenes (los del calendario, de hoy en adelante) ----------
+     Una fila que se desliza: cada examen con lo dominado de lo que entra (su
+     anillo) y su tema más flojo. Al pulsarlo, su detalle tema a tema. */
+  const exas = () => typeof CAL !== 'undefined' && CAL.examenes ? CAL.examenes() : undefined;
   const enDias = d => d === 0 ? 'hoy' : d === 1 ? 'mañana' : 'en ' + d + ' días';
-  function comoVasExamen(x){
-    const link = '<button type="button" class="ini-link" data-ini="ver" data-id="' + esc(x.id) + '">Ver ' + FLECHA + '</button>';
-    const cab = etiqueta('Cómo vas para el examen', link);
-    const cuando = '<div class="ini-exa-t"><b>' + esc(x.titulo) + '</b><span>' + (x.dias > 1 ? esc(x.cuando) + ' · en ' + x.dias + ' días' : x.dias ? 'Mañana' : 'Hoy') + '</span></div>';
-    if(!x.legis.length && !x.esp.length)
-      return '<section class="ini-sec">' + cab + cuando + '<button type="button" class="ini-anadir" data-ini="ver" data-id="' + esc(x.id) + '"><span>+</span> Elige qué entra en el examen</button></section>';
-    // Cada tema: { nombre, total, verde, amarillo, rojo }, o { cargando } mientras no hay datos.
+  const cuandoExa = x => x.dias > 1 ? x.cuando.replace(/ de [a-z]+$/, '') + ' · en ' + x.dias + ' días' : x.dias ? 'Mañana' : 'Hoy';
+  const NIVELES = { bien: ['Bien preparado', 'var(--green)'], medio: ['A medio camino', 'var(--amber)'], flojo: ['Te falta', 'var(--coral)'] };
+  // Cómo vas en lo que entra: cada tema { nombre, tipo, total, verde, amarillo, rojo } (o { cargando }),
+  // de lo más flojo a lo mejor, el % dominado de todo y las falladas de Legislación por repasar.
+  function preparacion(x){
     const temas = [];
     const pool = datosListos() ? QUESTIONS_POOL : null;
     // Una ley entera o solo un título suyo (y todo lo que cuelga de él).
@@ -182,40 +167,94 @@ const INICIO = (function(){
       temas.push(Object.assign({ nombre: e.nombre, tipo: 'Específico' }, pt[e.id] || { total: 0, verde: 0, amarillo: 0, rojo: 0 }));
     });
     const listos = temas.filter(t => !t.cargando);
-    const suma = k => listos.reduce((a, t) => a + t[k], 0);
-    const tot = suma('total'), pct = tot ? Math.round(suma('verde') / tot * 100) : 0;
-    // Las falladas por repasar de esos temas (las de Legislación que no has quitado de Fallos).
-    const rojoLegis = pool ? pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden && x.legis.some(l => entra(q, l))).length : 0;
-    const nivel = pct >= 80 ? ['bien', 'Bien preparado'] : pct >= 50 ? ['medio', 'A medio camino'] : ['flojo', 'Te falta'];
-    const pctDe = t => t.total ? Math.round(t.verde / t.total * 100) : 0;
-    const filas = temas.slice().sort((a, b) => (a.cargando ? 1 : 0) - (b.cargando ? 1 : 0) || pctDe(a) - pctDe(b)).map(t => {
+    const tot = listos.reduce((a, t) => a + t.total, 0), verde = listos.reduce((a, t) => a + t.verde, 0);
+    const pct = tot ? Math.round(verde / tot * 100) : 0;
+    temas.sort((a, b) => (a.cargando ? 1 : 0) - (b.cargando ? 1 : 0) || pctVerde(a) - pctVerde(b));
+    return { temas, pct, listo: listos.length > 0, nivel: pct >= 80 ? 'bien' : pct >= 50 ? 'medio' : 'flojo',
+      rojoLegis: pool ? pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden && x.legis.some(l => entra(q, l))).length : 0 };
+  }
+  function anilloExa(p, grande){
+    const c = 2 * Math.PI * 15, col = NIVELES[p.nivel][1];
+    return '<svg class="ini-exa-anillo' + (grande ? ' grande' : '') + '" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" class="fondo"/>' +
+      (p.listo && p.pct ? '<circle cx="18" cy="18" r="15" class="valor" style="stroke:' + col + '" stroke-dasharray="' + (c * p.pct / 100).toFixed(2) + ' ' + c.toFixed(2) + '" transform="rotate(-90 18 18)"/>' : '') +
+      '<text x="18" y="21.2" text-anchor="middle">' + (p.listo ? p.pct + '%' : '…') + '</text></svg>';
+  }
+  function pila(t){
+    const w = k => t.total ? (t[k] / t.total * 100).toFixed(1) : 0;
+    return '<span class="ini-pila" aria-hidden="true"><i class="v" style="width:' + w('verde') + '%"></i><i class="a" style="width:' + w('amarillo') + '%"></i><i class="r" style="width:' + w('rojo') + '%"></i></span>';
+  }
+  const queEntra = x => x.legis.map(l => l.nombre).concat(x.esp.map(e => e.nombre)).join(' · ');
+  function tarjetaExamen(x){
+    const vacio = !x.legis.length && !x.esp.length;
+    if(vacio) return '<button type="button" class="ini-exa" data-ini="exa-editar" data-id="' + esc(x.id) + '">' +
+      '<span class="ini-exa-c"><span class="ini-exa-txt"><b>' + esc(cuandoExa(x)) + '</b><span>' + esc(x.titulo) + '</span></span></span>' +
+      '<span class="ini-exa-falta">Elige qué entra ›</span></button>';
+    const p = preparacion(x), flojo = p.temas.find(t => !t.cargando);
+    return '<button type="button" class="ini-exa" data-ini="exa" data-id="' + esc(x.id) + '" style="--c:' + NIVELES[p.nivel][1] + '">' +
+      '<span class="ini-exa-c">' + anilloExa(p) + '<span class="ini-exa-txt"><b>' + esc(cuandoExa(x)) + '</b><span>' + esc(queEntra(x)) + '</span></span></span>' +
+      (flojo && p.temas.length > 1 ? '<span class="ini-tema"><span class="ini-tema-cab"><span>Lo más flojo: ' + esc(flojo.nombre) + '</span><b>' + pctVerde(flojo) + '%</b></span>' + pila(flojo) + '</span>'
+        : flojo ? '<span class="ini-tema"><span class="ini-tema-cab"><span>' + esc(flojo.nombre) + '</span><b>' + flojo.verde + '/' + flojo.total + '</b></span>' + pila(flojo) + '</span>'
+        : '<span class="ini-tema"><span class="ini-tema-cab"><span>Cargando…</span></span><span class="ini-pila"></span></span>') +
+      '</button>';
+  }
+  function tusExamenes(){
+    const xs = exas();
+    if(xs === undefined || typeof CAL === 'undefined' || !CAL.nuevoExamen) return '';
+    const cab = etiqueta('Tus exámenes', '<button type="button" class="ini-link" data-ini="nuevo-examen">+ Programar</button>');
+    if(!xs.length) return '<section class="ini-sec">' + cab + '<button type="button" class="ini-exa-nuevo ancho" data-ini="nuevo-examen"><b>+ Programa tu próximo examen</b><span>Elige qué entra y aquí verás cómo vas en esos temas</span></button></section>';
+    return '<section class="ini-sec">' + cab + '<div class="ini-carril">' + xs.map(tarjetaExamen).join('') +
+      '<button type="button" class="ini-exa-nuevo" data-ini="nuevo-examen"><b>+ Programar</b><span>otro examen</span></button></div></section>';
+  }
+  // El detalle de un examen: todos sus temas, lo de su semana y las falladas por repasar.
+  function cerrarHoja(){ const bg = document.getElementById('iniExa'); if(bg) bg.remove(); document.removeEventListener('keydown', teclaHoja, true); }
+  function teclaHoja(e){ if(e.key === 'Escape'){ e.stopPropagation(); cerrarHoja(); } }
+  function abrirExamen(id){
+    const x = (exas() || []).find(y => y.id === id);
+    if(!x) return;
+    cerrarHoja();
+    const p = preparacion(x), sem = x.semana;
+    const filas = p.temas.map(t => {
       if(t.cargando) return '<div class="ini-tema"><div class="ini-tema-cab"><span>' + esc(t.nombre) + '</span><span class="skel" style="width:30px;height:14px"></span></div><span class="ini-pila"></span></div>';
-      const w = k => t.total ? (t[k] / t.total * 100).toFixed(1) : 0, sinVer = t.total - t.verde - t.amarillo - t.rojo;
-      return '<div class="ini-tema"><div class="ini-tema-cab"><span>' + esc(t.nombre) + '<small>' + t.tipo + '</small></span><b>' + pctDe(t) + '%</b></div>' +
-        '<span class="ini-pila" aria-hidden="true"><i class="v" style="width:' + w('verde') + '%"></i><i class="a" style="width:' + w('amarillo') + '%"></i><i class="r" style="width:' + w('rojo') + '%"></i></span>' +
+      const sinVer = t.total - t.verde - t.amarillo - t.rojo;
+      return '<div class="ini-tema"><div class="ini-tema-cab"><span>' + esc(t.nombre) + '<small>' + t.tipo + '</small></span><b>' + pctVerde(t) + '%</b></div>' + pila(t) +
         '<span class="ini-tema-n">' + t.verde + ' de ' + t.total + ' dominadas' + (t.rojo ? ' · <em>' + t.rojo + ' falladas</em>' : '') + (sinVer > 0 ? ' · ' + sinVer + ' sin ver' : '') + '</span></div>';
     }).join('');
-    const sem = x.semana;
-    return '<section class="ini-sec">' + cab + cuando +
-      '<div class="ini-exa-res">' +
-        (!listos.length ? '<span class="skel" style="width:90px;height:34px"></span>'
-          : '<div class="ini-exa-pct"><b>' + pct + '<small>%</small></b><span class="ini-nivel ' + nivel[0] + '">' + nivel[1] + '</span></div>') +
-        '<div class="ini-exa-datos">' +
+    const bg = document.createElement('div');
+    bg.className = 'cal-hoja-bg'; bg.id = 'iniExa';
+    bg.innerHTML = '<div class="cal-hoja ini-exa-hoja" style="--c:#E5484D" role="dialog" aria-modal="true" aria-label="' + esc(x.titulo) + '">' +
+      '<div class="cal-hoja-top"><div class="cal-hoja-asa"></div><div class="cal-hoja-cab"><div class="cal-hoja-tit"><h3>' + esc(x.titulo) + '</h3>' +
+        '<div class="cal-hoja-sub">' + esc(x.cuando) + ' · ' + enDias(x.dias) + '</div></div>' +
+        '<button type="button" class="cal-x" data-h="cerrar" aria-label="Cerrar">✕</button></div></div>' +
+      '<div class="cal-hoja-cuerpo">' +
+        '<div class="ini-exa-res">' + anilloExa(p, true) + '<div class="ini-exa-datos">' +
+          (p.listo ? '<span class="ini-nivel ' + p.nivel + '">' + NIVELES[p.nivel][0] + '</span>' : '') +
           (sem.total ? '<span><b>' + sem.hechas + '/' + sem.total + '</b> tareas de la semana</span>' : '<span>Sin tareas apuntadas esa semana</span>') +
-          (featureEnabled('fallos') && rojoLegis ? '<button type="button" class="ini-exa-fallos" data-ini="fallos"><b>' + rojoLegis + '</b> de Legislación por repasar ›</button>' : '') +
+          (featureEnabled('fallos') && p.rojoLegis ? '<button type="button" class="ini-exa-fallos" data-h="fallos"><b>' + p.rojoLegis + '</b> de Legislación por repasar ›</button>' : '') +
         '</div></div>' +
-      '<div class="ini-temas">' + filas + '</div>' +
-      '<div class="ini-leyenda"><span><i class="v"></i>Dominadas</span><span><i class="a"></i>Afianzando</span><span><i class="r"></i>Falladas</span><span><i></i>Sin ver</span></div>' +
-      '</section>';
+        '<div class="ini-temas">' + filas + '</div>' +
+        '<div class="ini-leyenda"><span><i class="v"></i>Dominadas</span><span><i class="a"></i>Afianzando</span><span><i class="r"></i>Falladas</span><span><i></i>Sin ver</span></div>' +
+      '</div>' +
+      '<div class="cal-hoja-pie"><button type="button" class="cal-btn" data-h="editar">Editar examen</button><button type="button" class="cal-btn primario" data-h="cerrar">Listo</button></div></div>';
+    document.body.appendChild(bg);
+    bg.addEventListener('click', e => {
+      if(e.target === bg) return cerrarHoja();
+      const b = e.target.closest('[data-h]');
+      if(!b) return;
+      cerrarHoja();
+      if(b.dataset.h === 'editar') CAL.editar(x.id);
+      if(b.dataset.h === 'fallos') openFallos();
+    });
+    document.addEventListener('keydown', teclaHoja, true);
+    requestAnimationFrame(() => bg.classList.add('on'));
   }
 
-  // La semana (de lunes a domingo) con un punto por tarea: cada día abre el calendario en ese día.
+  // La semana (de lunes a domingo) con un punto por tarea; los días de examen, con su aro. Cada día abre el calendario.
   function semana(){
     const s = typeof CAL !== 'undefined' ? CAL.semana() : null;
     if(!s) return '';
     return '<section class="ini-sec">' + etiqueta('Esta semana' + (s.atrasadas ? ' · <b class="ini-aviso">' + s.atrasadas + (s.atrasadas === 1 ? ' atrasada' : ' atrasadas') + '</b>' : '')) +
       '<div class="ini-semana">' + s.dias.map(d =>
-        '<button type="button" class="ini-dia' + (d.hoy ? ' hoy' : '') + (d.pasado ? ' pasado' : '') + '" data-ini="dia" data-f="' + d.f + '" aria-label="' + esc(d.nombre) + ', ' + d.puntos.length + ' tareas">' +
+        '<button type="button" class="ini-dia' + (d.hoy ? ' hoy' : '') + (d.pasado ? ' pasado' : '') + (d.examen ? ' exa' : '') + '" data-ini="dia" data-f="' + d.f + '" aria-label="' + esc(d.nombre) + ', ' + d.puntos.length + ' tareas' + (d.examen ? ', examen' : '') + '">' +
           '<span class="ini-dia-l">' + d.letra + '</span><span class="ini-dia-n">' + d.n + '</span>' +
           '<span class="ini-puntos">' + d.puntos.slice(0, 4).map(p => '<i style="background:' + p.c + '"' + (p.h ? ' class="h"' : '') + '></i>').join('') + '</span></button>').join('') +
       '</div></section>';
@@ -223,7 +262,7 @@ const INICIO = (function(){
 
   // Los días que faltan para el examen (js/examen.js), en una línea de la cabecera.
   function examen(){
-    const x = exaProx();
+    const x = (exas() || [])[0];
     if(x) return '<button type="button" class="ini-hero-exa" data-ini="ver" data-id="' + esc(x.id) + '">Examen <b>' + enDias(x.dias) + '</b> ›</button>';
     if(typeof EXA === 'undefined' || !currentUser) return '';
     const a = EXA.ajustes();
@@ -256,7 +295,8 @@ const INICIO = (function(){
     const enCurso = continuar() + pruebaAMedias() + espAMedias();
     const fijo = marcadasHoy();
     root.innerHTML = cabecera(r, enCurso) +
-      '<div class="ini-cuerpo"><div class="ini-col">' + hoy(r) + '</div><div class="ini-col">' + (exaProx() ? comoVasExamen(exaProx()) : cifras()) + semana() + '</div></div>' + fijo;
+      tusExamenes() +
+      '<div class="ini-cuerpo"><div class="ini-col">' + agenda(r) + '</div><div class="ini-col">' + semana() + ((exas() || []).length ? '' : cifras()) + '</div></div>' + fijo;
   }
 
   function onClick(e){
@@ -266,6 +306,8 @@ const INICIO = (function(){
       case 'marcar': e.stopPropagation(); CAL.marcar(el.dataset.id); break;
       case 'test': e.stopPropagation(); CAL.seguirTest(el.dataset.id); break;
       case 'ver': CAL.verTarea(el.dataset.id); break;
+      case 'exa': abrirExamen(el.dataset.id); break;
+      case 'exa-editar': CAL.editar(el.dataset.id); break;
       case 'nueva': e.stopPropagation(); CAL.nueva(); break;
       case 'nuevo-examen': CAL.nuevoExamen(); break;
       case 'calendario': showScreen('screen-calendario'); break;

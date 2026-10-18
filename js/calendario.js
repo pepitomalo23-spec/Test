@@ -1091,6 +1091,7 @@ const CAL = (function(){
     const dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((letra, i) => {
       const f = masDias(lunes, i);
       return { f, letra, n: deIso(f).getDate(), nombre: nombreDia(f), hoy: f === h, pasado: f < h,
+        examen: delDia(f).some(t => t.categoria === 'examen'),
         puntos: delDia(f).map(t => ({ c: CAT[t.categoria].c, h: t.hecho })) };
     });
     return { dias, racha: racha(), atrasadas: atrasadas().length };
@@ -1106,13 +1107,18 @@ const CAL = (function(){
       cuando: rel || dia.charAt(0).toUpperCase() + dia.slice(1) + ' ' + d.getDate(),
       mas: delDia(t.fecha).filter(x => !x.hecho).length - 1 };
   }
-  // El examen más cercano (de hoy en adelante) para Inicio: qué entra, cuántos
-  // días faltan y las tareas de su semana (desde el día después del examen
-  // anterior, como mucho 7 días antes). undefined mientras carga; null si no hay.
-  function proximoExamen(){
+  // Los exámenes de hoy en adelante para Inicio (como mucho n): qué entra,
+  // cuántos días faltan y las tareas de su semana (desde el día después del
+  // examen anterior, como mucho 7 días antes). undefined mientras carga.
+  function examenes(n){
     if(!yo() || dueño !== yo() || (!cargado && !tareas.length && cargando)) return undefined;
-    const h = hoy(), t = tareas.find(x => x.categoria === 'examen' && x.fecha >= h);
-    if(!t) return null;
+    const h = hoy();
+    return tareas.filter(x => x.categoria === 'examen' && x.fecha >= h).slice(0, n || 8).map(datosExamen);
+  }
+  // El más cercano: undefined mientras carga; null si no hay.
+  function proximoExamen(){ const xs = examenes(1); return xs && (xs[0] || null); }
+  function datosExamen(t){
+    const h = hoy();
     const antes = tareas.filter(x => x.categoria === 'examen' && x.fecha < t.fecha).pop();
     let desde = masDias(t.fecha, -7);
     if(antes && antes.fecha >= desde) desde = masDias(antes.fecha, 1);
@@ -1136,7 +1142,8 @@ const CAL = (function(){
     if(t.simulacro && !t.simulacro.fin) return hacerSimc(t);
     uiToast(avanceTotal(t).tests > 1 ? 'Todos los tests de esta tarea están completados' : 'Este test ya está completado', 'info');
   }
-  return { avanceTestLegis, terminarTestLegis, terminarSimulacro, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, semana, proxima, proximoExamen, abrirDia, pintar, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); },
+  return { avanceTestLegis, terminarTestLegis, terminarSimulacro, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, semana, proxima, proximoExamen, examenes, abrirDia, pintar, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); },
+    editar: id => { const t = tareas.find(x => x.id === id); if(t) abrirHoja(t); },
     // Desde Inicio: una tarea nueva ya como examen (el sábado que viene, que se puede cambiar).
     nuevoExamen: () => { const h = hoy(), d = deIso(h).getDay(); elegido = masDias(h, d === 6 ? 7 : 6 - d); mes = null; abrirHoja(null, 'examen'); } };
 })();
