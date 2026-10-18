@@ -65,7 +65,7 @@ const CAL = (function(){
   const ordenar = () => tareas.sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.orden - b.orden) || String(a.created_at).localeCompare(String(b.created_at)));
   const delDia = f => tareas.filter(t => t.fecha === f);
   // Un examen que ha puesto el administrador (o el profesor): sale sí o sí; no se mueve, ni se cambia, ni se borra.
-  const fija = t => !!(t && t.origen);
+  const fija = t => !!(t && t.compartido);
 
   async function cargar(){
     if(!yo()) return;
@@ -74,18 +74,37 @@ const CAL = (function(){
     cargando = (async () => {
       const filas = [];
       for(let desde = 0; ; desde += 1000){
-        const { data, error } = await sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,hecho,orden,serie,created_at,test_id,test_ids,progreso,legis,simulacro,examen,origen,enviado_por')
+        const { data, error } = await sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,hecho,orden,serie,created_at,test_id,test_ids,progreso,legis,simulacro,examen')
           .eq('user_id', yo()).order('fecha').order('orden').range(desde, desde + 999);
         if(error) throw error;
         filas.push(...data);
         if(data.length < 1000) break;
       }
+      filas.push(...await mandados());
       tareas = filas.map(normalizar); ordenar(); cargado = true; guardarCache();
       // Los nombres de los tests salen de la lista del Específico.
       if(tareas.some(t => t.test_ids.length) && conTests() && !ESP.tests().length) ESP.cargarTests().then(() => pintar());
     })().catch(e => { if(!cargado) uiToast('No se pudo cargar el calendario: ' + (e.message || e), 'error'); })
       .finally(() => { cargando = null; pintar(); });
     return cargando;
+  }
+  /* Exámenes que te ha puesto otro (el administrador o tu profesor): son suyos
+     y los ves solo para leer; si ya lo hiciste, tu nota está en examen_resultados.
+     Si algo falla, el calendario se carga sin ellos. */
+  async function mandados(){
+    try{
+      const [ex, res] = await Promise.all([
+        sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,orden,created_at,examen').neq('user_id', yo()).eq('categoria', 'examen'),
+        sb.from('examen_resultados').select('tarea_id,nota,at').eq('user_id', yo())
+      ]);
+      if(ex.error) return [];
+      const mia = new Map(((res && res.data) || []).map(r => [r.tarea_id, r]));
+      return (ex.data || []).map(t => {
+        const r = mia.get(t.id), { para, resultado, ...E } = t.examen || {};
+        return Object.assign(t, { compartido: true, enviado_por: E.de || null, hecho: !!r, serie: null, test_ids: [], progreso: null, legis: null, simulacro: null,
+          examen: Object.assign(E, r ? { resultado: { nota: r.nota == null ? null : Number(r.nota), at: Date.parse(r.at) || Date.now() } } : {}) });
+      });
+    }catch(e){ return []; }
   }
   // Cambio optimista: se ve ya y, si falla, se vuelve a cargar lo del servidor.
   async function enviar(promesa, msgError){
@@ -609,7 +628,7 @@ const CAL = (function(){
           alcance: 'una', repIni: serie ? serie.rep : '', hastaIni: serie ? serie.hasta : null,
           tests: t ? [...(t.test_ids || [])] : [], eligiendo: false, temaTest: '',
           legis: t && t.legis ? copiaLegis(t.legis) : null, simc: !!(t && t.simulacro), examen: copiaExamen(t && t.examen), para: [...((t && t.examen && t.examen.para) || [])] };
-    if(!(t && t.origen)) cargarDestinos(() => { const f = document.querySelector('#calHoja form'); if(f && h.cat === 'examen') pintarHoja(f); });
+    cargarDestinos(() => { const f = document.querySelector('#calHoja form'); if(f && h.cat === 'examen') pintarHoja(f); });
     if(conTests()) ESP.cargarTests();
     const bg = document.createElement('div');
     bg.className = 'cal-hoja-bg';
@@ -864,9 +883,6 @@ const CAL = (function(){
   }
   function campoExamen(){
     const E = h.examen, ls = leyes(), ts = temasEsp();
-    // Una copia que te han mandado: lo que entra lo decide quien lo mandó.
-    if(h.t && h.t.origen) return '<div class="cal-legis"><div class="cal-exa-de">Te lo ha mandado <b>' + esc(nombreCorreo(h.t.enviado_por)) + '</b>. Lo que entra y las preguntas son las mismas para todos.</div>' +
-      '<div class="cal-hasta-res">' + esc(nombresExamen(E).join(' · ') || 'Sin temas') + '</div></div>';
     const op = (k, id, txt, on) => '<button type="button" class="cal-test-op' + (on ? ' on' : '') + '" data-ex="' + k + '" data-t="' + esc(id) + '"><span class="cal-test-caja"></span><span class="cal-ley-txt">' + esc(txt) + '</span></button>';
     if(!ls.length && !ts.length) return '<div class="cal-hasta-res">Cargando las leyes…</div>';
     const n = E.legis.length + E.esp.length;
@@ -906,18 +922,10 @@ const CAL = (function(){
   }
   // Las leyes (o sus títulos) y temas del examen, como los pide PRU para elegir las preguntas.
   const paraPreguntas = E => ({ legis: E.legis.flatMap(id => { const ts = titulosExamen(E, id); return ts.length ? ts.map(g => ({ id, grupo: g })) : [{ id }]; }), esp: E.esp.map(id => ({ id })) });
-  // Tras guardar: pone al día las copias de los exámenes mandados (o las quita).
-  async function mandarCopias(lista, habia){
-    let n = 0;
-    for(const x of lista){
-      if(x.origen) continue;
-      const para = (x.categoria === 'examen' && x.examen && x.examen.para) || [];
-      if(!para.length && !habia) continue;
-      const { data, error } = await sb.rpc('calendario_enviar_examen', { p_id: x.id, p_users: para });
-      if(error){ uiToast('No se pudo mandar el examen: ' + error.message, 'error'); return; }
-      n = Math.max(n, data || 0);
-    }
-    if(n) uiToast('Examen mandado a ' + n + (n === 1 ? ' persona' : ' personas'), 'success');
+  // Al guardar un examen mandado: a cuántos se les ha puesto.
+  function avisoMandado(lista){
+    const x = lista.find(y => y.categoria === 'examen' && y.examen && (y.examen.para || []).length);
+    if(x){ const n = x.examen.para.length; uiToast('Examen puesto a ' + n + (n === 1 ? ' persona' : ' personas') + ': les sale en su calendario', 'success'); }
   }
   function teclaHoja(e){ if(e.key === 'Escape'){ e.stopPropagation(); cerrarHoja(); } }
   function cerrarHoja(){
@@ -961,9 +969,7 @@ const CAL = (function(){
     if(conSimc()) d.simulacro = h.simc ? { fin: false, nota: null } : null;
     // El resultado del examen (si ya se hizo) se queda aunque se edite.
     const resultado = h.t && h.t.examen && h.t.examen.resultado;
-    const habia = !!(h.t && h.t.examen && (h.t.examen.para || []).length);
-    if(h.t && h.t.origen) d.examen = h.t.examen;   // la copia de otro: lo que entra no se toca
-    else if(h.cat === 'examen'){
+    if(h.cat === 'examen'){
       const E = copiaExamen(h.examen), para = h.para.filter(id => !destinos || destinos.some(x => x.id === id));
       d.examen = Object.assign(E, resultado ? { resultado } : {});
       if(para.length){
@@ -980,7 +986,7 @@ const CAL = (function(){
           if(!document.getElementById('calHoja')) return;   // cerró la hoja mientras tanto
           if(!fijo){ uiToast('No hay preguntas de lo que entra en el examen', 'error'); return; }
         }
-        Object.assign(d.examen, { para, fijo });
+        Object.assign(d.examen, { para, fijo, de: (currentUser && currentUser.email) || null });
       }
     } else d.examen = null;
     const { t, fecha, rep, hasta } = h;
@@ -992,7 +998,7 @@ const CAL = (function(){
       const filas = fechas.map(x => fila(x, d, serie));
       tareas.push(...filas); ordenar();
       if(fechas.length > 1) uiToast('Añadida en ' + fechas.length + ' días', 'success');
-      return enviar(sb.from('calendario_tareas').insert(filas.map(sinMeta)), 'No se pudo añadir').then(() => mandarCopias(filas, false));
+      return enviar(sb.from('calendario_tareas').insert(filas.map(sinMeta)), 'No se pudo añadir').then(() => avisoMandado(filas));
     }
     const ops = [], tocadas = [t];
     const cambiaRep = rep !== h.repIni || (rep && hasta !== h.hastaIni) || (rep && fecha !== t.fecha);
@@ -1029,7 +1035,7 @@ const CAL = (function(){
       if(nuevas.length || ids.size) uiToast(serie ? 'Ahora se repite en ' + fechas.length + ' días' : 'Ya no se repite', 'success');
     }
     ordenar();
-    return enviar(Promise.all(ops).then(rs => rs.find(r => r.error) || {}), 'No se pudo guardar').then(() => mandarCopias(tocadas, habia));
+    return enviar(Promise.all(ops).then(rs => rs.find(r => r.error) || {}), 'No se pudo guardar').then(() => avisoMandado(tocadas));
   }
   async function borrar(t){
     cerrarHoja();
@@ -1040,7 +1046,7 @@ const CAL = (function(){
     const ids = new Set(fuera.map(x => x.id));
     tareas = tareas.filter(x => !ids.has(x.id));
     uiToast(fuera.length > 1 ? 'Borradas ' + fuera.length + ' tareas' : 'Tarea borrada', 'success', {
-      action: 'Deshacer', onAction: () => { tareas.push(...fuera); ordenar(); enviar(sb.from('calendario_tareas').insert(fuera.map(sinMeta)), 'No se pudo recuperar').then(() => mandarCopias(fuera.filter(x => x.examen && (x.examen.para || []).length), false)); }
+      action: 'Deshacer', onAction: () => { tareas.push(...fuera); ordenar(); enviar(sb.from('calendario_tareas').insert(fuera.map(sinMeta)), 'No se pudo recuperar'); }
     });
     return enviar(sb.from('calendario_tareas').delete().in('id', [...ids]), 'No se pudo borrar');
   }
@@ -1194,6 +1200,8 @@ const CAL = (function(){
     if(!t) return;
     t.examen = Object.assign({}, t.examen, { resultado: { nota: nota == null ? null : Math.round(Number(nota) * 100) / 100, at: Date.now() } });
     t.hecho = true;
+    // Uno que te han puesto: la nota va a tus resultados (el examen es de quien lo puso).
+    if(fija(t)) return enviar(sb.from('examen_resultados').insert({ tarea_id: t.id, nota: t.examen.resultado.nota }), 'No se pudo guardar el examen');
     enviar(sb.from('calendario_tareas').update({ examen: t.examen, hecho: true, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo guardar el examen');
   }
   // El más cercano: undefined mientras carga; null si no hay.
@@ -1205,8 +1213,8 @@ const CAL = (function(){
     if(antes && antes.fecha >= desde) desde = masDias(antes.fecha, 1);
     const semana = tareas.filter(x => x.categoria !== 'examen' && x.fecha >= desde && x.fecha < t.fecha);
     const E = copiaExamen(t.examen);
-    return { id: t.id, titulo: t.titulo, fecha: t.fecha, hecho: !!t.hecho, fijo: (t.examen && t.examen.fijo) || null, de: t.origen ? nombreCorreo(t.enviado_por) : null,
-      para: t.origen ? 0 : ((t.examen && t.examen.para) || []).length, resultado: (t.examen && t.examen.resultado) || null, dias: Math.round((deIso(t.fecha) - deIso(h)) / 864e5), cuando: nombreDia(t.fecha, true),
+    return { id: t.id, titulo: t.titulo, fecha: t.fecha, hecho: !!t.hecho, fijo: (t.examen && t.examen.fijo) || null, de: fija(t) ? nombreCorreo(t.enviado_por) : null,
+      para: fija(t) ? 0 : ((t.examen && t.examen.para) || []).length, resultado: (t.examen && t.examen.resultado) || null, dias: Math.round((deIso(t.fecha) - deIso(h)) / 864e5), cuando: nombreDia(t.fecha, true),
       legis: E.legis.flatMap(id => { const ts = titulosExamen(E, id);
         // ley y parte: los nombres completos (la ley como está en el temario y el título con su nombre), para el detalle.
         const ley = (leyes().find(x => x.id === id) || {}).name || nombreLey(id);
