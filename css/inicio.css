@@ -144,16 +144,15 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .ini-instr-ico{ width:32px; height:32px; flex-shrink:0; border-radius:10px; display:flex; align-items:center; justify-content:center; background: var(--card); color: var(--text); }
 .ini-instr-ico svg{ width:17px; height:17px; }
 .ini-instr-formato{ align-self:flex-start; border:0; background:none; padding:0; font:inherit; font-size:13px; font-weight:600; color: var(--coral); cursor:pointer; }
-/* Detalle de un examen (hoja): lo que entra, cada cosa con su % y una barra fina */
-.ini-entra-bloque{ display:flex; flex-direction:column; gap:14px; }
-.ini-entra-t{ font-size:11.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color: var(--muted); }
-.ini-ley{ display:flex; flex-direction:column; gap:12px; }
-.ini-ley-n{ font-size:13px; font-weight:600; color: var(--muted); line-height:1.35; }
-.ini-ley .ini-entra{ padding-left:12px; border-left:2px solid var(--line); }
+/* Detalle de un examen (hoja): cómo vas en total y una línea por tema */
+.ini-exa-total{ --c: var(--coral); display:flex; align-items:baseline; gap:10px; }
+.ini-exa-total.bien{ --c: var(--green); } .ini-exa-total.medio{ --c: var(--amber); }
+.ini-exa-total b{ font-size:44px; font-weight:800; letter-spacing:-.04em; line-height:1; color: var(--c); font-variant-numeric: tabular-nums; }
+.ini-exa-total span{ font-size:15px; font-weight:600; color: var(--muted); }
+.ini-entra-lista{ display:flex; flex-direction:column; gap:16px; }
 .ini-entra{ --c: var(--coral); display:grid; grid-template-columns: minmax(0, 1fr) auto; align-items:baseline; gap:6px 14px; }
 .ini-entra.bien{ --c: var(--green); } .ini-entra.medio{ --c: var(--amber); } .ini-entra.flojo{ --c: var(--coral); }
-.ini-entra-n{ display:flex; gap:8px; min-width:0; font-size:14.5px; font-weight:600; line-height:1.35; }
-.ini-entra-n i{ font-style:normal; flex-shrink:0; min-width:18px; color: var(--muted); font-weight:700; font-variant-numeric: tabular-nums; }
+.ini-entra-n{ min-width:0; font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ini-entra-pct{ font-size:15px; font-weight:800; color: var(--c); font-variant-numeric: tabular-nums; }
 .ini-entra-barra{ grid-column: 1 / -1; display:block; height:4px; border-radius:99px; background: var(--line); overflow:hidden; }
 .ini-entra-barra i{ display:block; height:100%; border-radius:inherit; background: var(--c); }

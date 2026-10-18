@@ -305,30 +305,22 @@ const INICIO = (function(){
   }
   // El detalle de un examen: qué entra, con los nombres completos (cada ley con
   // sus títulos, y los temas del Específico con su número), y cómo vas en cada cosa.
+  // Lo que entra en el examen: cómo vas en total y una línea por tema (nombre corto, % y barra). Nada más.
   function abrirExamen(id){
     const x = (exas() || []).find(y => y.id === id);
     if(!x) return;
     const p = preparacion(x);
-    // Cada cosa que entra: su nombre, su % y una barra de lo dominado (del color de cómo vas).
-    const fila = (t, nombre, num) => {
-      if(t.cargando) return '<div class="ini-entra"><span class="ini-entra-n">' + esc(nombre) + '</span><span class="skel" style="width:34px;height:16px"></span><span class="ini-entra-barra"></span></div>';
+    const fila = t => {
+      if(t.cargando) return '<div class="ini-entra"><span class="ini-entra-n">' + esc(t.nombre) + '</span><span class="skel" style="width:34px;height:16px"></span><span class="ini-entra-barra"></span></div>';
       const pct = pctVerde(t), col = pct >= 80 ? 'bien' : pct >= 50 ? 'medio' : 'flojo';
-      return '<div class="ini-entra ' + col + '"><span class="ini-entra-n">' + (num ? '<i>' + num + '</i>' : '') + '<span>' + esc(nombre) + '</span></span>' +
-        '<b class="ini-entra-pct">' + pct + '%</b><span class="ini-entra-barra"><i style="width:' + pct + '%"></i></span></div>';
+      return '<div class="ini-entra ' + col + '"><span class="ini-entra-n">' + esc(t.nombre) + '</span><b class="ini-entra-pct">' + pct + '%</b>' +
+        '<span class="ini-entra-barra"><i style="width:' + pct + '%"></i></span></div>';
     };
-    // Legislación: una ley entera es una fila; si entran títulos, la ley de cabecera y sus títulos debajo.
-    const legis = p.enOrden.filter(t => t.tipo === 'Legislación'), leyes = [];
-    legis.forEach(t => { let g = leyes.find(l => l.id === t.de.id); if(!g) leyes.push(g = { id: t.de.id, nombre: t.de.ley || t.de.nombre, filas: [] }); g.filas.push(t); });
-    const esp = p.enOrden.filter(t => t.tipo === 'Específico');
-    const bloque = (titulo, html) => '<section class="ini-entra-bloque"><div class="ini-entra-t">' + titulo + '</div>' + html + '</section>';
     const cuerpo =
-      '<div class="ini-exa-res">' + anilloExa(p, true) +
-        (p.listo ? '<div class="ini-exa-datos"><span class="ini-nivel ' + p.nivel + '">' + NIVELES[p.nivel][0] + '</span><span>de lo que entra, dominado</span></div>' : '') + '</div>' +
-      (leyes.length ? bloque('Legislación', leyes.map(l => l.filas.length === 1 && !l.filas[0].de.parte ? fila(l.filas[0], l.nombre)
-        : '<div class="ini-ley"><div class="ini-ley-n">' + esc(l.nombre) + '</div>' + l.filas.map(t => fila(t, t.de.parte)).join('') + '</div>').join('')) : '') +
-      (esp.length ? bloque('Específico', esp.map(t => fila(t, t.de.completo || t.nombre, t.de.n || '')).join('')) : '');
-    hoja(x.titulo, x.dias > 1 ? x.cuando + ' · en ' + x.dias + ' días' : x.dias ? 'Mañana' : 'Hoy', cuerpo,
-      '<button type="button" class="cal-btn" data-h="editar">Editar examen</button><button type="button" class="cal-btn primario" data-h="cerrar">Listo</button>',
+      (p.listo ? '<div class="ini-exa-total ' + p.nivel + '"><b>' + p.pct + '%</b><span>' + NIVELES[p.nivel][0] + '</span></div>' : '') +
+      '<div class="ini-entra-lista">' + p.enOrden.map(fila).join('') + '</div>';
+    hoja('Examen', x.dias > 1 ? x.cuando + ' · en ' + x.dias + ' días' : x.dias ? 'Mañana' : 'Hoy', cuerpo,
+      '<button type="button" class="cal-btn" data-h="editar">Editar</button><button type="button" class="cal-btn primario" data-h="cerrar">Listo</button>',
       (b, cerrar) => { cerrar(); if(b.dataset.h === 'editar') CAL.editar(x.id); }, 'ini-exa-hoja');
   }
 
