@@ -246,3 +246,7 @@ div.cal-test.acabado:hover{ border-color: var(--line); }
 .cal-tarea[draggable="true"]{ cursor:grab; }
 #calRoot.arrastrando .cal-dia[data-f] .cal-num{ box-shadow: inset 0 0 0 1px var(--line); }
 .cal-dia.soltar .cal-num{ background: color-mix(in srgb, var(--coral) 25%, transparent) !important; box-shadow: inset 0 0 0 2px var(--coral) !important; }
+
+/* Examen: a quién se manda, y la copia que te han mandado */
+.cal-exa-para{ display:flex; flex-wrap:wrap; gap:6px; }
+.cal-exa-de{ font-size:14px; line-height:1.45; padding:10px 12px; border-radius:12px; background: color-mix(in srgb, var(--c, #E5484D) 10%, transparent); }
