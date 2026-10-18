@@ -356,14 +356,45 @@ const INICIO = (function(){
       (enCurso ? '<div class="ini-encurso">' + enCurso + '</div>' : '') + '</div>';
   }
 
+  /* ---------- pantalla grande: la cabecera ancha con lo de hoy dentro ----------
+     A la izquierda la fecha, «Hoy», cuántas van y el examen; a la derecha las
+     tareas de hoy, cada una con a qué pertenece. La primera pendiente, en blanco.
+     Al lado, lo que está a medias (en tarjeta de contraste) y el examen. */
+  function cabeceraGrande(r){
+    const n = r ? r.lista.length : 0, hechas = r ? r.hechas : 0;
+    let lista;
+    if(!r) lista = '<div class="ini-ht"><span class="skel" style="width:60%;height:16px"></span></div>';
+    else if(!n) lista = '<button type="button" class="ini-ht ini-ht-nueva" data-ini="nueva">+ Apuntar algo para hoy</button>';
+    else {
+      const orden = r.lista.slice().sort((a, b) => a.hecho - b.hecho);
+      let primera = true;
+      lista = orden.slice(0, MAX_TAREAS).map(t => {
+        const fin = t.test && t.test.terminados === t.test.tests;
+        const ya = !t.hecho && primera;
+        if(!t.hecho) primera = false;
+        const accion = t.test && !fin && !t.hecho
+          ? '<button type="button" class="ini-ht-ir" data-ini="test" data-id="' + esc(t.id) + '">' + (t.test.hechas ? 'Seguir' : t.simc ? 'Hacer' : 'Empezar') + '</button>'
+          : '<button type="button" class="ini-ht-check" data-ini="marcar" data-id="' + esc(t.id) + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' + CHECK + '</button>';
+        return '<div class="ini-ht' + (ya ? ' ya' : '') + (t.hecho ? ' hecha' : '') + '" role="button" tabindex="0" data-ini="ver" data-id="' + esc(t.id) + '" aria-label="Ver ' + esc(t.titulo) + '">' +
+          '<span class="ini-ht-txt"><b>' + esc(t.titulo) + '</b><span>' + esc(t.cat) + '</span></span>' + accion + '</div>';
+      }).join('') + (n > MAX_TAREAS ? '<button type="button" class="ini-ht-mas" data-ini="calendario">y ' + (n - MAX_TAREAS) + ' más en el calendario ›</button>' : '');
+    }
+    return '<div class="ini-heropc"><div class="ini-heropc-izq"><div class="ini-fecha">' + fechaHoy() + '</div><h1 class="ini-h">Hoy</h1>' +
+        (n ? '<div class="ini-heropc-n"><b>' + hechas + ' de ' + n + '</b><span>' + (n === 1 ? 'tarea hecha' : 'tareas hechas') + '</span></div>' : '') + examen() + '</div>' +
+      '<div class="ini-heropc-tareas">' + lista + '</div></div>';
+  }
+
   function pintar(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
     const r = typeof CAL !== 'undefined' ? CAL.resumenHoy() : null;
     const enCurso = continuar() + pruebaAMedias() + espAMedias();
     const fijo = marcadasHoy();
-    root.innerHTML = cabecera(r, enCurso) +
-      '<div class="ini-cuerpo"><div class="ini-col">' + hoyCompacto(r) + '</div><div class="ini-col">' + examenSemana() + (exaSemana() ? '' : cifras()) + '</div></div>' + fijo;
+    const lado = examenSemana() + (exaSemana() ? '' : cifras());
+    // Móvil y pantalla grande: se pintan los dos y el CSS enseña el que toca.
+    root.innerHTML = '<div class="ini-movil">' + cabecera(r, enCurso) +
+        '<div class="ini-cuerpo"><div class="ini-col">' + hoyCompacto(r) + '</div><div class="ini-col">' + lado + '</div></div></div>' +
+      '<div class="ini-pc">' + cabeceraGrande(r) + '<div class="ini-lado">' + (enCurso ? '<div class="ini-encurso">' + enCurso + '</div>' : '') + lado + '</div></div>' + fijo;
   }
 
   function onClick(e){
