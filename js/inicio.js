@@ -205,20 +205,21 @@ const INICIO = (function(){
     // Una ley entera o solo un título suyo (y todo lo que cuelga de él).
     const entra = (q, l) => q.topic_id === l.id && (!l.grupo || (!!q.nodo_id && nodeIsInSelectedGroups(q.nodo_id, new Set([l.grupo]))));
     x.legis.forEach(l => {
-      if(!pool) return temas.push({ nombre: l.nombre, cargando: true });
+      if(!pool) return temas.push({ nombre: l.nombre, de: l, tipo: 'Legislación', cargando: true });
       const qs = pool.filter(q => entra(q, l)), n = st => qs.filter(q => q.masteryStatus === st).length;
-      temas.push({ nombre: l.nombre, tipo: 'Legislación', total: qs.length, verde: n('green'), amarillo: n('yellow'), rojo: n('red') });
+      temas.push({ nombre: l.nombre, de: l, tipo: 'Legislación', total: qs.length, verde: n('green'), amarillo: n('yellow'), rojo: n('red') });
     });
     const pt = x.esp.length && typeof ESTE !== 'undefined' && ESTE.porTema ? ESTE.porTema() : null;
     x.esp.forEach(e => {
-      if(!pt) return temas.push({ nombre: e.nombre, cargando: true });
-      temas.push(Object.assign({ nombre: e.nombre, tipo: 'Específico' }, pt[e.id] || { total: 0, verde: 0, amarillo: 0, rojo: 0 }));
+      if(!pt) return temas.push({ nombre: e.nombre, de: e, tipo: 'Específico', cargando: true });
+      temas.push(Object.assign({ nombre: e.nombre, de: e, tipo: 'Específico' }, pt[e.id] || { total: 0, verde: 0, amarillo: 0, rojo: 0 }));
     });
     const listos = temas.filter(t => !t.cargando);
     const tot = listos.reduce((a, t) => a + t.total, 0), verde = listos.reduce((a, t) => a + t.verde, 0);
     const pct = tot ? Math.round(verde / tot * 100) : 0;
+    const enOrden = temas.slice();   // como entran en el examen (para el detalle)
     temas.sort((a, b) => (a.cargando ? 1 : 0) - (b.cargando ? 1 : 0) || pctVerde(a) - pctVerde(b));
-    return { temas, pct, listo: listos.length > 0, nivel: pct >= 80 ? 'bien' : pct >= 50 ? 'medio' : 'flojo',
+    return { temas, enOrden, tot, verde, pct, listo: listos.length > 0, nivel: pct >= 80 ? 'bien' : pct >= 50 ? 'medio' : 'flojo',
       rojoLegis: pool ? pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden && x.legis.some(l => entra(q, l))).length : 0 };
   }
   function anilloExa(p, grande){
@@ -254,23 +255,36 @@ const INICIO = (function(){
     if(!x) return '<section class="ini-sec">' + cab + '<button type="button" class="ini-exa-nuevo ancho" data-ini="nuevo-examen"><b>Sin examen esta semana</b><span>Prográmalo y elige qué entra: aquí verás cómo vas en esos temas</span></button></section>';
     return '<section class="ini-sec">' + cab + tarjetaExamen(x) + '</section>';
   }
-  // El detalle de un examen: todos sus temas, lo de su semana y las falladas por repasar.
+  // El detalle de un examen: qué entra, con los nombres completos (cada ley con
+  // sus títulos, y los temas del Específico con su número), y cómo vas en cada cosa.
   function abrirExamen(id){
     const x = (exas() || []).find(y => y.id === id);
     if(!x) return;
-    const p = preparacion(x), sem = x.semana;
-    const filas = p.temas.map(t => {
-      if(t.cargando) return '<div class="ini-tema"><div class="ini-tema-cab"><span>' + esc(t.nombre) + '</span><span class="skel" style="width:30px;height:14px"></span></div><span class="ini-pila"></span></div>';
-      const sinVer = t.total - t.verde - t.amarillo - t.rojo;
-      return '<div class="ini-tema"><div class="ini-tema-cab"><span>' + esc(t.nombre) + '<small>' + t.tipo + '</small></span><b>' + pctVerde(t) + '%</b></div>' + pila(t) +
-        '<span class="ini-tema-n">' + t.verde + ' de ' + t.total + ' dominadas' + (t.rojo ? ' · <em>' + t.rojo + ' falladas</em>' : '') + (sinVer > 0 ? ' · ' + sinVer + ' sin ver' : '') + '</span></div>';
-    }).join('');
-    const cuerpo = '<div class="ini-exa-res">' + anilloExa(p, true) + '<div class="ini-exa-datos">' +
-        (p.listo ? '<span class="ini-nivel ' + p.nivel + '">' + NIVELES[p.nivel][0] + '</span>' : '') +
-        (sem.total ? '<span><b>' + sem.hechas + '/' + sem.total + '</b> tareas de la semana</span>' : '<span>Sin tareas apuntadas esa semana</span>') +
+    const p = preparacion(x);
+    const fila = (t, nombre, extra) => {
+      const pct = pctVerde(t), col = pct >= 80 ? 'bien' : pct >= 50 ? 'medio' : 'flojo';
+      const sinVer = t.cargando ? 0 : t.total - t.verde - t.amarillo - t.rojo;
+      return '<div class="ini-entra">' +
+        '<div class="ini-entra-cab"><span class="ini-entra-n">' + (extra ? '<small>' + esc(extra) + '</small>' : '') + esc(nombre) + '</span>' +
+          (t.cargando ? '<span class="skel" style="width:38px;height:20px"></span>' : '<b class="ini-entra-pct ' + col + '">' + pct + '%</b>') + '</div>' +
+        (t.cargando ? '<span class="ini-pila"></span>' : pila(t) +
+          '<span class="ini-tema-n">' + t.verde + ' de ' + t.total + ' dominadas' + (t.rojo ? ' · <em>' + t.rojo + ' falladas</em>' : '') + (sinVer > 0 ? ' · ' + sinVer + ' sin ver' : '') + '</span>') +
+        '</div>';
+    };
+    // Legislación: cada ley una vez, con debajo los títulos que entran (o «Toda la ley»).
+    const legis = p.enOrden.filter(t => t.tipo === 'Legislación'), leyes = [];
+    legis.forEach(t => { let g = leyes.find(l => l.id === t.de.id); if(!g) leyes.push(g = { id: t.de.id, nombre: t.de.ley || t.de.nombre, filas: [] }); g.filas.push(t); });
+    const esp = p.enOrden.filter(t => t.tipo === 'Específico');
+    const bloque = (titulo, n, html) => '<section class="ini-entra-bloque"><div class="ini-entra-t"><span>' + titulo + '</span><span>' + n + '</span></div>' + html + '</section>';
+    const cuerpo =
+      '<div class="ini-exa-res">' + anilloExa(p, true) + '<div class="ini-exa-datos">' +
+        (p.listo ? '<span class="ini-nivel ' + p.nivel + '">' + NIVELES[p.nivel][0] + '</span><span><b>' + p.verde.toLocaleString('es-ES') + '</b> de ' + p.tot.toLocaleString('es-ES') + ' preguntas dominadas</span>' : '<span>Cargando…</span>') +
         (featureEnabled('fallos') && p.rojoLegis ? '<button type="button" class="ini-exa-fallos" data-h="fallos"><b>' + p.rojoLegis + '</b> de Legislación por repasar ›</button>' : '') +
       '</div></div>' +
-      '<div class="ini-temas">' + filas + '</div>' +
+      (leyes.length ? bloque('Legislación', leyes.length === 1 ? '1 ley' : leyes.length + ' leyes', leyes.map(l =>
+        '<div class="ini-ley"><div class="ini-ley-n">' + esc(l.nombre) + '</div>' +
+          l.filas.map(t => fila(t, t.de.parte || 'Toda la ley')).join('') + '</div>').join('')) : '') +
+      (esp.length ? bloque('Específico', esp.length === 1 ? '1 tema' : esp.length + ' temas', esp.map(t => fila(t, t.de.completo || t.nombre, t.de.n ? 'Tema ' + t.de.n : '')).join('')) : '') +
       '<div class="ini-leyenda"><span><i class="v"></i>Dominadas</span><span><i class="a"></i>Afianzando</span><span><i class="r"></i>Falladas</span><span><i></i>Sin ver</span></div>';
     hoja(x.titulo, x.cuando + ' · ' + enDias(x.dias), cuerpo,
       '<button type="button" class="cal-btn" data-h="editar">Editar examen</button><button type="button" class="cal-btn primario" data-h="cerrar">Listo</button>',
