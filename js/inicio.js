@@ -427,7 +427,8 @@ const INICIO = (function(){
     const out = [];
     const col = (clave, valor, txt, pct, color, clase) => '<button type="button" class="ini-cv' + (clase ? ' ' + clase : '') + '" data-ini="' + clave + '">' +
       '<span class="ini-cv-t">' + txt + '</span><b>' + valor + '</b>' +
-      (pct == null ? '' : '<span class="ini-cv-barra"><i style="width:' + pct + '%;background:' + color + '"></i></span>') + '</button>';
+      // Sin barra, un hueco igual: así las cifras quedan a la misma altura.
+      (pct == null ? '<span class="ini-cv-barra hueco"></span>' : '<span class="ini-cv-barra"><i style="width:' + pct + '%;background:' + color + '"></i></span>') + '</button>';
     const pool = datosListos() ? QUESTIONS_POOL : null;
     if(featureEnabled('fallos') && pool){
       const n = pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden).length;
