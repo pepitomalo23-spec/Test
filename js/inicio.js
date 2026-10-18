@@ -154,6 +154,58 @@ const INICIO = (function(){
     return '<section class="ini-sec">' + etiqueta('Cómo vas') + '<div class="ini-cifras" style="--n:' + out.length + '">' + out.join('') + '</div></section>';
   }
 
+  // Cómo vas para el examen más cercano del calendario: lo dominado de lo que
+  // entra (en general y tema a tema, lo más flojo primero), las falladas de
+  // esos temas y las tareas de su semana. Sin examen apuntado, las cifras generales.
+  const exaProx = () => typeof CAL !== 'undefined' && CAL.proximoExamen ? CAL.proximoExamen() : undefined;
+  const enDias = d => d === 0 ? 'hoy' : d === 1 ? 'mañana' : 'en ' + d + ' días';
+  function comoVasExamen(x){
+    const link = '<button type="button" class="ini-link" data-ini="ver" data-id="' + esc(x.id) + '">Ver ' + FLECHA + '</button>';
+    const cab = etiqueta('Cómo vas para el examen', link);
+    const cuando = '<div class="ini-exa-t"><b>' + esc(x.titulo) + '</b><span>' + (x.dias > 1 ? esc(x.cuando) + ' · en ' + x.dias + ' días' : x.dias ? 'Mañana' : 'Hoy') + '</span></div>';
+    if(!x.legis.length && !x.esp.length)
+      return '<section class="ini-sec">' + cab + cuando + '<button type="button" class="ini-anadir" data-ini="ver" data-id="' + esc(x.id) + '"><span>+</span> Elige qué entra en el examen</button></section>';
+    // Cada tema: { nombre, total, verde, amarillo, rojo }, o { cargando } mientras no hay datos.
+    const temas = [];
+    const pool = datosListos() ? QUESTIONS_POOL : null;
+    x.legis.forEach(l => {
+      if(!pool) return temas.push({ nombre: l.nombre, cargando: true });
+      const qs = pool.filter(q => q.topic_id === l.id), n = st => qs.filter(q => q.masteryStatus === st).length;
+      temas.push({ nombre: l.nombre, tipo: 'Legislación', total: qs.length, verde: n('green'), amarillo: n('yellow'), rojo: n('red') });
+    });
+    const pt = x.esp.length && typeof ESTE !== 'undefined' && ESTE.porTema ? ESTE.porTema() : null;
+    x.esp.forEach(e => {
+      if(!pt) return temas.push({ nombre: e.nombre, cargando: true });
+      temas.push(Object.assign({ nombre: e.nombre, tipo: 'Específico' }, pt[e.id] || { total: 0, verde: 0, amarillo: 0, rojo: 0 }));
+    });
+    const listos = temas.filter(t => !t.cargando);
+    const suma = k => listos.reduce((a, t) => a + t[k], 0);
+    const tot = suma('total'), pct = tot ? Math.round(suma('verde') / tot * 100) : 0;
+    // Las falladas por repasar de esos temas (las de Legislación que no has quitado de Fallos).
+    const rojoLegis = pool ? pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden && x.legis.some(l => l.id === q.topic_id)).length : 0;
+    const nivel = pct >= 80 ? ['bien', 'Bien preparado'] : pct >= 50 ? ['medio', 'A medio camino'] : ['flojo', 'Te falta'];
+    const pctDe = t => t.total ? Math.round(t.verde / t.total * 100) : 0;
+    const filas = temas.slice().sort((a, b) => (a.cargando ? 1 : 0) - (b.cargando ? 1 : 0) || pctDe(a) - pctDe(b)).map(t => {
+      if(t.cargando) return '<div class="ini-tema"><div class="ini-tema-cab"><span>' + esc(t.nombre) + '</span><span class="skel" style="width:30px;height:14px"></span></div><span class="ini-pila"></span></div>';
+      const w = k => t.total ? (t[k] / t.total * 100).toFixed(1) : 0, sinVer = t.total - t.verde - t.amarillo - t.rojo;
+      return '<div class="ini-tema"><div class="ini-tema-cab"><span>' + esc(t.nombre) + '<small>' + t.tipo + '</small></span><b>' + pctDe(t) + '%</b></div>' +
+        '<span class="ini-pila" aria-hidden="true"><i class="v" style="width:' + w('verde') + '%"></i><i class="a" style="width:' + w('amarillo') + '%"></i><i class="r" style="width:' + w('rojo') + '%"></i></span>' +
+        '<span class="ini-tema-n">' + t.verde + ' de ' + t.total + ' dominadas' + (t.rojo ? ' · <em>' + t.rojo + ' falladas</em>' : '') + (sinVer > 0 ? ' · ' + sinVer + ' sin ver' : '') + '</span></div>';
+    }).join('');
+    const sem = x.semana;
+    return '<section class="ini-sec">' + cab + cuando +
+      '<div class="ini-exa-res">' +
+        (!listos.length ? '<span class="skel" style="width:90px;height:34px"></span>'
+          : '<div class="ini-exa-pct"><b>' + pct + '<small>%</small></b><span class="ini-nivel ' + nivel[0] + '">' + nivel[1] + '</span></div>') +
+        '<div class="ini-exa-datos">' +
+          (sem.total ? '<span><b>' + sem.hechas + '/' + sem.total + '</b> tareas de la semana</span>' : '<span>Sin tareas apuntadas esa semana</span>') +
+          (featureEnabled('fallos') && rojoLegis ? '<button type="button" class="ini-exa-fallos" data-ini="fallos"><b>' + rojoLegis + '</b> de Legislación por repasar ›</button>' : '') +
+        '</div></div>' +
+      '<div class="ini-temas">' + filas + '</div>' +
+      '<div class="ini-leyenda"><span><i class="v"></i>Dominadas</span><span><i class="a"></i>Afianzando</span><span><i class="r"></i>Falladas</span><span><i></i>Sin ver</span></div>' +
+      '</section>';
+  }
+
   // La semana (de lunes a domingo) con un punto por tarea: cada día abre el calendario en ese día.
   function semana(){
     const s = typeof CAL !== 'undefined' ? CAL.semana() : null;
@@ -168,6 +220,8 @@ const INICIO = (function(){
 
   // Los días que faltan para el examen (js/examen.js), en una línea de la cabecera.
   function examen(){
+    const x = exaProx();
+    if(x) return '<button type="button" class="ini-hero-exa" data-ini="ver" data-id="' + esc(x.id) + '">Examen <b>' + enDias(x.dias) + '</b> ›</button>';
     if(typeof EXA === 'undefined' || !currentUser) return '';
     const a = EXA.ajustes();
     if(!a.fecha) return '<button type="button" class="ini-hero-exa" data-ini="examen">Pon la fecha del examen ›</button>';
@@ -199,7 +253,7 @@ const INICIO = (function(){
     const enCurso = continuar() + pruebaAMedias() + espAMedias();
     const fijo = marcadasHoy();
     root.innerHTML = cabecera(r, enCurso) +
-      '<div class="ini-cuerpo"><div class="ini-col">' + hoy(r) + '</div><div class="ini-col">' + cifras() + semana() + '</div></div>' + fijo;
+      '<div class="ini-cuerpo"><div class="ini-col">' + hoy(r) + '</div><div class="ini-col">' + (exaProx() ? comoVasExamen(exaProx()) : cifras()) + semana() + '</div></div>' + fijo;
   }
 
   function onClick(e){
