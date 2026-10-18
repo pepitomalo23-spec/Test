@@ -912,7 +912,9 @@ const CAL = (function(){
       d.legis = h.legis ? Object.assign(copiaLegis(h.legis), { cuantas: h.legis.cuantas || null, run: null }) : null;
     }
     if(conSimc()) d.simulacro = h.simc ? { fin: false, nota: null } : null;
-    d.examen = h.cat === 'examen' ? copiaExamen(h.examen) : null;
+    // El resultado del examen (si ya se hizo) se queda aunque se edite.
+    const resultado = h.t && h.t.examen && h.t.examen.resultado;
+    d.examen = h.cat === 'examen' ? Object.assign(copiaExamen(h.examen), resultado ? { resultado } : {}) : null;
     const { t, fecha, rep, hasta } = h;
     const alcance = t && t.serie && siguientes(t).length ? h.alcance : 'serie';
     cerrarHoja();
@@ -1115,6 +1117,14 @@ const CAL = (function(){
     const h = hoy();
     return tareas.filter(x => x.categoria === 'examen' && x.fecha >= h).slice(0, n || 8).map(datosExamen);
   }
+  // Lo llama js/pruebas.js al terminar el examen de ese día: queda hecho y con su nota.
+  function terminarExamen(id, nota){
+    const t = tareas.find(x => x.id === id);
+    if(!t) return;
+    t.examen = Object.assign({}, t.examen, { resultado: { nota: nota == null ? null : Math.round(Number(nota) * 100) / 100, at: Date.now() } });
+    t.hecho = true;
+    enviar(sb.from('calendario_tareas').update({ examen: t.examen, hecho: true, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo guardar el examen');
+  }
   // El más cercano: undefined mientras carga; null si no hay.
   function proximoExamen(){ const xs = examenes(1); return xs && (xs[0] || null); }
   function datosExamen(t){
@@ -1124,7 +1134,7 @@ const CAL = (function(){
     if(antes && antes.fecha >= desde) desde = masDias(antes.fecha, 1);
     const semana = tareas.filter(x => x.categoria !== 'examen' && x.fecha >= desde && x.fecha < t.fecha);
     const E = copiaExamen(t.examen);
-    return { id: t.id, titulo: t.titulo, fecha: t.fecha, dias: Math.round((deIso(t.fecha) - deIso(h)) / 864e5), cuando: nombreDia(t.fecha, true),
+    return { id: t.id, titulo: t.titulo, fecha: t.fecha, hecho: !!t.hecho, resultado: (t.examen && t.examen.resultado) || null, dias: Math.round((deIso(t.fecha) - deIso(h)) / 864e5), cuando: nombreDia(t.fecha, true),
       legis: E.legis.flatMap(id => { const ts = titulosExamen(E, id);
         // ley y parte: los nombres completos (la ley como está en el temario y el título con su nombre), para el detalle.
         const ley = (leyes().find(x => x.id === id) || {}).name || nombreLey(id);
@@ -1147,7 +1157,7 @@ const CAL = (function(){
     if(t.simulacro && !t.simulacro.fin) return hacerSimc(t);
     uiToast(avanceTotal(t).tests > 1 ? 'Todos los tests de esta tarea están completados' : 'Este test ya está completado', 'info');
   }
-  return { avanceTestLegis, terminarTestLegis, terminarSimulacro, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, semana, proxima, proximoExamen, examenes, abrirDia, pintar, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); },
+  return { avanceTestLegis, terminarTestLegis, terminarSimulacro, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, semana, proxima, proximoExamen, examenes, terminarExamen, abrirDia, pintar, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); },
     editar: id => { const t = tareas.find(x => x.id === id); if(t) abrirHoja(t); },
     // Desde Inicio: una tarea nueva ya como examen (el sábado que viene, que se puede cambiar).
     nuevoExamen: () => { const h = hoy(), d = deIso(h).getDay(); elegido = masDias(h, d === 6 ? 7 : 6 - d); mes = null; abrirHoja(null, 'examen'); } };

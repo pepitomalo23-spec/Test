@@ -116,6 +116,34 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .ini-exa-nuevo span{ font-size:12px; }
 .ini-exa-nuevo.ancho{ width:100%; align-items:flex-start; text-align:left; padding:16px; }
 .ini-exa-nuevo:hover{ border-color: var(--muted-2); }
+/* El día del examen: la tarjeta entera de color, con «Entrar al examen» */
+.ini-exa-dia{ cursor:default; gap:6px; padding:18px; color:#fff; background: radial-gradient(120% 100% at 100% 0%, #F0625E 0%, transparent 65%), #C93A3F; }
+.ini-exa-dia-l{ font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; opacity:.9; }
+.ini-exa-dia-t{ font-family: var(--title); font-size:36px; line-height:1.05; letter-spacing:.01em; text-transform:uppercase; text-wrap:balance; }
+.ini-exa-dia-sub{ font-size:13px; opacity:.9; line-height:1.4; }
+.ini-exa-dia-bot{ display:flex; align-items:center; gap:12px; margin-top:10px; flex-wrap:wrap; }
+.ini-exa-entrar{ flex:1; min-width:180px; padding:13px 18px; border:0; border-radius:99px; background:#fff; color:#B3262C; font:inherit; font-size:15.5px; font-weight:800; cursor:pointer; box-shadow:0 8px 20px -10px rgba(0,0,0,.5); }
+.ini-exa-entrar:hover{ filter: brightness(.97); }
+.ini-exa-ver{ border:0; background:none; padding:6px 2px; font:inherit; font-size:13.5px; font-weight:600; color:#fff; cursor:pointer; }
+.ini-exa-dia :focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+.ini-exa-hecho{ gap:4px; }
+.ini-exa-hecho.ok{ --c: var(--green); } .ini-exa-hecho.mal{ --c: var(--coral); }
+.ini-exa-hecho .ini-exa-dia-l{ color: var(--muted); }
+.ini-exa-nota{ font-size:40px; font-weight:800; letter-spacing:-.03em; line-height:1; color: var(--c); font-variant-numeric: tabular-nums; }
+.ini-exa-nota small{ font-size:16px; color: var(--muted); font-weight:600; }
+.ini-exa-hecho .ini-exa-dia-sub{ color: var(--muted); opacity:1; }
+/* Instrucciones antes de empezar */
+.ini-instr-hoja .cal-hoja-cuerpo{ gap:18px; }
+.ini-instr-cifras{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.ini-instr-cifras div{ display:flex; flex-direction:column; align-items:flex-start; padding:14px 16px; border-radius:16px; background: color-mix(in srgb, #E5484D 10%, var(--card)); }
+.ini-instr-cifras b{ font-size:34px; font-weight:800; letter-spacing:-.03em; line-height:1; color:#E5484D; font-variant-numeric: tabular-nums; }
+.ini-instr-cifras span{ font-size:13px; color: var(--muted); margin-top:4px; }
+.ini-instr{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:14px; }
+.ini-instr li{ display:flex; gap:12px; align-items:flex-start; font-size:14px; line-height:1.45; color: var(--muted); }
+.ini-instr li b{ color: var(--text); }
+.ini-instr-ico{ width:32px; height:32px; flex-shrink:0; border-radius:10px; display:flex; align-items:center; justify-content:center; background: var(--card); color: var(--text); }
+.ini-instr-ico svg{ width:17px; height:17px; }
+.ini-instr-formato{ align-self:flex-start; border:0; background:none; padding:0; font:inherit; font-size:13px; font-weight:600; color: var(--coral); cursor:pointer; }
 /* Detalle de un examen (hoja): qué entra, por bloques (Legislación con cada ley y sus títulos; Específico con sus temas) */
 .ini-entra-bloque{ display:flex; flex-direction:column; gap:10px; }
 .ini-entra-t{ display:flex; justify-content:space-between; align-items:baseline; padding-bottom:6px; border-bottom:1px solid var(--line); font-size:11.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color: var(--muted); }
