@@ -12,6 +12,7 @@ const CAL = (function(){
     ['callejero', 'Callejero', 'var(--teal)'],
     ['especifico', 'Específico', 'var(--blue)'],
     ['test', 'Test / simulacro', 'var(--orange)'],
+    ['examen', 'Examen', '#E5484D'],
     ['fisico', 'Físico', 'var(--green)'],
     ['repaso', 'Repaso', 'var(--amber)'],
     ['otro', 'Otro', 'var(--muted)']
@@ -23,6 +24,7 @@ const CAL = (function(){
     legislacion: svg('<path d="M12 3v18"/><path d="M7 21h10"/><path d="M3 7h18"/><path d="m6 7-3 7a3 3 0 0 0 6 0Z"/><path d="m18 7-3 7a3 3 0 0 0 6 0Z"/>'),
     callejero: svg('<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2Z"/><path d="M9 4v14"/><path d="M15 6v14"/>'),
     especifico: svg('<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/>'),
+    examen: svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>'),
     test: svg('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>'),
     fisico: svg('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'),
     repaso: svg('<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M8 16H3v5"/>'),
@@ -70,7 +72,7 @@ const CAL = (function(){
     cargando = (async () => {
       const filas = [];
       for(let desde = 0; ; desde += 1000){
-        const { data, error } = await sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,hecho,orden,serie,created_at,test_id,test_ids,progreso,legis,simulacro')
+        const { data, error } = await sb.from('calendario_tareas').select('id,fecha,titulo,nota,categoria,hecho,orden,serie,created_at,test_id,test_ids,progreso,legis,simulacro,examen')
           .eq('user_id', yo()).order('fecha').order('orden').range(desde, desde + 999);
         if(error) throw error;
         filas.push(...data);
@@ -601,7 +603,7 @@ const CAL = (function(){
     h = { t, cat: base.categoria, fecha: base.fecha, rep: serie ? serie.rep : '', hasta: serie ? serie.hasta : masDias(base.fecha, 27),
           alcance: 'una', repIni: serie ? serie.rep : '', hastaIni: serie ? serie.hasta : null,
           tests: t ? [...(t.test_ids || [])] : [], eligiendo: false, temaTest: '',
-          legis: t && t.legis ? copiaLegis(t.legis) : null, simc: !!(t && t.simulacro) };
+          legis: t && t.legis ? copiaLegis(t.legis) : null, simc: !!(t && t.simulacro), examen: copiaExamen(t && t.examen) };
     if(conTests()) ESP.cargarTests();
     const bg = document.createElement('div');
     bg.className = 'cal-hoja-bg';
@@ -614,6 +616,7 @@ const CAL = (function(){
         '<input class="cal-titulo" name="titulo" maxlength="200" placeholder="¿Qué toca estudiar?" value="' + esc(base.titulo) + '">' +
         '<div class="cal-campo"><div class="cal-campo-t">Categoría</div><div class="cal-cats">' +
           CATS.map(([k, n, c]) => '<button type="button" class="cal-cat-op" data-cat="' + k + '" style="--c:' + c + '"><span>' + ICONO[k] + '</span>' + n + '</button>').join('') + '</div></div>' +
+        '<div class="cal-campo" data-exa-campo><div class="cal-campo-t">Qué entra en el examen</div><div data-exa></div></div>' +
         (conTests() ? '<div class="cal-campo"><div class="cal-campo-t">Test del Específico</div><div data-test-campo></div></div>' : '') +
         (conLegis() ? '<div class="cal-campo"><div class="cal-campo-t">Test de Legislación</div><div data-legis-campo></div></div>' : '') +
         (conSimc() ? '<div class="cal-campo"><div class="cal-campo-t">Simulacro conjunto</div><div data-simc-campo></div></div>' : '') +
@@ -633,7 +636,7 @@ const CAL = (function(){
       if(e.target === bg) return cerrarHoja();
       const b = e.target.closest('button');
       if(!b) return;
-      if(b.dataset.cat){ h.cat = b.dataset.cat; ultimaCat = h.cat; }
+      if(b.dataset.cat){ h.cat = b.dataset.cat; ultimaCat = h.cat; if(h.cat === 'examen') autoTituloExamen(f); }
       else if(b.dataset.dia){ h.fecha = b.dataset.dia; }
       else if(b.dataset.rep != null){ h.rep = b.dataset.rep; }
       else if(b.dataset.hastaN){ h.hasta = masDias(h.fecha, +b.dataset.hastaN); }
@@ -672,6 +675,11 @@ const CAL = (function(){
         if(L.titulos[k].length === gruposDe(k).length) L.titulos[k] = [];
         autoTituloLegis(f);
       }
+      else if(b.dataset.ex){
+        const k = b.dataset.ex, id = b.dataset.t, xs = h.examen[k];
+        h.examen[k] = xs.includes(id) ? xs.filter(x => x !== id) : xs.concat(id);
+        autoTituloExamen(f);
+      }
       else if(b.dataset.h === 'cerrar') return cerrarHoja();
       else if(b.dataset.h === 'borrar') return borrar(t);
       else return;
@@ -696,6 +704,9 @@ const CAL = (function(){
     if(ct) ct.innerHTML = campoTest();
     const cl = f.querySelector('[data-legis-campo]');
     if(cl) cl.innerHTML = campoLegis();
+    const ce = f.querySelector('[data-exa-campo]');
+    ce.classList.toggle('hidden', h.cat !== 'examen');
+    if(h.cat === 'examen') ce.querySelector('[data-exa]').innerHTML = campoExamen();
     const cs = f.querySelector('[data-simc-campo]');
     if(cs) cs.innerHTML = h.simc
       ? '<div class="cal-legis"><div class="cal-hasta-res">Ese día te sale con su botón «Hacer»: eliges cuántas preguntas de Legislación y del Específico y el tiempo al empezar. Al terminarlo, la tarea queda hecha.</div>' +
@@ -810,6 +821,32 @@ const CAL = (function(){
         : 'Elige al menos una ley') + '</div>' +
       '<button type="button" class="cal-chip" data-lg="quitar">Quitar el test</button></div>';
   }
+  /* ---------- examen: qué leyes y temas entran ----------
+     t.examen = { legis: [topic_id], esp: [clave del tema] }. Con eso, Inicio
+     dice cómo vas para el examen más cercano (CAL.proximoExamen). */
+  const copiaExamen = x => ({ legis: [...((x && x.legis) || [])], esp: [...((x && x.esp) || [])] });
+  const temasEsp = () => typeof ESP !== 'undefined' && featureEnabled('especifico') ? ESP.temas() : [];
+  // «Sistemas de extinción de incendios. Extintores…» → «Sistemas de extinción de incendios»
+  const nombreTemaEsp = k => { const x = temasEsp().find(y => y.clave === k); return x ? x.titulo.split('. ')[0] : k; };
+  function nombresExamen(E){
+    return (E.legis || []).map(nombreLey).concat((E.esp || []).map(nombreTemaEsp));
+  }
+  function autoTituloExamen(f){
+    if(h.cat !== 'examen' || (f.titulo.value.trim() && !f.titulo.dataset.auto)) return;
+    const ns = nombresExamen(h.examen);
+    f.titulo.value = !ns.length ? 'Examen' : 'Examen: ' + (ns.length <= 2 ? ns.join(' y ') : ns[0] + ' y ' + (ns.length - 1) + ' más');
+    f.titulo.dataset.auto = '1';
+  }
+  function campoExamen(){
+    const E = h.examen, ls = leyes(), ts = temasEsp();
+    const op = (k, id, txt, on) => '<button type="button" class="cal-test-op' + (on ? ' on' : '') + '" data-ex="' + k + '" data-t="' + esc(id) + '"><span class="cal-test-caja"></span><span class="cal-ley-txt">' + esc(txt) + '</span></button>';
+    if(!ls.length && !ts.length) return '<div class="cal-hasta-res">Cargando las leyes…</div>';
+    const n = E.legis.length + E.esp.length;
+    return '<div class="cal-legis">' +
+      (ls.length ? '<div class="cal-exa-grupo">Legislación</div><div class="cal-test-opciones">' + ls.map(x => op('legis', x.id, x.name, E.legis.includes(x.id))).join('') + '</div>' : '') +
+      (ts.length ? '<div class="cal-exa-grupo">Específico</div><div class="cal-test-opciones">' + ts.map((x, i) => op('esp', x.clave, (i + 1) + '. ' + x.titulo, E.esp.includes(x.clave))).join('') + '</div>' : '') +
+      '<div class="cal-hasta-res">' + (n ? 'Entran ' + n + (n === 1 ? ' tema' : ' temas') + '. En Inicio verás cómo vas en ellos.' : 'Elige lo que entra para ver en Inicio cómo vas para este examen') + '</div></div>';
+  }
   function teclaHoja(e){ if(e.key === 'Escape'){ e.stopPropagation(); cerrarHoja(); } }
   function cerrarHoja(){
     const bg = document.getElementById('calHoja');
@@ -828,7 +865,7 @@ const CAL = (function(){
   }
   const ahora = () => new Date().toISOString();
   const fila = (fecha, d, serie, hecho) => ({ id: crypto.randomUUID(), user_id: yo(), fecha, titulo: d.titulo, nota: d.nota, categoria: d.categoria,
-    test_id: d.test_id || null, test_ids: d.test_ids || [], progreso: null, legis: d.legis || null, simulacro: d.simulacro || null,
+    test_id: d.test_id || null, test_ids: d.test_ids || [], progreso: null, legis: d.legis || null, simulacro: d.simulacro || null, examen: d.examen || null,
     hecho: !!hecho, serie, orden: delDia(fecha).length, created_at: ahora() });
   const sinMeta = r => { const { created_at, ...x } = r; return x; };
   function recortar(p, ids){
@@ -850,6 +887,7 @@ const CAL = (function(){
       d.legis = h.legis ? Object.assign(copiaLegis(h.legis), { cuantas: h.legis.cuantas || null, run: null }) : null;
     }
     if(conSimc()) d.simulacro = h.simc ? { fin: false, nota: null } : null;
+    d.examen = h.cat === 'examen' ? copiaExamen(h.examen) : null;
     const { t, fecha, rep, hasta } = h;
     const alcance = t && t.serie && siguientes(t).length ? h.alcance : 'serie';
     cerrarHoja();
@@ -1043,6 +1081,22 @@ const CAL = (function(){
       cuando: rel || dia.charAt(0).toUpperCase() + dia.slice(1) + ' ' + d.getDate(),
       mas: delDia(t.fecha).filter(x => !x.hecho).length - 1 };
   }
+  // El examen más cercano (de hoy en adelante) para Inicio: qué entra, cuántos
+  // días faltan y las tareas de su semana (desde el día después del examen
+  // anterior, como mucho 7 días antes). undefined mientras carga; null si no hay.
+  function proximoExamen(){
+    if(!yo() || dueño !== yo() || (!cargado && !tareas.length && cargando)) return undefined;
+    const h = hoy(), t = tareas.find(x => x.categoria === 'examen' && x.fecha >= h);
+    if(!t) return null;
+    const antes = tareas.filter(x => x.categoria === 'examen' && x.fecha < t.fecha).pop();
+    let desde = masDias(t.fecha, -7);
+    if(antes && antes.fecha >= desde) desde = masDias(antes.fecha, 1);
+    const semana = tareas.filter(x => x.categoria !== 'examen' && x.fecha >= desde && x.fecha < t.fecha);
+    const E = copiaExamen(t.examen);
+    return { id: t.id, titulo: t.titulo, fecha: t.fecha, dias: Math.round((deIso(t.fecha) - deIso(h)) / 864e5), cuando: nombreDia(t.fecha, true),
+      legis: E.legis.map(id => ({ id, nombre: nombreLey(id) })), esp: E.esp.map(k => ({ id: k, nombre: nombreTemaEsp(k) })),
+      semana: { hechas: semana.filter(x => x.hecho).length, total: semana.length } };
+  }
   // Desde Inicio: el calendario abierto en ese día.
   function abrirDia(f){ abrir.dia = hoy(); irA(f); showScreen('screen-calendario'); }
   function marcarId(id){ marcar(tareas.find(x => x.id === id)); }
@@ -1056,5 +1110,5 @@ const CAL = (function(){
     if(t.simulacro && !t.simulacro.fin) return hacerSimc(t);
     uiToast(avanceTotal(t).tests > 1 ? 'Todos los tests de esta tarea están completados' : 'Este test ya está completado', 'info');
   }
-  return { avanceTestLegis, terminarTestLegis, terminarSimulacro, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, semana, proxima, abrirDia, pintar, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
+  return { avanceTestLegis, terminarTestLegis, terminarSimulacro, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, semana, proxima, proximoExamen, abrirDia, pintar, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
 })();

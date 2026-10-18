@@ -293,5 +293,19 @@ const ESTE = (function(){
     datos.preguntas.forEach(p => { const e = datos.estado[p.id]; if(e) n[e]++; });
     return { total: datos.preguntas.length, verde: n.green, amarillo: n.yellow, rojo: n.red, vistas: n.green + n.yellow + n.red };
   }
-  return { abrir, aplicarPestana, invalidar, reiniciar, resumen };
+  // Lo mismo, tema a tema ({ clave: { total, verde, amarillo, rojo } }), para el examen de Inicio. null mientras carga.
+  function porTema(){
+    if(!resumen() || !datos) return null;
+    const temaDe = new Map(datos.tests.map(t => [t.id, t.tema])), out = {};
+    datos.preguntas.forEach(p => {
+      const k = temaDe.get(p.test_id);
+      if(!k) return;
+      const x = out[k] = out[k] || { total: 0, verde: 0, amarillo: 0, rojo: 0 };
+      x.total++;
+      const e = datos.estado[p.id];
+      if(e === 'green') x.verde++; else if(e === 'yellow') x.amarillo++; else if(e === 'red') x.rojo++;
+    });
+    return out;
+  }
+  return { abrir, aplicarPestana, invalidar, reiniciar, resumen, porTema };
 })();

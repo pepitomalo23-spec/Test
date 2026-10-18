@@ -1,10 +1,9 @@
-/* Inicio: un panel por bloques. Arriba la fecha; luego el test a medias si
-   lo hay, las tareas de hoy del calendario (se marcan aquí mismo; cada una
-   abre su ventanita), lo que hay por repasar (Fallos), lo próximo apuntado
-   en el calendario, el progreso de Legislación y del Específico con su
-   círculo, y la semana con un punto por tarea (cada día abre el
-   calendario). El Simulacro conjunto y el examen ya no están aquí: el
-   simulacro se apunta en el calendario como una tarea más. */
+/* Inicio: arriba una cabecera de color con la fecha, cuántas tareas quedan
+   hoy (con su anillo), los días que faltan para el examen y lo que está a
+   medias. Debajo, sin recuadros: las tareas de hoy del calendario (se marcan
+   aquí mismo; cada una abre su ventanita) con lo próximo apuntado, una fila
+   de cifras (por repasar, Legislación y Específico) y la semana con un
+   punto por tarea (cada día abre el calendario). */
 const INICIO = (function(){
   const MODOS = { estudio: 'Modo estudio', fallos: 'Fallos', inteligente: 'Test Inteligente', simulacro: 'Simulacro', examen: 'Examen' };
   const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -12,8 +11,6 @@ const INICIO = (function(){
   const FLECHA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>';
   const ICO = {
-    llama: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/></svg>',
-    repaso: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>',
     reanudar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>'
   };
   const MAX_TAREAS = 5;
@@ -25,13 +22,6 @@ const INICIO = (function(){
     return f.charAt(0).toUpperCase() + f.slice(1);
   }
   const etiqueta = (txt, extra) => '<div class="ini-label"><span>' + txt + '</span>' + (extra || '') + '</div>';
-  // Un círculo de progreso (0 a 100) con el porcentaje dentro.
-  function anillo(pct, color){
-    const r = 15, c = 2 * Math.PI * r, v = Math.max(0, Math.min(100, pct));
-    return '<svg class="ini-anillo" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="' + r + '" class="fondo"/>' +
-      (v > 0 ? '<circle cx="18" cy="18" r="' + r + '" class="valor" style="stroke:' + color + '" stroke-dasharray="' + (c * v / 100).toFixed(2) + ' ' + c.toFixed(2) + '" transform="rotate(-90 18 18)"/>' : '') +
-      '<text x="18" y="21.2" text-anchor="middle">' + Math.round(v) + '%</text></svg>';
-  }
 
   function continuar(){
     if(!quizState || !quizState.mode) return '';
@@ -92,10 +82,10 @@ const INICIO = (function(){
     const barra = x.tests > 1 ? CAL.barraTramos(x.partes) : '<span class="ini-barra"><i style="width:' + pct + '%"></i></span>';
     return '<span class="ini-tarea-test">' + barra + '<span>' + txt + '</span></span>';
   }
-  function hoy(){
-    const r = typeof CAL !== 'undefined' ? CAL.resumenHoy() : null;
+  // Las tareas de hoy del calendario, como lista (sin recuadro).
+  function hoy(r){
     const n = r ? r.lista.length : 0;
-    const cab = etiqueta('Tareas de hoy', n ? '<span class="ini-cuenta"><b>' + r.hechas + '</b> de ' + n + '</span>' : '');
+    const cab = etiqueta('Tareas de hoy', '<button type="button" class="ini-link" data-ini="calendario">Calendario ' + FLECHA + '</button>');
     let cuerpo;
     if(!r) cuerpo = '<div class="skel-list">' +
       '<div class="skel-row"><span class="skel skel-dot"></span><span class="skel-lines"><span class="skel skel-line" style="width:60%"></span></span></div>' +
@@ -116,74 +106,154 @@ const INICIO = (function(){
       }).join('') + '</div>' +
       (n > MAX_TAREAS ? '<button type="button" class="ini-mas" data-ini="calendario">y ' + (n - MAX_TAREAS) + ' más en el calendario</button>' : '');
     }
-    return '<div class="ini-tile span2">' + cab + cuerpo + '</div>';
+    return '<section class="ini-sec">' + cab + cuerpo + proximo() + '</section>';
   }
 
-  // Lo que hay por repasar: las preguntas falladas (las de Fallos). Sin el permiso de Fallos, cómo va la semana.
-  function repasar(){
-    if(featureEnabled('fallos')){
-      if(!datosListos()) return '<div class="ini-tile">' + etiqueta('Por repasar') + '<span class="ini-big skel" style="width:40px;height:28px"></span></div>';
-      const n = QUESTIONS_POOL.filter(q => q.masteryStatus === 'red' && !q.fallosHidden).length;
-      return '<button type="button" class="ini-tile ini-tile-btn" data-ini="fallos">' + etiqueta('Por repasar') +
-        '<span class="ini-big-fila"><span class="ini-big-ico' + (n ? ' aviso' : '') + '">' + ICO.repaso + '</span><span class="ini-big' + (n ? ' aviso' : '') + '">' + n + '</span></span>' +
-        '<span class="ini-sub">' + (n ? (n === 1 ? 'fallada' : 'falladas') + ' · <b class="ini-acento">Repasar ›</b>' : 'Ninguna fallada') + '</span></button>';
-    }
-    const s = typeof CAL !== 'undefined' ? CAL.semana() : null;
-    const tot = s ? s.dias.reduce((a, d) => a + d.puntos.length, 0) : 0, hechas = s ? s.dias.reduce((a, d) => a + d.puntos.filter(p => p.h).length, 0) : 0;
-    return '<div class="ini-tile">' + etiqueta('Esta semana') + '<span class="ini-big">' + hechas + '<small>/' + tot + '</small></span><span class="ini-sub">tareas hechas</span></div>';
-  }
-
-  // Lo próximo que hay apuntado en el calendario (después de hoy).
+  // Lo próximo que hay apuntado en el calendario (después de hoy): una línea debajo de las tareas.
   function proximo(){
     const x = typeof CAL !== 'undefined' ? CAL.proxima() : undefined;
-    if(x === undefined) return '<div class="ini-tile">' + etiqueta('Próximo') + '</div>';
-    if(!x) return '<button type="button" class="ini-tile ini-tile-btn" data-ini="nueva">' + etiqueta('Próximo') + '<span class="ini-prox-t">Nada apuntado</span><span class="ini-sub ini-acento">+ Apuntar algo</span></button>';
-    return '<button type="button" class="ini-tile ini-tile-btn" data-ini="dia" data-f="' + x.f + '" style="--c:' + x.color + '">' + etiqueta('Próximo') +
-      '<span class="ini-prox-t">' + esc(x.titulo) + '</span><span class="ini-prox-f">' + esc(x.cuando) + (x.mas ? ' · y ' + x.mas + ' más' : '') + '</span></button>';
+    if(!x) return '';
+    return '<button type="button" class="ini-prox" data-ini="dia" data-f="' + x.f + '" style="--c:' + x.color + '">' +
+      '<span class="ini-prox-l">Próximo</span><span class="ini-prox-t">' + esc(x.titulo) + '</span>' +
+      '<span class="ini-prox-f">' + esc(x.cuando) + (x.mas ? ' · +' + x.mas : '') + '</span></button>';
   }
 
-  // Cómo vas: Legislación y, si lo tienes, el Específico, cada uno con su círculo. Pulsar abre su pestaña de Estadísticas.
-  function bloqueProgreso(clave, nombre, r, color){
-    if(!r) return '<div class="ini-tile">' + etiqueta(nombre) + '<span class="skel" style="width:58px;height:58px;border-radius:50%"></span></div>';
-    const pct = r.total ? r.verde / r.total * 100 : 0;
-    return '<button type="button" class="ini-tile ini-tile-btn" data-ini="' + clave + '">' + etiqueta(nombre) +
-      '<span class="ini-prog">' + anillo(pct, color) + '<span class="ini-prog-datos"><span><b>' + r.verde + '</b> dominadas</span>' +
-        (r.rojo ? '<span><b>' + r.rojo + '</b> falladas</span>' : '') + '<span><b>' + r.vistas + '</b> de ' + r.total + '</span></span></span></button>';
+  // Cómo vas: una fila de cifras (por repasar, Legislación, Específico). Cada una abre lo suyo.
+  function cifra(clave, valor, txt, clase){
+    return '<button type="button" class="ini-cifra' + (clase ? ' ' + clase : '') + '" data-ini="' + clave + '"><b>' + valor + '</b><span>' + txt + '</span></button>';
   }
-  function progreso(){
-    if(!featureEnabled('estadisticas')) return '';
-    let legis = null;
-    if(datosListos()){
-      const pool = QUESTIONS_POOL, cuenta = st => pool.filter(q => q.masteryStatus === st).length;
-      legis = { total: pool.length, verde: cuenta('green'), amarillo: cuenta('yellow'), rojo: cuenta('red') };
-      legis.vistas = legis.verde + legis.amarillo + legis.rojo;
+  const pctDe = r => r && r.total ? Math.round(r.verde / r.total * 100) : 0;
+  const skelCifra = txt => '<div class="ini-cifra"><span class="skel" style="width:44px;height:24px"></span><span>' + txt + '</span></div>';
+  function cifras(){
+    const out = [];
+    if(featureEnabled('fallos')){
+      if(!datosListos()) out.push(skelCifra('por repasar'));
+      else {
+        const n = QUESTIONS_POOL.filter(q => q.masteryStatus === 'red' && !q.fallosHidden).length;
+        out.push(cifra('fallos', n, 'por repasar', n ? 'aviso' : ''));
+      }
+    } else {
+      const s = typeof CAL !== 'undefined' ? CAL.semana() : null;
+      if(s){
+        const tot = s.dias.reduce((a, d) => a + d.puntos.length, 0), hechas = s.dias.reduce((a, d) => a + d.puntos.filter(p => p.h).length, 0);
+        out.push(cifra('calendario', hechas + '<small>/' + tot + '</small>', 'tareas esta semana'));
+      }
     }
-    const conEsp = featureEnabled('especifico') && typeof ESTE !== 'undefined';
-    if(!conEsp) return bloqueProgreso('stats-legis', 'Legislación', legis, 'var(--green)').replace('class="ini-tile', 'class="ini-tile span2');
-    return bloqueProgreso('stats-legis', 'Legislación', legis, 'var(--green)') + bloqueProgreso('stats-esp', 'Específico', ESTE.resumen(), 'var(--orange)');
+    if(featureEnabled('estadisticas')){
+      if(!datosListos()) out.push(skelCifra('Legislación'));
+      else {
+        const pool = QUESTIONS_POOL;
+        out.push(cifra('stats-legis', pctDe({ total: pool.length, verde: pool.filter(q => q.masteryStatus === 'green').length }) + '<small>%</small>', 'Legislación'));
+      }
+      if(featureEnabled('especifico') && typeof ESTE !== 'undefined'){
+        const r = ESTE.resumen();
+        out.push(r ? cifra('stats-esp', pctDe(r) + '<small>%</small>', 'Específico') : skelCifra('Específico'));
+      }
+    }
+    if(!out.length) return '';
+    return '<section class="ini-sec">' + etiqueta('Cómo vas') + '<div class="ini-cifras" style="--n:' + out.length + '">' + out.join('') + '</div></section>';
+  }
+
+  // Cómo vas para el examen más cercano del calendario: lo dominado de lo que
+  // entra (en general y tema a tema, lo más flojo primero), las falladas de
+  // esos temas y las tareas de su semana. Sin examen apuntado, las cifras generales.
+  const exaProx = () => typeof CAL !== 'undefined' && CAL.proximoExamen ? CAL.proximoExamen() : undefined;
+  const enDias = d => d === 0 ? 'hoy' : d === 1 ? 'mañana' : 'en ' + d + ' días';
+  function comoVasExamen(x){
+    const link = '<button type="button" class="ini-link" data-ini="ver" data-id="' + esc(x.id) + '">Ver ' + FLECHA + '</button>';
+    const cab = etiqueta('Cómo vas para el examen', link);
+    const cuando = '<div class="ini-exa-t"><b>' + esc(x.titulo) + '</b><span>' + (x.dias > 1 ? esc(x.cuando) + ' · en ' + x.dias + ' días' : x.dias ? 'Mañana' : 'Hoy') + '</span></div>';
+    if(!x.legis.length && !x.esp.length)
+      return '<section class="ini-sec">' + cab + cuando + '<button type="button" class="ini-anadir" data-ini="ver" data-id="' + esc(x.id) + '"><span>+</span> Elige qué entra en el examen</button></section>';
+    // Cada tema: { nombre, total, verde, amarillo, rojo }, o { cargando } mientras no hay datos.
+    const temas = [];
+    const pool = datosListos() ? QUESTIONS_POOL : null;
+    x.legis.forEach(l => {
+      if(!pool) return temas.push({ nombre: l.nombre, cargando: true });
+      const qs = pool.filter(q => q.topic_id === l.id), n = st => qs.filter(q => q.masteryStatus === st).length;
+      temas.push({ nombre: l.nombre, tipo: 'Legislación', total: qs.length, verde: n('green'), amarillo: n('yellow'), rojo: n('red') });
+    });
+    const pt = x.esp.length && typeof ESTE !== 'undefined' && ESTE.porTema ? ESTE.porTema() : null;
+    x.esp.forEach(e => {
+      if(!pt) return temas.push({ nombre: e.nombre, cargando: true });
+      temas.push(Object.assign({ nombre: e.nombre, tipo: 'Específico' }, pt[e.id] || { total: 0, verde: 0, amarillo: 0, rojo: 0 }));
+    });
+    const listos = temas.filter(t => !t.cargando);
+    const suma = k => listos.reduce((a, t) => a + t[k], 0);
+    const tot = suma('total'), pct = tot ? Math.round(suma('verde') / tot * 100) : 0;
+    // Las falladas por repasar de esos temas (las de Legislación que no has quitado de Fallos).
+    const rojoLegis = pool ? pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden && x.legis.some(l => l.id === q.topic_id)).length : 0;
+    const nivel = pct >= 80 ? ['bien', 'Bien preparado'] : pct >= 50 ? ['medio', 'A medio camino'] : ['flojo', 'Te falta'];
+    const pctDe = t => t.total ? Math.round(t.verde / t.total * 100) : 0;
+    const filas = temas.slice().sort((a, b) => (a.cargando ? 1 : 0) - (b.cargando ? 1 : 0) || pctDe(a) - pctDe(b)).map(t => {
+      if(t.cargando) return '<div class="ini-tema"><div class="ini-tema-cab"><span>' + esc(t.nombre) + '</span><span class="skel" style="width:30px;height:14px"></span></div><span class="ini-pila"></span></div>';
+      const w = k => t.total ? (t[k] / t.total * 100).toFixed(1) : 0, sinVer = t.total - t.verde - t.amarillo - t.rojo;
+      return '<div class="ini-tema"><div class="ini-tema-cab"><span>' + esc(t.nombre) + '<small>' + t.tipo + '</small></span><b>' + pctDe(t) + '%</b></div>' +
+        '<span class="ini-pila" aria-hidden="true"><i class="v" style="width:' + w('verde') + '%"></i><i class="a" style="width:' + w('amarillo') + '%"></i><i class="r" style="width:' + w('rojo') + '%"></i></span>' +
+        '<span class="ini-tema-n">' + t.verde + ' de ' + t.total + ' dominadas' + (t.rojo ? ' · <em>' + t.rojo + ' falladas</em>' : '') + (sinVer > 0 ? ' · ' + sinVer + ' sin ver' : '') + '</span></div>';
+    }).join('');
+    const sem = x.semana;
+    return '<section class="ini-sec">' + cab + cuando +
+      '<div class="ini-exa-res">' +
+        (!listos.length ? '<span class="skel" style="width:90px;height:34px"></span>'
+          : '<div class="ini-exa-pct"><b>' + pct + '<small>%</small></b><span class="ini-nivel ' + nivel[0] + '">' + nivel[1] + '</span></div>') +
+        '<div class="ini-exa-datos">' +
+          (sem.total ? '<span><b>' + sem.hechas + '/' + sem.total + '</b> tareas de la semana</span>' : '<span>Sin tareas apuntadas esa semana</span>') +
+          (featureEnabled('fallos') && rojoLegis ? '<button type="button" class="ini-exa-fallos" data-ini="fallos"><b>' + rojoLegis + '</b> de Legislación por repasar ›</button>' : '') +
+        '</div></div>' +
+      '<div class="ini-temas">' + filas + '</div>' +
+      '<div class="ini-leyenda"><span><i class="v"></i>Dominadas</span><span><i class="a"></i>Afianzando</span><span><i class="r"></i>Falladas</span><span><i></i>Sin ver</span></div>' +
+      '</section>';
   }
 
   // La semana (de lunes a domingo) con un punto por tarea: cada día abre el calendario en ese día.
   function semana(){
     const s = typeof CAL !== 'undefined' ? CAL.semana() : null;
     if(!s) return '';
-    return '<div class="ini-tile span2">' + etiqueta('Esta semana' + (s.atrasadas ? ' · <b class="ini-aviso">' + s.atrasadas + (s.atrasadas === 1 ? ' atrasada' : ' atrasadas') + '</b>' : ''),
-        '<button type="button" class="ini-link" data-ini="calendario">Calendario ' + FLECHA + '</button>') +
+    return '<section class="ini-sec">' + etiqueta('Esta semana' + (s.atrasadas ? ' · <b class="ini-aviso">' + s.atrasadas + (s.atrasadas === 1 ? ' atrasada' : ' atrasadas') + '</b>' : '')) +
       '<div class="ini-semana">' + s.dias.map(d =>
         '<button type="button" class="ini-dia' + (d.hoy ? ' hoy' : '') + (d.pasado ? ' pasado' : '') + '" data-ini="dia" data-f="' + d.f + '" aria-label="' + esc(d.nombre) + ', ' + d.puntos.length + ' tareas">' +
           '<span class="ini-dia-l">' + d.letra + '</span><span class="ini-dia-n">' + d.n + '</span>' +
           '<span class="ini-puntos">' + d.puntos.slice(0, 4).map(p => '<i style="background:' + p.c + '"' + (p.h ? ' class="h"' : '') + '></i>').join('') + '</span></button>').join('') +
-      '</div></div>';
+      '</div></section>';
+  }
+
+  // Los días que faltan para el examen (js/examen.js), en una línea de la cabecera.
+  function examen(){
+    const x = exaProx();
+    if(x) return '<button type="button" class="ini-hero-exa" data-ini="ver" data-id="' + esc(x.id) + '">Examen <b>' + enDias(x.dias) + '</b> ›</button>';
+    if(typeof EXA === 'undefined' || !currentUser) return '';
+    const a = EXA.ajustes();
+    if(!a.fecha) return '<button type="button" class="ini-hero-exa" data-ini="examen">Pon la fecha del examen ›</button>';
+    const d = EXA.diasHasta(a.fecha);
+    if(d < 0) return '';
+    const txt = d > 1 ? 'Examen en <b>' + d + ' días</b>' : d === 1 ? '<b>El examen es mañana</b>' : '<b>Hoy es el examen</b>';
+    return '<button type="button" class="ini-hero-exa" data-ini="examen">' + txt + ' ›</button>';
+  }
+
+  // Cabecera de color: la fecha, «Hoy», cuántas tareas quedan (con su anillo), el examen y lo que está a medias.
+  function cabecera(r, enCurso){
+    const n = r ? r.lista.length : 0, hechas = r ? r.hechas : 0;
+    let titulo = 'Nada apuntado para hoy';
+    if(!r) titulo = 'Cargando lo de hoy…';
+    else if(n && hechas >= n) titulo = 'Todo hecho por hoy';
+    else if(n) titulo = 'Te ' + (n - hechas === 1 ? 'queda 1 tarea' : 'quedan ' + (n - hechas) + ' tareas');
+    const anilloHoy = '<svg class="ini-hero-anillo" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" class="fondo"/>' +
+      (n && hechas ? '<circle cx="18" cy="18" r="15" class="valor" stroke-dasharray="' + (2 * Math.PI * 15 * hechas / n).toFixed(2) + ' 94.25" transform="rotate(-90 18 18)"/>' : '') +
+      '<text x="18" y="21.2" text-anchor="middle">' + (n ? hechas + '/' + n : '–') + '</text></svg>';
+    return '<div class="ini-hero"><div class="ini-hero-top"><div><div class="ini-fecha">' + fechaHoy() + '</div><h1 class="ini-h">Hoy</h1></div></div>' +
+      '<div class="ini-hero-fila">' + anilloHoy + '<div class="ini-hero-txt"><b>' + titulo + '</b>' + examen() + '</div></div>' +
+      (enCurso ? '<div class="ini-encurso">' + enCurso + '</div>' : '') + '</div>';
   }
 
   function pintar(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
+    const r = typeof CAL !== 'undefined' ? CAL.resumenHoy() : null;
     const enCurso = continuar() + pruebaAMedias() + espAMedias();
     const fijo = marcadasHoy();
-    root.innerHTML = '<div class="ini-cab"><div class="ini-fecha">' + fechaHoy() + '</div><h1 class="ini-h">Hoy</h1></div>' +
-      (enCurso ? '<div class="ini-encurso">' + enCurso + '</div>' : '') +
-      '<div class="ini-bento">' + hoy() + repasar() + proximo() + progreso() + semana() + '</div>' + fijo;
+    root.innerHTML = cabecera(r, enCurso) +
+      '<div class="ini-cuerpo"><div class="ini-col">' + hoy(r) + '</div><div class="ini-col">' + (exaProx() ? comoVasExamen(exaProx()) : cifras()) + semana() + '</div></div>' + fijo;
   }
 
   function onClick(e){
@@ -200,6 +270,7 @@ const INICIO = (function(){
       case 'esp': ESPT.continuarCurso(el.dataset.id); break;
       case 'marcadas': ESPT.abrirHoy(); break;
       case 'prueba': PRU.continuar(); break;
+      case 'examen': EXA.abrir(); break;
       case 'stats': showScreen('screen-stats'); break;
       case 'fallos': openFallos(); break;
       case 'stats-legis': case 'stats-esp':
