@@ -240,3 +240,49 @@ button.ini-cifra:hover b{ color: var(--coral); }
   background:#3a8ee6; color:#fff; font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
 .ini-fijo-ico{ font-size:14px; }
 .ini-fijo-n{ min-width:22px; height:22px; padding:0 7px; border-radius:99px; background: rgba(255,255,255,.22); display:inline-flex; align-items:center; justify-content:center; font-size:12.5px; }
+
+/* Pantalla grande: la cabecera ancha con lo de hoy dentro, y al lado lo que está a medias y el examen.
+   En el móvil se ve lo de siempre (.ini-movil). */
+.ini-pc{ display:none; }
+@media (min-width: 900px){
+  .ini-movil{ display:none; }
+  .ini-pc{ display:grid; grid-template-columns: minmax(0, 1fr) 340px; gap:22px; align-items:start; }
+}
+.ini-heropc{ display:grid; grid-template-columns: 210px minmax(0, 1fr); gap:28px; padding:26px 26px 26px 28px; border-radius:26px; color:#fff;
+  background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--coral) 92%, #fff) 0%, transparent 60%), color-mix(in srgb, var(--coral) 80%, #000); }
+.ini-heropc-izq{ display:flex; flex-direction:column; align-items:flex-start; gap:4px; }
+.ini-heropc .ini-h.ini-heropc-dia{ font-size:96px; line-height:.9; margin:6px 0 2px; letter-spacing:0; }
+.ini-heropc-mes{ font-size:15px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; opacity:.92; margin-bottom:18px; }
+.ini-heropc-n{ display:flex; flex-direction:column; margin-bottom:14px; }
+.ini-heropc-n b{ font-size:26px; font-weight:800; letter-spacing:-.02em; line-height:1.1; font-variant-numeric: tabular-nums; }
+.ini-heropc-n span{ font-size:13.5px; opacity:.9; }
+.ini-heropc :focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+.ini-heropc-tareas{ display:flex; flex-direction:column; gap:9px; min-width:0; }
+.ini-ht{ display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:16px; background: rgba(255,255,255,.14); color:#fff; cursor:pointer; min-width:0; border:0; font:inherit; text-align:left; transition: background .15s; }
+.ini-ht:hover{ background: rgba(255,255,255,.2); }
+.ini-ht.ya{ background:#fff; color:#09090B; box-shadow:0 12px 28px -16px rgba(0,0,0,.55); }
+.ini-ht.hecha{ opacity:.6; }
+.ini-ht.hecha .ini-ht-txt b{ text-decoration: line-through; }
+.ini-ht-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+.ini-ht-txt b{ font-size:15px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ini-ht-txt span{ font-size:12.5px; opacity:.85; }
+.ini-ht.ya .ini-ht-txt span{ color: #63636B; opacity:1; }
+.ini-ht-ir{ flex-shrink:0; padding:9px 18px; border:0; border-radius:99px; background:#fff; color:#B3262C; font:inherit; font-size:13.5px; font-weight:800; cursor:pointer; }
+.ini-ht.ya .ini-ht-ir{ background: var(--coral); color:#fff; }
+.ini-ht-check{ width:28px; height:28px; flex-shrink:0; border-radius:50%; border:2px solid rgba(255,255,255,.85); background:none; color:transparent; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+.ini-ht-check svg{ width:14px; height:14px; }
+.ini-ht.ya .ini-ht-check{ border-color: var(--coral); }
+.ini-ht.hecha .ini-ht-check{ background: rgba(255,255,255,.85); color: color-mix(in srgb, var(--coral) 80%, #000); }
+.ini-ht-nueva{ justify-content:center; font-weight:700; border:1.5px dashed rgba(255,255,255,.6); background:none; }
+.ini-ht-mas{ align-self:flex-start; border:0; background:none; padding:2px 4px; font:inherit; font-size:13px; font-weight:600; color:#fff; cursor:pointer; }
+.ini-lado{ display:flex; flex-direction:column; gap:14px; min-width:0; }
+.ini-lado .ini-sec{ padding-top:0; }
+/* Lo que está a medias, en tarjeta de contraste (oscura en tema claro, clara en tema oscuro) */
+.ini-lado .ini-continuar{ background: var(--text); color: var(--bg); border-radius:20px; padding:16px; gap:14px; box-shadow:0 14px 30px -20px rgba(0,0,0,.6); }
+.ini-lado .ini-continuar:hover{ background: var(--text); filter: brightness(1.15); }
+.ini-lado .ini-continuar-ico{ width:44px; height:44px; }
+.ini-lado .ini-continuar-txt b{ font-size:15.5px; }
+.ini-lado .ini-continuar-txt > span{ color: color-mix(in srgb, var(--bg) 65%, transparent); }
+.ini-lado .ini-continuar .ini-barra{ background: color-mix(in srgb, var(--bg) 20%, transparent); max-width:none; }
+.ini-lado .ini-flecha{ color: color-mix(in srgb, var(--bg) 60%, transparent); }
+
