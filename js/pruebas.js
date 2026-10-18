@@ -23,6 +23,10 @@ const PRU = (function(){
     // El del formato del examen de verdad (js/examen.js): todas las leyes y todo el Específico, reloj fijo y la penalización que se haya puesto.
     'oficial':       { titulo: 'Simulacro oficial', corto: 'Simulacro oficial', largo: 'Simulacro oficial', legis: true, oficial: true, vista: 'lista', flags: ['especifico', 'simulacro'], volver: 'screen-inicio',
                        cuantas: [0], minutos: [0], def: [100, 120] },
+    // El examen de un día del calendario: solo lo que entra en él (sus leyes, o títulos, y sus temas del
+    // Específico), con el formato de «Tu examen». Las preguntas salen sin decir de qué tema son, y un solo intento.
+    'examen':        { titulo: 'Examen', corto: 'Examen', largo: 'Examen', legis: true, oficial: true, ciego: true, unico: true, vista: 'lista', flags: [], volver: 'screen-inicio',
+                       cuantas: [0], minutos: [0], def: [0, 0] },
     'esp-estudio':   { titulo: 'Estudio', corto: 'Estudio', largo: 'Estudio del Específico', vista: 'tarjeta', temas: true, flags: ['especifico'], volver: 'screen-especifico',
                        cuantas: PREGUNTAS_OPTIONS.map(v => v || 0), minutos: MINUTOS_OPTIONS.map(v => v || 0), def: [0, 0] },
     'esp-fallos':    { titulo: 'Fallos', corto: 'Fallos', largo: 'Fallos del Específico', vista: 'tarjeta', falladas: true, flags: ['especifico', 'fallos'], volver: 'screen-especifico', cuantas: [0], minutos: [0], def: [0, 0] },
@@ -488,14 +492,14 @@ const PRU = (function(){
       pintarPie();
     }
   }
-  async function arrancar(modo, p, minutos, pen){
+  async function arrancar(modo, p, minutos, pen, tarea){
     const legis = barajar(p.pl).slice(0, p.l);
     const ids = elegirEsp(p.pe, p.e, p.dif).map(x => x.id);
     const esp = ids.length ? await preguntasEsp(ids) : [];
     let items = legis.map(q => itemLegis(q)).concat(esp.filter(x => (x.opciones || []).length).map(x => itemEsp(x, meta.tests)));
     items = barajar(items);
     est = { modo, diseno: MODOS[modo].legis ? 'pj' : diseno(), items, resp: new Array(items.length).fill(null), vistas: new Array(items.length).fill(false), i: 0,
-      inicio: Date.now(), fin: minutos ? Date.now() + minutos * 60000 : null, terminado: false, pen: pen === undefined ? null : pen };
+      inicio: Date.now(), fin: minutos ? Date.now() + minutos * 60000 : null, terminado: false, pen: pen === undefined ? null : pen, tarea: tarea || null };
     guardar();
     mostrar();
   }
@@ -521,6 +525,41 @@ const PRU = (function(){
       await arrancar('oficial', Object.assign(r, { pl, pe, dif: null }), a.minutos, a.penalizacion == null ? null : Number(a.penalizacion));
     }catch(e){ uiToast('No se pudo preparar: ' + (e.message || e), 'error'); }
   }
+  /* ---------- examen de un día del calendario (lo abre Inicio) ----------
+     x = el examen (CAL.examenes: legis [{ id, grupo }] y esp [{ id }]); a = «Tu examen»
+     (preguntas, minutos, penalizacion, pct_legis). Lo que entra: esas leyes (o solo
+     esos títulos) y esos temas del Específico. */
+  function poolExamen(x){
+    const entra = (q, l) => q.topic_id === l.id && (!l.grupo || (!!q.nodo_id && nodeIsInSelectedGroups(q.nodo_id, new Set([l.grupo]))));
+    const pl = QUESTIONS_POOL.filter(q => x.legis.some(l => entra(q, l)));
+    const temas = new Set(x.esp.map(e => e.id));
+    const pe = featureEnabled('especifico') && temas.size && meta ? meta.preg.filter(p => temas.has(p.tema)) : [];
+    return { pl, pe };
+  }
+  // Cuántas saldrán (para las instrucciones): null si aún no se sabe lo del Específico.
+  function planExamen(x, a){
+    if(x.esp.length && featureEnabled('especifico') && !metaYa()) return null;
+    const { pl, pe } = poolExamen(x);
+    return reparto(a.preguntas, a.pct_legis, pl.length, pe.length);
+  }
+  async function empezarExamen(x, a){
+    if(!currentUser) return;
+    const g = guardado();
+    if(g){
+      if(g.modo === 'examen'){ continuar(); return; }
+      if(!(await uiConfirm('Tienes un «' + MODOS[g.modo].corto + '» a medias.\n\n¿Lo descartas para empezar el examen?', { ok: 'Descartar y empezar', danger: true }))) return;
+      borrarGuardado();
+    }
+    if(whenAppDataReady(() => empezarExamen(x, a))) return;
+    uiToast('Preparando el examen…', 'info');
+    try{
+      if(x.esp.length && featureEnabled('especifico') && !metaYa()) await refrescarMeta();
+      const { pl, pe } = poolExamen(x);
+      const r = reparto(a.preguntas, a.pct_legis, pl.length, pe.length);
+      if(!r.l && !r.e){ uiToast('No hay preguntas de lo que entra en el examen.', 'error'); return; }
+      await arrancar('examen', Object.assign(r, { pl, pe, dif: null }), a.minutos, a.penalizacion == null ? null : Number(a.penalizacion), x.id);
+    }catch(e){ uiToast('No se pudo preparar: ' + (e.message || e), 'error'); }
+  }
   // Cómo se corrige: cuánto resta cada fallo.
   function textoPen(pen){
     if(pen == null) return 'cada fallo resta 1/(opciones − 1)';
@@ -533,7 +572,7 @@ const PRU = (function(){
   function guardar(){
     if(!clave() || !est || est.terminado || est.revision) return;
     try{
-      localStorage.setItem(clave(), JSON.stringify({ v: 2, modo: est.modo, pen: est.pen, inicio: est.inicio, fin: est.fin, i: est.i, resp: est.resp, vistas: est.vistas, blancas: est.blancas || null,
+      localStorage.setItem(clave(), JSON.stringify({ v: 2, modo: est.modo, pen: est.pen, tarea: est.tarea || null, inicio: est.inicio, fin: est.fin, i: est.i, resp: est.resp, vistas: est.vistas, blancas: est.blancas || null,
         items: est.items.map(it => it.k === 'l' ? { k: 'l', id: it.id, orden: it.orden } : { k: 'e', id: it.id }) }));
       SINC.cambiado('prueba');   // y a la cuenta, para seguir en otro dispositivo
     }catch(e){}
@@ -588,7 +627,7 @@ const PRU = (function(){
       const keep = rehechos.map((it, i) => it ? i : -1).filter(i => i >= 0);   // las que ya no existen se quitan
       if(!keep.length){ borrarGuardado(); uiToast('Las preguntas de esa prueba ya no existen.', 'info'); return; }
       est = { modo: g.modo, items: keep.map(i => rehechos[i]), resp: keep.map(i => g.resp[i] == null ? null : g.resp[i]),
-        vistas: keep.map(i => !!(g.vistas && g.vistas[i])), blancas: keep.map(i => !!(g.blancas && g.blancas[i])), i: Math.min(g.i || 0, keep.length - 1), inicio: g.inicio, fin: g.fin, terminado: false, pen: g.pen === undefined ? null : g.pen };
+        vistas: keep.map(i => !!(g.vistas && g.vistas[i])), blancas: keep.map(i => !!(g.blancas && g.blancas[i])), i: Math.min(g.i || 0, keep.length - 1), inicio: g.inicio, fin: g.fin, terminado: false, pen: g.pen === undefined ? null : g.pen, tarea: g.tarea || null };
       mostrar();
       if(est.fin && Date.now() >= est.fin) terminar(true);
     }catch(e){ uiToast('No se pudo recuperar: ' + (e.message || e), 'error'); }
@@ -643,7 +682,7 @@ const PRU = (function(){
     else if(MODOS[est.modo].vista === 'tarjeta') pintarTarjeta();
     else {
       $('pruCuerpo').innerHTML = est.items.map((it, i) =>
-        '<div class="quiz-list-item simc-item" data-i="' + i + '">' + (MODOS[est.modo].legis ? etiqueta(it) : '') +
+        '<div class="quiz-list-item simc-item" data-i="' + i + '">' + (MODOS[est.modo].legis && !MODOS[est.modo].ciego ? etiqueta(it) : '') +
           '<div class="question">' + (i + 1) + '. ' + enunciado(it) + '</div>' +
           '<div class="options">' + it.opciones.map((_, j) =>
             '<div class="option' + (est.resp[i] === j ? ' selected' : '') + '" role="button" tabindex="0" data-pru-r="' + i + '" data-j="' + j + '">' +
@@ -752,7 +791,7 @@ const PRU = (function(){
     est.vistas[i] = true;
     $('pruCuerpo').innerHTML =
       '<div class="pru-card-view">' +
-        '<div class="quiz-card">' + (MODOS[est.modo].legis ? etiqueta(it) : '') +
+        '<div class="quiz-card">' + (MODOS[est.modo].legis && !MODOS[est.modo].ciego ? etiqueta(it) : '') +
           '<div class="question">' + enunciado(it) + '</div>' +
           '<div class="options">' + it.opciones.map((_, j) => {
             const cls = !hecha ? '' : j === it.correcta ? ' correct' + (blanco ? ' blank-correct' : '') : j === r ? ' incorrect' : '';
@@ -851,6 +890,7 @@ const PRU = (function(){
     if(porTiempo) uiToast('Se acabó el tiempo: corregido.', 'info');
     // Si se abrió desde una tarea del calendario, la tarea queda hecha.
     if(est.modo === 'conjunto' && typeof CAL !== 'undefined') CAL.terminarSimulacro(est.res.todo.nota);
+    if(est.modo === 'examen' && est.tarea && typeof CAL !== 'undefined' && CAL.terminarExamen) CAL.terminarExamen(est.tarea, est.res.todo.nota);
     filtro = 'todas';
     pintarResultado();
     if(!est.items.length) return;
@@ -1038,7 +1078,7 @@ const PRU = (function(){
       (est.items.length ? '<div class="simc-filtros">' + filtros.map(([k, t]) =>
         '<button type="button" class="admin-tab' + (filtro === k ? ' active' : '') + '" data-pru-filtro="' + k + '">' + t + '</button>').join('') + '</div>' +
         '<div>' + revision() + '</div>' : '<div class="tree-empty">No llegaste a ver ninguna pregunta: no se guarda nada.</div>') +
-      (permitido(est.modo) && !MODOS[est.modo].soloHistorial ? '<div class="simc-botones"><button class="btn btn-primary" data-pru="otro">' + (est.revision ? 'Hacer otro' : 'Otro igual') + '</button></div>' : '');
+      (permitido(est.modo) && !MODOS[est.modo].soloHistorial && !MODOS[est.modo].unico ? '<div class="simc-botones"><button class="btn btn-primary" data-pru="otro">' + (est.revision ? 'Hacer otro' : 'Otro igual') + '</button></div>' : '');
     arriba();
   }
   function revision(){
@@ -1170,7 +1210,7 @@ const PRU = (function(){
   });
   function reiniciar(){ clearInterval(reloj); est = null; meta = null; cargandoMeta = null; panelMeta = null; historial = null; cfg.legis.clear(); cfg.esp.clear(); }
   return {
-    conjuntoDisponible: () => permitido('conjunto'), oficialDisponible: () => permitido('oficial'), empezarOficial, textoPen,
+    conjuntoDisponible: () => permitido('conjunto'), oficialDisponible: () => permitido('oficial'), empezarOficial, textoPen, empezarExamen, planExamen,
     cargarHistorial: () => cargarHistorial(), revisarHistorial, borrarHistorial,
     abrirConfig, cerrarConfig, empezar, quitarFallos, continuar, aMedias, reiniciar, precargar,
     guardarSesion, historialHtml, nuevoId, cargarHistorialTb: () => cargarHistorial().then(repintarListas).catch(() => {}),

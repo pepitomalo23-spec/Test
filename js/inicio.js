@@ -238,6 +238,7 @@ const INICIO = (function(){
     if(vacio) return '<button type="button" class="ini-exa" data-ini="exa-editar" data-id="' + esc(x.id) + '">' +
       '<span class="ini-exa-c"><span class="ini-exa-txt"><b>' + esc(cuandoExa(x)) + '</b><span>' + esc(x.titulo) + '</span></span></span>' +
       '<span class="ini-exa-falta">Elige qué entra ›</span></button>';
+    if(x.dias === 0) return tarjetaDia(x);
     const p = preparacion(x), flojo = p.temas.find(t => !t.cargando);
     return '<button type="button" class="ini-exa" data-ini="exa" data-id="' + esc(x.id) + '" style="--c:' + NIVELES[p.nivel][1] + '">' +
       '<span class="ini-exa-c">' + anilloExa(p) + '<span class="ini-exa-txt"><b>' + esc(cuandoExa(x)) + '</b><span>' + esc(queEntra(x)) + '</span></span></span>' +
@@ -246,12 +247,59 @@ const INICIO = (function(){
         : '<span class="ini-tema"><span class="ini-tema-cab"><span>Cargando…</span></span><span class="ini-pila"></span></span>') +
       '</button>';
   }
+  /* ---------- el día del examen ----------
+     La tarjeta entera de color con «Entrar al examen». Al entrar, las
+     instrucciones (cuántas preguntas, el tiempo, que el reloj no se para…) y
+     luego el examen (js/pruebas.js, modo 'examen'). Hecho, su nota. */
+  const notaTxt = n => (Math.round(Number(n) * 100) / 100).toFixed(2).replace('.', ',');
+  function tarjetaDia(x){
+    if(x.resultado) return '<button type="button" class="ini-exa ini-exa-hecho ' + (x.resultado.nota >= 5 ? 'ok' : 'mal') + '" data-ini="exa" data-id="' + esc(x.id) + '">' +
+      '<span class="ini-exa-dia-l">Examen hecho</span><span class="ini-exa-nota">' + notaTxt(x.resultado.nota) + '<small>/10</small></span>' +
+      '<span class="ini-exa-dia-sub">' + (x.resultado.nota >= 5 ? 'Aprobado' : 'Suspenso') + ' · ' + esc(queEntra(x)) + '</span></button>';
+    const enCurso = typeof PRU !== 'undefined' && PRU.aMedias(['examen']);
+    return '<div class="ini-exa ini-exa-dia">' +
+      '<span class="ini-exa-dia-t">Hoy es el examen</span>' +
+      '<span class="ini-exa-dia-sub">' + esc(queEntra(x)) + '</span>' +
+      '<span class="ini-exa-dia-bot">' +
+        (enCurso ? '<button type="button" class="ini-exa-entrar" data-ini="prueba">Seguir con el examen · ' + enCurso.hechas + '/' + enCurso.total + '</button>'
+          : '<button type="button" class="ini-exa-entrar" data-ini="exa-entrar" data-id="' + esc(x.id) + '">Entrar al examen</button>') +
+        '<button type="button" class="ini-exa-ver" data-ini="exa" data-id="' + esc(x.id) + '">Qué entra ›</button></span>' +
+      '</div>';
+  }
+  const ICO_I = {
+    reloj: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M10 2h4"/></svg>',
+    mezcla: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>',
+    menos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>',
+    lapiz: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+    uno: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>'
+  };
+  function entrarExamen(id){
+    const x = (exas() || []).find(y => y.id === id);
+    if(!x || typeof PRU === 'undefined') return;
+    const a = typeof EXA !== 'undefined' ? EXA.ajustes() : { preguntas: 50, minutos: 60, penalizacion: null, pct_legis: 50 };
+    const r = PRU.planExamen(x, a), n = r ? r.l + r.e : a.preguntas;
+    const pen = PRU.textoPen(a.penalizacion);
+    const regla = (ico, b, txt) => '<li><span class="ini-instr-ico">' + ico + '</span><span><b>' + b + '</b>' + txt + '</span></li>';
+    const cuerpo =
+      '<div class="ini-instr-cifras"><div><b>' + n + '</b><span>preguntas</span></div><div><b>' + a.minutos + '</b><span>minutos</span></div></div>' +
+      '<ul class="ini-instr">' +
+        regla(ICO_I.reloj, 'El tiempo no se para. ', 'Empieza al pulsar «Empezar examen» y sigue corriendo aunque salgas de la app. Cuando llega a cero, el examen se corrige solo.') +
+        regla(ICO_I.mezcla, 'Preguntas mezcladas. ', 'Salen de todo lo que entra, sin decir de qué ley o tema es cada una.') +
+        regla(ICO_I.menos, pen.charAt(0).toUpperCase() + pen.slice(1) + '. ', 'Las que dejes en blanco no restan.') +
+        regla(ICO_I.lapiz, 'Puedes cambiar tus respuestas ', 'hasta que pulses «Finalizar».') +
+        regla(ICO_I.uno, 'Un solo intento. ', 'Al terminar verás tu nota y la corrección.') +
+      '</ul>' +
+      (typeof EXA !== 'undefined' ? '<button type="button" class="ini-instr-formato" data-h="formato">Cambiar preguntas, tiempo o penalización ›</button>' : '');
+    hoja('Antes de empezar', x.titulo, cuerpo,
+      '<button type="button" class="cal-btn" data-h="cerrar">Ahora no</button><button type="button" class="cal-btn primario" data-h="empezar">Empezar examen</button>',
+      (b, cerrar) => { cerrar(); if(b.dataset.h === 'empezar') PRU.empezarExamen(x, a); if(b.dataset.h === 'formato') EXA.abrir(); }, 'ini-instr-hoja');
+  }
   // Solo el examen de esta semana (de hoy a 7 días); si no hay, una invitación a programarlo.
   const exaSemana = () => { const xs = exas(); return xs === undefined ? undefined : xs.find(x => x.dias <= 7) || null; };
   function examenSemana(){
     const x = exaSemana();
     if(x === undefined || typeof CAL === 'undefined' || !CAL.nuevoExamen) return '';
-    const cab = etiqueta('Examen de esta semana', '<button type="button" class="ini-link" data-ini="nuevo-examen">+ Programar</button>');
+    const cab = etiqueta(x && x.dias === 0 ? 'Examen de hoy' : 'Examen de esta semana', '<button type="button" class="ini-link" data-ini="nuevo-examen">+ Programar</button>');
     if(!x) return '<section class="ini-sec">' + cab + '<button type="button" class="ini-exa-nuevo ancho" data-ini="nuevo-examen"><b>Sin examen esta semana</b><span>Prográmalo y elige qué entra: aquí verás cómo vas en esos temas</span></button></section>';
     return '<section class="ini-sec">' + cab + tarjetaExamen(x) + '</section>';
   }
@@ -337,6 +385,7 @@ const INICIO = (function(){
       case 'test': e.stopPropagation(); CAL.seguirTest(el.dataset.id); break;
       case 'ver': CAL.verTarea(el.dataset.id); break;
       case 'exa': abrirExamen(el.dataset.id); break;
+      case 'exa-entrar': entrarExamen(el.dataset.id); break;
       case 'hoy': abrirHoy(); break;
       case 'exa-editar': CAL.editar(el.dataset.id); break;
       case 'nueva': e.stopPropagation(); CAL.nueva(); break;
