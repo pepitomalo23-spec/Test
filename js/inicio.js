@@ -69,8 +69,11 @@ const INICIO = (function(){
     const q = ESPT.cuantasHoy();
     if(!q){ if(!marcadasPedidas){ marcadasPedidas = true; ESPT.cargarMarcadas().then(pintar, () => {}); } return ''; }
     if(!q.total) return '';
-    // Un botón pequeño al final de la página (no entre lo «en curso»).
-    return '<button type="button" class="ini-fijo" data-ini="marcadas"><span class="ini-fijo-ico">★</span>Hacer marcadas de hoy<span class="ini-fijo-n">' + q.total + '</span></button>';
+    // Con lo que está a medias y con el mismo aspecto (estrella azul).
+    return '<button type="button" class="ini-continuar ini-marcadas" data-ini="marcadas">' +
+      '<span class="ini-continuar-ico">★</span>' +
+      '<span class="ini-continuar-txt"><b>Marcadas de hoy</b><span>' + q.total + (q.total === 1 ? ' pregunta para repasar' : ' preguntas para repasar') + '</span></span>' +
+      '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }
 
   // Tarea con un test del calendario: lo que lleva y lo que falta.
@@ -382,7 +385,8 @@ const INICIO = (function(){
     const d = new Date(), dia = DIAS[d.getDay()];
     return '<div class="ini-heropc"><div class="ini-heropc-izq"><div class="ini-fecha">' + dia.charAt(0).toUpperCase() + dia.slice(1) + '</div>' +
         '<h1 class="ini-h ini-heropc-dia">' + d.getDate() + '</h1><div class="ini-heropc-mes">' + MESES[d.getMonth()] + '</div>' +
-        (n ? '<div class="ini-heropc-n"><b>' + hechas + ' de ' + n + '</b><span>' + (n === 1 ? 'tarea hecha' : 'tareas hechas') + '</span></div>' : '') + examen() + '</div>' +
+        (n ? '<div class="ini-heropc-n"><b>' + hechas + ' de ' + n + '</b><span>' + (n === 1 ? 'tarea hecha' : 'tareas hechas') + '</span></div>' : '') + examen() +
+        '<button type="button" class="ini-heropc-add" data-ini="nueva">+ Añadir tarea</button></div>' +
       '<div class="ini-heropc-tareas">' + lista + '</div></div>';
   }
 
@@ -390,13 +394,33 @@ const INICIO = (function(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
     const r = typeof CAL !== 'undefined' ? CAL.resumenHoy() : null;
-    const enCurso = continuar() + pruebaAMedias() + espAMedias();
-    const fijo = marcadasHoy();
+    const enCurso = continuar() + pruebaAMedias() + espAMedias() + marcadasHoy();
     const lado = examenSemana() + (exaSemana() ? '' : cifras());
     // Móvil y pantalla grande: se pintan los dos y el CSS enseña el que toca.
     root.innerHTML = '<div class="ini-movil">' + cabecera(r, enCurso) +
         '<div class="ini-cuerpo"><div class="ini-col">' + hoyCompacto(r) + '</div><div class="ini-col">' + lado + '</div></div></div>' +
-      '<div class="ini-pc">' + cabeceraGrande(r) + '<div class="ini-lado">' + (enCurso ? '<div class="ini-encurso">' + enCurso + '</div>' : '') + lado + '</div></div>' + fijo;
+      '<div class="ini-pc">' + cabeceraGrande(r) + panelSeguir(enCurso) + '</div>';
+  }
+
+  // Pantalla grande: al lado del recuadro, un panel «Para seguir» con una fila por cosa:
+  // lo que está a medias, las marcadas de hoy y el examen de la semana.
+  function filaExamen(){
+    const x = exaSemana();
+    if(x === undefined || typeof CAL === 'undefined' || !CAL.nuevoExamen) return '';
+    const fila = (attrs, ico, tit, sub, clase) => '<button type="button" class="ini-continuar ini-fila-exa' + (clase ? ' ' + clase : '') + '" ' + attrs + '>' +
+      '<span class="ini-continuar-ico">' + ico + '</span><span class="ini-continuar-txt"><b>' + tit + '</b><span>' + sub + '</span></span><span class="ini-flecha">' + FLECHA + '</span></button>';
+    if(!x) return fila('data-ini="nuevo-examen"', '+', 'Programar examen', 'Sin examen esta semana');
+    if(x.dias === 0 && x.resultado) return fila('data-ini="exa" data-id="' + esc(x.id) + '"', '✓', 'Examen hecho', 'Nota ' + notaTxt(x.resultado.nota));
+    if(x.dias === 0) return fila('data-ini="exa-entrar" data-id="' + esc(x.id) + '"', '!', 'Hoy es el examen', 'Entrar al examen', 'hoy');
+    if(!x.legis.length && !x.esp.length) return fila('data-ini="exa-editar" data-id="' + esc(x.id) + '"', '◎', 'Examen · ' + esc(cuandoExa(x)), 'Elige qué entra');
+    const p = preparacion(x), flojo = p.temas.find(t => !t.cargando);
+    return fila('data-ini="exa" data-id="' + esc(x.id) + '" style="--c:' + NIVELES[p.nivel][1] + '"', anilloExa(p), 'Examen · ' + esc(cuandoExa(x)),
+      p.listo ? p.pct + ' % dominado' + (flojo && p.temas.length > 1 ? ' · flojo: ' + esc(flojo.nombre) : '') : 'Cargando…', 'con-anillo');
+  }
+  function panelSeguir(enCurso){
+    const filas = enCurso + filaExamen();
+    return '<div class="ini-panel"><div class="ini-panel-t">Para seguir</div>' +
+      (filas || '<div class="ini-panel-vacio">Nada a medias. ¡Al día!</div>') + '</div>';
   }
 
   function onClick(e){
