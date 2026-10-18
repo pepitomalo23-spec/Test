@@ -399,7 +399,7 @@ const INICIO = (function(){
     // Móvil y pantalla grande: se pintan los dos y el CSS enseña el que toca.
     root.innerHTML = '<div class="ini-movil">' + cabecera(r, enCurso) +
         '<div class="ini-cuerpo"><div class="ini-col">' + hoyCompacto(r) + '</div><div class="ini-col">' + lado + '</div></div></div>' +
-      '<div class="ini-pc">' + cabeceraGrande(r) + panelSeguir(enCurso) + '</div>';
+      '<div class="ini-pc">' + cabeceraGrande(r) + panelSeguir(enCurso) + comoVasGrande() + '</div>';
   }
 
   // Pantalla grande: al lado del recuadro, un panel «Para seguir» con una fila por cosa:
@@ -421,6 +421,30 @@ const INICIO = (function(){
     const filas = enCurso + filaExamen();
     return '<div class="ini-panel"><div class="ini-panel-t">Para seguir</div>' +
       (filas || '<div class="ini-panel-vacio">Nada a medias. ¡Al día!</div>') + '</div>';
+  }
+  // Debajo, a todo el ancho: cómo vas en general, con cifras grandes y su barra (llena la pantalla con algo útil).
+  function comoVasGrande(){
+    const out = [];
+    const col = (clave, valor, txt, pct, color, clase) => '<button type="button" class="ini-cv' + (clase ? ' ' + clase : '') + '" data-ini="' + clave + '">' +
+      '<span class="ini-cv-t">' + txt + '</span><b>' + valor + '</b>' +
+      (pct == null ? '' : '<span class="ini-cv-barra"><i style="width:' + pct + '%;background:' + color + '"></i></span>') + '</button>';
+    const pool = datosListos() ? QUESTIONS_POOL : null;
+    if(featureEnabled('fallos') && pool){
+      const n = pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden).length;
+      out.push(col('fallos', n, 'Por repasar', null, '', n ? 'aviso' : ''));
+    }
+    if(featureEnabled('estadisticas')){
+      if(pool){
+        const v = pool.filter(q => q.masteryStatus === 'green').length, pct = pool.length ? Math.round(v / pool.length * 100) : 0;
+        out.push(col('stats-legis', pct + '<small>%</small>', 'Legislación dominada', pct, 'var(--green)'));
+      }
+      if(featureEnabled('especifico') && typeof ESTE !== 'undefined'){
+        const r = ESTE.resumen();
+        if(r){ const pct = pctVerde(r); out.push(col('stats-esp', pct + '<small>%</small>', 'Específico dominado', pct, 'var(--orange)')); }
+      }
+    }
+    if(!out.length) return '';
+    return '<div class="ini-cvg" style="--n:' + out.length + '">' + out.join('') + '</div>';
   }
 
   function onClick(e){

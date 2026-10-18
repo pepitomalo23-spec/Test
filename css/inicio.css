@@ -242,6 +242,7 @@ button.ini-cifra:hover b{ color: var(--coral); }
 @media (min-width: 900px){
   .ini-movil{ display:none; }
   .ini-pc{ display:grid; grid-template-columns: minmax(0, 1fr) 360px; gap:22px; align-items:stretch; }
+  .ini-cvg{ grid-column: 1 / -1; }
 }
 .ini-heropc{ display:grid; grid-template-columns: 210px minmax(0, 1fr); gap:28px; padding:26px 26px 26px 28px; border-radius:26px; color:#fff;
   background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--coral) 92%, #fff) 0%, transparent 60%), color-mix(in srgb, var(--coral) 80%, #000); }
@@ -292,4 +293,15 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .ini-fila-exa .ini-exa-anillo{ width:42px; height:42px; }
 .ini-fila-exa .ini-exa-anillo text{ font-size:9.5px; }
 .ini-marcadas .ini-continuar-ico{ color:#fff; }
+/* Cómo vas, a todo el ancho debajo (solo pantalla grande) */
+.ini-cvg{ display:grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); border-radius:26px; background: var(--card); padding:8px; }
+.ini-cv{ display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding:20px 22px; border:0; border-radius:20px; background:none; font:inherit; color: var(--text); text-align:left; cursor:pointer; min-width:0; }
+.ini-cv + .ini-cv{ box-shadow: inset 1px 0 0 var(--line); border-radius:0 20px 20px 0; }
+.ini-cv:hover{ background: var(--card-hi); }
+.ini-cv-t{ font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color: var(--muted); }
+.ini-cv b{ font-size:44px; font-weight:800; letter-spacing:-.04em; line-height:1; font-variant-numeric: tabular-nums; }
+.ini-cv b small{ font-size:20px; color: var(--muted); font-weight:600; margin-left:2px; letter-spacing:0; }
+.ini-cv.aviso b{ color: var(--coral); }
+.ini-cv-barra{ display:block; width:100%; height:6px; border-radius:99px; background: var(--line); overflow:hidden; margin-top:6px; }
+.ini-cv-barra i{ display:block; height:100%; border-radius:inherit; }
 
