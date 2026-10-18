@@ -305,20 +305,24 @@ const INICIO = (function(){
   }
   // El detalle de un examen: qué entra, con los nombres completos (cada ley con
   // sus títulos, y los temas del Específico con su número), y cómo vas en cada cosa.
-  // Lo que entra en el examen: cómo vas en total y una línea por tema (nombre corto, % y barra). Nada más.
+  // Lo que entra en el examen: cómo vas en total (una tarjeta del color de cómo vas) y
+  // una línea por tema (un anillo pequeño, el nombre corto y su %). Nada más.
   function abrirExamen(id){
     const x = (exas() || []).find(y => y.id === id);
     if(!x) return;
     const p = preparacion(x);
+    const C = 2 * Math.PI * 15;
+    const aro = pct => '<svg class="ini-aro" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" class="fondo"/>' +
+      (pct ? '<circle cx="18" cy="18" r="15" class="valor" stroke-dasharray="' + (C * pct / 100).toFixed(2) + ' ' + C.toFixed(2) + '" transform="rotate(-90 18 18)"/>' : '') + '</svg>';
     const fila = t => {
-      if(t.cargando) return '<div class="ini-entra"><span class="ini-entra-n">' + esc(t.nombre) + '</span><span class="skel" style="width:34px;height:16px"></span><span class="ini-entra-barra"></span></div>';
+      if(t.cargando) return '<li class="ini-entra">' + aro(0) + '<span class="ini-entra-n">' + esc(t.nombre) + '</span><span class="skel" style="width:34px;height:16px"></span></li>';
       const pct = pctVerde(t), col = pct >= 80 ? 'bien' : pct >= 50 ? 'medio' : 'flojo';
-      return '<div class="ini-entra ' + col + '"><span class="ini-entra-n">' + esc(t.nombre) + '</span><b class="ini-entra-pct">' + pct + '%</b>' +
-        '<span class="ini-entra-barra"><i style="width:' + pct + '%"></i></span></div>';
+      return '<li class="ini-entra ' + col + '">' + aro(pct) + '<span class="ini-entra-n">' + esc(t.nombre) + '</span><b class="ini-entra-pct">' + pct + '%</b></li>';
     };
     const cuerpo =
-      (p.listo ? '<div class="ini-exa-total ' + p.nivel + '"><b>' + p.pct + '%</b><span>' + NIVELES[p.nivel][0] + '</span></div>' : '') +
-      '<div class="ini-entra-lista">' + p.enOrden.map(fila).join('') + '</div>';
+      (p.listo ? '<div class="ini-exa-total ' + p.nivel + '"><b>' + p.pct + '<small>%</small></b><span>' + NIVELES[p.nivel][0] + '</span>' +
+        '<i class="ini-exa-total-barra"><i style="width:' + p.pct + '%"></i></i></div>' : '') +
+      '<ul class="ini-entra-lista">' + p.enOrden.map(fila).join('') + '</ul>';
     hoja('Examen', x.dias > 1 ? x.cuando + ' · en ' + x.dias + ' días' : x.dias ? 'Mañana' : 'Hoy', cuerpo,
       '<button type="button" class="cal-btn" data-h="editar">Editar</button><button type="button" class="cal-btn primario" data-h="cerrar">Listo</button>',
       (b, cerrar) => { cerrar(); if(b.dataset.h === 'editar') CAL.editar(x.id); }, 'ini-exa-hoja');

@@ -144,20 +144,27 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .ini-instr-ico{ width:32px; height:32px; flex-shrink:0; border-radius:10px; display:flex; align-items:center; justify-content:center; background: var(--card); color: var(--text); }
 .ini-instr-ico svg{ width:17px; height:17px; }
 .ini-instr-formato{ align-self:flex-start; border:0; background:none; padding:0; font:inherit; font-size:13px; font-weight:600; color: var(--coral); cursor:pointer; }
-/* Detalle de un examen (hoja): cómo vas en total y una línea por tema */
-.ini-exa-total{ --c: var(--coral); display:flex; align-items:baseline; gap:10px; }
+/* Detalle de un examen (hoja): una tarjeta con cómo vas en total y la lista de temas */
+.ini-exa-total{ --c: var(--coral); position:relative; display:flex; align-items:baseline; gap:12px; padding:18px 20px 22px; border-radius:20px; overflow:hidden;
+  background: radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--c) 26%, transparent) 0%, transparent 60%), color-mix(in srgb, var(--c) 12%, var(--bg)); }
 .ini-exa-total.bien{ --c: var(--green); } .ini-exa-total.medio{ --c: var(--amber); }
-.ini-exa-total b{ font-size:44px; font-weight:800; letter-spacing:-.04em; line-height:1; color: var(--c); font-variant-numeric: tabular-nums; }
-.ini-exa-total span{ font-size:15px; font-weight:600; color: var(--muted); }
-.ini-entra-lista{ display:flex; flex-direction:column; gap:16px; }
-.ini-entra{ --c: var(--coral); display:grid; grid-template-columns: minmax(0, 1fr) auto; align-items:baseline; gap:6px 14px; }
+.ini-exa-total b{ font-size:52px; font-weight:800; letter-spacing:-.045em; line-height:1; color: var(--c); font-variant-numeric: tabular-nums; }
+.ini-exa-total b small{ font-size:24px; letter-spacing:0; margin-left:2px; }
+.ini-exa-total > span{ font-size:16px; font-weight:700; color: var(--text); }
+.ini-exa-total-barra{ position:absolute; left:20px; right:20px; bottom:12px; height:4px; border-radius:99px; background: color-mix(in srgb, var(--c) 22%, transparent); overflow:hidden; }
+.ini-exa-total-barra i{ display:block; height:100%; border-radius:inherit; background: var(--c); }
+.ini-entra-lista{ list-style:none; margin:0; padding:4px 0; border-radius:18px; background: var(--card); }
+.ini-entra{ --c: var(--coral); display:flex; align-items:center; gap:12px; padding:12px 16px; }
+.ini-entra + .ini-entra{ border-top:1px solid var(--line-soft); }
 .ini-entra.bien{ --c: var(--green); } .ini-entra.medio{ --c: var(--amber); } .ini-entra.flojo{ --c: var(--coral); }
-.ini-entra-n{ min-width:0; font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ini-entra-pct{ font-size:15px; font-weight:800; color: var(--c); font-variant-numeric: tabular-nums; }
-.ini-entra-barra{ grid-column: 1 / -1; display:block; height:4px; border-radius:99px; background: var(--line); overflow:hidden; }
-.ini-entra-barra i{ display:block; height:100%; border-radius:inherit; background: var(--c); }
+.ini-aro{ width:30px; height:30px; flex-shrink:0; }
+.ini-aro circle{ fill:none; stroke-width:5; }
+.ini-aro .fondo{ stroke: color-mix(in srgb, var(--c) 18%, transparent); }
+.ini-aro .valor{ stroke: var(--c); stroke-linecap:round; }
+.ini-entra-n{ flex:1; min-width:0; font-size:15px; font-weight:600; line-height:1.3; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.ini-entra-pct{ flex-shrink:0; font-size:15px; font-weight:800; color: var(--c); font-variant-numeric: tabular-nums; }
 /* Detalle de un examen (hoja) */
-.ini-exa-hoja .cal-hoja-cuerpo{ gap:24px; }
+.ini-exa-hoja .cal-hoja-cuerpo{ gap:14px; }
 .ini-exa-res{ display:flex; align-items:center; gap:16px; }
 .ini-nivel{ padding:3px 9px; border-radius:99px; font-size:11.5px; font-weight:700; white-space:nowrap; }
 .ini-nivel.bien{ color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
