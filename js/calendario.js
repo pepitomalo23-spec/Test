@@ -64,6 +64,8 @@ const CAL = (function(){
   function guardarCache(){ try{ localStorage.setItem(CACHE + yo(), JSON.stringify(tareas)); }catch(e){} }
   const ordenar = () => tareas.sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.orden - b.orden) || String(a.created_at).localeCompare(String(b.created_at)));
   const delDia = f => tareas.filter(t => t.fecha === f);
+  // Un examen que ha puesto el administrador (o el profesor): sale sí o sí; no se mueve, ni se cambia, ni se borra.
+  const fija = t => !!(t && t.origen);
 
   async function cargar(){
     if(!yo()) return;
@@ -445,11 +447,12 @@ const CAL = (function(){
           (t.nota ? '<div class="cal-ver-nota">' + esc(t.nota) + '</div>' : '') +
           (tests ? '<div class="cal-ver-tests">' + bloqueTest(t) + '</div>'
             : IR[t.categoria] ? '<button type="button" class="cal-ver-ir" data-v="ir">Ir a ' + esc(c.n) + ' ›</button>' : '') +
-          (!t.nota && !tests && !IR[t.categoria] ? '<div class="cal-ver-nota vacia">Sin más detalles.</div>' : '') +
+          (!t.nota && !tests && !IR[t.categoria] && !fija(t) ? '<div class="cal-ver-nota vacia">Sin más detalles.</div>' : '') +
+          (fija(t) ? '<div class="cal-exa-de">Lo ha puesto <b>' + esc(nombreCorreo(t.enviado_por)) + '</b> para ti: no se puede mover ni borrar. Las preguntas son las mismas para todos.</div>' : '') +
         '</div>' +
-        '<div class="cal-hoja-pie"><button type="button" class="cal-btn" data-v="editar">Editar</button>' +
-          (t.hecho ? '' : '<button type="button" class="cal-btn" data-v="siguiente">Al día siguiente</button>') +
-          '<button type="button" class="cal-btn primario" data-v="hecho">' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '</button></div></div>';
+        '<div class="cal-hoja-pie">' + (fija(t) ? '' : '<button type="button" class="cal-btn" data-v="editar">Editar</button>') +
+          (t.hecho || fija(t) ? '' : '<button type="button" class="cal-btn" data-v="siguiente">Al día siguiente</button>') +
+          (fija(t) ? '<button type="button" class="cal-btn primario" data-v="cerrar">Listo</button>' : '<button type="button" class="cal-btn primario" data-v="hecho">' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '</button>') + '</div></div>';
     };
     pinta();
     document.body.appendChild(bg);
@@ -474,15 +477,15 @@ const CAL = (function(){
   function tarjeta(t, conFecha){
     const c = CAT[t.categoria];
     const abierta = !conFecha && opcionesDe === t.id;
-    return '<div class="cal-tarea' + (t.hecho ? ' hecha' : '') + (conTareaTest(t) ? ' con-test' : '') + (abierta ? ' con-opciones' : '') + '" style="--c:' + c.c + '"' + (conFecha ? '' : ' draggable="true" data-arrastra="' + t.id + '"') + '>' +
+    return '<div class="cal-tarea' + (t.hecho ? ' hecha' : '') + (conTareaTest(t) ? ' con-test' : '') + (abierta ? ' con-opciones' : '') + '" style="--c:' + c.c + '"' + (conFecha || fija(t) ? '' : ' draggable="true" data-arrastra="' + t.id + '"') + '>' +
       '<button class="cal-check" data-cal="hecho" data-id="' + t.id + '" aria-label="' + (t.hecho ? 'Desmarcar' : 'Marcar como hecha') + '">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></button>' +
-      '<button class="cal-tarea-main" data-cal="editar" data-id="' + t.id + '">' +
+      '<button class="cal-tarea-main" data-cal="' + (fija(t) ? 'ver' : 'editar') + '" data-id="' + t.id + '">' +
         '<span class="cal-tarea-t">' + esc(t.titulo) + '</span>' +
-        '<span class="cal-tarea-meta"><i class="cal-punto"></i><span class="cal-cat">' + esc(c.n) + '</span>' + (conFecha ? '<span class="cal-tarea-f">' + esc(nombreDia(t.fecha, true)) + '</span>' : '') + (t.serie ? '<span class="cal-rep" title="Se repite">↻ se repite</span>' : '') + '</span>' +
+        '<span class="cal-tarea-meta"><i class="cal-punto"></i><span class="cal-cat">' + esc(c.n) + '</span>' + (conFecha ? '<span class="cal-tarea-f">' + esc(nombreDia(t.fecha, true)) + '</span>' : '') + (t.serie ? '<span class="cal-rep" title="Se repite">↻ se repite</span>' : '') + (fija(t) ? '<span class="cal-rep">Puesto por ' + esc(nombreCorreo(t.enviado_por)) + '</span>' : '') + '</span>' +
         (t.nota ? '<span class="cal-tarea-n">' + esc(t.nota) + '</span>' : '') +
       '</button>' +
-      (conFecha ? '<button class="cal-mini" data-cal="a-hoy" data-id="' + t.id + '">A hoy</button>'
+      (fija(t) ? '' : conFecha ? '<button class="cal-mini" data-cal="a-hoy" data-id="' + t.id + '">A hoy</button>'
         : (IR[t.categoria] && !t.hecho && !conTareaTest(t) ? '<button class="cal-ir" data-cal="ir" data-k="' + t.categoria + '" aria-label="Ir a ' + esc(c.n) + '">›</button>' : '') +
           '<button class="cal-ir cal-mas' + (abierta ? ' on' : '') + '" data-cal="opciones" data-id="' + t.id + '" aria-label="Mover o editar" aria-expanded="' + abierta + '">⋯</button>') +
       (abierta ? opcionesTarea(t) : '') +
@@ -512,6 +515,7 @@ const CAL = (function(){
   }
   // Mueve las tareas (cambio = { tarea: fecha nueva }) y avisa con «Deshacer».
   function moverA(lista, nuevaFecha, msg){
+    lista = lista.filter(t => !fija(t));
     if(!lista.length){ uiToast('No hay nada que mover', 'info'); return; }
     const antes = lista.map(t => [t, t.fecha]);
     lista.forEach(t => { t.fecha = nuevaFecha(t); });
@@ -596,6 +600,7 @@ const CAL = (function(){
   function siguientes(t){ return t.serie ? tareas.filter(x => x.serie === t.serie && x.fecha > t.fecha) : []; }
 
   function abrirHoja(t, cat){
+    if(fija(t)) return verTarea(t.id);
     cerrarHoja();
     const nueva = !t;
     const base = t || { titulo: '', nota: '', categoria: cat || ultimaCat, fecha: elegido };
@@ -1043,6 +1048,7 @@ const CAL = (function(){
   /* ---------- acciones ---------- */
   function marcar(t){
     if(!t) return;
+    if(fija(t)){ uiToast('Este examen se marca solo cuando lo haces', 'info'); return; }
     t.hecho = !t.hecho;
     if(t.hecho && t.fecha === hoy() && delDia(t.fecha).every(x => x.hecho)) uiToast('¡Todo hecho por hoy!', 'success');
     enviar(sb.from('calendario_tareas').update({ hecho: t.hecho, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo marcar');
@@ -1075,10 +1081,11 @@ const CAL = (function(){
         break;
       }
       case 'hecho': marcar(t); break;
-      case 'a-hoy': if(t){ t.fecha = hoy(); ordenar(); enviar(sb.from('calendario_tareas').update({ fecha: t.fecha, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo mover'); } break;
+      case 'ver': if(t) verTarea(t.id); break;
+      case 'a-hoy': if(t && !fija(t)){ t.fecha = hoy(); ordenar(); enviar(sb.from('calendario_tareas').update({ fecha: t.fecha, updated_at: new Date().toISOString() }).eq('id', t.id), 'No se pudo mover'); } break;
       case 'todas-a-hoy': {
         e.preventDefault();
-        const at = atrasadas(), h = hoy();
+        const at = atrasadas().filter(x => !fija(x)), h = hoy();
         at.forEach(x => { x.fecha = h; });
         ordenar(); elegido = h;
         enviar(sb.from('calendario_tareas').update({ fecha: h, updated_at: new Date().toISOString() }).in('id', at.map(x => x.id)), 'No se pudieron mover');

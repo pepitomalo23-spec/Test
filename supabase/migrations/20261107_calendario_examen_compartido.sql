@@ -91,3 +91,45 @@ as $$
 $$;
 revoke all on function public.calendario_notas_examen(uuid) from public, anon;
 grant execute on function public.calendario_notas_examen(uuid) to authenticated;
+
+-- Quien lo recibe no puede quitárselo: su copia no se borra ni se mueve, y
+-- de ella solo cambia si está hecha, su nota y el orden del día. Solo se
+-- frena a quien la tiene en su calendario: quien manda el examen (con
+-- calendario_enviar_examen o borrando el original) sí puede cambiarla.
+create or replace function public.calendario_copia_fija()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_yo uuid := auth.uid();
+begin
+  if v_yo is null then return coalesce(new, old); end if;
+  if tg_op = 'DELETE' then
+    if old.origen is not null and old.user_id = v_yo and exists (select 1 from public.calendario_tareas where id = old.origen) then
+      raise exception 'Este examen te lo han puesto y no se puede borrar';
+    end if;
+    return old;
+  end if;
+  if new.user_id = v_yo and (tg_op = 'INSERT' or old.origen is null) then
+    new.origen := null; new.enviado_por := null;   -- las copias solo las crea calendario_enviar_examen
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and old.origen is not null and old.user_id = v_yo and (
+       new.user_id is distinct from old.user_id or new.fecha is distinct from old.fecha or new.titulo is distinct from old.titulo
+       or new.nota is distinct from old.nota or new.categoria is distinct from old.categoria or new.origen is distinct from old.origen
+       or new.enviado_por is distinct from old.enviado_por
+       or (coalesce(new.examen, '{}'::jsonb) - 'resultado') is distinct from (coalesce(old.examen, '{}'::jsonb) - 'resultado')) then
+    raise exception 'Este examen te lo han puesto y no se puede cambiar';
+  end if;
+  -- Y se da por hecho solo al terminarlo (con su nota).
+  if tg_op = 'UPDATE' and old.origen is not null and old.user_id = v_yo and new.hecho is distinct from old.hecho
+     and not (new.hecho and new.examen ? 'resultado') then
+    raise exception 'Este examen se marca solo cuando lo haces';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.calendario_copia_fija() from public, anon, authenticated;
+drop trigger if exists calendario_copia_fija on public.calendario_tareas;
+create trigger calendario_copia_fija before insert or update or delete on public.calendario_tareas
+  for each row execute function public.calendario_copia_fija();

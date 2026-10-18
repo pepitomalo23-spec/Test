@@ -333,7 +333,7 @@ const INICIO = (function(){
         '<span class="skel" style="width:60%;height:14px"></span></div>' : '');
     if(x.de || x.para) notasExamen(x);
     hoja('Examen', x.dias > 1 ? x.cuando + ' · en ' + x.dias + ' días' : x.dias ? 'Mañana' : 'Hoy', cuerpo,
-      '<button type="button" class="cal-btn" data-h="editar">Editar</button><button type="button" class="cal-btn primario" data-h="cerrar">Listo</button>',
+      (x.de ? '' : '<button type="button" class="cal-btn" data-h="editar">Editar</button>') + '<button type="button" class="cal-btn primario" data-h="cerrar">Listo</button>',
       (b, cerrar) => { cerrar(); if(b.dataset.h === 'editar') CAL.editar(x.id); }, 'ini-exa-hoja');
   }
 
