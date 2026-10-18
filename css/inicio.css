@@ -37,31 +37,49 @@
 .ini-barra{ display:block; height:4px; border-radius:99px; background: var(--line); overflow:hidden; }
 .ini-barra i{ display:block; height:100%; border-radius:inherit; background: var(--c, var(--coral)); transition: width .5s cubic-bezier(.2,.7,.2,1); }
 
-/* Tareas de hoy */
-.ini-tareas{ display:flex; flex-direction:column; }
-.ini-tarea{ display:flex; align-items:center; gap:12px; padding:12px 0; border-top:1px solid var(--line-soft); cursor:pointer; min-width:0; }
-.ini-tarea:first-child{ border-top:0; padding-top:6px; }
+/* Hoy, en pequeño: «Hoy · 1 de 3», un punto por tarea y lo siguiente. Al pulsarlo, la lista entera (hoja). */
+.ini-hoy{ display:flex; flex-direction:column; gap:10px; padding:12px 14px; border-radius:18px; background: var(--card); cursor:pointer; min-width:0; border:0; font:inherit; color: var(--text); text-align:left; width:100%; }
+.ini-hoy:hover{ background: var(--card-hi); }
+.ini-hoy:focus-visible{ outline:2px solid var(--coral); outline-offset:2px; }
+.ini-hoy-cab{ display:flex; align-items:center; gap:10px; min-width:0; }
+.ini-hoy-l{ font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); white-space:nowrap; }
+.ini-hoy-l b{ color: var(--text); letter-spacing:0; text-transform:none; font-size:13px; }
+.ini-hoy-puntos{ display:flex; gap:4px; flex:1; min-width:0; overflow:hidden; }
+.ini-hoy-puntos i{ width:8px; height:8px; flex-shrink:0; border-radius:50%; background: var(--c); }
+.ini-hoy-puntos i.h{ opacity:.3; }
+.ini-hoy-mas{ display:inline-flex; align-items:center; font-size:12.5px; font-weight:600; color: var(--coral); white-space:nowrap; }
+.ini-hoy-mas svg{ width:14px; height:14px; }
+.ini-hoy-sig{ display:flex; align-items:center; gap:10px; min-width:0; }
+.ini-hoy-sig > i{ width:10px; height:10px; flex-shrink:0; border-radius:50%; background: var(--c); }
+.ini-hoy-t{ flex:1; min-width:0; font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ini-hoy-sig.hecho .ini-hoy-t{ color: var(--green); }
+.ini-hoy.vacio{ flex-direction:row; align-items:center; }
+.ini-hoy.vacio .ini-hoy-t{ color: var(--coral); font-size:14px; }
+.ini-hoy .ini-tarea-ir{ padding:6px 13px; font-size:12.5px; }
+.ini-hoja .cal-hoja-cuerpo{ gap:12px; }
+
+/* La lista de hoy (en la hoja): cuándo · punto de color · tarea · botón */
+.ini-agenda{ display:flex; flex-direction:column; }
+.ini-ag{ display:grid; grid-template-columns: 46px 12px minmax(0, 1fr) auto; align-items:center; gap:10px; padding:11px 0; border-top:1px solid var(--line-soft); cursor:pointer; min-width:0; }
+.ini-ag:first-child{ border-top:0; padding-top:4px; }
+.ini-ag-cuando{ font-size:11.5px; font-weight:600; color: var(--muted-2); }
+.ini-ag.ahora .ini-ag-cuando{ color: var(--coral); font-weight:700; }
+.ini-ag-punto{ width:10px; height:10px; border-radius:50%; background: var(--c); justify-self:center; }
+.ini-ag.hecha .ini-ag-punto{ opacity:.35; }
 .ini-check{ width:24px; height:24px; flex-shrink:0; border-radius:50%; border:2px solid var(--c); background:none; color:transparent; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition: background .15s; }
 .ini-check svg{ width:13px; height:13px; }
-.ini-tarea.hecha .ini-check{ background: var(--c); color:#fff; }
-.ini-tarea-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.ini-ag.hecha .ini-check{ background: var(--c); color:#fff; }
+.ini-tarea-txt{ min-width:0; display:flex; flex-direction:column; gap:2px; }
 .ini-tarea-t{ font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ini-tarea-cat{ font-size:12.5px; color: var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ini-tarea.hecha .ini-tarea-t{ color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted-2); }
+.ini-ag.hecha .ini-tarea-t{ color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted-2); }
 .ini-tarea-test{ display:flex; align-items:center; gap:8px; margin-top:4px; font-size:11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ini-tarea-test .ini-barra{ flex:1; max-width:160px; }
 .ini-tarea-ir{ flex-shrink:0; padding:8px 14px; border-radius:99px; border:0; background: var(--coral); color:#fff; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
 .ini-tarea-ir:hover{ filter: brightness(1.06); }
-.ini-tarea-ir.hecho{ cursor:default; background:none; color: var(--green); padding-right:0; }
 .ini-mas{ align-self:flex-start; border:0; background:none; padding:0; font:inherit; font-size:13px; color: var(--muted); cursor:pointer; text-decoration: underline; text-underline-offset:3px; }
 .ini-anadir{ width:100%; display:flex; align-items:center; gap:8px; padding:12px; border-radius:12px; border:1px dashed var(--line); background:none; color: var(--muted); font:inherit; font-size:14px; text-align:left; cursor:pointer; }
 .ini-anadir span{ color: var(--coral); font-size:18px; font-weight:700; line-height:1; }
-
-/* Lo próximo: una línea debajo de las tareas */
-.ini-prox{ display:flex; align-items:baseline; gap:10px; width:100%; margin-top:6px; padding:12px 0 0; border:0; border-top:1px dashed var(--line); background:none; font:inherit; color: var(--text); text-align:left; cursor:pointer; min-width:0; }
-.ini-prox-l{ font-size:11.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color: var(--muted); flex-shrink:0; }
-.ini-prox-t{ flex:1; min-width:0; font-size:14px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ini-prox-f{ flex-shrink:0; font-size:12.5px; font-weight:700; color: var(--c, var(--coral)); }
 
 /* Cómo vas: una fila de cifras separadas por líneas finas */
 .ini-cifras{ display:grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); }
@@ -74,14 +92,33 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .ini-cifra.aviso b{ color: var(--coral); }
 .ini-cifra > span{ font-size:12.5px; color: var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
 
-/* Cómo vas para el examen más cercano */
-.ini-exa-t{ display:flex; flex-direction:column; gap:1px; min-width:0; }
-.ini-exa-t b{ font-size:16px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ini-exa-t span{ font-size:12.5px; color: var(--muted); }
-.ini-exa-res{ display:flex; align-items:center; gap:16px; padding:8px 0 4px; }
-.ini-exa-pct{ display:flex; flex-direction:column; align-items:flex-start; gap:5px; flex-shrink:0; }
-.ini-exa-pct b{ font-size:40px; font-weight:800; letter-spacing:-.04em; line-height:1; font-variant-numeric: tabular-nums; }
-.ini-exa-pct b small{ font-size:18px; font-weight:600; color: var(--muted); margin-left:1px; }
+/* El examen de esta semana: una tarjeta del color de cómo vas */
+.ini-exa{ width:100%; display:flex; flex-direction:column; gap:12px; padding:14px; border:0; border-radius:20px; text-align:left; font:inherit; color: var(--text); cursor:pointer;
+  background: color-mix(in srgb, var(--c, var(--coral)) 11%, var(--bg)); transition: transform .15s; }
+.ini-exa:active{ transform: scale(.985); }
+.ini-exa:focus-visible, .ini-exa-nuevo:focus-visible{ outline:2px solid var(--coral); outline-offset:2px; }
+.ini-exa-c{ display:flex; align-items:center; gap:12px; min-width:0; }
+.ini-exa-txt{ min-width:0; display:flex; flex-direction:column; gap:2px; }
+.ini-exa-txt b{ font-size:15px; font-weight:700; }
+.ini-exa-txt span{ font-size:12.5px; color: var(--muted); overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.ini-exa-falta{ font-size:13px; font-weight:700; color: var(--coral); }
+.ini-exa-anillo{ width:56px; height:56px; flex-shrink:0; }
+.ini-exa-anillo.grande{ width:84px; height:84px; }
+.ini-exa-anillo circle{ fill:none; stroke-width:4; }
+.ini-exa-anillo .fondo{ stroke: color-mix(in srgb, var(--text) 10%, transparent); }
+.ini-exa-anillo .valor{ stroke-linecap:round; transition: stroke-dasharray .6s cubic-bezier(.2,.7,.2,1); }
+.ini-exa-anillo text{ fill: var(--text); font-size:8.5px; font-weight:800; font-family: var(--sans); font-variant-numeric: tabular-nums; }
+.ini-exa .ini-tema-cab{ font-size:12.5px; }
+.ini-exa .ini-tema-cab > span{ font-weight:500; color: var(--muted); }
+.ini-exa .ini-tema-cab > b{ font-size:12.5px; }
+.ini-exa-nuevo{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:14px; border-radius:20px; border:1.5px dashed var(--line); background:none; font:inherit; color: var(--muted); text-align:center; cursor:pointer; }
+.ini-exa-nuevo b{ font-size:14px; color: var(--coral); }
+.ini-exa-nuevo span{ font-size:12px; }
+.ini-exa-nuevo.ancho{ width:100%; align-items:flex-start; text-align:left; padding:16px; }
+.ini-exa-nuevo:hover{ border-color: var(--muted-2); }
+/* Detalle de un examen (hoja) */
+.ini-exa-hoja .cal-hoja-cuerpo{ gap:14px; }
+.ini-exa-res{ display:flex; align-items:center; gap:16px; }
 .ini-nivel{ padding:3px 9px; border-radius:99px; font-size:11.5px; font-weight:700; white-space:nowrap; }
 .ini-nivel.bien{ color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
 .ini-nivel.medio{ color: var(--amber); background: color-mix(in srgb, var(--amber) 16%, transparent); }
@@ -106,18 +143,6 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .ini-leyenda{ display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:6px; font-size:11.5px; color: var(--muted); }
 .ini-leyenda span{ display:inline-flex; align-items:center; gap:5px; }
 .ini-leyenda i{ width:8px; height:8px; border-radius:50%; background: var(--line); }
-
-/* La semana */
-.ini-semana{ display:grid; grid-template-columns: repeat(7, 1fr); gap:2px; }
-.ini-dia{ display:flex; flex-direction:column; align-items:center; gap:4px; padding:2px 0; border:0; border-radius:10px; background:none; color: var(--text); font:inherit; cursor:pointer; }
-.ini-dia:hover .ini-dia-n{ background: var(--card-hi); }
-.ini-dia-l{ font-size:11px; font-weight:600; color: var(--muted-2); }
-.ini-dia-n{ width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; font-variant-numeric: tabular-nums; }
-.ini-dia.pasado .ini-dia-n{ color: var(--muted); }
-.ini-dia.hoy .ini-dia-n, .ini-dia.hoy:hover .ini-dia-n{ background: var(--coral); color:#fff; }
-.ini-puntos{ display:flex; gap:2px; height:5px; }
-.ini-puntos i{ width:5px; height:5px; border-radius:50%; }
-.ini-puntos i.h{ opacity:.35; }
 
 /* Lo que está a medias: dentro de la cabecera, en tarjeta del color del fondo */
 .ini-continuar{ width:100%; display:flex; align-items:center; gap:12px; padding:12px 14px; text-align:left; font:inherit; color: var(--text);
