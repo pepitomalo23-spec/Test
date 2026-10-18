@@ -312,3 +312,14 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .ini-cv-t{ font-size:16px; font-weight:700; color: var(--text); margin-bottom:4px; }
 .ini-cv-txt strong{ color: var(--text); font-weight:700; }
 .ini-cv-txt em{ font-style:normal; font-weight:600; color: var(--coral); margin-top:4px; }
+/* Cómo vas con examen esta semana: un anillo por tema que entra */
+.ini-cvg-exa{ display:flex; flex-direction:column; padding:8px 8px 12px; }
+.ini-cvg-t{ display:flex; align-items:baseline; gap:12px; padding:16px 22px 4px; font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color: var(--muted); }
+.ini-cvg-t span{ text-transform:none; letter-spacing:0; font-weight:600; color: var(--text); }
+.ini-cvg-temas{ flex:1; display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); align-content:center; }
+.ini-cvg-temas .ini-cv + .ini-cv{ box-shadow:none; border-radius:20px; }
+.ini-cvg-temas .ini-cv{ justify-content:flex-start; }
+.ini-cvg-temas .ini-cv-aro{ width:112px; height:112px; }
+.ini-cvg-temas .ini-cv-aro b{ font-size:28px; }
+.ini-cvg-temas .ini-cv-t{ font-size:15px; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+

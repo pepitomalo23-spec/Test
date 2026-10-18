@@ -433,6 +433,20 @@ const INICIO = (function(){
         (pct ? '<circle cx="50" cy="50" r="42" class="valor" stroke-dasharray="' + (C * Math.min(100, pct) / 100).toFixed(1) + ' ' + C.toFixed(1) + '" transform="rotate(-90 50 50)"/>' : '') +
         '</svg><b>' + dentro + '</b></span>' +
       '<span class="ini-cv-txt"><span class="ini-cv-t">' + tit + '</span>' + lineas.map(l => '<span>' + l + '</span>').join('') + '</span></button>';
+    // Con examen esta semana: un anillo por cada tema que entra (su % dominado y, en pequeño, sus preguntas).
+    const x = exaSemana();
+    if(x && (x.legis.length || x.esp.length)){
+      const p = preparacion(x);
+      const temas = p.enOrden.map(t => {
+        if(t.cargando) return col('exa', '…', 0, 'var(--line)', esc(t.nombre), ['Cargando…']);
+        const pct = pctVerde(t), color = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--amber)' : 'var(--coral)';
+        const vistas = t.verde + t.amarillo + t.rojo;
+        return col('exa', pct + '<small>%</small>', pct, color, esc(t.nombre),
+          ['<strong>' + n(t.verde) + '</strong> dominadas de ' + n(t.total), '<strong>' + n(vistas) + '</strong> vistas']).replace('data-ini="exa"', 'data-ini="exa" data-id="' + esc(x.id) + '"');
+      });
+      return '<div class="ini-cvg ini-cvg-exa"><div class="ini-cvg-t">Examen · ' + esc(cuandoExa(x)) + '<span>' + (p.listo ? p.pct + ' % dominado en total' : '') + '</span></div>' +
+        '<div class="ini-cvg-temas">' + temas.join('') + '</div></div>';
+    }
     const pool = datosListos() ? QUESTIONS_POOL : null;
     if(featureEnabled('fallos') && pool){
       const f = pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden).length;
