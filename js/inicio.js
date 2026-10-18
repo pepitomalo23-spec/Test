@@ -379,7 +379,9 @@ const INICIO = (function(){
           '<span class="ini-ht-txt"><b>' + esc(t.titulo) + '</b><span>' + esc(t.cat) + '</span></span>' + accion + '</div>';
       }).join('') + (n > MAX_TAREAS ? '<button type="button" class="ini-ht-mas" data-ini="calendario">y ' + (n - MAX_TAREAS) + ' más en el calendario ›</button>' : '');
     }
-    return '<div class="ini-heropc"><div class="ini-heropc-izq"><div class="ini-fecha">' + fechaHoy() + '</div><h1 class="ini-h">Hoy</h1>' +
+    const d = new Date(), dia = DIAS[d.getDay()];
+    return '<div class="ini-heropc"><div class="ini-heropc-izq"><div class="ini-fecha">' + dia.charAt(0).toUpperCase() + dia.slice(1) + '</div>' +
+        '<h1 class="ini-h ini-heropc-dia">' + d.getDate() + '</h1><div class="ini-heropc-mes">' + MESES[d.getMonth()] + '</div>' +
         (n ? '<div class="ini-heropc-n"><b>' + hechas + ' de ' + n + '</b><span>' + (n === 1 ? 'tarea hecha' : 'tareas hechas') + '</span></div>' : '') + examen() + '</div>' +
       '<div class="ini-heropc-tareas">' + lista + '</div></div>';
   }
