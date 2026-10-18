@@ -595,10 +595,10 @@ const CAL = (function(){
   }
   function siguientes(t){ return t.serie ? tareas.filter(x => x.serie === t.serie && x.fecha > t.fecha) : []; }
 
-  function abrirHoja(t){
+  function abrirHoja(t, cat){
     cerrarHoja();
     const nueva = !t;
-    const base = t || { titulo: '', nota: '', categoria: ultimaCat, fecha: elegido };
+    const base = t || { titulo: '', nota: '', categoria: cat || ultimaCat, fecha: elegido };
     const serie = t && t.serie ? repDeSerie(t) : null;
     h = { t, cat: base.categoria, fecha: base.fecha, rep: serie ? serie.rep : '', hasta: serie ? serie.hasta : masDias(base.fecha, 27),
           alcance: 'una', repIni: serie ? serie.rep : '', hastaIni: serie ? serie.hasta : null,
@@ -610,7 +610,7 @@ const CAL = (function(){
     bg.id = 'calHoja';
     bg.innerHTML = '<form class="cal-hoja" autocomplete="off" novalidate>' +
       '<div class="cal-hoja-top"><div class="cal-hoja-asa"></div>' +
-        '<div class="cal-hoja-cab"><span class="cal-hoja-ico" data-ico></span><div class="cal-hoja-tit"><h3>' + (nueva ? 'Nueva tarea' : 'Editar tarea') + '</h3><div class="cal-hoja-sub" data-sub></div></div>' +
+        '<div class="cal-hoja-cab"><span class="cal-hoja-ico" data-ico></span><div class="cal-hoja-tit"><h3>' + (nueva ? (base.categoria === 'examen' ? 'Nuevo examen' : 'Nueva tarea') : 'Editar tarea') + '</h3><div class="cal-hoja-sub" data-sub></div></div>' +
         '<button type="button" class="cal-x" data-h="cerrar" aria-label="Cerrar">✕</button></div></div>' +
       '<div class="cal-hoja-cuerpo">' +
         '<input class="cal-titulo" name="titulo" maxlength="200" placeholder="¿Qué toca estudiar?" value="' + esc(base.titulo) + '">' +
@@ -631,6 +631,7 @@ const CAL = (function(){
     document.body.appendChild(bg);
     const f = bg.querySelector('form');
     f.titulo.addEventListener('input', () => { delete f.titulo.dataset.auto; });
+    if(nueva && h.cat === 'examen') autoTituloExamen(f);
     pintarHoja(f);
     bg.addEventListener('click', e => {
       if(e.target === bg) return cerrarHoja();
@@ -675,9 +676,17 @@ const CAL = (function(){
         if(L.titulos[k].length === gruposDe(k).length) L.titulos[k] = [];
         autoTituloLegis(f);
       }
+      else if(b.dataset.ex === 'titulo'){
+        const E = h.examen, k = b.dataset.t, id = b.dataset.n, ts = titulosExamen(E, k);
+        E.titulos[k] = ts.includes(id) ? ts.filter(x => x !== id) : ts.concat(id);
+        // Todos marcados es lo mismo que la ley entera.
+        if(!E.titulos[k].length || E.titulos[k].length === gruposDe(k).length) delete E.titulos[k];
+        autoTituloExamen(f);
+      }
       else if(b.dataset.ex){
         const k = b.dataset.ex, id = b.dataset.t, xs = h.examen[k];
         h.examen[k] = xs.includes(id) ? xs.filter(x => x !== id) : xs.concat(id);
+        if(k === 'legis' && !h.examen.legis.includes(id)) delete h.examen.titulos[id];
         autoTituloExamen(f);
       }
       else if(b.dataset.h === 'cerrar') return cerrarHoja();
@@ -821,15 +830,23 @@ const CAL = (function(){
         : 'Elige al menos una ley') + '</div>' +
       '<button type="button" class="cal-chip" data-lg="quitar">Quitar el test</button></div>';
   }
-  /* ---------- examen: qué leyes y temas entran ----------
-     t.examen = { legis: [topic_id], esp: [clave del tema] }. Con eso, Inicio
-     dice cómo vas para el examen más cercano (CAL.proximoExamen). */
-  const copiaExamen = x => ({ legis: [...((x && x.legis) || [])], esp: [...((x && x.esp) || [])] });
+  /* ---------- examen: qué leyes (o qué títulos de cada una) y temas entran ----------
+     t.examen = { legis: [topic_id], titulos: { topic_id: [nodo] }, esp: [clave del tema] }.
+     Una ley sin títulos elegidos entra entera. Con eso, Inicio dice cómo vas
+     para el examen más cercano (CAL.proximoExamen). */
+  const titulosExamen = (E, ley) => (((E && E.titulos) || {})[ley] || []).filter(id => gruposDe(ley).some(g => g.id === id));
+  const copiaExamen = x => {
+    const legis = [...((x && x.legis) || [])];
+    const titulos = Object.fromEntries(legis.map(k => [k, [...(((x && x.titulos) || {})[k] || [])]]).filter(([, v]) => v.length));
+    return { legis, titulos, esp: [...((x && x.esp) || [])] };
+  };
+  const nombreTitulo = (ley, id) => { const g = gruposDe(ley).find(x => x.id === id); return g ? g.label.replace(/\s+–\s+.*$/, '') : 'Título'; };
   const temasEsp = () => typeof ESP !== 'undefined' && featureEnabled('especifico') ? ESP.temas() : [];
   // «Sistemas de extinción de incendios. Extintores…» → «Sistemas de extinción de incendios»
   const nombreTemaEsp = k => { const x = temasEsp().find(y => y.clave === k); return x ? x.titulo.split('. ')[0] : k; };
   function nombresExamen(E){
-    return (E.legis || []).map(nombreLey).concat((E.esp || []).map(nombreTemaEsp));
+    return (E.legis || []).map(k => { const ts = titulosExamen(E, k); return nombreLey(k) + (ts.length ? ' (' + (ts.length === 1 ? nombreTitulo(k, ts[0]) : ts.length + ' títulos') + ')' : ''); })
+      .concat((E.esp || []).map(nombreTemaEsp));
   }
   function autoTituloExamen(f){
     if(h.cat !== 'examen' || (f.titulo.value.trim() && !f.titulo.dataset.auto)) return;
@@ -842,8 +859,16 @@ const CAL = (function(){
     const op = (k, id, txt, on) => '<button type="button" class="cal-test-op' + (on ? ' on' : '') + '" data-ex="' + k + '" data-t="' + esc(id) + '"><span class="cal-test-caja"></span><span class="cal-ley-txt">' + esc(txt) + '</span></button>';
     if(!ls.length && !ts.length) return '<div class="cal-hasta-res">Cargando las leyes…</div>';
     const n = E.legis.length + E.esp.length;
+    // Debajo de cada ley elegida, sus títulos: sin marcar ninguno, entra la ley entera.
+    const tits = k => {
+      const gs = gruposDe(k);
+      if(!gs.length) return '';
+      const ts = titulosExamen(E, k);
+      return '<div class="cal-legis-tits"><span class="cal-legis-tits-t">' + (ts.length ? 'Entran ' + ts.length + ' de ' + gs.length + ' títulos' : 'Entra toda la ley · o elige títulos:') + '</span>' +
+        gs.map(g => '<button type="button" class="cal-chip cal-tit' + (ts.includes(g.id) ? ' on' : '') + '" data-ex="titulo" data-t="' + esc(k) + '" data-n="' + esc(g.id) + '">' + esc(g.label.replace(/\s+–\s+.*$/, '')) + '</button>').join('') + '</div>';
+    };
     return '<div class="cal-legis">' +
-      (ls.length ? '<div class="cal-exa-grupo">Legislación</div><div class="cal-test-opciones">' + ls.map(x => op('legis', x.id, x.name, E.legis.includes(x.id))).join('') + '</div>' : '') +
+      (ls.length ? '<div class="cal-exa-grupo">Legislación</div><div class="cal-test-opciones">' + ls.map(x => op('legis', x.id, x.name, E.legis.includes(x.id)) + (E.legis.includes(x.id) ? tits(x.id) : '')).join('') + '</div>' : '') +
       (ts.length ? '<div class="cal-exa-grupo">Específico</div><div class="cal-test-opciones">' + ts.map((x, i) => op('esp', x.clave, (i + 1) + '. ' + x.titulo, E.esp.includes(x.clave))).join('') + '</div>' : '') +
       '<div class="cal-hasta-res">' + (n ? 'Entran ' + n + (n === 1 ? ' tema' : ' temas') + '. En Inicio verás cómo vas en ellos.' : 'Elige lo que entra para ver en Inicio cómo vas para este examen') + '</div></div>';
   }
@@ -1094,7 +1119,8 @@ const CAL = (function(){
     const semana = tareas.filter(x => x.categoria !== 'examen' && x.fecha >= desde && x.fecha < t.fecha);
     const E = copiaExamen(t.examen);
     return { id: t.id, titulo: t.titulo, fecha: t.fecha, dias: Math.round((deIso(t.fecha) - deIso(h)) / 864e5), cuando: nombreDia(t.fecha, true),
-      legis: E.legis.map(id => ({ id, nombre: nombreLey(id) })), esp: E.esp.map(k => ({ id: k, nombre: nombreTemaEsp(k) })),
+      legis: E.legis.flatMap(id => { const ts = titulosExamen(E, id);
+        return ts.length ? ts.map(g => ({ id, grupo: g, nombre: nombreLey(id) + ' · ' + nombreTitulo(id, g) })) : [{ id, nombre: nombreLey(id) }]; }), esp: E.esp.map(k => ({ id: k, nombre: nombreTemaEsp(k) })),
       semana: { hechas: semana.filter(x => x.hecho).length, total: semana.length } };
   }
   // Desde Inicio: el calendario abierto en ese día.
@@ -1110,5 +1136,7 @@ const CAL = (function(){
     if(t.simulacro && !t.simulacro.fin) return hacerSimc(t);
     uiToast(avanceTotal(t).tests > 1 ? 'Todos los tests de esta tarea están completados' : 'Este test ya está completado', 'info');
   }
-  return { avanceTestLegis, terminarTestLegis, terminarSimulacro, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, semana, proxima, proximoExamen, abrirDia, pintar, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); } };
+  return { avanceTestLegis, terminarTestLegis, terminarSimulacro, barraTramos, abrir, recargar: cargar, asegurar, resumenHoy, semana, proxima, proximoExamen, abrirDia, pintar, marcar: marcarId, guardarProgreso, verTarea, seguirTest, nueva: () => { elegido = hoy(); mes = null; abrirHoja(); },
+    // Desde Inicio: una tarea nueva ya como examen (el sábado que viene, que se puede cambiar).
+    nuevoExamen: () => { const h = hoy(), d = deIso(h).getDay(); elegido = masDias(h, d === 6 ? 7 : 6 - d); mes = null; abrirHoja(null, 'examen'); } };
 })();

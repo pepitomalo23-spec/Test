@@ -151,7 +151,8 @@ const INICIO = (function(){
       }
     }
     if(!out.length) return '';
-    return '<section class="ini-sec">' + etiqueta('Cómo vas') + '<div class="ini-cifras" style="--n:' + out.length + '">' + out.join('') + '</div></section>';
+    const programar = typeof CAL !== 'undefined' && CAL.nuevoExamen ? '<button type="button" class="ini-link" data-ini="nuevo-examen">+ Programar examen</button>' : '';
+    return '<section class="ini-sec">' + etiqueta('Cómo vas', programar) + '<div class="ini-cifras" style="--n:' + out.length + '">' + out.join('') + '</div></section>';
   }
 
   // Cómo vas para el examen más cercano del calendario: lo dominado de lo que
@@ -168,9 +169,11 @@ const INICIO = (function(){
     // Cada tema: { nombre, total, verde, amarillo, rojo }, o { cargando } mientras no hay datos.
     const temas = [];
     const pool = datosListos() ? QUESTIONS_POOL : null;
+    // Una ley entera o solo un título suyo (y todo lo que cuelga de él).
+    const entra = (q, l) => q.topic_id === l.id && (!l.grupo || (!!q.nodo_id && nodeIsInSelectedGroups(q.nodo_id, new Set([l.grupo]))));
     x.legis.forEach(l => {
       if(!pool) return temas.push({ nombre: l.nombre, cargando: true });
-      const qs = pool.filter(q => q.topic_id === l.id), n = st => qs.filter(q => q.masteryStatus === st).length;
+      const qs = pool.filter(q => entra(q, l)), n = st => qs.filter(q => q.masteryStatus === st).length;
       temas.push({ nombre: l.nombre, tipo: 'Legislación', total: qs.length, verde: n('green'), amarillo: n('yellow'), rojo: n('red') });
     });
     const pt = x.esp.length && typeof ESTE !== 'undefined' && ESTE.porTema ? ESTE.porTema() : null;
@@ -182,7 +185,7 @@ const INICIO = (function(){
     const suma = k => listos.reduce((a, t) => a + t[k], 0);
     const tot = suma('total'), pct = tot ? Math.round(suma('verde') / tot * 100) : 0;
     // Las falladas por repasar de esos temas (las de Legislación que no has quitado de Fallos).
-    const rojoLegis = pool ? pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden && x.legis.some(l => l.id === q.topic_id)).length : 0;
+    const rojoLegis = pool ? pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden && x.legis.some(l => entra(q, l))).length : 0;
     const nivel = pct >= 80 ? ['bien', 'Bien preparado'] : pct >= 50 ? ['medio', 'A medio camino'] : ['flojo', 'Te falta'];
     const pctDe = t => t.total ? Math.round(t.verde / t.total * 100) : 0;
     const filas = temas.slice().sort((a, b) => (a.cargando ? 1 : 0) - (b.cargando ? 1 : 0) || pctDe(a) - pctDe(b)).map(t => {
@@ -264,6 +267,7 @@ const INICIO = (function(){
       case 'test': e.stopPropagation(); CAL.seguirTest(el.dataset.id); break;
       case 'ver': CAL.verTarea(el.dataset.id); break;
       case 'nueva': e.stopPropagation(); CAL.nueva(); break;
+      case 'nuevo-examen': CAL.nuevoExamen(); break;
       case 'calendario': showScreen('screen-calendario'); break;
       case 'dia': CAL.abrirDia(el.dataset.f); break;
       case 'reanudar': resumeQuiz(); break;
