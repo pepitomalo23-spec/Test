@@ -295,15 +295,20 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .ini-fila-exa .ini-exa-anillo{ width:42px; height:42px; }
 .ini-fila-exa .ini-exa-anillo text{ font-size:9.5px; }
 .ini-marcadas .ini-continuar-ico{ color:#fff; }
-/* Cómo vas, a todo el ancho debajo (solo pantalla grande) */
+/* Cómo vas, a todo el ancho debajo (solo pantalla grande): un anillo grande con el % y, al lado, las preguntas en pequeño */
 .ini-cvg{ display:grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); border-radius:26px; background: var(--card); padding:8px; }
-.ini-cv{ display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:10px; padding:26px 30px; border:0; border-radius:20px; background:none; font:inherit; color: var(--text); text-align:left; cursor:pointer; min-width:0; }
+.ini-cv{ --c: var(--coral); display:flex; align-items:center; justify-content:center; gap:22px; padding:26px 24px; border:0; border-radius:20px; background:none; font:inherit; color: var(--text); text-align:left; cursor:pointer; min-width:0; }
 .ini-cv + .ini-cv{ box-shadow: inset 1px 0 0 var(--line); border-radius:0 20px 20px 0; }
 .ini-cv:hover{ background: var(--card-hi); }
-.ini-cv-t{ font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color: var(--muted); }
-.ini-cv b{ font-size:64px; font-weight:800; letter-spacing:-.04em; line-height:1; font-variant-numeric: tabular-nums; }
-.ini-cv b small{ font-size:26px; color: var(--muted); font-weight:600; margin-left:2px; letter-spacing:0; }
-.ini-cv.aviso b{ color: var(--coral); }
-.ini-cv-barra{ display:block; width:100%; height:8px; border-radius:99px; background: var(--line); overflow:hidden; margin-top:6px; }
-.ini-cv-barra i{ display:block; height:100%; border-radius:inherit; }
-.ini-cv-barra.hueco{ visibility:hidden; }
+.ini-cv-aro{ position:relative; width:132px; height:132px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.ini-cv-aro svg{ position:absolute; inset:0; width:100%; height:100%; }
+.ini-cv-aro circle{ fill:none; stroke-width:9; }
+.ini-cv-aro .fondo{ stroke: color-mix(in srgb, var(--c) 16%, transparent); }
+.ini-cv-aro .valor{ stroke: var(--c); stroke-linecap:round; transition: stroke-dasharray .6s cubic-bezier(.2,.7,.2,1); }
+.ini-cv-aro b{ position:relative; font-size:34px; font-weight:800; letter-spacing:-.035em; font-variant-numeric: tabular-nums; }
+.ini-cv-aro b small{ font-size:16px; font-weight:700; color: var(--muted); margin-left:1px; letter-spacing:0; }
+.ini-cv.aviso .ini-cv-aro b{ color: var(--coral); }
+.ini-cv-txt{ min-width:0; display:flex; flex-direction:column; gap:3px; font-size:13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ini-cv-t{ font-size:16px; font-weight:700; color: var(--text); margin-bottom:4px; }
+.ini-cv-txt strong{ color: var(--text); font-weight:700; }
+.ini-cv-txt em{ font-style:normal; font-weight:600; color: var(--coral); margin-top:4px; }

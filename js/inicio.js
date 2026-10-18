@@ -425,23 +425,34 @@ const INICIO = (function(){
   // Debajo, a todo el ancho: cómo vas en general, con cifras grandes y su barra (llena la pantalla con algo útil).
   function comoVasGrande(){
     const out = [];
-    const col = (clave, valor, txt, pct, color, clase) => '<button type="button" class="ini-cv' + (clase ? ' ' + clase : '') + '" data-ini="' + clave + '">' +
-      '<span class="ini-cv-t">' + txt + '</span><b>' + valor + '</b>' +
-      // Sin barra, un hueco igual: así las cifras quedan a la misma altura.
-      (pct == null ? '<span class="ini-cv-barra hueco"></span>' : '<span class="ini-cv-barra"><i style="width:' + pct + '%;background:' + color + '"></i></span>') + '</button>';
+    const C = 2 * Math.PI * 42;
+    const n = x => Number(x).toLocaleString('es-ES');
+    // Un anillo grande con el % (o la cifra) dentro y, al lado, el nombre y en pequeño las preguntas.
+    const col = (clave, dentro, pct, color, tit, lineas, clase) => '<button type="button" class="ini-cv' + (clase ? ' ' + clase : '') + '" data-ini="' + clave + '" style="--c:' + color + '">' +
+      '<span class="ini-cv-aro"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" class="fondo"/>' +
+        (pct ? '<circle cx="50" cy="50" r="42" class="valor" stroke-dasharray="' + (C * Math.min(100, pct) / 100).toFixed(1) + ' ' + C.toFixed(1) + '" transform="rotate(-90 50 50)"/>' : '') +
+        '</svg><b>' + dentro + '</b></span>' +
+      '<span class="ini-cv-txt"><span class="ini-cv-t">' + tit + '</span>' + lineas.map(l => '<span>' + l + '</span>').join('') + '</span></button>';
     const pool = datosListos() ? QUESTIONS_POOL : null;
     if(featureEnabled('fallos') && pool){
-      const n = pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden).length;
-      out.push(col('fallos', n, 'Por repasar', null, '', n ? 'aviso' : ''));
+      const f = pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden).length;
+      out.push(col('fallos', n(f), f ? 100 : 0, 'var(--coral)', 'Por repasar', [f === 1 ? 'pregunta fallada' : 'preguntas falladas', '<em>Repasar ›</em>'], f ? 'aviso' : ''));
     }
     if(featureEnabled('estadisticas')){
+      const fila = (clave, tit, r, color) => {
+        const pct = r.total ? Math.round(r.verde / r.total * 100) : 0;
+        const vistas = r.vistas != null ? r.vistas : r.verde + (r.amarillo || 0) + (r.rojo || 0);
+        out.push(col(clave, pct + '<small>%</small>', pct, color, tit, ['<strong>' + n(r.verde) + '</strong> dominadas', '<strong>' + n(vistas) + '</strong> vistas de ' + n(r.total)]));
+      };
       if(pool){
-        const v = pool.filter(q => q.masteryStatus === 'green').length, pct = pool.length ? Math.round(v / pool.length * 100) : 0;
-        out.push(col('stats-legis', pct + '<small>%</small>', 'Legislación dominada', pct, 'var(--green)'));
+        const c = st => pool.filter(q => q.masteryStatus === st).length;
+        const r = { total: pool.length, verde: c('green') };
+        r.vistas = r.verde + c('yellow') + c('red');
+        fila('stats-legis', 'Legislación', r, 'var(--green)');
       }
       if(featureEnabled('especifico') && typeof ESTE !== 'undefined'){
         const r = ESTE.resumen();
-        if(r){ const pct = pctVerde(r); out.push(col('stats-esp', pct + '<small>%</small>', 'Específico dominado', pct, 'var(--orange)')); }
+        if(r) fila('stats-esp', 'Específico', r, 'var(--orange)');
       }
     }
     if(!out.length) return '';
