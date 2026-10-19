@@ -7,8 +7,9 @@
 //     en el momento; si la nueva no sale, vuelve a coger la de antes;
 //   - si no tenías: la coge.
 // Luego apunta en la app cómo fue y copia las reservas reales de IMDECO.
-// Dura hasta 5 h 45 min (al acabar lanza la siguiente) y está en marcha todo el día, salvo una pausa
-// de 23:20 a 00:20 para no estorbar al robot de las 00:00 (en la pausa cierra la sesión y espera).
+// Dura hasta 5 h 45 min (al acabar lanza la siguiente) y está en marcha todo el día. Solo las noches
+// en que el robot de las 00:00 tiene algo que reservar hace una pausa de 23:50 a 00:15, para no
+// estorbarle (cierra la sesión y espera).
 //
 // Variables: IMD_USUARIO, IMD_CONTRASENA, SUPABASE_URL, SUPABASE_ANON_KEY, PISCINA_CLAVE
 // Los registros son públicos: no se escriben datos personales.
@@ -30,8 +31,20 @@ function madrid(d = new Date()) {
     .formatToParts(d).map(x => [x.type, x.value]));
   return { fecha: `${p.year}-${p.month}-${p.day}`, hora: `${p.hour}:${p.minute}` };
 }
-// Pausa para el robot de las 00:00 (reservar.mjs, de 23:35 a pocos minutos pasadas las 00:00)
-const enPausa = hora => hora >= '23:20' || hora < '00:20';
+// Pausa para el robot de las 00:00 (reservar.mjs): solo de 23:50 a 00:15 y solo si esa noche tiene
+// algo que reservar (a las 00:00 se abre el día de dentro de 2)
+const enVentana = hora => hora >= '23:50' || hora < '00:15';
+let pausaDe = null, pausaHay = false, pausaAt = 0;
+async function enPausa(ahora) {
+  if (!enVentana(ahora.hora)) return false;
+  const dia = masDias(ahora.fecha, ahora.hora >= '23:50' ? 3 : 2);
+  if (pausaDe !== dia || Date.now() - pausaAt > 60_000) {
+    // Si no se puede leer, mejor parar (no estorbar a la reserva de medianoche)
+    pausaHay = await rpc('piscina_robot_pendiente', { p_fecha: dia }).then(f => !!(f && f.length)).catch(() => true);
+    pausaDe = dia; pausaAt = Date.now();
+  }
+  return pausaHay;
+}
 const masDias = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 async function rpc(fn, cuerpo) {
@@ -64,9 +77,8 @@ if (process.argv.includes('--comprobar')) {
   const lista = await rpc('piscina_robot_vigilar', {}).catch(e => { log('No pude leer la app:', e.message); return []; }) || [];
   const vivos = lista.filter(v => abiertos.includes(v.fecha) && !(v.fecha === ahora.fecha && v.quiere_hora <= ahora.hora));
   vivos.push(...(await rpc('piscina_robot_por_anular', {}).catch(() => []) || []));
-  const enHorario = !enPausa(ahora.hora);
-  log(vivos.length ? `Hay ${vivos.length} para vigilar` : 'Nada que vigilar ahora', enHorario ? '' : '(fuera de horario)');
-  // Arranca siempre (también en la pausa: espera dentro hasta las 00:20)
+  log(vivos.length ? `Hay ${vivos.length} para vigilar` : 'Nada que vigilar ahora');
+  // Arranca siempre (también en la pausa de medianoche: espera dentro)
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, 'hay=1\n');
   process.exit(0);
 }
@@ -278,9 +290,9 @@ async function relevo() {
 try {
   while (Date.now() < fin) {
     const ahora = madrid();
-    if (enPausa(ahora.hora)) {
-      // El robot de las 00:00 usa la cuenta: sin sesión abierta hasta las 00:20
-      if (!pausado) { log('Pausa de 23:20 a 00:20 (reservas de medianoche)'); pausado = true; await armado?.cerrar().catch(() => {}); armado = null; armadoPara = null; }
+    if (await enPausa(ahora)) {
+      // El robot de las 00:00 usa la cuenta: sin sesión abierta hasta las 00:15
+      if (!pausado) { log('Pausa hasta las 00:15: esta noche el robot de las 00:00 tiene una reserva'); pausado = true; await armado?.cerrar().catch(() => {}); armado = null; armadoPara = null; }
       await espera(30_000); continue;
     }
     if (pausado) { log('Sigo tras la pausa'); pausado = false; leidaAt = 0; }

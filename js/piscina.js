@@ -152,12 +152,15 @@ const PISCINA = (function(){
       '<div class="psc-ok-n">El robot la reservará el ' + largo(abre) + ' a las 00:00</div>' +
       '<button type="button" class="psc-confirmar" data-psc="otro">Programar otro día</button></div>';
   }
-  // El robot vigilante para de 23:20 a 00:20 (hora de Madrid) para dejar sitio al de las 00:00
+  // El vigilante para de 23:50 a 00:15 (hora de Madrid) solo si esa noche el robot de las 00:00
+  // tiene una reserva programada (a las 00:00 se abre el día de dentro de 2)
   function robotEnPausa(){
     const h = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
-    return h >= '23:20' || h < '00:20';
+    if(!(h >= '23:50' || h < '00:15')) return false;
+    const dia = masDias(hoy(), h >= '23:50' ? 3 : 2);
+    return filas.some(r => r.fecha === dia && r.estado === 'programada');
   }
-  const PAUSA_TXT = 'el robot está en pausa hasta las 00:20 (a medianoche hace las reservas programadas); entonces la coge si sigue libre';
+  const PAUSA_TXT = 'el robot está en pausa hasta las 00:15 (está haciendo tu reserva programada de medianoche); entonces la coge si sigue libre';
   // El robot no la coge porque IMDECO la cobra (el bono no la cubre)
   const dePago = r => !!(r && r.quiere_hora && /^De pago/.test(r.detalle || ''));
   function chip(r){
@@ -335,7 +338,7 @@ const PISCINA = (function(){
       (otra1 ? '<small class="psc-aviso">IMDECO solo deja una reserva en vigor a la vez y ya tienes la del ' + corto(otra1.fecha) + ' a las ' + otra1.hora +
         '. El robot la vigila y la coge en cuanto pase esa (a las ' + finHora(otra1.hora) + '), si sigue libre. Si la quieres ya, anula antes la otra.</small>'
         : '<small>' + (robotEnPausa() ? 'Ahora ' + PAUSA_TXT + '. ' : hay ? '«' + (cambio ? 'Cambiar' : 'Reservar') + ' ahora»: el robot la coge en unos segundos. ' : '') +
-          '«Cuando se libere»: mira unas 2 veces por segundo (todo el día salvo de 23:20 a 00:20) y la coge en cuanto alguien deje una calle. Solo con tu bono: si cobrase algo, no la compra.</small>');
+          '«Cuando se libere»: mira unas 2 veces por segundo (todo el día; solo para un rato a medianoche si tienes una reserva programada) y la coge en cuanto alguien deje una calle. Solo con tu bono: si cobrase algo, no la compra.</small>');
     return '<div class="psc-hc-acc">' + botones + notas + '</div>';
   }
   async function vigilarHora(fecha, hora){
@@ -352,7 +355,7 @@ const PISCINA = (function(){
     const ya = hayLibres(fecha, hora);
     seguirDeCerca();
     uiToast(r && r.estado === 'reservada' ? (ya ? 'Hay sitio: el robot cambia tu reserva a las ' + hora : 'Vigilando las ' + hora + ': si se libera, cambio tu reserva')
-      : robotEnPausa() ? 'Pedida: el robot está en pausa hasta las 00:20 y entonces la coge si sigue libre' : ya ? 'Hay sitio: el robot reserva las ' + hora + ' ya' : 'Vigilando las ' + hora + ': en cuanto haya sitio, la cojo', 'success');
+      : robotEnPausa() ? 'Pedida: el robot está en pausa hasta las 00:15 y entonces la coge si sigue libre' : ya ? 'Hay sitio: el robot reserva las ' + hora + ' ya' : 'Vigilando las ' + hora + ': en cuanto haya sitio, la cojo', 'success');
   }
   // Otra reserva tuya que aún no ha terminado (IMDECO no deja tener dos)
   function otraEnVigor(fecha){
