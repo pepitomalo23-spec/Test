@@ -13,6 +13,7 @@ css/                 estilos, en orden de carga
   pantallas.css      inicio, estadísticas, historial, configuración de tests, árbol, Fallos
   test.css           test en curso, notas, IA, corrección, vista lista
   normativas.css     Normativas (fichas estilo Quizlet)
+  datos-importantes.css  Datos importantes
   callejero.css      Callejero (mapa y juego)
   calendario.css     Calendario
   especifico.css     Específico (temario de bombero)
@@ -46,6 +47,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   admin/             panel de administración (panel, actividad, usuarios,
                      copias, errores, boe, temario, importar-ia, especifico, callejero)
   normativas.js      Normativas (fichas estilo Quizlet)
+  datos-importantes.js  Datos importantes: apartados de fichas propios de cada usuario (Nº ONU, NIP, cifras…)
   callejero.js       Callejero: mapa, modos de juego, modo estudio, tareas y modo selección
   callejero-temario.js   Callejero: temario de la academia (fichas, en el mapa, preguntas y planos)
   callejero-profesor.js  Callejero: los alumnos del profesor, tareas y mensajes

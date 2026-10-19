@@ -14,6 +14,7 @@
    siguiente (y para sin conexión). */
 const FEATURES = {
   normativas: 'Normativas (y Repaso diario)',
+  datos: 'Datos importantes',
   estadisticas: 'Estadísticas',
   stats_avanzadas: 'Estadísticas avanzadas',
   historial: 'Historial',
@@ -32,6 +33,7 @@ const SCREEN_FEATURE = {
   'screen-pru': 'especifico',
   'screen-pru-config': 'especifico',
   'screen-normativas': 'normativas',
+  'screen-datos': 'datos',
   'screen-stats': 'estadisticas',
   'screen-articulo-preguntas': 'estadisticas',
   'screen-streak-full': 'estadisticas',
