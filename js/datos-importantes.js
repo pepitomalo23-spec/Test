@@ -28,6 +28,7 @@ const DI = (function(){
       'Cifra repetida: el peligro es más intenso (33, 66, 88). Si basta una cifra, se completa con 0 (30, 60, 80). <b>X</b> delante: reacciona peligrosamente con el agua.',
     onu: '<b>Panel naranja</b>: arriba va el NIP (número de peligro) y abajo el <b>número ONU</b>, de 4 cifras, que identifica la materia.'
   };
+  const ayudaDe = a => AYUDA[a.plantilla] || (/\bNIP\b|n[uú]mero de peligro/i.test(a.titulo) ? AYUDA.nip : /\bONU\b|MMPP/i.test(a.titulo) ? AYUDA.onu : null);
   const svg = d => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
   const ICO = {
     onu: svg('<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 12h18"/>'),
@@ -73,6 +74,9 @@ const DI = (function(){
   const normal = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/^(UN|ONU)\s*(?=\d)/, '').replace(/[\s.\-–·,]/g, '');
   const igual = (dada, buena) => normal(dada) !== '' && normal(dada) === normal(buena);
   // ¿Se escribe con números? (para el teclado del móvil)
+  // Cara de números o códigos (1203, 33, X423, UN 1005…): se responde escribiéndola
+  const esCodigos = (apa, cara) => { const vs = deAp(apa.id).map(d => String(cara === 'a' ? d.a : d.b).trim()); return vs.length > 0 && vs.every(v => /^[A-Z]{0,3}\s?\d{1,6}[A-Z]?$/i.test(v)); };
+  const escribe = (apa, cara) => (cara === 'a' ? apa.escribir_a : apa.escribir_b) || esCodigos(apa, cara);
   const soloNumeros = (apa, cara) => deAp(apa.id).every(d => /^\d+$/.test(String(cara === 'a' ? d.a : d.b).trim()));
 
   /* ---------- preguntas ---------- */
@@ -81,9 +85,9 @@ const DI = (function(){
     const apa = ap(d.apartado_id);
     const ve = apa.sentido === 'ab' ? 'a' : apa.sentido === 'ba' ? 'b' : (Math.random() < .5 ? 'a' : 'b');
     const resp = ve === 'a' ? 'b' : 'a';
-    const escribe = resp === 'a' ? apa.escribir_a : apa.escribir_b;
+    const conTeclado = escribe(apa, resp);
     const otros = [...new Set(deAp(apa.id).filter(x => x.id !== d.id).map(x => x[resp]).filter(v => normal(v) !== normal(d[resp])))];
-    let tipo = escribe ? 'escribir' : otros.length >= 1 ? 'elegir' : 'saber';
+    let tipo = conTeclado ? 'escribir' : otros.length >= 1 ? 'elegir' : 'saber';
     const opciones = tipo === 'elegir' ? mezclar([d[resp]].concat(mezclar(otros).slice(0, 3))) : null;
     return { d, apa, ve, resp, tipo, opciones, numerico: tipo === 'escribir' && soloNumeros(apa, resp) };
   }
@@ -111,7 +115,7 @@ const DI = (function(){
     return cabecera('Datos importantes', 'Tus apartados para memorizar datos: números ONU, NIP, teléfonos, cifras… Cada uno pregunta de la forma que mejor le va.', ['estudio', 'Estudio']) +
       (!cargado && !aps.length ? '<div class="di-vacio">Cargando…</div>' : '') +
       '<div class="di-aps">' + tarjetas +
-        '<button type="button" class="di-ap di-nuevo" data-di="nuevo"><span class="di-ap-ico">' + ICO.mas + '</span><span class="di-ap-txt"><b>Nuevo apartado</b><span>MMPP (Nº ONU), NIP u otro</span></span></button>' +
+        '<button type="button" class="di-ap di-nuevo" data-di="nuevo"><span class="di-ap-ico">' + ICO.mas + '</span><span class="di-ap-txt"><b>Añadir apartado</b><span>NIP, teléfonos, cifras…</span></span></button>' +
       '</div>';
   }
   function vistaApartado(a){
@@ -121,18 +125,18 @@ const DI = (function(){
       '<button type="button" class="di-ico-btn" data-di="quitar" data-id="' + d.id + '" aria-label="Borrar">' + ICO.borrar + '</button></div>').join('');
     const pocos = ds.length < 2;
     const modo = (k, nombre, sub) => '<button type="button" class="di-modo" data-di="modo" data-m="' + k + '"' + (pocos ? ' disabled' : '') + '><span class="di-modo-ico">' + ICO[k] + '</span><b>' + nombre + '</b><span>' + sub + '</span></button>';
-    const como = c => (c === 'a' ? a.escribir_a : a.escribir_b) ? 'escribiendo' : 'eligiendo entre 4';
+    const como = c => escribe(a, c) ? 'escribiendo' : 'eligiendo entre 4';
     return cabecera(a.titulo, ds.length + (ds.length === 1 ? ' dato' : ' datos') + (ds.length ? ' · ' + dom + ' dominados' : '') +
         ' · <button type="button" class="di-link" data-di="ajustes">' + ICO.ajustes + ' Ajustes</button>', ['lista', 'Datos importantes']) +
       '<div class="di-modos">' + modo('fichas', 'Fichas', 'Girar y repasar') + modo('aprender', 'Aprender', 'Hasta que salgan todas') + modo('probar', 'Probar', PRUEBA + ' preguntas con nota') + '</div>' +
       (pocos ? '<div class="di-vacio">Añade al menos 2 datos para estudiar.</div>' : '') +
       '<div class="di-como">Pregunta ' + ({ ab: esc(a.nombre_a) + ' → ' + esc(a.nombre_b), ba: esc(a.nombre_b) + ' → ' + esc(a.nombre_a), ambos: 'en los dos sentidos' }[a.sentido]) +
         '; ' + esc(a.nombre_a) + ' se responde ' + como('a') + ' y ' + esc(a.nombre_b) + ', ' + como('b') + '.</div>' +
-      (AYUDA[a.plantilla] ? '<details class="di-ayuda"><summary>Chuleta</summary><div>' + AYUDA[a.plantilla] + '</div></details>' : '') +
+      (ayudaDe(a) ? '<details class="di-ayuda"><summary>Chuleta</summary><div>' + ayudaDe(a) + '</div></details>' : '') +
       '<form class="di-add" data-di-form="add"><input name="a" placeholder="' + esc(a.nombre_a) + '" autocomplete="off" required maxlength="200"' + (a.plantilla !== 'libre' ? ' inputmode="' + (a.plantilla === 'onu' ? 'numeric' : 'text') + '"' : '') + '>' +
         '<input name="b" placeholder="' + esc(a.nombre_b) + '" autocomplete="off" required maxlength="1000"><button type="submit" class="di-btn">Añadir</button></form>' +
       '<button type="button" class="di-link di-pegar" data-di="pegar">Pegar una lista entera</button>' +
-      '<div class="di-lista">' + (filas || '<div class="di-vacio">Aún no hay datos. Ejemplo: «' + esc(PLANTILLAS[a.plantilla].ejemplo[0]) + '» → «' + esc(PLANTILLAS[a.plantilla].ejemplo[1]) + '».</div>') + '</div>';
+      '<div class="di-lista">' + (filas || '<div class="di-vacio">Aún no hay datos: escribe arriba ' + esc(a.nombre_a.toLowerCase()) + ' y ' + esc(a.nombre_b.toLowerCase()) + ', o pega una lista entera.</div>') + '</div>';
   }
   function pintar(){
     const r = root();
@@ -236,25 +240,22 @@ const DI = (function(){
     const f = bg.querySelector('input, textarea'); if(f) setTimeout(() => f.focus(), 50);
     return bg;
   }
+  // Añadir un apartado: solo el nombre (y, si se quiere, cómo se llama cada cara). Cómo se pregunta
+  // lo decide solo: lo que son números o códigos se escribe; lo demás se elige entre 4.
   function nuevo(){
-    const op = k => '<label class="di-plant"><input type="radio" name="p" value="' + k + '"' + (k === 'onu' ? ' checked' : '') + '><span class="di-ap-ico">' + ICO[k] + '</span><span><b>' +
-      ({ onu: 'MMPP · Nº ONU', nip: 'NIP · Nº de peligro', libre: 'Otro' }[k]) + '</b><small>' + PLANTILLAS[k].sub + '</small></span></label>';
-    const bg = hoja('Nuevo apartado', op('onu') + op('nip') + op('libre') +
-      '<label class="di-campo">Nombre<input name="t" maxlength="80" value="' + esc(PLANTILLAS.onu.titulo) + '" required></label>' +
-      '<div class="di-hoja-btns"><button type="button" class="di-btn sec" data-cerrar>Cancelar</button><button type="submit" class="di-btn">Crear</button></div>',
+    hoja('Añadir apartado',
+      '<label class="di-campo">Nombre<input name="t" maxlength="80" placeholder="Por ejemplo: NIP, Teléfonos, Rango de inflamabilidad…" required></label>' +
+      '<div class="di-dos"><label class="di-campo">Qué apuntas (opcional)<input name="na" maxlength="40" placeholder="Dato (p. ej. Nº ONU)"></label>' +
+        '<label class="di-campo">Y su respuesta (opcional)<input name="nb" maxlength="40" placeholder="Qué es (p. ej. Materia)"></label></div>' +
+      '<div class="di-hoja-btns"><button type="button" class="di-btn sec" data-cerrar>Cancelar</button><button type="submit" class="di-btn">Añadir</button></div>',
       async fd => {
-        const p = PLANTILLAS[fd.get('p')] || PLANTILLAS.libre;
-        const fila = { titulo: String(fd.get('t') || '').trim() || 'Datos', plantilla: fd.get('p'), nombre_a: p.nombre_a, nombre_b: p.nombre_b, escribir_a: p.escribir_a, escribir_b: p.escribir_b, sentido: p.sentido, orden: aps.length };
+        const t = String(fd.get('t') || '').trim();
+        const fila = { titulo: t || 'Datos', plantilla: 'libre', nombre_a: String(fd.get('na') || '').trim() || 'Dato', nombre_b: String(fd.get('nb') || '').trim() || 'Qué es',
+          escribir_a: false, escribir_b: false, sentido: 'ambos', orden: aps.length };
         const { data, error } = await sb.from('di_apartados').insert(fila).select('*').single();
-        if(error){ uiToast('No se pudo crear: ' + error.message, 'error'); return false; }
+        if(error){ uiToast('No se pudo añadir: ' + error.message, 'error'); return false; }
         aps.push(data); guardarCache(); vista = { v: 'apartado', id: data.id }; pintar(); arriba();
       });
-    // Al cambiar de plantilla, el nombre propuesto
-    bg.querySelectorAll('input[name=p]').forEach(r => r.addEventListener('change', () => {
-      const t = bg.querySelector('input[name=t]');
-      if(!t.dataset.tocado) t.value = PLANTILLAS[r.value].titulo;
-    }));
-    bg.querySelector('input[name=t]').addEventListener('input', e => { e.target.dataset.tocado = '1'; });
   }
   function ajustes(){
     const a = ap(vista.id);
@@ -263,8 +264,8 @@ const DI = (function(){
       '<label class="di-campo">Nombre<input name="t" maxlength="80" value="' + esc(a.titulo) + '" required></label>' +
       '<div class="di-dos"><label class="di-campo">Cara A<input name="na" maxlength="40" value="' + esc(a.nombre_a) + '" required></label><label class="di-campo">Cara B<input name="nb" maxlength="40" value="' + esc(a.nombre_b) + '" required></label></div>' +
       '<div class="di-campo">Qué se pregunta' + radio('s', 'ambos', 'Los dos sentidos', a.sentido === 'ambos') + radio('s', 'ab', 'Ves A, respondes B', a.sentido === 'ab') + radio('s', 'ba', 'Ves B, respondes A', a.sentido === 'ba') + '</div>' +
-      '<div class="di-campo">Cuando hay que responder la cara A' + radio('ea', '1', 'Escribiéndola', a.escribir_a) + radio('ea', '0', 'Eligiendo entre 4', !a.escribir_a) + '</div>' +
-      '<div class="di-campo">Cuando hay que responder la cara B' + radio('eb', '1', 'Escribiéndola', a.escribir_b) + radio('eb', '0', 'Eligiendo entre 4', !a.escribir_b) + '</div>' +
+      '<div class="di-campo">Cuando hay que responder la cara A' + radio('ea', '1', 'Escribiéndola', a.escribir_a) + radio('ea', '0', 'Eligiendo entre 4 (o escribiendo, si son números o códigos)', !a.escribir_a) + '</div>' +
+      '<div class="di-campo">Cuando hay que responder la cara B' + radio('eb', '1', 'Escribiéndola', a.escribir_b) + radio('eb', '0', 'Eligiendo entre 4 (o escribiendo, si son números o códigos)', !a.escribir_b) + '</div>' +
       '<div class="di-hoja-btns"><button type="button" class="di-btn peligro" data-di-borrar-ap>Borrar apartado</button><span></span><button type="button" class="di-btn sec" data-cerrar>Cancelar</button><button type="submit" class="di-btn">Guardar</button></div>',
       async fd => {
         const cambio = { titulo: String(fd.get('t')).trim(), nombre_a: String(fd.get('na')).trim(), nombre_b: String(fd.get('nb')).trim(), sentido: fd.get('s'), escribir_a: fd.get('ea') === '1', escribir_b: fd.get('eb') === '1' };
