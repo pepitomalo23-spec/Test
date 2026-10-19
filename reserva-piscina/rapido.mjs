@@ -95,18 +95,35 @@ export class Armado {
     await p.addScriptTag({ content: `__doPostBack('ContentFixedSection_uReservaEspacios_uFechaSeleccionar_uAlert_uplAlert', JSON.stringify({ action: 'Continuar', args: '${fecha}' }));` });
     await p.waitForSelector('[id$=uReservaCuadrante_tblCasillas]:not([data-vieja])', { timeout: 10000 });
   }
-  // Coge una calle libre a la hora armada. Devuelve el nombre de la calle; si no, lanza error.
-  async reservar(prueba = false) {
-    const p = this.pr, { fecha, hora } = this.objetivo, HHMM = hora.replace(':', '');
+  // Las calles libres a la hora armada, mirando la parrilla de esta misma página (una vuelta: ~0,3 s).
+  // Así, si hay sitio, se pulsa en el momento sin volver a pedirla.
+  async mirar() {
+    const p = this.pr, { fecha, hora } = this.objetivo;
     if (!(await p.locator('[id$=uFechaSeleccionar_datetimepicker]').count())) await this.armarReserva(fecha, hora);
     else await this.pedirDia(fecha);
-    const calles = await p.$$eval('[id$=uReservaCuadrante_tblRecintos] td[deccodrecinto]', tds => tds.map(t => ({ cod: t.getAttribute('deccodrecinto'), nombre: t.innerText.trim() })));
+    return this.libresEnPagina();
+  }
+  libresEnPagina() {
+    const HHMM = this.objetivo.hora.replace(':', '');
+    return this.pr.$$eval('[id$=uReservaCuadrante_tblRecintos] td[deccodrecinto]', (tds, HHMM) => tds.map(t => {
+      const img = document.querySelector('img[id$="_img' + t.getAttribute('deccodrecinto') + HHMM + '"]');
+      return img && img.getAttribute('estado') === 'Libre' ? { id: img.id, nombre: t.innerText.trim() } : null;
+    }).filter(Boolean), HHMM);
+  }
+  // Coge una calle libre a la hora armada. Devuelve el nombre de la calle; si no, lanza error.
+  // yaMirado: la parrilla de la página está recién pedida (mirar()), no se vuelve a pedir.
+  async reservar(prueba = false, yaMirado = false) {
+    const p = this.pr, { fecha, hora } = this.objetivo;
     let calle = null;
-    for (const c of calles) {
-      const img = p.locator(`img[id$="_img${c.cod}${HHMM}"]`);
-      if ((await img.getAttribute('estado').catch(() => null)) !== 'Libre') continue;
-      await img.click();
-      if ((await img.getAttribute('estado').catch(() => null)) === 'Seleccionada') { calle = c.nombre; break; }
+    for (let vez = 0; vez < 2 && !calle; vez++) {
+      // Primero con la parrilla que ya hay (si está recién mirada); si no sale, con una nueva
+      const libres = yaMirado && !vez ? await this.libresEnPagina() : await this.mirar();
+      for (const c of libres) {
+        const img = p.locator('#' + c.id);
+        await img.click();
+        if ((await img.getAttribute('estado').catch(() => null)) === 'Seleccionada') { calle = c.nombre; break; }
+      }
+      if (!yaMirado) break;
     }
     if (!calle) throw new Error(`Ya no queda calle libre el ${fecha} a las ${hora}`);
     if (prueba) return calle;   // prueba: seleccionada, sin pulsar «Reservar»
@@ -191,7 +208,6 @@ export class Armado {
     const respuesta = p.waitForResponse(r => r.request().method() === 'POST', { timeout: 15000 }).catch(() => null);
     await si.click({ timeout: 5000 });
     await respuesta;
-    await si.waitFor({ state: 'hidden', timeout: 1500 }).catch(() => {});
     // Algún aviso de después («Aceptar»): se cierra si sale, sin esperar por él
     for (let i = 0; i < 2; i++) {
       const ok = p.locator('button:visible, a.btn:visible').filter({ hasText: /^(aceptar|cerrar|ok)$/i }).first();
