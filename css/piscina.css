@@ -173,7 +173,7 @@
 .psc-hc-marca{ font-style: normal; font-size: 10.5px; padding: 1px 6px; border-radius: 999px; margin-top: 2px; }
 .psc-hc-marca.tuya{ background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
 .psc-hc-marca.vigilo{ background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
-.psc-hc-marca.pago{ background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red); }
+.psc-hc-marca.pago{ background: color-mix(in srgb, var(--coral) 18%, transparent); color: var(--coral); }
 .psc-hc-acc{ display:flex; flex-wrap: wrap; align-items:center; gap: 8px 12px; margin-top: 10px; }
 .psc-hc-acc .psc-confirmar{ flex: 0 1 auto; padding: 10px 16px; white-space: normal; text-align: center; }
 .psc-hc-acc small{ flex-basis: 100%; color: var(--muted-2); font-size: 12px; }
