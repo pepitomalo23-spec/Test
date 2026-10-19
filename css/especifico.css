@@ -110,6 +110,7 @@
 .espt-preg img{ max-width:100%; height:auto; margin:8px 0; background:#fff; }
 .espt-pie{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; margin:30px 0 10px; font-size:14px; color: var(--muted); }
 .espt-pie button{ background:none; border:1px solid var(--line); border-radius:8px; padding:8px 12px; color: var(--text); font:inherit; font-size:13.5px; cursor:pointer; }
+.espt-pie .espm-finalizar{ background:#ff9533; border-color:#ff9533; color:#fff; font-weight:700; }
 @media (max-width:640px){
   .espt-cab{ margin-bottom:28px; }
   .espt-lista{ gap:28px; }

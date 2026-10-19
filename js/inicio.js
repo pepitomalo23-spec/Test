@@ -68,7 +68,7 @@ const INICIO = (function(){
     const pct = m.total ? Math.round(m.hechas / m.total * 100) : 0;
     return '<button type="button" class="ini-continuar" data-ini="esp" data-id="' + esc(m.id) + '">' +
       '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
-      '<span class="ini-continuar-txt"><b>Continuar test del Específico</b><span>' + esc(m.titulo) + ' · ' + m.hechas + ' de ' + m.total + ' respondidas</span>' +
+      '<span class="ini-continuar-txt"><b>' + esc(m.etiqueta || 'Continuar test del Específico') + '</b><span>' + esc(m.titulo) + ' · ' + m.hechas + ' de ' + m.total + ' respondidas</span>' +
         '<span class="ini-barra"><i style="width:' + pct + '%"></i></span></span>' +
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }
