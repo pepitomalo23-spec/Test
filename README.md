@@ -51,7 +51,8 @@ js/                  código, en orden de carga (ver el final de index.html)
   callejero-profesor.js  Callejero: los alumnos del profesor, tareas y mensajes
   mnemotecnia.js     Mnemotecnia: calculadora del código fonético de Ramón Campayo
   calendario.js      Calendario: tareas de estudio de cada día
-  piscina.js         Piscina (solo administradores): programar reservas de la piscina de IMDECO para el robot de reserva-piscina/
+  piscina.js         Piscina (solo administradores): huecos ahora en IMDECO (función piscina-huecos) y
+                     programar reservas para el robot de reserva-piscina/
   especifico.js      Específico: temas del temario de bombero
   especifico-test.js hacer un test del Específico y ver las Preguntas marcadas (diseño de tutorbomberos)
   estadisticas-especifico.js  Estadísticas › pestaña Específico
