@@ -1,5 +1,5 @@
 // Vigilante: para cada día ya abierto (hoy, mañana o pasado) con una hora pedida en la app
-// («cogerla si se libera»), mira cada 3 s si hay una calle libre a esa hora, con una consulta
+// («cogerla si se libera»), mira unas 2 veces por segundo si hay una calle libre a esa hora, con una consulta
 // a IMDECO que se queda abierta (unas décimas de segundo por mirada). Tiene además un navegador
 // con la sesión iniciada y todo preparado (rapido.mjs): la parrilla de ese día y, si es un cambio,
 // la ficha de tu reserva vieja con «Anular» a mano. Al liberarse:
@@ -20,7 +20,7 @@ import { appendFileSync } from 'node:fs';
 import { Consulta } from './huecos.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
-const DURACION = 345 * 60_000, CADA = 500, LISTA = 30_000;   // entre mirada y mirada: 0,5 s (más lo que tarda cada una, ~0,3 s)
+const DURACION = 345 * 60_000, CADA = 200, LISTA = 30_000;   // entre mirada y mirada: 0,2 s (más lo que tarda cada una, ~0,3 s): unas 2 por segundo
 const log = (...m) => console.log(new Date().toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid' }), '·', ...m);
 const resumen = (t) => { if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, t + '\n'); };
 const espera = ms => new Promise(r => setTimeout(r, ms));
