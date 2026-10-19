@@ -106,6 +106,43 @@ if (process.argv.includes('--ida-y-vuelta')) {
   await correr('sincronizar.mjs', []);
   process.exit();
 }
+// --ficha --fecha F --hora H: qué botones tiene la ficha de esa reserva (no pulsa nada)
+if (process.argv.includes('--ficha')) {
+  const { Armado } = await import('./rapido.mjs');
+  const r = new Armado();
+  try { await r.abrir(); log('Botones de la ficha:', (await r.verFicha(arg('--fecha'), arg('--hora'))).join(' | ')); }
+  catch (e) { log('❌', e.message.split('\n')[0]); process.exitCode = 1; }
+  finally { await r.cerrar(); }
+  process.exit();
+}
+// --cambiar --fecha F --hora DESTINO --vieja ORIGEN: un cambio de verdad (anula ORIGEN y coge DESTINO;
+// si DESTINO no sale, vuelve a coger ORIGEN)
+if (process.argv.includes('--cambiar')) {
+  const { Armado } = await import('./rapido.mjs');
+  const fecha = arg('--fecha'), destino = arg('--hora'), origen = arg('--vieja');
+  const r = new Armado();
+  try {
+    await r.abrir();
+    await r.armarReserva(fecha, destino);
+    await r.armarAnulacion(fecha, origen);
+    log(`Preparado: ${origen} → ${destino}`);
+    const t = Date.now();
+    try { await r.anular(); log(`Anulada la de las ${origen} (${Date.now() - t} ms)`); }
+    catch (e) { log('⚠️ Al anular:', e.message.split('\n')[0]); }
+    try {
+      const c = await r.reservar(); log(`✅ Reservada a las ${destino} (${c}) en ${Date.now() - t} ms en total`);
+      resumen(`✅ ${fecha}: cambiada de las ${origen} a las **${destino}** (${c}).`);
+    } catch (e) {
+      log('❌', e.message.split('\n')[0]); process.exitCode = 1;
+      log(`Recupero la de las ${origen}`);
+      await r.armarReserva(fecha, origen);
+      const c = await r.reservar(); log(`Recuperada la de las ${origen} (${c})`);
+    }
+  } catch (e) { log('❌', e.message.split('\n')[0]); process.exitCode = 1; }
+  finally { await r.cerrar(); }
+  await correr('sincronizar.mjs', []);
+  process.exit();
+}
 if (process.argv.includes('--prueba')) {
   const { Armado } = await import('./rapido.mjs');
   const fecha = arg('--fecha'), hora = arg('--hora'), vieja = arg('--vieja');

@@ -14,6 +14,23 @@ import { franjaDe } from './huecos.mjs';
 const BASE = 'https://gestiones.imdcordoba.es/CronosWeb';
 const log = (...m) => console.log(new Date().toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid' }), '·', ...m);
 
+// Lo que cobra el carrito (el mayor importe en € que se ve; 0 si no se ve ninguno)
+export async function importe(p) {
+  const t = await p.evaluate(() => document.body.innerText).catch(() => '');
+  const n = [...t.matchAll(/(\d+(?:[.,]\d{1,2})?)\s*€/g)].map(m => parseFloat(m[1].replace(',', '.')));
+  return n.length ? Math.max(...n) : 0;
+}
+// «Eliminar el carrito» (y el «Sí» del aviso, si sale)
+export async function vaciar(p) {
+  const b = p.locator('button:visible, input[type=submit]:visible, a.btn:visible').filter({ hasText: /eliminar (el )?carrito/i }).first();
+  if (!(await b.count())) return false;
+  await b.click({ timeout: 5000 }).catch(() => {});
+  const si = p.locator('button:visible, a.btn:visible').filter({ hasText: /^(sí|si|aceptar|eliminar)$/i }).first();
+  await si.waitFor({ timeout: 2500 }).then(() => si.click({ timeout: 3000 })).catch(() => {});
+  await p.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+  return true;
+}
+
 export class Armado {
   nav = null; ctx = null; pr = null; pa = null;   // pr: página de reservar; pa: página de anular
   objetivo = null; vieja = null; sesionAt = 0;
@@ -99,17 +116,23 @@ export class Armado {
     const error = p.locator('.alert-danger:visible').first();
     await Promise.race([confirmarCompra.waitFor({ timeout: 20000 }), error.waitFor({ timeout: 20000 })]).catch(() => {});
     if (await error.count()) throw new Error('La web dice: ' + (await error.innerText()).replace(/^x\s*/, '').trim().slice(0, 200));
+    // Solo horas gratis con el bono: si el carrito cobra algo, se vacía y no se compra
+    const euros = await importe(p);
+    if (euros > 0) { await vaciar(p); throw new Error(`Esa hora es de pago (${euros} €) y no la cubre el bono: no la cojo`); }
     await confirmarCompra.click();
     await p.waitForURL(/CarritoResultado/i, { timeout: 25000 }).catch(() => {});
-    if (!/CarritoResultado/i.test(new URL(p.url()).pathname)) throw new Error('No llegué a la confirmación de la compra');
-    if (await p.locator('.alert-danger:visible').count()) throw new Error('La web dio un error al confirmar');
+    if (!/CarritoResultado/i.test(new URL(p.url()).pathname)) {
+      // A veces la compra se hace pero no se llega a esa página: se mira en la lista de reservas
+      log(`Sin página de confirmación (estoy en ${new URL(p.url()).pathname}); lo miro en tus reservas`);
+      if (!(await this.tiene(fecha, hora))) throw new Error('No llegué a la confirmación de la compra');
+    } else if (await p.locator('.alert-danger:visible').count()) throw new Error('La web dio un error al confirmar');
     this.objetivo = null;
     return calle;
   }
 
   /* ---------- anular ---------- */
-  // Deja abierta la ficha de la reserva vieja con el botón «Anular» a mano
-  async armarAnulacion(fecha, hora) {
+  // Abre «Anulaciones y gestión de reservas» y busca la reserva viva de ese día y hora (su carrito)
+  async buscar(fecha, hora) {
     if (!this.pa) { this.pa = await this.ctx.newPage(); this.pa.on('dialog', d => d.accept()); }
     const p = this.pa;
     await this.inicio(p);
@@ -126,10 +149,26 @@ export class Armado {
       const v = ft && ft.rows.all.map(r => r.value).find(v => String(v.FECHA_ALQUILER) === clave && String(v.HORA_RESERVA).slice(0, 5) === hora && !/anulad/i.test(String(v.ESTADO_CONFIRMACION || '')));
       return v ? String(v.COD_CARRITO) : null;
     }, { clave, hora });
+    return carrito;
+  }
+  async tiene(fecha, hora) { return !!(await this.buscar(fecha, hora).catch(() => null)); }
+  // Deja abierta la ficha de la reserva vieja con el botón «Anular» a mano
+  async armarAnulacion(fecha, hora) {
+    const carrito = await this.buscar(fecha, hora);
     if (!carrito) throw new Error(`No encuentro tu reserva del ${fecha} a las ${hora} para poder cambiarla`);
-    await p.addScriptTag({ content: `__doPostBack('ContentSection_uAlquileres_uAlert_uplAlert', JSON.stringify({ action: 'Consultar', args: { cartCode: '${carrito}' } }));` });
-    await p.locator('#ContentSection_uAlquileres_uCarritosFicha_btnRefundCart').waitFor({ state: 'visible', timeout: 20000 });
+    await this.pa.addScriptTag({ content: `__doPostBack('ContentSection_uAlquileres_uAlert_uplAlert', JSON.stringify({ action: 'Consultar', args: { cartCode: '${carrito}' } }));` });
+    await this.pa.locator('#ContentSection_uAlquileres_uCarritosFicha_btnRefundCart').waitFor({ state: 'visible', timeout: 20000 });
     this.vieja = { fecha, hora };
+  }
+  // Abre la ficha de esa reserva (sea cual sea su estado) y dice qué botones tiene, sin pulsar nada
+  async verFicha(fecha, hora) {
+    const carrito = await this.buscar(fecha, hora);
+    if (!carrito) throw new Error(`No encuentro la reserva del ${fecha} a las ${hora}`);
+    const p = this.pa;
+    await p.addScriptTag({ content: `__doPostBack('ContentSection_uAlquileres_uAlert_uplAlert', JSON.stringify({ action: 'Consultar', args: { cartCode: '${carrito}' } }));` });
+    await p.waitForTimeout(4000);
+    return p.$$eval('button, input[type=submit], input[type=button], a.btn', bs => bs.filter(b => b.offsetParent)
+      .map(b => `${(b.innerText || b.value || '').trim().slice(0, 40)} [${(b.id || '').replace(/^ContentSection_/, '')}]`));
   }
   // prueba: abre el aviso, comprueba que está el «Sí» y pulsa «No» (no anula nada)
   async anular(prueba = false) {
@@ -148,9 +187,11 @@ export class Armado {
       await si.waitFor({ state: 'hidden', timeout: 10000 });
       return;
     }
+    // Basta con que la web conteste a la anulación (antes se esperaban hasta 18 s de más)
+    const respuesta = p.waitForResponse(r => r.request().method() === 'POST', { timeout: 15000 }).catch(() => null);
     await si.click({ timeout: 5000 });
-    await si.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await p.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await respuesta;
+    await si.waitFor({ state: 'hidden', timeout: 1500 }).catch(() => {});
     // Algún aviso de después («Aceptar»): se cierra si sale, sin esperar por él
     for (let i = 0; i < 2; i++) {
       const ok = p.locator('button:visible, a.btn:visible').filter({ hasText: /^(aceptar|cerrar|ok)$/i }).first();
