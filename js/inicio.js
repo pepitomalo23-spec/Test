@@ -360,9 +360,12 @@ const INICIO = (function(){
     const out = [];
     if(quizState && quizState.mode){
       const total = (quizState.answers || []).length, hechas = (quizState.answers || []).filter(a => a != null).length;
-      out.push({ t: 'reanudar', titulo: (MODOS[quizState.mode] || 'Test').replace(/^./, c => c.toUpperCase()), grupo: 'Legislación', hechas, total });
+      // De una en una (estudio, fallos…): por la pregunta en la que estás, que es donde se abre
+      const tarjeta = quizState.viewMode === 'card', vas = (quizState.index || 0) + 1;
+      out.push({ t: 'reanudar', titulo: (MODOS[quizState.mode] || 'Test').replace(/^./, c => c.toUpperCase()), grupo: 'Legislación',
+        hechas: tarjeta ? vas : hechas, total, texto: tarjeta ? 'vas por la pregunta ' + vas + ' de ' + total : null });
     }
-    if(typeof PRU !== 'undefined'){ const m = PRU.aMedias(); if(m) out.push({ t: 'prueba', titulo: m.titulo, grupo: 'Prueba', hechas: m.hechas, total: m.total }); }
+    if(typeof PRU !== 'undefined'){ const m = PRU.aMedias(); if(m) out.push({ t: 'prueba', titulo: m.titulo, grupo: 'Prueba', hechas: m.hechas, total: m.total, texto: m.texto }); }
     if(typeof ESPT !== 'undefined' && ESPT.aMedias) ESPT.aMedias().forEach(m => out.push({ t: 'esp', id: m.id, titulo: m.titulo, grupo: m.etiqueta ? 'Preguntas marcadas' : 'Específico', hechas: m.hechas, total: m.total }));
     return out;
   }
@@ -370,7 +373,7 @@ const INICIO = (function(){
   function continuarTests(){
     const xs = testsAMedias();
     if(!xs.length) return '';
-    const sub = xs.length === 1 ? esc(xs[0].titulo) + ' · ' + xs[0].hechas + ' de ' + xs[0].total : xs.length + ' a medias · el último: ' + esc(xs[0].titulo);
+    const sub = xs.length === 1 ? esc(xs[0].titulo) + ' · ' + esc(xs[0].texto || xs[0].hechas + ' de ' + xs[0].total) : xs.length + ' a medias · el último: ' + esc(xs[0].titulo);
     return '<button type="button" class="ini-continuar" data-ini="tests">' +
       '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
       '<span class="ini-continuar-txt"><b>Continuar test</b><span>' + sub + '</span>' + (xs.length === 1 ? barraPct(xs[0]) : '') + '</span>' +
@@ -386,7 +389,7 @@ const INICIO = (function(){
     const xs = testsAMedias();
     if(xs.length === 1) return seguirTest(xs[0].t, xs[0].id);
     const filas = xs.map(x => '<button type="button" class="ini-continuar ini-tm" data-h="seguir" data-t="' + x.t + '" data-id="' + esc(x.id || '') + '">' +
-      '<span class="ini-continuar-txt"><b>' + esc(x.titulo) + '</b><span>' + esc(x.grupo) + ' · ' + x.hechas + ' de ' + x.total + ' respondidas</span>' + barraPct(x) + '</span>' +
+      '<span class="ini-continuar-txt"><b>' + esc(x.titulo) + '</b><span>' + esc(x.grupo) + ' · ' + esc(x.texto || x.hechas + ' de ' + x.total + ' respondidas') + '</span>' + barraPct(x) + '</span>' +
       '<span class="ini-flecha">' + FLECHA + '</span></button>').join('');
     hoja('Tests a medias', xs.length + ' sin terminar · sigues donde lo dejaste', '<div class="ini-tm-lista">' + filas + '</div>',
       '<button type="button" class="cal-btn primario" data-h="cerrar">Cerrar</button>',
