@@ -198,6 +198,76 @@ const INICIO = (function(){
     return { temas, enOrden, tot, verde, pct, listo: listos.length > 0, nivel: pct >= 80 ? 'bien' : pct >= 50 ? 'medio' : 'flojo',
       rojoLegis: pool ? pool.filter(q => q.masteryStatus === 'red' && !q.fallosHidden && x.legis.some(l => entra(q, l))).length : 0 };
   }
+  /* ---------- La semana del examen: lo que has hecho en los 7 días antes ----------
+     De cada tema que entra: las que tienes bien y mal (la última vez que la respondiste desde
+     el comienzo de la semana) y las que te faltan. Legislación se lee de tus tests ya
+     terminados (session_answers) y el Específico de especifico_respuestas (ESTE.semana). */
+  // Los 7 días hasta el examen (el del examen incluido); si hubo otro examen en medio, desde el día siguiente a ese.
+  const desdeExa = x => { const d = new Date(x.fecha + 'T00:00:00'); d.setDate(d.getDate() - 6);
+    const tras = x.desde ? new Date(x.desde + 'T00:00:00') : null; return tras && tras > d ? tras : d; };
+  let semLegis = null;   // { clave, mapa: Map(id → acierto), at } · cargando: semLegis.cargando
+  function legisSemana(x){
+    const desde = desdeExa(x), clave = desde.toISOString();
+    if(semLegis && semLegis.clave === clave && (semLegis.cargando || Date.now() - semLegis.at < 120000)) return semLegis.cargando ? null : semLegis.mapa;
+    const viejo = semLegis && semLegis.clave === clave ? semLegis.mapa : null;
+    semLegis = { clave, cargando: true, mapa: viejo, at: 0 };
+    supabaseTodas(o => sb.from('session_answers').select('question_id,is_correct,answer_order,test_sessions!inner(created_at)', o)
+        .eq('user_id', currentUser.id).gte('test_sessions.created_at', clave).order('id'))
+      .then(filas => {
+        filas.sort((a, b) => String(a.test_sessions.created_at).localeCompare(String(b.test_sessions.created_at)) || a.answer_order - b.answer_order);
+        const m = new Map(); filas.forEach(r => m.set(r.question_id, !!r.is_correct));
+        semLegis = { clave, mapa: m, at: Date.now() };
+      })
+      .catch(e => { console.warn('semana del examen', e); semLegis = { clave, mapa: viejo || new Map(), at: Date.now() }; })
+      .finally(() => pintar());
+    return viejo;
+  }
+  // [{ nombre, tipo, total, bien: [], mal: [], sin: [] }] (bien/mal/sin: preguntas de Legislación u ids del Específico); null mientras carga.
+  function semana(x){
+    const temas = [];
+    if(x.legis.length){
+      const pool = datosListos() ? QUESTIONS_POOL : null, m = pool && legisSemana(x);
+      if(!m) return null;
+      const entra = (q, l) => q.topic_id === l.id && (!l.grupo || (!!q.nodo_id && nodeIsInSelectedGroups(q.nodo_id, new Set([l.grupo]))));
+      x.legis.forEach(l => {
+        const qs = pool.filter(q => entra(q, l)), t = { nombre: l.nombre, tipo: 'Legislación', total: qs.length, bien: [], mal: [], sin: [] };
+        qs.forEach(q => (m.has(q.id) ? (m.get(q.id) ? t.bien : t.mal) : t.sin).push(q));
+        temas.push(t);
+      });
+    }
+    if(x.esp.length){
+      const e = typeof ESTE !== 'undefined' && ESTE.semana ? ESTE.semana(desdeExa(x).getTime()) : null;
+      if(!e) return null;
+      x.esp.forEach(k => {
+        const t = { nombre: k.nombre, tipo: 'Específico', total: 0, bien: [], mal: [], sin: [] };
+        e.temaDe.forEach((tema, id) => { if(tema !== k.id) return; t.total++; (e.ultima.has(id) ? (e.ultima.get(id) ? t.bien : t.mal) : t.sin).push(id); });
+        temas.push(t);
+      });
+    }
+    return temas;
+  }
+  const corto = iso => { const d = new Date(iso); return ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][d.getDay()] + ' ' + d.getDate(); };
+  function abrirTemaSemana(x, i){
+    const temas = semana(x), t = temas && temas[i];
+    if(!t) return;
+    const n = v => Number(v).toLocaleString('es-ES');
+    const fila = (cls, ico, tit, lista, boton, h) => '<div class="ini-sem-fila ' + cls + '"><span class="ini-sem-ico">' + ico + '</span><span class="ini-sem-txt"><b>' + tit + '</b></span>' +
+      (lista.length && boton ? '<button type="button" class="cal-btn' + (cls === 'mal' ? ' primario' : '') + '" data-h="' + h + '">' + boton + '</button>' : '') + '</div>';
+    const pct = t.total ? Math.round(t.bien.length / t.total * 100) : 0;
+    const cuerpo = '<div class="ini-sem-pct"><b>' + pct + '<small>%</small></b><span>acertadas de ' + n(t.total) + ' preguntas del tema esta semana</span></div>' +
+      fila('mal', '✗', n(t.mal.length) + ' mal', t.mal, 'Repetir ' + (t.mal.length === 1 ? 'la fallada' : 'las ' + n(t.mal.length)), 'mal') +
+      fila('sin', '○', n(t.sin.length) + ' sin hacer', t.sin, 'Hacer ' + (t.sin.length > 40 ? '40 al azar' : t.sin.length === 1 ? 'la que falta' : 'las ' + n(t.sin.length)), 'sin') +
+      fila('bien', '✓', n(t.bien.length) + ' bien', t.bien, 'Repasarlas', 'bien') +
+      '<p class="ini-sem-nota">Cuenta lo que has respondido desde el ' + corto(desdeExa(x)) + '. En Legislación, los tests cuentan al terminarlos.</p>';
+    hoja(t.nombre, t.tipo + ' · examen ' + cuandoExa(x), cuerpo, '<button type="button" class="cal-btn" data-h="cerrar">Cerrar</button>',
+      (b, cerrar) => {
+        const lista = t[b.dataset.h];
+        if(!lista) return;
+        cerrar();
+        const elegidas = shuffleArray(lista.slice()).slice(0, b.dataset.h === 'sin' ? 40 : lista.length);
+        PRU.repasar(t.tipo === 'Legislación' ? elegidas : [], t.tipo === 'Específico' ? elegidas : []);
+      }, 'ini-sem-hoja');
+  }
   function anilloExa(p, grande){
     const c = 2 * Math.PI * 15, col = NIVELES[p.nivel][1];
     return '<svg class="ini-exa-anillo' + (grande ? ' grande' : '') + '" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" class="fondo"/>' +
@@ -468,18 +538,22 @@ const INICIO = (function(){
         '</svg><b>' + dentro + '</b></span>' +
       '<span class="ini-cv-txt"><span class="ini-cv-t">' + tit + '</span>' + lineas.map(l => '<span>' + l + '</span>').join('') + '</span></button>';
     // Con examen esta semana: un anillo por cada tema que entra (su % dominado y, en pequeño, sus preguntas).
+    // Con examen esta semana: un anillo por cada tema que entra, con lo acertado en los 7 días
+    // antes del examen. Al pulsarlo: lo que tienes bien y mal, y repetir las falladas.
     const x = exaSemana();
     if(x && (x.legis.length || x.esp.length)){
-      const p = preparacion(x);
-      const temas = p.enOrden.map(t => {
-        if(t.cargando) return col('exa', '…', 0, 'var(--line)', esc(t.nombre), ['Cargando…']);
-        const pct = pctVerde(t), color = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--amber)' : 'var(--coral)';
-        const vistas = t.verde + t.amarillo + t.rojo;
-        return col('exa', pct + '<small>%</small>', pct, color, esc(t.nombre),
-          ['<strong>' + n(t.verde) + '</strong> dominadas de ' + n(t.total), '<strong>' + n(vistas) + '</strong> vistas']).replace('data-ini="exa"', 'data-ini="exa" data-id="' + esc(x.id) + '"');
-      });
-      return '<div class="ini-cvg ini-cvg-exa"><div class="ini-cvg-t">Examen · ' + esc(cuandoExa(x)) + '<span>' + (p.listo ? p.pct + ' % dominado en total' : '') + '</span></div>' +
-        '<div class="ini-cvg-temas">' + temas.join('') + '</div></div>';
+      const temas = semana(x);
+      const nombres = x.legis.map(l => l.nombre).concat(x.esp.map(e => e.nombre));
+      const anillos = temas ? temas.map((t, i) => {
+        const pct = t.total ? Math.round(t.bien.length / t.total * 100) : 0, color = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--amber)' : 'var(--coral)';
+        return col('sem', pct + '<small>%</small>', pct, color, esc(t.nombre),
+          ['<strong class="ok">✓ ' + n(t.bien.length) + '</strong> bien · <strong class="mal">✗ ' + n(t.mal.length) + '</strong> mal', n(t.sin.length) + ' sin hacer · <em>Ver ›</em>'])
+          .replace('data-ini="sem"', 'data-ini="sem" data-id="' + esc(x.id) + '" data-i="' + i + '"');
+      }) : nombres.map(nm => col('sem', '…', 0, 'var(--line)', esc(nm), ['Cargando…']));
+      const tot = temas ? temas.reduce((a, t) => a + t.total, 0) : 0, bien = temas ? temas.reduce((a, t) => a + t.bien.length, 0) : 0;
+      return '<div class="ini-cvg ini-cvg-exa"><div class="ini-cvg-t">Esta semana · examen ' + esc(cuandoExa(x)) +
+        '<span>Desde el ' + corto(desdeExa(x)) + (temas && tot ? ' · ' + Math.round(bien / tot * 100) + ' % acertadas' : '') + '</span></div>' +
+        '<div class="ini-cvg-temas">' + anillos.join('') + '</div></div>';
     }
     const pool = datosListos() ? QUESTIONS_POOL : null;
     if(featureEnabled('fallos') && pool){
@@ -515,6 +589,7 @@ const INICIO = (function(){
       case 'test': e.stopPropagation(); CAL.seguirTest(el.dataset.id); break;
       case 'ver': CAL.verTarea(el.dataset.id); break;
       case 'exa': abrirExamen(el.dataset.id); break;
+      case 'sem': { const x = (exas() || []).find(y => y.id === el.dataset.id); if(x) abrirTemaSemana(x, Number(el.dataset.i)); break; }
       case 'exa-entrar': entrarExamen(el.dataset.id); break;
       case 'hoy': abrirHoy(); break;
       case 'exa-editar': CAL.editar(el.dataset.id); break;
@@ -548,6 +623,7 @@ const INICIO = (function(){
       });
     }
     if(typeof CAL !== 'undefined') CAL.asegurar();
+    semLegis = null;   // la semana del examen, con lo último que hayas terminado
     pintar();
   }
   return { abrir, pintar };
