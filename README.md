@@ -17,6 +17,7 @@ css/                 estilos, en orden de carga
   calendario.css     Calendario
   especifico.css     Específico (temario de bombero)
   inicio.css         Inicio (resumen del día)
+  piscina.css        Piscina (reservas de IMDECO programadas)
 js/                  código, en orden de carga (ver el final de index.html)
   nucleo.js          avisos, esqueletos de carga, cliente de Supabase, resultados pendientes
   pwa.js             service worker, aviso de versión nueva, notificaciones, enlaces
@@ -50,6 +51,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   callejero-profesor.js  Callejero: los alumnos del profesor, tareas y mensajes
   mnemotecnia.js     Mnemotecnia: calculadora del código fonético de Ramón Campayo
   calendario.js      Calendario: tareas de estudio de cada día
+  piscina.js         Piscina (solo administradores): programar reservas de la piscina de IMDECO para el robot de reserva-piscina/
   especifico.js      Específico: temas del temario de bombero
   especifico-test.js hacer un test del Específico y ver las Preguntas marcadas (diseño de tutorbomberos)
   estadisticas-especifico.js  Estadísticas › pestaña Específico

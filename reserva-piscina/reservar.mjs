@@ -62,6 +62,32 @@ function franjaDeHora(hora) {
   return 'Piscina Tarde';
 }
 
+// ---------- la lista de la app (Supabase) ----------
+// La pantalla «Piscina» de la app guarda lo programado en piscina_reservas; el robot lo lee
+// y apunta cómo fue con dos funciones que piden la clave PISCINA_CLAVE (ver supabase/migrations/20261020_piscina.sql).
+const SB_URL = process.env.SUPABASE_URL, SB_KEY = process.env.SUPABASE_ANON_KEY, SB_CLAVE = process.env.PISCINA_CLAVE;
+async function rpc(fn, cuerpo) {
+  const r = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_clave: SB_CLAVE, ...cuerpo }),
+  });
+  if (!r.ok) throw new Error(`Supabase ${fn}: ${r.status} ${(await r.text()).slice(0, 200)}`);
+  const t = await r.text();
+  return t ? JSON.parse(t) : null;
+}
+const conApp = !!(SB_URL && SB_KEY && SB_CLAVE);
+let reservaApp = null; // { id, hora } de la app para este día
+async function buscarEnApp(dia) {
+  if (!conApp) return null;
+  try { const filas = await rpc('piscina_robot_pendiente', { p_fecha: dia }); return filas && filas[0] || null; }
+  catch (e) { log('No pude leer la lista de la app:', e.message); return null; }
+}
+async function apuntarEnApp(estado, detalle, calle) {
+  if (!reservaApp || PRUEBA) return;
+  try { await rpc('piscina_robot_resultado', { p_id: reservaApp.id, p_estado: estado, p_detalle: detalle || null, p_calle: calle || null }); }
+  catch (e) { log('No pude apuntar el resultado en la app:', e.message); }
+}
+
 // ---------- qué reservar ----------
 let fecha = arg('--fecha');
 let hora = arg('--hora');
@@ -73,8 +99,14 @@ if (!fecha) {
   fecha = obj.fecha; abre = obj.abre;
   const ruta = process.env.RESERVAS_JSON || join(dirname(fileURLToPath(import.meta.url)), 'reservas.json');
   const plan = existsSync(ruta) ? JSON.parse(readFileSync(ruta, 'utf8')) : { reservas: {} };
-  hora = plan.reservas?.[fecha];
+  reservaApp = await buscarEnApp(fecha);
+  hora = reservaApp ? reservaApp.hora : plan.reservas?.[fecha];
   if (!hora) { log(`No hay reserva apuntada para el ${fecha}. Nada que hacer.`); process.exit(0); }
+}
+// Reserva a mano de un día que también está programado en la app: apuntar ahí el resultado
+if (!reservaApp && !CARRITO && arg('--fecha')) {
+  const r = await buscarEnApp(fecha);
+  if (r && r.hora === hora) reservaApp = r;
 }
 // Para ensayar la espera: --abre 2026-10-19T00:30:00+02:00 hace como si el día se abriera a esa hora
 if (arg('--abre')) abre = new Date(arg('--abre'));
@@ -312,6 +344,7 @@ try {
       } else if (await confirmar()) {
         log(`✅ RESERVADO: ${fecha} ${hora}, ${calle}`);
         resumen(`✅ Reservada la piscina el **${fecha}** a las **${hora}** (${calle}).`);
+        await apuntarEnApp('reservada', null, calle);
         salida = 0; hecho = true;
       } else {
         // Sin mensaje de éxito ni de error: no reintentar, por no reservar dos veces
@@ -329,6 +362,7 @@ try {
 } catch (e) {
   log('❌', e.message);
   resumen(`❌ No se pudo reservar el **${fecha}** a las **${hora}**: ${e.message}`);
+  await apuntarEnApp('fallida', e.message.replace(/ · Botones:.*$/, '').slice(0, 500));
 } finally {
   await navegador.close();
 }

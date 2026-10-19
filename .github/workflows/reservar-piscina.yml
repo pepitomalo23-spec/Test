@@ -45,6 +45,10 @@ jobs:
         working-directory: reserva-piscina
     env:
       RESERVAS_JSON: /tmp/reservas.json
+      # Lista de la pantalla «Piscina» de la app (la clave publicable es pública, como en js/nucleo.js)
+      SUPABASE_URL: https://tsjaaqkvncgxqtpmlugv.supabase.co
+      SUPABASE_ANON_KEY: sb_publishable_F9-gdlx34vn7FQ_1hSHwcQ__L5EGMOS
+      PISCINA_CLAVE: ${{ secrets.PISCINA_CLAVE }}
       FECHA: ${{ inputs.fecha }}
       HORA: ${{ inputs.hora }}
       PRUEBA: ${{ inputs.prueba }}

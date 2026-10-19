@@ -11,7 +11,8 @@ const INICIO = (function(){
   const FLECHA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>';
   const ICO = {
-    reanudar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>'
+    reanudar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>',
+    piscina: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 15c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg>'
   };
   const MAX_TAREAS = 5;
   const esc = s => escapeHtml(String(s == null ? '' : s));
@@ -33,6 +34,16 @@ const INICIO = (function(){
       '<span class="ini-continuar-txt"><b>Continuar ' + esc(MODOS[quizState.mode] || 'test') + '</b>' +
         '<span>' + (total ? hechas + ' de ' + total + ' respondidas' : 'Tienes un test a medias') + '</span>' +
         (total ? '<span class="ini-barra"><i style="width:' + pct + '%"></i></span>' : '') + '</span>' +
+      '<span class="ini-flecha">' + FLECHA + '</span></button>';
+  }
+
+  // Piscina (solo administradores): acceso a programar reservas, con la próxima.
+  function piscina(){
+    if(!currentUserIsAdmin || typeof PISCINA === 'undefined') return '';
+    const r = PISCINA.proxima();
+    return '<button type="button" class="ini-continuar ini-piscina" data-ini="piscina">' +
+      '<span class="ini-continuar-ico">' + ICO.piscina + '</span>' +
+      '<span class="ini-continuar-txt"><b>Piscina</b><span>' + esc(PISCINA.textoProxima(r)) + '</span></span>' +
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }
 
@@ -412,7 +423,7 @@ const INICIO = (function(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
     const r = typeof CAL !== 'undefined' ? CAL.resumenHoy() : null;
-    const enCurso = continuar() + pruebaAMedias() + espAMedias() + marcadasHoy();
+    const enCurso = continuar() + pruebaAMedias() + espAMedias() + marcadasHoy() + piscina();
     const lado = examenSemana() + (exaSemana() ? '' : cifras());
     // Móvil y pantalla grande: se pintan los dos y el CSS enseña el que toca.
     root.innerHTML = '<div class="ini-movil">' + cabecera(r, enCurso) +
@@ -505,6 +516,7 @@ const INICIO = (function(){
       case 'nueva': e.stopPropagation(); CAL.nueva(); break;
       case 'nuevo-examen': CAL.nuevoExamen(); break;
       case 'calendario': showScreen('screen-calendario'); break;
+      case 'piscina': showScreen('screen-piscina'); break;
       case 'dia': CAL.abrirDia(el.dataset.f); break;
       case 'reanudar': resumeQuiz(); break;
       case 'esp': ESPT.continuarCurso(el.dataset.id); break;

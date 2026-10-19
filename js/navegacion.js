@@ -4,7 +4,7 @@
 // Barra superior: Inicio, Estudio y Estadísticas. El calendario se abre
 // desde Inicio (con Inicio marcado); Legislación, Normativas y Callejero,
 // desde los recuadros de Estudio (con Estudio marcado).
-const TOP_LEVEL_SCREENS = ['screen-inicio', 'screen-calendario', 'screen-estudio', 'screen-especifico', 'screen-esp-test', 'screen-normativas', 'screen-home', 'screen-callejero', 'screen-stats'];
+const TOP_LEVEL_SCREENS = ['screen-inicio', 'screen-calendario', 'screen-piscina', 'screen-estudio', 'screen-especifico', 'screen-esp-test', 'screen-normativas', 'screen-home', 'screen-callejero', 'screen-stats'];
 const ESTUDIO_SCREENS = ['screen-estudio', 'screen-especifico', 'screen-esp-test', 'screen-normativas', 'screen-home', 'screen-callejero'];
 const LAST_SCREEN_KEY = 'legis_last_screen';
 // Pantallas de "detalle" o de proceso (un artículo concreto, el
@@ -23,6 +23,7 @@ const SCREEN_RESTORE_TARGET = {
   'screen-stats': 'screen-stats',
   'screen-callejero': 'screen-callejero',
   'screen-calendario': 'screen-calendario',
+  'screen-piscina': 'screen-inicio',     // solo administradores: al recargar aún no se sabe si lo es
   'screen-boe-cambios': 'screen-boe-cambios',
   'screen-my-additions': 'screen-my-additions',
   'screen-notas-todas': 'screen-my-additions',
@@ -48,14 +49,16 @@ function getLastScreen(){
 }
 function showScreen(id){
   if(SCREEN_FEATURE[id] && !featureEnabled(SCREEN_FEATURE[id])) id = 'screen-home';
+  if(id === 'screen-piscina' && !currentUserIsAdmin) id = 'screen-inicio';
   if(id !== 'screen-quiz'){ clearInterval(timerInterval); }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  document.getElementById('navInicio').classList.toggle('active', id === 'screen-inicio' || id === 'screen-calendario');
+  document.getElementById('navInicio').classList.toggle('active', id === 'screen-inicio' || id === 'screen-calendario' || id === 'screen-piscina');
   document.getElementById('navEstudio').classList.toggle('active', ESTUDIO_SCREENS.includes(id));
   document.getElementById('navStats').classList.toggle('active', id === 'screen-stats');
   if(id === 'screen-inicio' && typeof INICIO !== 'undefined') INICIO.abrir();
   if(id === 'screen-calendario' && typeof CAL !== 'undefined') CAL.abrir();
+  if(id === 'screen-piscina' && typeof PISCINA !== 'undefined') PISCINA.abrir();
   if(id === 'screen-especifico' && typeof ESP !== 'undefined') ESP.abrir();
   if(id === 'screen-stats' && typeof ESTE !== 'undefined') ESTE.abrir();
   const isTopLevel = TOP_LEVEL_SCREENS.includes(id);
