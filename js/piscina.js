@@ -325,7 +325,7 @@ const PISCINA = (function(){
       (otra1 ? '<small class="psc-aviso">IMDECO solo deja una reserva en vigor a la vez y ya tienes la del ' + corto(otra1.fecha) + ' a las ' + otra1.hora +
         '. El robot la vigila y la coge en cuanto pase esa (a las ' + finHora(otra1.hora) + '), si sigue libre. Si la quieres ya, anula antes la otra.</small>' : '') +
       '<small>' + (otra1 ? '' : h.libres.length ? 'Hay sitio: el robot la reserva en cuanto lo pulses (en segundos si ya está en marcha; si no, en unos 5 min).'
-        : 'El robot mira cada 3 s, de 6:30 a 23:20, y la coge en cuanto alguien la libere.') + ' Solo si es gratis con tu bono: si cobrase algo, no la compra.</small></div>';
+        : 'El robot mira unas 2 veces por segundo, de 6:30 a 23:20, y la coge en cuanto alguien la libere.') + ' Solo si es gratis con tu bono: si cobrase algo, no la compra.</small></div>';
   }
   async function vigilarHora(fecha, hora){
     const r = deDia(fecha);
