@@ -67,8 +67,28 @@ async function acciones(etiqueta) {
   log(`  Funciones en ${etiqueta}:`, fn.join(' | '));
 }
 
+// 1) Reserva de espacios: ¿enseña el carrito pendiente con «Confirmar la compra»?
+await page.goto(`${BASE}/Home`, { waitUntil: 'networkidle' });
+await page.getByText('Reserva de espacios', { exact: true }).first().click();
+await quieto(); await page.waitForTimeout(2000);
+await describir('Reserva de espacios');
+await acciones('Reserva de espacios');
+if (CONFIRMAR) {
+  const b = page.locator('button:visible, a:visible, input[type=submit]:visible').filter({ hasText: /^confirmar la compra$/i }).first();
+  if (await b.count()) {
+    log('Pulso «Confirmar la compra»');
+    await b.click();
+    await quieto(); await page.waitForTimeout(3000);
+    await describir('Después de confirmar');
+    await acciones('Después de confirmar');
+  }
+}
+
+// 2) Anulaciones y gestión de reservas
+await irAMiCuenta();
 await page.getByText('Anulaciones y gestión de reservas').first().click();
 await quieto(); await page.waitForTimeout(1500);
+await page.getByText('Pendiente').first().waitFor({ timeout: 10000 }).catch(() => {});
 await describir('Anulaciones y gestión de reservas');
 await acciones('Anulaciones');
 
