@@ -58,6 +58,47 @@ function libresDe(html) {
   return new Map(horas.map(h => [h, calles.filter(c => libre.has(c.cod + '|' + h)).map(c => c.nombre)]));
 }
 
+const PANEL = {
+  secciones: 'ContentFixedSection_uSecciones_uAlert_uplAlert',
+  centros: 'ContentFixedSection_uReservaEspacios_uCentrosSeleccionar_uAlert_uplAlert',
+  usos: 'ContentFixedSection_uReservaEspacios_uUsosSeleccionar_uAlert_uplAlert',
+  fecha: 'ContentFixedSection_uReservaEspacios_uFechaSeleccionar_uAlert_uplAlert',
+};
+export const franjaDe = hora => FRANJAS.find(([, , es]) => es(parseInt(hora, 10)));
+
+// Una consulta que se queda abierta: la primera vez entra (unos 3 s) y luego cada mirada
+// es un solo postback (unas décimas de segundo). Si IMDECO la cierra, se vuelve a abrir sola.
+export class Consulta {
+  s = null; franja = null; abierta = 0;
+  async abrir() {
+    this.s = new Imdeco(); this.franja = null;
+    await this.s.get(this.s.url);
+    await this.s.postback(PANEL.secciones, { action: 'SelectMenu', args: { menu_code: '23', menu_title: 'Acceso no identificado', menu_type: 30, submenu_code: null } });
+    await this.s.postback(PANEL.secciones, { action: 'SelectMenu', args: { menu_code: '15', menu_title: 'Consulta de espacios', menu_type: 16, submenu_code: null } });
+    await this.s.postback(PANEL.centros, { action: 'SelectFacility', args: { menu_code: '15', facility_code: '1', date: null } });
+    this.abierta = Date.now();
+  }
+  // Calles libres ese día a esa hora
+  async libres(fecha, hora, fechas) {
+    for (let intento = 0; intento < 2; intento++) {
+      try {
+        if (!this.s || Date.now() - this.abierta > 10 * 60_000) await this.abrir();   // se renueva cada 10 min
+        const [code, name] = franjaDe(hora);
+        if (this.franja !== code) {
+          await this.s.postback(PANEL.usos, { action: 'Seleccionar', args: { reservation_type_code: code, reservation_type_name: name, icon: '', icon_mime_type: 'image/jpeg', dates: fechas || [fecha], resources: [] } });
+          this.franja = code;
+        }
+        const m = libresDe(await this.s.postback(PANEL.fecha, { action: 'Continuar', args: fecha }));
+        if (!m.size) throw new Error('IMDECO no devolvió la parrilla');
+        return m.get(hora) || [];
+      } catch (e) {
+        this.s = null;   // a la segunda, con una consulta nueva
+        if (intento) throw e;
+      }
+    }
+  }
+}
+
 export async function huecos(fechas, horas) {
   const s = new Imdeco();
   await s.get(s.url);

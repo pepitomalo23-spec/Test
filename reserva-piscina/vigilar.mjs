@@ -1,10 +1,13 @@
 // Vigilante: para cada día ya abierto (hoy, mañana o pasado) con una hora pedida en la app
-// («cogerla si se libera»), mira cada 20 s si hay una calle libre a esa hora. Si la hay:
-//   - si ya tenías reserva ese día a otra hora: anula esa (IMDECO solo deja una) y reserva la nueva;
-//     si la nueva no sale, vuelve a reservar la de antes;
-//   - si no tenías: la reserva.
+// («cogerla si se libera»), mira cada 3 s si hay una calle libre a esa hora, con una consulta
+// a IMDECO que se queda abierta (unas décimas de segundo por mirada). Tiene además un navegador
+// con la sesión iniciada y todo preparado (rapido.mjs): la parrilla de ese día y, si es un cambio,
+// la ficha de tu reserva vieja con «Anular» a mano. Al liberarse:
+//   - si ya tenías reserva ese día a otra hora: anula esa (IMDECO solo deja una) y coge la nueva
+//     en el momento; si la nueva no sale, vuelve a coger la de antes;
+//   - si no tenías: la coge.
 // Luego apunta en la app cómo fue y copia las reservas reales de IMDECO.
-// Para a los 50 minutos (lo vuelve a lanzar GitHub) y antes de las 23:20, para no estorbar al
+// Dura hasta 5 h 45 min (GitHub lo vuelve a lanzar) y para a las 23:20, para no estorbar al
 // robot de las 00:00.
 //
 // Variables: IMD_USUARIO, IMD_CONTRASENA, SUPABASE_URL, SUPABASE_ANON_KEY, PISCINA_CLAVE
@@ -14,10 +17,10 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { appendFileSync } from 'node:fs';
-import { huecos } from './huecos.mjs';
+import { Consulta } from './huecos.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
-const DURACION = 50 * 60_000, PAUSA = 20_000;
+const DURACION = 345 * 60_000, CADA = 3000, LISTA = 30_000;
 const log = (...m) => console.log(new Date().toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid' }), '·', ...m);
 const resumen = (t) => { if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, t + '\n'); };
 const espera = ms => new Promise(r => setTimeout(r, ms));
@@ -53,37 +56,6 @@ function correr(script, args) {
 }
 const calleDe = salida => (salida.match(/RESERVADO: [^,]+, (.+)/) || [])[1]?.trim() || null;
 
-async function cambiar(v, libres) {
-  const swap = v.estado === 'reservada' && v.hora && v.hora !== v.quiere_hora;
-  log(`¡Libre! ${v.fecha} a las ${v.quiere_hora} (${libres.length} calles)${swap ? ` → cambio desde las ${v.hora}` : ''}`);
-  if (swap) {
-    // Justo antes de soltar la tuya, comprobar que sigue libre
-    const otra = (await huecos([v.fecha], [v.quiere_hora])).get(v.fecha + '|' + v.quiere_hora) || [];
-    if (!otra.length) { log('Ya no está libre; sigo vigilando'); return; }
-    const a = await correr('anular.mjs', ['--fecha', v.fecha, '--hora', v.hora]);
-    if (!a.ok) { await apuntar(v.id, null, null, `No pude anular la de las ${v.hora} para cambiarla; sigo vigilando`); return; }
-  }
-  const r = await correr('reservar.mjs', ['--fecha', v.fecha, '--hora', v.quiere_hora]);
-  if (r.ok) {
-    const calle = calleDe(r.salida);
-    await apuntar(v.id, v.quiere_hora, calle, swap ? `Cambiada desde las ${v.hora}` : 'Cogida al liberarse');
-    resumen(`✅ ${v.fecha}: reservada a las **${v.quiere_hora}**${calle ? ' (' + calle + ')' : ''}${swap ? ', antes a las ' + v.hora : ''}.`);
-    return;
-  }
-  if (!swap) { log('No salió; sigo vigilando'); return; }
-  // La nueva no salió: recuperar la de antes
-  log(`No salió la de las ${v.quiere_hora}; recupero la de las ${v.hora}`);
-  const vuelta = await correr('reservar.mjs', ['--fecha', v.fecha, '--hora', v.hora]);
-  if (vuelta.ok) {
-    await apuntar(v.id, null, null, `Se liberó pero otro la cogió antes; mantienes la de las ${v.hora}. Sigo vigilando`);
-    resumen(`⚠️ ${v.fecha}: no salió el cambio a las ${v.quiere_hora}; mantienes la de las ${v.hora}.`);
-  } else {
-    await apuntar(v.id, null, null, `Perdí el cambio: anulé la de las ${v.hora} y no pude coger ni la de las ${v.quiere_hora} ni volver a la de antes. Sigo vigilando las ${v.quiere_hora}`);
-    resumen(`❌ ${v.fecha}: anulé la de las ${v.hora} y no pude coger ninguna. Sigo vigilando.`);
-    process.exitCode = 1;
-  }
-}
-
 // --comprobar: solo dice si ahora hay algo que vigilar (sin navegador), para no prepararlo en balde
 if (process.argv.includes('--comprobar')) {
   const ahora = madrid(), abiertos = [ahora.fecha, masDias(ahora.fecha, 1), masDias(ahora.fecha, 2)];
@@ -95,30 +67,112 @@ if (process.argv.includes('--comprobar')) {
   process.exit(0);
 }
 
-const fin = Date.now() + DURACION;
-let vueltas = 0;
-while (Date.now() < fin) {
-  const ahora = madrid();
-  if (ahora.hora >= '23:20' || ahora.hora < '06:30') { log('Fuera de horario (23:20–06:30): paro'); break; }
-  let lista;
-  try { lista = await rpc('piscina_robot_vigilar', {}) || []; }
-  catch (e) { log('No pude leer la app:', e.message); await espera(PAUSA); continue; }
+const ahoraVivos = (lista, ahora) => {
   const abiertos = [ahora.fecha, masDias(ahora.fecha, 1), masDias(ahora.fecha, 2)];
-  // Ya conseguido (la reserva ya está a la hora pedida): quitar el aviso
-  for (const v of lista.filter(v => v.estado === 'reservada' && v.hora === v.quiere_hora)) await apuntar(v.id, v.hora, null, null);
-  const vivos = lista.filter(v => abiertos.includes(v.fecha) && !(v.estado === 'reservada' && v.hora === v.quiere_hora)
+  return lista.filter(v => abiertos.includes(v.fecha) && !(v.estado === 'reservada' && v.hora === v.quiere_hora)
     && !(v.fecha === ahora.fecha && v.quiere_hora <= ahora.hora));
-  if (!vivos.length) { log(vueltas ? 'Ya no queda nada que vigilar' : 'Nada que vigilar ahora'); break; }
-  if (!vueltas) log('Vigilando:', vivos.map(v => `${v.fecha} ${v.quiere_hora}${v.estado === 'reservada' ? ' (tienes las ' + v.hora + ')' : ''}`).join(' · '));
-  vueltas++;
+};
+const esCambio = v => v.estado === 'reservada' && v.hora && v.hora !== v.quiere_hora;
+
+// --prueba --fecha F --hora H [--vieja HH:MM]: se prepara, mira 5 veces y llega a seleccionar
+// la calle, sin pulsar «Anular» ni «Reservar». Para medir tiempos con la cuenta real.
+const arg = n => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
+if (process.argv.includes('--prueba')) {
+  const { Armado } = await import('./rapido.mjs');
+  const fecha = arg('--fecha'), hora = arg('--hora'), vieja = arg('--vieja');
+  const r = new Armado(), c = new Consulta();
   try {
-    const m = await huecos([...new Set(vivos.map(v => v.fecha))], [...new Set(vivos.map(v => v.quiere_hora))]);
-    let hecho = false;
-    for (const v of vivos) {
-      const libres = m.get(v.fecha + '|' + v.quiere_hora) || [];
-      if (libres.length) { await cambiar(v, libres); hecho = true; }
+    let t = Date.now(); await r.abrir(); log(`Sesión iniciada (${Date.now() - t} ms)`);
+    t = Date.now(); await r.armarReserva(fecha, hora); log(`Parrilla preparada (${Date.now() - t} ms)`);
+    if (vieja) { t = Date.now(); await r.armarAnulacion(fecha, vieja); log(`Ficha de la de las ${vieja} con «Anular» a mano (${Date.now() - t} ms)`); }
+    for (let i = 0; i < 5; i++) { t = Date.now(); const l = await c.libres(fecha, hora); log(`Mirada ${i + 1}: ${l.length} libres (${Date.now() - t} ms)`); }
+    t = Date.now();
+    try { const calle = await r.reservar(true); log(`MODO PRUEBA: ${calle} seleccionada en ${Date.now() - t} ms; no pulso «Reservar»`); }
+    catch (e) { log('Al seleccionar:', e.message, `(${Date.now() - t} ms)`); }
+  } catch (e) { log('❌', e.message); process.exitCode = 1; }
+  finally { await r.cerrar(); }
+  process.exit();
+}
+
+const { Armado } = await import('./rapido.mjs');
+const consulta = new Consulta();
+let armado = null, armadoPara = null;   // armadoPara: id de lo que tiene preparado el navegador
+let lista = [], leidaAt = 0, vueltas = 0;
+const fin = Date.now() + DURACION;
+
+// Deja el navegador preparado para esa vigilancia
+async function armar(v) {
+  if (!armado) { armado = new Armado(); await armado.abrir(); log('Sesión iniciada'); }
+  await armado.armarReserva(v.fecha, v.quiere_hora);
+  armado.vieja = null;
+  if (esCambio(v)) await armado.armarAnulacion(v.fecha, v.hora);
+  armadoPara = v.id + '|' + v.quiere_hora + '|' + v.hora;
+  log(`Preparado: ${v.fecha} a las ${v.quiere_hora}${esCambio(v) ? ` (cambiando la de las ${v.hora})` : ''}`);
+}
+
+async function coger(v, libres) {
+  const cambio = esCambio(v), t0 = Date.now();
+  log(`¡Libre! ${v.fecha} a las ${v.quiere_hora} (${libres.length} calles)${cambio ? ` → cambio desde las ${v.hora}` : ''}`);
+  if (armadoPara !== v.id + '|' + v.quiere_hora + '|' + v.hora) await armar(v);
+  if (cambio) {
+    try { await armado.anular(); log(`Anulada la de las ${v.hora} (${Date.now() - t0} ms)`); }
+    catch (e) { log('❌', e.message); await apuntar(v.id, null, null, `No pude anular la de las ${v.hora} para cambiarla; sigo vigilando`); armadoPara = null; return; }
+  }
+  try {
+    const calle = await armado.reservar();
+    log(`✅ Reservada a las ${v.quiere_hora} (${calle}) en ${Date.now() - t0} ms desde que la vi libre`);
+    await apuntar(v.id, v.quiere_hora, calle, cambio ? `Cambiada desde las ${v.hora}` : 'Cogida al liberarse');
+    resumen(`✅ ${v.fecha}: reservada a las **${v.quiere_hora}** (${calle})${cambio ? ', antes a las ' + v.hora : ''}, en ${((Date.now() - t0) / 1000).toFixed(1)} s.`);
+  } catch (e) {
+    log('❌', e.message);
+    if (!cambio) { await apuntar(v.id, null, null, `Se liberó pero otro la cogió antes (${e.message.slice(0, 80)}). Sigo vigilando`); }
+    else {
+      // La nueva no salió: recuperar la de antes
+      log(`Recupero la de las ${v.hora}`);
+      try {
+        await armado.armarReserva(v.fecha, v.hora);
+        const calle = await armado.reservar();
+        await apuntar(v.id, null, null, `Se liberó pero otro la cogió antes; mantienes la de las ${v.hora} (${calle}). Sigo vigilando`);
+        resumen(`⚠️ ${v.fecha}: no salió el cambio a las ${v.quiere_hora}; mantienes la de las ${v.hora}.`);
+      } catch (e2) {
+        await apuntar(v.id, null, null, `Perdí el cambio: anulé la de las ${v.hora} y no pude coger ni la de las ${v.quiere_hora} ni volver a la de antes. Sigo vigilando las ${v.quiere_hora}`);
+        resumen(`❌ ${v.fecha}: anulé la de las ${v.hora} y no pude coger ninguna. Sigo vigilando.`);
+        process.exitCode = 1;
+      }
     }
-    if (hecho) await correr('sincronizar.mjs', []);
-  } catch (e) { log('Error mirando huecos:', e.message); }
-  await espera(PAUSA);
+  }
+  armadoPara = null;
+  leidaAt = 0;   // volver a leer la lista ya
+  correr('sincronizar.mjs', []);   // por detrás: copiar las reservas reales en la app
+}
+
+try {
+  while (Date.now() < fin) {
+    const ahora = madrid();
+    if (ahora.hora >= '23:20' || ahora.hora < '06:30') { log('Fuera de horario (23:20–06:30): paro'); break; }
+    if (Date.now() - leidaAt > LISTA) {
+      try { lista = await rpc('piscina_robot_vigilar', {}) || []; leidaAt = Date.now(); }
+      catch (e) { log('No pude leer la app:', e.message); await espera(CADA); continue; }
+      for (const v of lista.filter(v => v.estado === 'reservada' && v.hora === v.quiere_hora)) await apuntar(v.id, v.hora, null, null);
+    }
+    const vivos = ahoraVivos(lista, ahora);
+    if (!vivos.length) { log(vueltas ? 'Ya no queda nada que vigilar' : 'Nada que vigilar ahora'); break; }
+    if (!armadoPara || !vivos.some(v => armadoPara === v.id + '|' + v.quiere_hora + '|' + v.hora)) {
+      try { await armar(vivos[0]); }
+      catch (e) { log('No pude prepararlo:', e.message); await apuntar(vivos[0].id, null, null, e.message.slice(0, 200)); await espera(30_000); continue; }
+    }
+    vueltas++;
+    const abiertos = [ahora.fecha, masDias(ahora.fecha, 1), masDias(ahora.fecha, 2)];
+    for (const v of vivos) {
+      let libres = [];
+      try { libres = await consulta.libres(v.fecha, v.quiere_hora, abiertos); }
+      catch (e) { log('Error mirando huecos:', e.message); continue; }
+      if (libres.length) { await coger(v, libres); break; }
+    }
+    if (vueltas % 200 === 0) log(`Sigo vigilando (${vueltas} miradas)`);
+    try { await armado?.refrescarSiHace(12); } catch (e) { log('No pude renovar la sesión:', e.message); armadoPara = null; }
+    await espera(CADA);
+  }
+} finally {
+  await armado?.cerrar();
 }
