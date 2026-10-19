@@ -98,6 +98,13 @@ const DI = (function(){
     if(error) console.warn('di apuntar', error);
   }
 
+  /* ---------- ayudas de cada dato: regla mnemotécnica e imagen ---------- */
+  function ayudas(d){
+    if(!d.regla && !d.imagen) return '';
+    return '<div class="di-ayudas">' + (d.regla ? '<div class="di-regla"><span>💡</span><span>' + esc(d.regla) + '</span></div>' : '') +
+      (d.imagen ? '<img class="di-img" src="' + esc(d.imagen) + '" alt="Imagen de ' + esc(d.a) + '" data-di="img" data-url="' + esc(d.imagen) + '" loading="lazy">' : '') + '</div>';
+  }
+
   /* ---------- pintar ---------- */
   function cabecera(titulo, sub, volver){
     return '<span class="back-link" role="button" tabindex="0" data-di="' + volver[0] + '">' +
@@ -120,7 +127,7 @@ const DI = (function(){
   }
   function vistaApartado(a){
     const ds = deAp(a.id), dom = ds.filter(dominada).length;
-    const filas = ds.map(d => '<div class="di-fila' + (dominada(d) ? ' dom' : '') + '"><span class="di-a">' + esc(d.a) + '</span><span class="di-b">' + esc(d.b) + '</span>' +
+    const filas = ds.map(d => '<div class="di-fila' + (dominada(d) ? ' dom' : '') + '"><span class="di-a">' + esc(d.a) + '</span><span class="di-b">' + esc(d.b) + (d.regla ? ' <i class="di-marca" title="Tiene regla mnemotécnica">💡</i>' : '') + (d.imagen ? ' <i class="di-marca" title="Tiene imagen">🖼️</i>' : '') + '</span>' +
       '<button type="button" class="di-ico-btn" data-di="editar" data-id="' + d.id + '" aria-label="Editar">✎</button>' +
       '<button type="button" class="di-ico-btn" data-di="quitar" data-id="' + d.id + '" aria-label="Borrar">' + ICO.borrar + '</button></div>').join('');
     const pocos = ds.length < 2;
@@ -131,7 +138,7 @@ const DI = (function(){
       '<div class="di-modos">' + modo('fichas', 'Fichas', 'Girar y repasar') + modo('aprender', 'Aprender', 'Hasta que salgan todas') + modo('probar', 'Probar', PRUEBA + ' preguntas con nota') + '</div>' +
       (pocos ? '<div class="di-vacio">Añade al menos 2 datos para estudiar.</div>' : '') +
       '<div class="di-como">Pregunta ' + ({ ab: esc(a.nombre_a) + ' → ' + esc(a.nombre_b), ba: esc(a.nombre_b) + ' → ' + esc(a.nombre_a), ambos: 'en los dos sentidos' }[a.sentido]) +
-        '; ' + esc(a.nombre_a) + ' se responde ' + como('a') + ' y ' + esc(a.nombre_b) + ', ' + como('b') + '.</div>' +
+        '; ' + esc(a.nombre_a) + ' se responde ' + como('a') + ' y ' + esc(a.nombre_b) + ', ' + como('b') + '. Con ✎ en cada dato puedes ponerle una regla mnemotécnica o una imagen.</div>' +
       (ayudaDe(a) ? '<details class="di-ayuda"><summary>Chuleta</summary><div>' + ayudaDe(a) + '</div></details>' : '') +
       '<form class="di-add" data-di-form="add"><input name="a" placeholder="' + esc(a.nombre_a) + '" autocomplete="off" required maxlength="200"' + (a.plantilla !== 'libre' ? ' inputmode="' + (a.plantilla === 'onu' ? 'numeric' : 'text') + '"' : '') + '>' +
         '<input name="b" placeholder="' + esc(a.nombre_b) + '" autocomplete="off" required maxlength="1000"><button type="submit" class="di-btn">Añadir</button></form>' +
@@ -187,7 +194,7 @@ const DI = (function(){
       const d = st.cartas[st.i], cara = st.girada ? (st.cara === 'a' ? 'b' : 'a') : st.cara;
       const nombre = cara === 'a' ? a.nombre_a : a.nombre_b;
       return cab + '<div class="di-paso">' + (st.i + 1) + ' de ' + st.cartas.length + '</div>' +
-        '<button type="button" class="di-ficha' + (st.girada ? ' girada' : '') + (cara === 'a' ? ' cara-a' : '') + '" data-di="girar"><small>' + esc(nombre) + '</small><span>' + esc(d[cara]) + '</span><em>Toca para girar</em></button>' +
+        '<button type="button" class="di-ficha' + (st.girada ? ' girada' : '') + (cara === 'a' ? ' cara-a' : '') + '" data-di="girar"><small>' + esc(nombre) + '</small><span>' + esc(d[cara]) + '</span><em>Toca para girar</em></button>' + (st.girada ? ayudas(d) : '') +
         '<div class="di-ficha-nav"><button type="button" class="di-btn sec" data-di="ant"' + (st.i ? '' : ' disabled') + '>‹ Anterior</button>' +
           '<button type="button" class="di-btn sec" data-di="barajar">Barajar</button><button type="button" class="di-btn sec" data-di="cara">Empezar por ' + esc(st.cara === 'a' ? a.nombre_b : a.nombre_a) + '</button>' +
           '<button type="button" class="di-btn" data-di="sig"' + (st.i + 1 < st.cartas.length ? '' : ' disabled') + '>Siguiente ›</button></div>';
@@ -217,7 +224,7 @@ const DI = (function(){
         (r ? '' : '<button type="button" class="di-link" data-di="nolose">No lo sé</button>');
     else cuerpo = r ? '' : '<div class="di-ops"><button type="button" class="di-op" data-di="saber" data-v="1">Lo sabía</button><button type="button" class="di-op" data-di="saber" data-v="0">No lo sabía</button></div>';
     const veredicto = r ? '<div class="di-ver ' + (r.bien ? 'bien' : 'mal') + '"><b>' + (r.bien ? '¡Bien!' : 'Era: ' + esc(buena)) + '</b>' +
-      (st.modo === 'aprender' && !r.bien ? '<span>Te la vuelvo a preguntar en un momento.</span>' : '') + '<button type="button" class="di-btn" data-di="seguir">Continuar</button></div>' : '';
+      (st.modo === 'aprender' && !r.bien ? '<span>Te la vuelvo a preguntar en un momento.</span>' : '') + '<button type="button" class="di-btn" data-di="seguir">Continuar</button></div>' + ayudas(q.d) : '';
     return cab + '<div class="di-paso">' + prog + '</div><div class="di-barra grande"><i style="width:' + pct + '%"></i></div>' +
       '<div class="di-preg"><small>' + esc(preg) + '</small><div class="di-preg-txt">' + esc(q.d[q.ve]) + '</div><span class="di-preg-pide">¿' + esc(resp) + '?</span></div>' +
       cuerpo + veredicto;
@@ -320,9 +327,18 @@ const DI = (function(){
     hoja('Editar dato',
       '<label class="di-campo">' + esc(apa.nombre_a) + '<input name="a" maxlength="200" value="' + esc(d.a) + '" required></label>' +
       '<label class="di-campo">' + esc(apa.nombre_b) + '<textarea name="b" rows="3" maxlength="1000" required>' + esc(d.b) + '</textarea></label>' +
+      '<label class="di-campo">💡 Regla mnemotécnica (opcional)<textarea name="r" rows="2" maxlength="1000" placeholder="Lo que te ayuda a acordarte">' + esc(d.regla || '') + '</textarea></label>' +
+      '<div class="di-campo">🖼️ Imagen (opcional)' +
+        (d.imagen ? '<div class="di-img-act"><img src="' + esc(d.imagen) + '" alt=""><label class="di-opt"><input type="checkbox" name="sinimg"> Quitar la imagen</label></div>' : '') +
+        '<input type="file" name="img" accept="image/*"></div>' +
       '<div class="di-hoja-btns"><button type="button" class="di-btn sec" data-cerrar>Cancelar</button><button type="submit" class="di-btn">Guardar</button></div>',
       async fd => {
-        const cambio = { a: String(fd.get('a')).trim(), b: String(fd.get('b')).trim() };
+        const cambio = { a: String(fd.get('a')).trim(), b: String(fd.get('b')).trim(), regla: String(fd.get('r') || '').trim() || null };
+        const archivo = fd.get('img');
+        if(archivo && archivo.size){
+          try{ cambio.imagen = await uploadOwnNoteImage('datos-' + currentUser.id, archivo); }
+          catch(e){ uiToast('No se pudo subir la imagen: ' + e.message, 'error'); return false; }
+        } else if(fd.get('sinimg')) cambio.imagen = null;
         const { error } = await sb.from('di_datos').update(cambio).eq('id', id);
         if(error){ uiToast('No se pudo guardar: ' + error.message, 'error'); return false; }
         Object.assign(d, cambio); guardarCache(); pintar();
@@ -343,6 +359,7 @@ const DI = (function(){
     if(!el || el.disabled) return;
     switch(el.dataset.di){
       case 'estudio': showScreen('screen-estudio'); break;
+      case 'img': if(typeof openImageLightbox === 'function') openImageLightbox(el.dataset.url); break;
       case 'lista': vista = { v: 'lista' }; pintar(); arriba(); break;
       case 'abrir': vista = { v: 'apartado', id: el.dataset.id }; pintar(); arriba(); break;
       case 'nuevo': nuevo(); break;

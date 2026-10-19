@@ -122,3 +122,13 @@
   .di-escribe input{ font-size: 18px; }
   .di-dos{ grid-template-columns: 1fr; }
 }
+
+/* Ayudas: regla mnemotécnica e imagen */
+.di-ayudas{ display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.di-regla{ display: flex; gap: 10px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--amber) 10%, transparent); border: 1px solid color-mix(in srgb, var(--amber) 30%, transparent); font-size: 14.5px; line-height: 1.5; white-space: pre-wrap; }
+.di-img{ max-width: 100%; max-height: 320px; object-fit: contain; align-self: center; border-radius: 12px; border: 1px solid var(--line); cursor: zoom-in; background: var(--w03); }
+.di-marca{ font-style: normal; font-size: 12px; }
+.di-img-act{ display: flex; align-items: center; gap: 12px; }
+.di-img-act img{ width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+.di-hoja input[type=file]{ color: var(--muted); font-size: 13px; }
+.di-ficha + .di-ayudas{ margin: -4px 0 16px; }
