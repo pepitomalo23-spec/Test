@@ -20,7 +20,7 @@ import { appendFileSync } from 'node:fs';
 import { Consulta } from './huecos.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
-const DURACION = 345 * 60_000, CADA = 200, LISTA = 30_000;   // entre mirada y mirada: 0,2 s (más lo que tarda cada una, ~0,3 s): unas 2 por segundo
+const DURACION = 345 * 60_000, CADA = 200, LISTA = 3000;   // entre mirada y mirada: 0,2 s (más lo que tarda cada una, ~0,3 s): unas 2 por segundo; lo pedido en la app se lee cada 3 s
 const log = (...m) => console.log(new Date().toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid' }), '·', ...m);
 const resumen = (t) => { if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, t + '\n'); };
 const espera = ms => new Promise(r => setTimeout(r, ms));

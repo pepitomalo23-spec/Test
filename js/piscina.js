@@ -312,20 +312,24 @@ const PISCINA = (function(){
       const o = r.estado !== 'reservada' && otraEnVigor(fecha);
       if(dePago(r)) return '<div class="psc-hc-acc"><span class="psc-aviso">' + esc(r.detalle) + '</span><button type="button" class="psc-btn-sec" data-psc="no-vigilar" data-f="' + fecha + '">Dejar de vigilar</button></div>';
       return '<div class="psc-hc-acc"><span class="psc-hc-vig">● Vigilando: ' + (o ? 'la cojo en cuanto pase tu reserva del ' + corto(o.fecha) + ' (' + o.hora + '–' + finHora(o.hora) + '), si sigue libre. IMDECO solo deja una reserva en vigor a la vez'
-        : 'en cuanto haya sitio, la cojo' + (r.estado === 'reservada' ? ' y anulo la de las ' + r.hora : '')) + '</span><button type="button" class="psc-btn-sec" data-psc="no-vigilar" data-f="' + fecha + '">Dejar de vigilar</button></div>';
+        : h.libres.length ? 'hay sitio: el robot la está reservando ahora (unos segundos)…' + (r.estado === 'reservada' ? ' y anula la de las ' + r.hora : '')
+        : 'en cuanto se libere una calle, la cojo' + (r.estado === 'reservada' ? ' y anulo la de las ' + r.hora : '')) + '</span><button type="button" class="psc-btn-sec" data-psc="no-vigilar" data-f="' + fecha + '">Dejar de vigilar</button></div>';
     }
     const cambio = r && r.estado === 'reservada';
     // IMDECO solo deja una reserva en vigor a la vez
     const otra1 = !cambio && otraEnVigor(fecha);
-    const txt = otra1 ? 'Cogerla cuando pase la otra' : cambio ? (h.libres.length ? 'Cambiar a las ' + h.hora : 'Cambiar a las ' + h.hora + ' si se libera')
-      : h.libres.length ? 'Cogérmela' : 'Cogerla si se libera';
-    const otra = (cambio ? '<small>Anulo tu reserva de las ' + r.hora + ' justo al coger la nueva; si la nueva no saliera, vuelvo a coger la tuya.</small>' : '') +
-      (r && r.quiere_hora ? '<small>Ahora vigilas las ' + r.quiere_hora + ': se cambia por esta.</small>' : '');
-    return '<div class="psc-hc-acc"><button type="button" class="psc-confirmar" data-psc="vigilar" data-f="' + fecha + '" data-h="' + h.hora + '">' + txt + '</button>' + otra +
+    const hay = h.libres.length > 0;
+    const bt = (txt, cls, dis) => '<button type="button" class="' + cls + '" data-psc="vigilar" data-f="' + fecha + '" data-h="' + h.hora + '"' + (dis ? ' disabled' : '') + '>' + txt + '</button>';
+    const botones = otra1 ? bt('Cogerla cuando pase la otra', 'psc-confirmar')
+      : '<div class="psc-hc-bts">' + bt((cambio ? 'Cambiar ahora' : 'Reservar ahora') + (hay ? '' : ' · completo'), 'psc-confirmar', !hay) +
+        bt(cambio ? 'Cambiar cuando se libere' : 'Cogerla cuando se libere', 'psc-btn-sec') + '</div>';
+    const notas = (cambio ? '<small>Anulo tu reserva de las ' + r.hora + ' justo al coger la nueva; si la nueva no saliera, vuelvo a coger la tuya.</small>' : '') +
+      (r && r.quiere_hora ? '<small>Ahora vigilas las ' + r.quiere_hora + ': se cambia por esta.</small>' : '') +
       (otra1 ? '<small class="psc-aviso">IMDECO solo deja una reserva en vigor a la vez y ya tienes la del ' + corto(otra1.fecha) + ' a las ' + otra1.hora +
-        '. El robot la vigila y la coge en cuanto pase esa (a las ' + finHora(otra1.hora) + '), si sigue libre. Si la quieres ya, anula antes la otra.</small>' : '') +
-      '<small>' + (otra1 ? '' : h.libres.length ? 'Hay sitio: el robot la reserva en cuanto lo pulses (en segundos si ya está en marcha; si no, en unos 5 min).'
-        : 'El robot mira unas 2 veces por segundo, de 6:30 a 23:20, y la coge en cuanto alguien la libere.') + ' Solo si es gratis con tu bono: si cobrase algo, no la compra.</small></div>';
+        '. El robot la vigila y la coge en cuanto pase esa (a las ' + finHora(otra1.hora) + '), si sigue libre. Si la quieres ya, anula antes la otra.</small>'
+        : '<small>' + (hay ? '«' + (cambio ? 'Cambiar' : 'Reservar') + ' ahora»: el robot la coge en unos segundos. ' : '') +
+          '«Cuando se libere»: mira unas 2 veces por segundo, de 6:30 a 23:20, y la coge en cuanto alguien deje una calle. Solo con tu bono: si cobrase algo, no la compra.</small>');
+    return '<div class="psc-hc-acc">' + botones + notas + '</div>';
   }
   async function vigilarHora(fecha, hora){
     const r = deDia(fecha);
@@ -339,6 +343,7 @@ const PISCINA = (function(){
     filas = filas.filter(x => x.fecha !== fecha).concat(data).sort((a, b) => a.fecha < b.fecha ? -1 : 1);
     guardarCache(); pintar();
     const ya = hayLibres(fecha, hora);
+    seguirDeCerca();
     uiToast(r && r.estado === 'reservada' ? (ya ? 'Hay sitio: el robot cambia tu reserva a las ' + hora : 'Vigilando las ' + hora + ': si se libera, cambio tu reserva')
       : ya ? 'Hay sitio: el robot reserva las ' + hora + ' ya' : 'Vigilando las ' + hora + ': en cuanto haya sitio, la cojo', 'success');
   }
@@ -380,6 +385,18 @@ const PISCINA = (function(){
   function pintarHuecos(){
     const el = document.getElementById('pscHuecos');
     if(el) el.innerHTML = seccionHuecos();
+  }
+  // Tras pedir una hora: leer la lista cada 3 s (2 min) para ver al momento lo que hace el robot
+  let deCerca = null;
+  function seguirDeCerca(){
+    clearInterval(deCerca);
+    const hasta = Date.now() + 120e3;
+    deCerca = setInterval(() => {
+      const activa = document.getElementById('screen-piscina')?.classList.contains('active');
+      const pendiente = filas.some(r => r.quiere_hora && r.fecha >= hoy() && !dePago(r));
+      if(!activa || !pendiente || Date.now() > hasta){ clearInterval(deCerca); deCerca = null; if(activa) cargarHuecos(); return; }
+      if(document.visibilityState === 'visible') cargar();
+    }, 3000);
   }
   function vigilar(){
     clearInterval(temporizador);

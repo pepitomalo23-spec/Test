@@ -14,11 +14,19 @@ import { franjaDe } from './huecos.mjs';
 const BASE = 'https://gestiones.imdcordoba.es/CronosWeb';
 const log = (...m) => console.log(new Date().toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid' }), '·', ...m);
 
-// Lo que cobra el carrito (el mayor importe en € que se ve; 0 si no se ve ninguno)
-export async function importe(p) {
-  const t = await p.evaluate(() => document.body.innerText).catch(() => '');
-  const n = [...t.matchAll(/(\d+(?:[.,]\d{1,2})?)\s*€/g)].map(m => parseFloat(m[1].replace(',', '.')));
+// Lo que de verdad se paga: el «Total» del carrito. Antes de él sale «Precio sin descuentos 6,00 €»
+// y el descuento del bono «-6,00 €», así que el número más alto no vale. Sin «Total» se toma el más alto
+// (por si acaso, mejor no comprar).
+export function importeDeTexto(t) {
+  const num = x => parseFloat(x.replace(/\s/g, '').replace(',', '.'));
+  const IMP = '(-?\\d+(?:[.,]\\d{1,2})?)\\s*€';
+  const totales = [...t.matchAll(new RegExp(IMP + '\\s*\\n?\\s*total\\b', 'gi')), ...t.matchAll(new RegExp('\\btotal\\b\\s*:?\\s*' + IMP, 'gi'))].map(m => num(m[1]));
+  if (totales.length) return Math.max(...totales);
+  const n = [...t.matchAll(new RegExp(IMP, 'g'))].map(m => num(m[1]));
   return n.length ? Math.max(...n) : 0;
+}
+export async function importe(p) {
+  return importeDeTexto(await p.evaluate(() => document.body.innerText).catch(() => ''));
 }
 // «Eliminar el carrito» (y el «Sí» del aviso, si sale)
 export async function vaciar(p) {

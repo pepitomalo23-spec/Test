@@ -177,6 +177,8 @@
 .psc-hc-acc{ display:flex; flex-wrap: wrap; align-items:center; gap: 8px 12px; margin-top: 10px; }
 .psc-hc-acc .psc-confirmar{ flex: 0 1 auto; padding: 10px 16px; white-space: normal; text-align: center; }
 .psc-hc-acc small{ flex-basis: 100%; color: var(--muted-2); font-size: 12px; }
+.psc-hc-bts{ display:flex; flex-wrap: wrap; gap: 8px; flex-basis: 100%; }
+.psc-hc-bts > button{ flex: 1 1 140px; }
 .psc-hc-ok{ color: var(--green); font-weight: 600; }
 .psc-hc-vig{ color: var(--amber); font-weight: 600; }
 .psc-chip.vigilando{ color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, transparent); }
