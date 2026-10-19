@@ -204,9 +204,13 @@ async function confirmar(desdeCarrito = false) {
   // Tras «Reservar» la calle va a un carrito: «Eliminar el carrito | Confirmar la compra | Seguir comprando»
   const SIGUE = /^(continuar|siguiente|confirmar|confirmar reserva|confirmar la compra|reservar( \(\d+\))?|aceptar|finalizar|pagar con (bono|abono)|bono|abono|usar bono|terminar)$/i;
   const NO = /tarjeta|tpv|cancelar|atr[aá]s|volver|cerrar sesi|eliminar|borrar|seguir comprando/i;
+  const terminado = async () => {
+    if (await page.locator('.alert-danger:visible').count()) return false;
+    return /\/CarritoResultado/i.test(new URL(page.url()).pathname) || OK.test(await textoVisible());
+  };
   for (let paso = 0; paso < 8; paso++) {
     await quieto();
-    if (OK.test(await textoVisible())) return true;
+    if (await terminado()) return true;
     // Normativa / condiciones: marcar las casillas de aceptación que haya
     const checks = page.locator('input[type=checkbox]:visible:not(:checked)');
     for (let i = 0; i < await checks.count(); i++) {
@@ -231,7 +235,7 @@ async function confirmar(desdeCarrito = false) {
     if (!pulsado) break;
     await page.waitForTimeout(1200);
   }
-  return OK.test(await textoVisible());
+  return terminado();
 }
 
 async function describirPantalla() {
