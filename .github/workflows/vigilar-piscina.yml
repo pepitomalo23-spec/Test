@@ -1,13 +1,14 @@
 name: Vigilar piscina
 
 # «Cogerla si se libera» (pantalla Piscina de la app): mientras haya alguna hora pedida para un día
-# ya abierto, mira cada 3 s y, en cuanto se libera, la reserva (cambiando la que tuvieras ese día),
-# con el navegador ya preparado. De 6:30 a 23:20 está siempre en marcha (leyendo la app cada 30 s:
-# «Cógemela» y «Anular» se hacen en segundos); cada vigilancia dura hasta 5 h 45 min y al acabar
-# lanza la siguiente. El aviso de cada 5 minutos es solo para arrancar por la mañana.
+# ya abierto, mira unas 2 veces por segundo y, en cuanto se libera, la reserva (cambiando la que tuvieras
+# ese día), con el navegador ya preparado. Está siempre en marcha (leyendo la app cada 3 s: «Reservar
+# ahora» y «Anular» se hacen en segundos), salvo una pausa de 23:20 a 00:20 para el robot de las 00:00;
+# cada vigilancia dura hasta 5 h 45 min y al acabar lanza la siguiente. El aviso de cada 5 minutos es
+# solo por si se corta esa cadena.
 on:
   schedule:
-    - cron: '*/5 4-22 * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       prueba:
