@@ -58,7 +58,7 @@ const PISCINA = (function(){
     if(!currentUser || !currentUserIsAdmin) return Promise.resolve();
     if(dueño !== currentUser.id){ dueño = currentUser.id; filas = []; cargado = false; leerCache(); }
     intentado = true;
-    if(!cargando) cargando = sb.from('piscina_reservas').select('id, fecha, hora, estado, detalle, calle, quiere_hora, updated_at')
+    if(!cargando) cargando = sb.from('piscina_reservas').select('id, fecha, hora, estado, detalle, calle, quiere_hora, anular, updated_at')
       .gte('fecha', masDias(hoy(), -60)).order('fecha')
       .then(({ data, error }) => {
         if(error) throw error;
@@ -126,6 +126,8 @@ const PISCINA = (function(){
         '<div class="psc-estado ' + r.estado + '"><b>' + (ok ? '✓ Reservada' : '✕ No se pudo reservar') + '</b>' +
         '<span>' + r.hora + ' – ' + finHora(r.hora) + (r.calle ? ' · ' + esc(r.calle) : '') + '</span>' +
         (r.detalle && !ok ? '<span class="psc-estado-det">' + esc(r.detalle) + '</span>' : '') + '</div>' +
+        (ok && r.fecha >= hoy() ? (r.anular ? '<div class="psc-aviso">El robot la está anulando en IMDECO…</div>'
+          : '<button type="button" class="psc-btn-borrar" data-psc="anular" data-id="' + esc(r.id) + '">' + PAPELERA + 'Anular en IMDECO</button>') : '') +
         (r.fecha >= primerDia() ? '<button type="button" class="psc-btn-sec" data-psc="reprogramar">Volver a programar</button>' : '') +
         '<button type="button" class="psc-btn-borrar" data-psc="borrar" data-id="' + esc(r.id) + '">' + PAPELERA + 'Quitar de la lista</button></div>';
     }
@@ -151,6 +153,8 @@ const PISCINA = (function(){
       '<button type="button" class="psc-confirmar" data-psc="otro">Programar otro día</button></div>';
   }
   function chip(r){
+    if(r.anular && r.estado === 'reservada') return '<span class="psc-chip vigilando">Anulando…</span>';
+    if(r.estado === 'fallida' && r.detalle === 'Anulada') return '<span class="psc-chip fallida">Anulada</span>';
     if(r.quiere_hora && r.fecha >= hoy()) return '<span class="psc-chip vigilando">Vigilando ' + r.quiere_hora + '</span>';
     const fue = r.estado === 'reservada' && r.detalle === 'Asistido';
     const t = fue ? 'Asistida' : { programada: 'Programada', reservada: 'Reservada', fallida: 'No se pudo' }[r.estado];
@@ -162,8 +166,9 @@ const PISCINA = (function(){
     const fila = r => '<div class="psc-fila" role="button" tabindex="0" data-psc="ir" data-f="' + r.fecha + '">' +
       '<span class="psc-fila-dia"><b>' + deIso(r.fecha).getDate() + '</b><small>' + MESES[deIso(r.fecha).getMonth()].slice(0, 3) + '</small></span>' +
       '<span class="psc-fila-txt"><b>' + cap(DIAS[deIso(r.fecha).getDay()]) + ' · ' + r.hora + ' – ' + finHora(r.hora) + '</b>' +
-        '<span>' + (r.quiere_hora && r.fecha >= hoy() ? (r.estado === 'reservada' ? 'Tienes las ' + r.hora + (r.calle ? ' (' + esc(r.calle) + ')' : '') + ' · si se liberan las ' + r.quiere_hora + ', te cambio' : 'En cuanto haya sitio a las ' + r.quiere_hora + ', la cojo') + (r.detalle && r.detalle !== 'Asistido' ? ' · ' + esc(r.detalle) : '') :
+        '<span>' + (r.quiere_hora && r.fecha >= hoy() ? (r.estado === 'reservada' ? 'Tienes las ' + r.hora + (r.calle ? ' (' + esc(r.calle) + ')' : '') + ' · si se liberan las ' + r.quiere_hora + ', te cambio' : (hayLibres(r.fecha, r.quiere_hora) ? 'Hay sitio a las ' + r.quiere_hora + ': el robot la está cogiendo' : 'En cuanto haya sitio a las ' + r.quiere_hora + ', la cojo')) + (r.detalle && r.detalle !== 'Asistido' ? ' · ' + esc(r.detalle) : '') :
           r.estado === 'programada' ? (r.fecha >= primerDia() ? 'Se reserva el ' + corto(masDias(r.fecha, -ANTELACION)) + ' a las 00:00' : 'Esta noche o ya abierto') :
+          r.anular && r.estado === 'reservada' ? 'El robot la está anulando en IMDECO' :
           r.estado === 'reservada' ? (r.calle ? esc(r.calle) : 'Hecha') : esc((r.detalle || '').slice(0, 90))) + '</span></span>' +
       chip(r) + '</div>';
     return '<div class="psc-lista"><div class="psc-lista-t">Próximas</div>' +
@@ -192,10 +197,16 @@ const PISCINA = (function(){
     if(huecosCargando || !currentUserIsAdmin) return;
     huecosCargando = true; pintarHuecos();
     try{
-      const { data, error } = await sb.functions.invoke('piscina-huecos', { body: {} });
-      if(error) throw error;
-      if(data && data.error) throw new Error(data.error);
-      huecos = data; huecosError = data.aviso || null;
+      // IMDECO a veces tarda o corta: un segundo intento antes de dar error
+      let r = null;
+      for(let i = 0; i < 2; i++){
+        r = await sb.functions.invoke('piscina-huecos', { body: {} });
+        if(!r.error && r.data && !r.data.error) break;
+        if(i === 0) await new Promise(ok => setTimeout(ok, 2500));
+      }
+      if(r.error) throw r.error;
+      if(r.data && r.data.error) throw new Error(r.data.error);
+      huecos = r.data; huecosError = r.data.aviso || null;
     }catch(e){ huecosError = 'No se pudo consultar IMDECO' + (huecos ? ' (se ve lo último que hubo)' : ''); console.warn('piscina-huecos', e); }
     huecosCargando = false; pintarHuecos();
   }
@@ -229,7 +240,7 @@ const PISCINA = (function(){
     const sel = d && horaHuecos && d.horas.find(h => h.hora === horaHuecos);
     const detalle = sel ? '<div class="psc-hc-det">' + (sel.libres.length
       ? '<b>' + sel.libres.length + ' de ' + sel.total + ' libres a las ' + sel.hora + ':</b> ' + sel.libres.map(esc).join(', ')
-      : 'A las ' + sel.hora + ' está todo ocupado.') + ' <a href="' + IMDECO + '" target="_blank" rel="noopener">Reservar en IMDECO ›</a>' + accionHora(d.fecha, sel) + '</div>' : '';
+      : 'A las ' + sel.hora + ' está todo ocupado' + ((deDia(d.fecha) || {}).estado === 'reservada' && deDia(d.fecha).hora === sel.hora ? ' (una calle es la tuya).' : '.')) + ' <a href="' + IMDECO + '" target="_blank" rel="noopener">Reservar en IMDECO ›</a>' + accionHora(d.fecha, sel) + '</div>' : '';
     return '<div class="psc-hc-t"><b>Huecos ahora</b><span>' + (huecosCargando ? 'Actualizando…' : 'Actualizado ' + hace(huecos.actualizado)) +
         (huecosError ? ' · ' + esc(huecosError) : '') + '</span><button type="button" class="psc-hc-recarga" data-psc="hc-recargar" aria-label="Actualizar"' + (huecosCargando ? ' disabled' : '') + '>↻</button></div>' +
       avisos + '<div class="psc-hc-tabs">' + tabs + '</div><div class="psc-hc-horas">' + horasHtml + '</div>' + detalle;
@@ -240,7 +251,8 @@ const PISCINA = (function(){
      y, si la nueva no saliera, vuelve a coger la de antes. */
   function accionHora(fecha, h){
     const r = deDia(fecha);
-    if(r && r.estado === 'reservada' && r.hora === h.hora) return '<div class="psc-hc-acc"><span class="psc-hc-ok">✓ Esta es tu reserva</span></div>';
+    if(r && r.estado === 'reservada' && r.hora === h.hora) return '<div class="psc-hc-acc"><span class="psc-hc-ok">✓ Esta es tu reserva' + (r.calle ? ' (' + esc(r.calle) + ')' : '') + '</span>' +
+      (r.anular ? '<small>El robot la está anulando…</small>' : '<button type="button" class="psc-btn-sec" data-psc="anular" data-id="' + esc(r.id) + '">Anular en IMDECO</button>') + '</div>';
     if(r && r.quiere_hora === h.hora) return '<div class="psc-hc-acc"><span class="psc-hc-vig">● Vigilando: en cuanto haya sitio, la cojo' +
       (r.estado === 'reservada' ? ' y anulo la de las ' + r.hora : '') + '</span><button type="button" class="psc-btn-sec" data-psc="no-vigilar" data-f="' + fecha + '">Dejar de vigilar</button></div>';
     const cambio = r && r.estado === 'reservada';
@@ -249,7 +261,8 @@ const PISCINA = (function(){
     const otra = (cambio ? '<small>Anulo tu reserva de las ' + r.hora + ' justo al coger la nueva; si la nueva no saliera, vuelvo a coger la tuya.</small>' : '') +
       (r && r.quiere_hora ? '<small>Ahora vigilas las ' + r.quiere_hora + ': se cambia por esta.</small>' : '');
     return '<div class="psc-hc-acc"><button type="button" class="psc-confirmar" data-psc="vigilar" data-f="' + fecha + '" data-h="' + h.hora + '">' + txt + '</button>' + otra +
-      '<small>Lo hace el robot: empieza a mirar en unos minutos y luego cada 20 s, de 6:30 a 23:20.</small></div>';
+      '<small>' + (h.libres.length ? 'Hay sitio: el robot la reserva en cuanto lo pulses (en segundos si ya está en marcha; si no, en unos 5 min).'
+        : 'El robot mira cada 3 s, de 6:30 a 23:20, y la coge en cuanto alguien la libere.') + ' Solo si es gratis con tu bono: si cobrase algo, no la compra.</small></div>';
   }
   async function vigilarHora(fecha, hora){
     const r = deDia(fecha);
@@ -257,11 +270,29 @@ const PISCINA = (function(){
     const q = r
       ? sb.from('piscina_reservas').update(r.estado === 'reservada' ? cambio : Object.assign(cambio, { hora, estado: 'programada', detalle: null })).eq('id', r.id)
       : sb.from('piscina_reservas').insert({ fecha, hora, estado: 'programada', quiere_hora: hora });
-    const { data, error } = await q.select('id, fecha, hora, estado, detalle, calle, quiere_hora, updated_at').single();
+    const { data, error } = await q.select('id, fecha, hora, estado, detalle, calle, quiere_hora, anular, updated_at').single();
     if(error){ uiToast('No se pudo guardar: ' + error.message, 'error'); return; }
     filas = filas.filter(x => x.fecha !== fecha).concat(data).sort((a, b) => a.fecha < b.fecha ? -1 : 1);
     guardarCache(); pintar();
-    uiToast(r && r.estado === 'reservada' ? 'Vigilando las ' + hora + ': si se libera, cambio tu reserva' : 'Vigilando las ' + hora + ': en cuanto haya sitio, la cojo', 'success');
+    const ya = hayLibres(fecha, hora);
+    uiToast(r && r.estado === 'reservada' ? (ya ? 'Hay sitio: el robot cambia tu reserva a las ' + hora : 'Vigilando las ' + hora + ': si se libera, cambio tu reserva')
+      : ya ? 'Hay sitio: el robot reserva las ' + hora + ' ya' : 'Vigilando las ' + hora + ': en cuanto haya sitio, la cojo', 'success');
+  }
+  // ¿Hay calles libres ahora (según la última foto de huecos)?
+  function hayLibres(fecha, hora){
+    const d = huecos && (huecos.dias || []).find(x => x.fecha === fecha), h = d && d.horas.find(x => x.hora === hora);
+    return !!(h && h.libres.length);
+  }
+  // «Anular en IMDECO»: lo hace el robot (vigilar.mjs) en cuanto lo ve
+  async function anular(id){
+    const r = filas.find(x => x.id === id);
+    if(!r) return;
+    const ok = await uiConfirm('¿Anular tu reserva del ' + largo(r.fecha) + ' a las ' + r.hora + '?\n\nEl robot la anula en IMDECO (en segundos si ya está en marcha; si no, en unos 5 min).', { ok: 'Anular', danger: true });
+    if(!ok) return;
+    const { error } = await sb.from('piscina_reservas').update({ anular: true, quiere_hora: null, updated_at: new Date().toISOString() }).eq('id', id);
+    if(error){ uiToast('No se pudo pedir: ' + error.message, 'error'); return; }
+    r.anular = true; r.quiere_hora = null; guardarCache(); pintar();
+    uiToast('Pedido: el robot la anula en IMDECO', 'success');
   }
   async function noVigilar(fecha){
     const r = deDia(fecha);
@@ -285,7 +316,7 @@ const PISCINA = (function(){
     temporizador = setInterval(() => {
       const activa = document.getElementById('screen-piscina')?.classList.contains('active');
       if(!activa){ clearInterval(temporizador); temporizador = null; return; }
-      if(document.visibilityState === 'visible') cargarHuecos(); else pintarHuecos();
+      if(document.visibilityState === 'visible'){ cargarHuecos(); cargar(); } else pintarHuecos();
     }, REFRESCO);
   }
 
@@ -296,7 +327,7 @@ const PISCINA = (function(){
     guardando = true; pintar();
     const { data, error } = await sb.from('piscina_reservas')
       .upsert({ fecha: elegido, hora: horaElegida, estado: 'programada', detalle: null, calle: null, updated_at: new Date().toISOString() }, { onConflict: 'user_id,fecha' })
-      .select('id, fecha, hora, estado, detalle, calle, quiere_hora, updated_at').single();
+      .select('id, fecha, hora, estado, detalle, calle, quiere_hora, anular, updated_at').single();
     guardando = false;
     if(error){ uiToast('No se pudo guardar: ' + error.message, 'error'); pintar(); return; }
     filas = filas.filter(r => r.fecha !== data.fecha).concat(data).sort((a, b) => a.fecha < b.fecha ? -1 : 1);
@@ -332,11 +363,12 @@ const PISCINA = (function(){
       }
       case 'confirmar': confirmar(); break;
       case 'borrar': borrar(el.dataset.id); break;
+      case 'anular': anular(el.dataset.id); break;
       case 'reprogramar': reprog = elegido; horaElegida = null; pintar(); break;
       case 'otro': hecho = null; elegido = null; pintar(); break;
       case 'hc-dia': diaHuecos = Number(el.dataset.i); horaHuecos = null; pintarHuecos(); break;
       case 'hc-hora': horaHuecos = horaHuecos === el.dataset.h ? null : el.dataset.h; pintarHuecos(); break;
-      case 'hc-recargar': cargarHuecos(); break;
+      case 'hc-recargar': cargarHuecos(); cargar(); break;
       case 'vigilar': vigilarHora(el.dataset.f, el.dataset.h); break;
       case 'no-vigilar': noVigilar(el.dataset.f); break;
       case 'ir': {
@@ -355,7 +387,7 @@ const PISCINA = (function(){
       root.addEventListener('keydown', e => { if(e.key === 'Enter' && e.target.dataset && e.target.dataset.psc === 'ir') onClick(e); });
       // Al volver a la app con la pantalla abierta, los huecos al momento
       document.addEventListener('visibilitychange', () => {
-        if(document.visibilityState === 'visible' && document.getElementById('screen-piscina').classList.contains('active')){ cargarHuecos(); if(!temporizador) vigilar(); }
+        if(document.visibilityState === 'visible' && document.getElementById('screen-piscina').classList.contains('active')){ cargarHuecos(); cargar(); if(!temporizador) vigilar(); }
       });
     }
     if(currentUser && dueño !== currentUser.id){ dueño = currentUser.id; filas = []; cargado = false; leerCache(); }
