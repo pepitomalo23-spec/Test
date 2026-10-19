@@ -14,6 +14,7 @@ const INICIO = (function(){
     reanudar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>',
     piscina: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 15c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg>'
   };
+  const ICO_CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
   const MAX_TAREAS = 5;
   const esc = s => escapeHtml(String(s == null ? '' : s));
   const datosListos = () => typeof appDataReady !== 'undefined' && appDataReady && QUESTIONS_POOL.length > 0;
@@ -24,19 +25,6 @@ const INICIO = (function(){
   }
   const etiqueta = (txt, extra) => '<div class="ini-label"><span>' + txt + '</span>' + (extra || '') + '</div>';
 
-  function continuar(){
-    if(!quizState || !quizState.mode) return '';
-    const total = (quizState.answers || []).length;
-    const hechas = (quizState.answers || []).filter(a => a != null).length;
-    const pct = total ? Math.round(hechas / total * 100) : 0;
-    return '<button type="button" class="ini-continuar" data-ini="reanudar">' +
-      '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
-      '<span class="ini-continuar-txt"><b>Continuar ' + esc(MODOS[quizState.mode] || 'test') + '</b>' +
-        '<span>' + (total ? hechas + ' de ' + total + ' respondidas' : 'Tienes un test a medias') + '</span>' +
-        (total ? '<span class="ini-barra"><i style="width:' + pct + '%"></i></span>' : '') + '</span>' +
-      '<span class="ini-flecha">' + FLECHA + '</span></button>';
-  }
-
   // Piscina (solo administradores): acceso a programar reservas, con la próxima.
   function piscina(){
     if(!currentUserIsAdmin || typeof PISCINA === 'undefined') return '';
@@ -45,32 +33,6 @@ const INICIO = (function(){
       '<span class="ini-continuar-ico">' + ICO.piscina + '</span>' +
       '<span class="ini-continuar-txt"><b>Piscina</b><span>' + esc(PISCINA.textoProxima(r)) + '</span></span>' +
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
-  }
-
-  // Una prueba de js/pruebas.js a medias (el Simulacro conjunto o un modo del Específico).
-  function pruebaAMedias(){
-    if(typeof PRU === 'undefined') return '';
-    const m = PRU.aMedias();
-    if(!m) return '';
-    const pct = m.total ? Math.round(m.hechas / m.total * 100) : 0;
-    return '<button type="button" class="ini-continuar" data-ini="prueba">' +
-      '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
-      '<span class="ini-continuar-txt"><b>Continuar ' + esc(m.titulo.charAt(0).toLowerCase() + m.titulo.slice(1)) + '</b><span>' + m.hechas + ' de ' + m.total + ' respondidas</span>' +
-        '<span class="ini-barra"><i style="width:' + pct + '%"></i></span></span>' +
-      '<span class="ini-flecha">' + FLECHA + '</span></button>';
-  }
-
-  // Un test del Específico a medias (se sigue aquí o en otro dispositivo).
-  function espAMedias(){
-    if(typeof ESPT === 'undefined' || !ESPT.aMedias) return '';
-    return ESPT.aMedias().map(m => {
-      const pct = m.total ? Math.round(m.hechas / m.total * 100) : 0;
-      return '<button type="button" class="ini-continuar" data-ini="esp" data-id="' + esc(m.id) + '">' +
-        '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
-        '<span class="ini-continuar-txt"><b>' + esc(m.etiqueta || 'Continuar test del Específico') + '</b><span>' + esc(m.titulo) + ' · ' + m.hechas + ' de ' + m.total + ' respondidas</span>' +
-          '<span class="ini-barra"><i style="width:' + pct + '%"></i></span></span>' +
-        '<span class="ini-flecha">' + FLECHA + '</span></button>';
-    }).join('');
   }
 
   // Marcadas del Específico que tocan hoy (el repaso de cada día).
@@ -383,7 +345,8 @@ const INICIO = (function(){
     const anilloHoy = '<svg class="ini-hero-anillo" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" class="fondo"/>' +
       (n && hechas ? '<circle cx="18" cy="18" r="15" class="valor" stroke-dasharray="' + (2 * Math.PI * 15 * hechas / n).toFixed(2) + ' 94.25" transform="rotate(-90 18 18)"/>' : '') +
       '<text x="18" y="21.2" text-anchor="middle">' + (n ? hechas + '/' + n : '–') + '</text></svg>';
-    return '<div class="ini-hero"><div class="ini-hero-top"><div><div class="ini-fecha">' + fechaHoy() + '</div><h1 class="ini-h">Hoy</h1></div></div>' +
+    return '<div class="ini-hero"><div class="ini-hero-top"><div><div class="ini-fecha">' + fechaHoy() + '</div><h1 class="ini-h">Hoy</h1></div>' +
+        '<button type="button" class="ini-cal-btn ini-cal-movil" data-ini="calendario">' + ICO_CAL + 'Calendario</button></div>' +
       '<div class="ini-hero-fila">' + anilloHoy + '<div class="ini-hero-txt"><b>' + titulo + '</b>' + examen() + '</div></div>' +
       (enCurso ? '<div class="ini-encurso">' + enCurso + '</div>' : '') + '</div>';
   }
@@ -392,6 +355,44 @@ const INICIO = (function(){
      A la izquierda la fecha, «Hoy», cuántas van y el examen; a la derecha las
      tareas de hoy, cada una con a qué pertenece. La primera pendiente, en blanco.
      Al lado, lo que está a medias (en tarjeta de contraste) y el examen. */
+  /* ---------- «Continuar test»: todos los tests a medias en una ventana ---------- */
+  function testsAMedias(){
+    const out = [];
+    if(quizState && quizState.mode){
+      const total = (quizState.answers || []).length, hechas = (quizState.answers || []).filter(a => a != null).length;
+      out.push({ t: 'reanudar', titulo: (MODOS[quizState.mode] || 'Test').replace(/^./, c => c.toUpperCase()), grupo: 'Legislación', hechas, total });
+    }
+    if(typeof PRU !== 'undefined'){ const m = PRU.aMedias(); if(m) out.push({ t: 'prueba', titulo: m.titulo, grupo: 'Prueba', hechas: m.hechas, total: m.total }); }
+    if(typeof ESPT !== 'undefined' && ESPT.aMedias) ESPT.aMedias().forEach(m => out.push({ t: 'esp', id: m.id, titulo: m.titulo, grupo: m.etiqueta ? 'Preguntas marcadas' : 'Específico', hechas: m.hechas, total: m.total }));
+    return out;
+  }
+  const barraPct = x => '<span class="ini-barra"><i style="width:' + (x.total ? Math.round(x.hechas / x.total * 100) : 0) + '%"></i></span>';
+  function continuarTests(){
+    const xs = testsAMedias();
+    if(!xs.length) return '';
+    const sub = xs.length === 1 ? esc(xs[0].titulo) + ' · ' + xs[0].hechas + ' de ' + xs[0].total : xs.length + ' a medias · el último: ' + esc(xs[0].titulo);
+    return '<button type="button" class="ini-continuar" data-ini="tests">' +
+      '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
+      '<span class="ini-continuar-txt"><b>Continuar test</b><span>' + sub + '</span>' + (xs.length === 1 ? barraPct(xs[0]) : '') + '</span>' +
+      (xs.length > 1 ? '<span class="ini-num">' + xs.length + '</span>' : '') +
+      '<span class="ini-flecha">' + FLECHA + '</span></button>';
+  }
+  function seguirTest(t, id){
+    if(t === 'reanudar') resumeQuiz();
+    else if(t === 'prueba') PRU.continuar();
+    else if(t === 'esp') ESPT.continuarCurso(id);
+  }
+  function abrirTests(){
+    const xs = testsAMedias();
+    if(xs.length === 1) return seguirTest(xs[0].t, xs[0].id);
+    const filas = xs.map(x => '<button type="button" class="ini-continuar ini-tm" data-h="seguir" data-t="' + x.t + '" data-id="' + esc(x.id || '') + '">' +
+      '<span class="ini-continuar-txt"><b>' + esc(x.titulo) + '</b><span>' + esc(x.grupo) + ' · ' + x.hechas + ' de ' + x.total + ' respondidas</span>' + barraPct(x) + '</span>' +
+      '<span class="ini-flecha">' + FLECHA + '</span></button>').join('');
+    hoja('Tests a medias', xs.length + ' sin terminar · sigues donde lo dejaste', '<div class="ini-tm-lista">' + filas + '</div>',
+      '<button type="button" class="cal-btn primario" data-h="cerrar">Cerrar</button>',
+      (b, cerrar) => { if(b.dataset.h === 'seguir'){ cerrar(); seguirTest(b.dataset.t, b.dataset.id); } });
+  }
+
   function cabeceraGrande(r){
     const n = r ? r.lista.length : 0, hechas = r ? r.hechas : 0;
     let lista;
@@ -415,7 +416,8 @@ const INICIO = (function(){
     return '<div class="ini-heropc"><div class="ini-heropc-izq"><div class="ini-fecha">' + dia.charAt(0).toUpperCase() + dia.slice(1) + '</div>' +
         '<h1 class="ini-h ini-heropc-dia">' + d.getDate() + '</h1><div class="ini-heropc-mes">' + MESES[d.getMonth()] + '</div>' +
         (n ? '<div class="ini-heropc-n"><b>' + hechas + ' de ' + n + '</b><span>' + (n === 1 ? 'tarea hecha' : 'tareas hechas') + '</span></div>' : '') + examen() +
-        '<button type="button" class="ini-heropc-add" data-ini="nueva">+ Añadir tarea</button></div>' +
+        '<div class="ini-heropc-bts"><button type="button" class="ini-heropc-add" data-ini="nueva">+ Añadir tarea</button>' +
+        '<button type="button" class="ini-heropc-add ini-cal-btn" data-ini="calendario">' + ICO_CAL + 'Calendario</button></div></div>' +
       '<div class="ini-heropc-tareas">' + lista + '</div></div>';
   }
 
@@ -423,7 +425,7 @@ const INICIO = (function(){
     const root = document.getElementById('inicioRoot');
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
     const r = typeof CAL !== 'undefined' ? CAL.resumenHoy() : null;
-    const enCurso = continuar() + pruebaAMedias() + espAMedias() + marcadasHoy() + piscina();
+    const enCurso = continuarTests() + marcadasHoy() + piscina();
     const lado = examenSemana() + (exaSemana() ? '' : cifras());
     // Móvil y pantalla grande: se pintan los dos y el CSS enseña el que toca.
     root.innerHTML = '<div class="ini-movil">' + cabecera(r, enCurso) +
@@ -519,6 +521,7 @@ const INICIO = (function(){
       case 'piscina': showScreen('screen-piscina'); break;
       case 'dia': CAL.abrirDia(el.dataset.f); break;
       case 'reanudar': resumeQuiz(); break;
+      case 'tests': abrirTests(); break;
       case 'esp': ESPT.continuarCurso(el.dataset.id); break;
       case 'marcadas': ESPT.abrirHoy(); break;
       case 'prueba': PRU.continuar(); break;

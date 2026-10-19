@@ -179,3 +179,38 @@
 .psc-hc-ok{ color: var(--green); font-weight: 600; }
 .psc-hc-vig{ color: var(--amber); font-weight: 600; }
 .psc-chip.vigilando{ color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, transparent); }
+
+/* ---------- todo en una pantalla: cabecera con botones, lo tuyo y los huecos ---------- */
+.psc-top{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin: 2px 0 12px; }
+.psc-top-t{ display:flex; align-items:center; gap:10px; color: var(--blue); }
+.psc-top-t h2{ margin:0; font-size:24px; font-weight:700; letter-spacing:-0.02em; color: var(--text); }
+.psc-top-t .psc-ico{ width:26px; height:26px; }
+.psc-top-bts{ display:flex; gap:8px; flex-wrap:wrap; }
+.psc-tb{ display:inline-flex; align-items:center; gap:6px; padding:9px 14px; border-radius:99px; border:1px solid var(--line); background: var(--card); color: var(--text); font:inherit; font-size:13.5px; font-weight:600; cursor:pointer; }
+.psc-tb:hover{ border-color: var(--muted); }
+.psc-tb.primario{ background: var(--text); color: var(--bg); border-color: var(--text); }
+.psc-tb.redondo{ width:38px; justify-content:center; padding:9px 0; }
+.psc-tb em{ font-style:normal; font-size:12px; min-width:20px; height:20px; padding:0 6px; border-radius:99px; background: var(--blue); color:#fff; display:inline-flex; align-items:center; justify-content:center; }
+.psc-mias{ display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; margin-bottom:12px; scrollbar-width:none; }
+.psc-mias::-webkit-scrollbar{ display:none; }
+.psc-mia{ flex:none; display:inline-flex; align-items:center; gap:10px; padding:9px 12px; border-radius:14px; border:1px solid var(--line); background: var(--card); color: var(--text); font:inherit; font-size:13.5px; cursor:pointer; }
+.psc-mia b{ font-weight:700; }
+.psc-mias-vacio{ color: var(--muted); font-size:13.5px; padding:6px 0; }
+.psc-lib-btn{ display:inline-flex; align-items:center; gap:8px; margin-left:auto; padding:6px 12px; border-radius:99px; border:1px solid color-mix(in srgb, var(--green) 45%, transparent);
+  background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--text); font:inherit; font-size:12.5px; cursor:pointer; min-width:0; }
+.psc-lib-btn b{ color: var(--green); }
+.psc-lib-btn span:last-child{ color: var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.psc-hc-t{ flex-wrap:wrap; align-items:center; }
+/* Ventanas */
+.psc-ventana.ancha{ max-width: 860px; }
+.psc-ventana .psc-cuerpo{ min-height:0; border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+.psc-ventana .psc-cuerpo-ok{ grid-template-columns: 1fr; }
+.psc-ventana .psc-lista{ margin:0; }
+.psc-ventana .psc-lista-t{ display:none; }
+.psc-ventana .psc-info{ border:1px solid var(--line); border-radius:16px; margin-bottom:12px; }
+.psc-ayuda{ margin:0; padding-left:18px; color: var(--muted); font-size:13.5px; line-height:1.55; display:flex; flex-direction:column; gap:6px; }
+.psc-ayuda b{ color: var(--text); }
+@media (max-width: 640px){
+  .psc-lib-btn span:last-child{ display:none; }
+  .psc-tb{ padding:8px 12px; font-size:13px; }
+}

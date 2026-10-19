@@ -14,7 +14,9 @@ const SINC = (function(){
   function ponerSello(n, at){ try{ localStorage.setItem(sello(n), String(at)); }catch(e){} }
   function leerLocal(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
 
-  function registrar(nombre, clave, llega){ reg.set(nombre, { clave, llega: llega || (() => {}) }); }
+  // mezclar(local, remoto) (opcional): en vez de quedarse con lo más nuevo entero, se juntan los dos
+  // (p. ej. varios tests a medias, uno de cada dispositivo).
+  function registrar(nombre, clave, llega, mezclar){ reg.set(nombre, { clave, llega: llega || (() => {}), mezclar }); }
   function cambiado(nombre){
     if(!currentUser || !reg.has(nombre)) return;
     ponerSello(nombre, Date.now());
@@ -51,7 +53,16 @@ const SINC = (function(){
         let local = leerSello(n);
         // Lo que había en el dispositivo de antes de esto (sin sello): cuenta como de ahora.
         if(!local && leerLocal(k) != null && !x){ local = Date.now(); ponerSello(n, local); }
-        if(x && atRemoto > local){
+        if(x && r.mezclar && x.datos != null && leerLocal(k) != null && atRemoto !== local){
+          let aqui = null; try{ aqui = JSON.parse(leerLocal(k)); }catch(e){}
+          const junto = r.mezclar(aqui, x.datos), txt = JSON.stringify(junto);
+          if(txt !== leerLocal(k)){
+            try{ localStorage.setItem(k, txt); }catch(e){ continue; }
+            try{ r.llega(); }catch(e){ console.warn('Al seguir lo de otro dispositivo (' + n + ')', e); }
+          }
+          ponerSello(n, Math.max(local, atRemoto));
+          if(txt !== JSON.stringify(x.datos)) subir(n);
+        }else if(x && atRemoto > local){
           try{ x.datos == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(x.datos)); }catch(e){ continue; }
           ponerSello(n, atRemoto);
           try{ r.llega(); }catch(e){ console.warn('Al seguir lo de otro dispositivo (' + n + ')', e); }
