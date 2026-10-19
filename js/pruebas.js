@@ -873,7 +873,7 @@ const PRU = (function(){
     if(!est || est.terminado || est.revision) return;
     if(est.diseno === 'tb'){
       // Estudio y Fallos: una respuesta, corregida al momento. Simulacro y Examen: se elige (y se cambia) y se corrige al final.
-      if(MODOS[est.modo].vista === 'tarjeta'){ if(est.resp[i] != null) return; est.resp[i] = j; est.vistas[i] = true; }
+      if(MODOS[est.modo].vista === 'tarjeta'){ if(est.resp[i] != null) return; est.resp[i] = j; est.vistas[i] = true; anotarRespuesta(est.items[i].k, est.items[i].id, j === est.items[i].correcta); }
       else est.resp[i] = est.resp[i] === j ? null : j;
       repintarTb(i); guardar(); contador();
       return;
@@ -881,6 +881,7 @@ const PRU = (function(){
     if(MODOS[est.modo].vista === 'tarjeta'){
       if(est.resp[i] != null || (est.blancas && est.blancas[i])) return;   // una sola respuesta
       est.resp[i] = j;
+      anotarRespuesta(est.items[i].k, est.items[i].id, j === est.items[i].correcta);
       est.expAbierta = false;
       pintarTarjeta();
     } else {
@@ -924,6 +925,7 @@ const PRU = (function(){
     const segundos = Math.round((Math.min(Date.now(), est.fin || Date.now()) - est.inicio) / 1000);
     const parte = k => { const idx = est.items.map((_, i) => i).filter(i => est.items[i].k === k); return { items: idx.map(i => est.items[i]), resp: idx.map(i => est.resp[i]) }; };
     const L = parte('l'), E = parte('e');
+    est.items.forEach((it, j) => anotarRespuesta(it.k, it.id, est.resp[j] === it.correcta));
     const pen = est.pen;
     est.res = { todo: puntos(est.items, est.resp, pen), l: puntos(L.items, L.resp, pen), e: puntos(E.items, E.resp, pen), segundos, pen };
     if(porTiempo) uiToast('Se acabó el tiempo: corregido.', 'info');
@@ -1217,8 +1219,8 @@ const PRU = (function(){
       case 'blanco':
         if(!est.blancas) est.blancas = new Array(est.items.length).fill(false);
         est.blancas[est.i] = true; est.expAbierta = false; pintarTarjeta(); contador(); break;
-      case 'salir': showScreen(M.volver); if(M.oficial && est.fin) uiToast('El reloj sigue corriendo: puedes seguir desde Inicio.', 'info'); break;   // queda guardada: se sigue después
-      case 'volver': { const v = M.volver; est = null; showScreen(v); break; }
+      case 'salir': volverAtras(M.volver); if(M.oficial && est.fin) uiToast('El reloj sigue corriendo: puedes seguir desde Inicio.', 'info'); break;   // queda guardada: se sigue después
+      case 'volver': { const v = M.volver; est = null; volverAtras(v); break; }
       case 'otro': { const modo = est.modo, v = M.volver; est = null; showScreen(v); if(M.oficial && typeof EXA !== 'undefined') EXA.simulacro(); else abrirConfig(modo); break; }
     }
   }

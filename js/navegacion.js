@@ -48,9 +48,22 @@ function getLastScreen(){
   }catch(e){}
   return 'screen-inicio';
 }
+/* «Volver»: de qué pantalla se llegó a cada una. volverAtras(defecto) vuelve ahí (si no se
+   sabe, a «defecto»). Al volver no se apunta nada, para no quedar dando vueltas entre dos. */
+const VIENE_DE = {};
+let volviendo = false;
+function volverAtras(defecto){
+  const act = (document.querySelector('.screen.active') || {}).id;
+  const v = VIENE_DE[act];
+  volviendo = true;
+  try{ showScreen(v && v !== act && document.getElementById(v) ? v : defecto); }
+  finally{ volviendo = false; }
+}
 function showScreen(id){
   if(SCREEN_FEATURE[id] && !featureEnabled(SCREEN_FEATURE[id])) id = 'screen-home';
   if(id === 'screen-piscina' && !currentUserIsAdmin) id = 'screen-inicio';
+  const antes = (document.querySelector('.screen.active') || {}).id;
+  if(antes && antes !== id && !volviendo) VIENE_DE[id] = antes;
   if(id !== 'screen-quiz'){ clearInterval(timerInterval); }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');

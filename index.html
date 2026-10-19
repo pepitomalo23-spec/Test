@@ -532,7 +532,7 @@
 
 
     <section class="screen" id="screen-calendario">
-      <span class="back-link cal-volver" role="button" tabindex="0" onclick="showScreen('screen-inicio')" onkeydown="if(event.key==='Enter')showScreen('screen-inicio')">
+      <span class="back-link cal-volver" role="button" tabindex="0" onclick="volverAtras('screen-inicio')" onkeydown="if(event.key==='Enter')volverAtras('screen-inicio')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="11,6 5,12 11,18"/></svg>
         Inicio
       </span>
@@ -542,7 +542,7 @@
 
     <!-- ===== PISCINA: reservas de IMDECO programadas para el robot (js/piscina.js, solo administradores) ===== -->
     <section class="screen" id="screen-piscina">
-      <span class="back-link" role="button" tabindex="0" onclick="showScreen('screen-inicio')" onkeydown="if(event.key==='Enter')showScreen('screen-inicio')">
+      <span class="back-link" role="button" tabindex="0" onclick="volverAtras('screen-inicio')" onkeydown="if(event.key==='Enter')volverAtras('screen-inicio')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="11,6 5,12 11,18"/></svg>
         Inicio
       </span>
@@ -1184,7 +1184,7 @@
     <!-- ===== REVIEW / CORRECCIÓN SCREEN ===== -->
     <section class="screen" id="screen-review">
       <div class="quiz-head">
-        <span class="back-link" role="button" tabindex="0" onclick="showHome()">
+        <span class="back-link" role="button" tabindex="0" onclick="volverAtras('screen-home')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="11,6 5,12 11,18"/></svg>
           Volver
         </span>
@@ -1223,7 +1223,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <!-- Código de la app, en orden de carga. El ?v= lo pone scripts/versionar.mjs (no editar a mano). -->
-<script src="js/nucleo.js?v=84e565b6d2"></script>
+<script src="js/nucleo.js?v=9b19c81d03"></script>
 <script src="js/pwa.js?v=b3b8906f86"></script>
 <script src="js/errores.js?v=2fdc270c12"></script>
 <script src="js/alturas.js?v=cb41af982f"></script>
@@ -1235,16 +1235,16 @@
 <script src="js/estadisticas.js?v=6e0b1df2f8"></script>
 <script src="js/contenido.js?v=6f4615fdbb"></script>
 <script src="js/historial.js?v=d7dcaaa68d"></script>
-<script src="js/navegacion.js?v=25b4b418a5"></script>
+<script src="js/navegacion.js?v=ad7d1ed77b"></script>
 <script src="js/configuracion-test.js?v=7fe8572287"></script>
 <script src="js/test-inteligente.js?v=db51ff0fdd"></script>
-<script src="js/test.js?v=9b56980fc1"></script>
+<script src="js/test.js?v=9bdc48898e"></script>
 <script src="js/visor-imagen.js?v=1bec9b7237"></script>
 <script src="js/splash.js?v=21521df2b0"></script>
 <script src="js/notas.js?v=f2bfde0c15"></script>
 <script src="js/ia.js?v=e9d8fff760"></script>
 <script src="js/aportaciones.js?v=824eb0002d"></script>
-<script src="js/examen-revision.js?v=da757ebd1e"></script>
+<script src="js/examen-revision.js?v=f9ea7caa44"></script>
 <script src="js/cuenta.js?v=6a755e3ef0"></script>
 <script src="js/tema.js?v=e96fc2a4ed"></script>
 <script src="js/admin/panel.js?v=9e8ff5b7b8"></script>
@@ -1269,11 +1269,11 @@
 <script src="js/especifico.js?v=d59253a436"></script>
 <script src="js/colocar-tb.js?v=96ce703d50"></script>
 <script src="js/importar-especifico.js?v=17333f37f3"></script>
-<script src="js/especifico-test.js?v=afff0ab065"></script>
-<script src="js/estadisticas-especifico.js?v=5137c5de40"></script>
-<script src="js/pruebas.js?v=66b37fad4c"></script>
+<script src="js/especifico-test.js?v=5c3f914355"></script>
+<script src="js/estadisticas-especifico.js?v=412b1fb504"></script>
+<script src="js/pruebas.js?v=c0c45656df"></script>
 <script src="js/examen.js?v=d8ce487f69"></script>
-<script src="js/inicio.js?v=678bd337ac"></script>
+<script src="js/inicio.js?v=f11100af68"></script>
 <script src="js/arranque.js?v=838162d6bd"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
   <button type="button" class="image-lightbox-close" onclick="closeImageLightbox(event)" title="Cerrar">

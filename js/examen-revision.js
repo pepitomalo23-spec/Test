@@ -118,6 +118,7 @@ async function finishQuizInner(){
     : ACTIVE_QUESTIONS.map((_, i) => i);
   const SESSION_QUESTIONS = sessionIndices.map(i => ACTIVE_QUESTIONS[i]);
   const SESSION_ANSWERS = sessionIndices.map(i => quizState.answers[i]);
+  SESSION_QUESTIONS.forEach((q, j) => anotarRespuesta('l', q.id, SESSION_ANSWERS[j] === q.correct));
 
   const total = SESSION_QUESTIONS.length;
   const correctCount = SESSION_QUESTIONS.reduce((acc, q, j) => acc + (SESSION_ANSWERS[j] === q.correct ? 1 : 0), 0);

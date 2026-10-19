@@ -215,7 +215,7 @@ const INICIO = (function(){
         .eq('user_id', currentUser.id).gte('test_sessions.created_at', clave).order('id'))
       .then(filas => {
         filas.sort((a, b) => String(a.test_sessions.created_at).localeCompare(String(b.test_sessions.created_at)) || a.answer_order - b.answer_order);
-        const m = new Map(); filas.forEach(r => m.set(r.question_id, !!r.is_correct));
+        const m = new Map(); filas.forEach(r => m.set(r.question_id, [!!r.is_correct, new Date(r.test_sessions.created_at).getTime()]));
         semLegis = { clave, mapa: m, at: Date.now() };
       })
       .catch(e => { console.warn('semana del examen', e); semLegis = { clave, mapa: viejo || new Map(), at: Date.now() }; })
@@ -228,14 +228,17 @@ const INICIO = (function(){
   const marcadasListas = () => typeof ESPT !== 'undefined' && ESPT.numMarcadas && ESPT.numMarcadas() != null;
   // [{ nombre, tipo, total, bien: [], mal: [], sin: [] }] (bien/mal/sin: preguntas de Legislación u ids del Específico); null mientras carga.
   function semana(x){
-    const temas = [];
+    const temas = [], desde = desdeExa(x).getTime(), local = respuestasRecientes();
+    // La última respuesta de cada pregunta: lo de la cuenta o lo de este dispositivo (lo que sea más nuevo).
+    const ultima = (k, id, cuenta) => { const a = cuenta && cuenta.get(id), b = local[k + ':' + id];
+      const bb = b && b[1] >= desde ? [!!b[0], b[1]] : null; const g = !a ? bb : !bb ? a : bb[1] >= a[1] ? bb : a; return g ? g[0] : null; };
     if(x.legis.length){
       const pool = datosListos() ? QUESTIONS_POOL : null, m = pool && legisSemana(x);
       if(!m) return null;
       const entra = (q, l) => q.topic_id === l.id && (!l.grupo || (!!q.nodo_id && nodeIsInSelectedGroups(q.nodo_id, new Set([l.grupo]))));
       x.legis.forEach(l => {
         const qs = pool.filter(q => entra(q, l)), t = { nombre: l.nombre, tipo: 'Legislación', total: qs.length, bien: [], mal: [], sin: [] };
-        qs.forEach(q => (m.has(q.id) ? (m.get(q.id) ? t.bien : t.mal) : t.sin).push(q));
+        qs.forEach(q => { const u = ultima('l', q.id, m); (u == null ? t.sin : u ? t.bien : t.mal).push(q); });
         temas.push(t);
       });
     }
@@ -246,7 +249,7 @@ const INICIO = (function(){
       if(solo && !marcadasListas()){ ESPT.cargarMarcadas().then(pintar, () => {}); return null; }
       x.esp.forEach(k => {
         const t = { nombre: k.nombre, tipo: 'Específico', total: 0, bien: [], mal: [], sin: [], marcadas: solo };
-        e.temaDe.forEach((tema, id) => { if(tema !== k.id || (solo && !ESPT.estaMarcada(id))) return; t.total++; (e.ultima.has(id) ? (e.ultima.get(id) ? t.bien : t.mal) : t.sin).push(id); });
+        e.temaDe.forEach((tema, id) => { if(tema !== k.id || (solo && !ESPT.estaMarcada(id))) return; t.total++; const u = ultima('e', id, e.ultima); (u == null ? t.sin : u ? t.bien : t.mal).push(id); });
         temas.push(t);
       });
     }
@@ -639,7 +642,7 @@ const INICIO = (function(){
       });
     }
     if(typeof CAL !== 'undefined') CAL.asegurar();
-    semLegis = null;   // la semana del examen, con lo último que hayas terminado
+    if(semLegis) semLegis.at = 0;   // la semana del examen: se vuelve a pedir (mientras, lo de antes)
     pintar();
   }
   return { abrir, pintar };
