@@ -15,7 +15,6 @@
 // El repo es público: los registros no deben mostrar datos personales.
 
 import { readFileSync, existsSync, appendFileSync } from 'node:fs';
-import { importe, vaciar } from './rapido.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -264,6 +263,7 @@ async function confirmar(desdeCarrito = false) {
       if (!SIGUE.test(t) || NO.test(t) || !(await b.isEnabled().catch(() => false))) continue;
       // Antes de comprar: solo si es gratis con el bono (si cobra algo, se vacía el carrito y se para)
       if (/confirmar la compra/i.test(t)) {
+        const { importe, vaciar } = await import('./rapido.mjs');   // aquí: --comprobar va sin Playwright
         const euros = await importe(page);
         if (euros > 0) { await vaciar(page); throw new Error(`Esa hora es de pago (${euros} €) y no la cubre el bono: no la compro y vacío el carrito`); }
       }
