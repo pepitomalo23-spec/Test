@@ -308,12 +308,12 @@ const ESTE = (function(){
     return out;
   }
   // Para la semana del examen (Inicio): de cada pregunta, su tema y la última respuesta desde
-  // «desde» (ms). { temaDe: Map(id → tema), ultima: Map(id → acierto) }; null mientras carga.
+  // «desde» (ms). { temaDe: Map(id → tema), ultima: Map(id → [acierto, cuándo]) }; null mientras carga.
   function semana(desde){
     if(!resumen() || !datos) return null;
     const temaTest = new Map(datos.tests.map(t => [t.id, t.tema])), temaDe = new Map(), ultima = new Map();
     datos.preguntas.forEach(p => { const k = temaTest.get(p.test_id); if(k) temaDe.set(p.id, k); });
-    datos.respuestas.forEach(r => { if(r.created_at && new Date(r.created_at).getTime() >= desde) ultima.set(r.pregunta_id, !!r.acierto); });
+    datos.respuestas.forEach(r => { const t = r.created_at ? new Date(r.created_at).getTime() : 0; if(t >= desde) ultima.set(r.pregunta_id, [!!r.acierto, t]); });
     return { temaDe, ultima };
   }
   return { abrir, aplicarPestana, invalidar, reiniciar, resumen, porTema, semana };

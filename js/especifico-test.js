@@ -719,6 +719,7 @@ const ESPT = (function(){
     enviando = false;
   }
   function guardarRespuesta(id, acierto){
+    anotarRespuesta('e', id, acierto);
     const pru = typeof PRU !== 'undefined';
     if(pru && !sesion) sesion = { id: PRU.nuevoId(), inicio: Date.now(), created_at: new Date().toISOString() };
     registrar([{ pregunta_id: id, acierto, prueba_id: sesion ? sesion.id : null }]);
@@ -790,7 +791,7 @@ const ESPT = (function(){
     if(!b) return;
     const id = b.dataset.p;
     switch(b.dataset.espt){
-      case 'volver': showScreen(volverA || 'screen-especifico'); break;
+      case 'volver': if(volverA) showScreen(volverA); else volverAtras('screen-especifico'); break;
       case 'filtro': elegirMarcadas(b.dataset.f || null); break;
       case 'cero': empezarDeCero(); break;
       case 'ir-pendiente': irAPendiente(); break;

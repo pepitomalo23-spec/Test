@@ -7,7 +7,7 @@ const QUIZ_LIST_MODES = ['examen', 'simulacro']; // estas modalidades muestran t
 let volverTrasTest = null;
 function salirDelTest(){
   const v = (quizState && quizState.mode) ? quizState.volver : volverTrasTest;
-  if(v && document.getElementById(v)) showScreen(v); else showHome();
+  if(v && document.getElementById(v)) showScreen(v); else volverAtras('screen-home');   // a donde estabas al empezarlo o seguirlo
 }
 // Arriba del test, de qué fuente son las preguntas (solo si no son las de pj.fire).
 // Arriba del test, de dónde son las preguntas: en la vista tarjeta, la de la
@@ -408,6 +408,7 @@ function selectOption(i){
   quizState.answered = true;
   quizState.answers[quizState.index] = i;
   const q = ACTIVE_QUESTIONS[quizState.index];
+  anotarRespuesta('l', q && q.id, q && i === q.correct);
   document.querySelectorAll('#quizOptions .option').forEach((el,idx) => {
     el.onclick = null;
     if(idx === q.correct){
@@ -433,6 +434,7 @@ function markBlank(){
   if(!quizState.blanked) quizState.blanked = new Array(ACTIVE_QUESTIONS.length).fill(false);
   quizState.blanked[quizState.index] = true;
   const q = ACTIVE_QUESTIONS[quizState.index];
+  anotarRespuesta('l', q && q.id, false);
   document.querySelectorAll('#quizOptions .option').forEach((el,idx) => {
     el.onclick = null;
     if(idx === q.correct){

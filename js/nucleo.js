@@ -34,6 +34,21 @@
   }catch(e){}
 })();
 
+/* ---------- Lo último que has respondido (para la semana del examen de Inicio, al momento) ----------
+   Las respuestas de Legislación se guardan en la cuenta al terminar el test; aquí queda cada una
+   en cuanto se corrige, 10 días. k: 'l' (Legislación) o 'e' (Específico). */
+const RESP_RECIENTES = () => 'pj_resp_recientes:' + (typeof currentUser !== 'undefined' && currentUser ? currentUser.id : '');
+function respuestasRecientes(){ try{ return JSON.parse(localStorage.getItem(RESP_RECIENTES()) || '{}') || {}; }catch(e){ return {}; } }
+function anotarRespuesta(k, id, ok){
+  if(id == null) return;
+  try{
+    const r = respuestasRecientes(), ahora = Date.now();
+    r[k + ':' + id] = [ok ? 1 : 0, ahora];
+    Object.keys(r).forEach(c => { if(ahora - r[c][1] > 10 * 864e5) delete r[c]; });
+    localStorage.setItem(RESP_RECIENTES(), JSON.stringify(r));
+  }catch(e){}
+}
+
 /* ==================== SUPABASE SETUP ==================== */
 /* ---------- Avisos y confirmaciones propios ----------
    uiToast(): aviso pequeño que desaparece solo (sustituye a alert()).
