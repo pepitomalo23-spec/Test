@@ -124,3 +124,46 @@
 
 /* Botón de Inicio (js/inicio.js) */
 .ini-piscina .ini-continuar-ico{ background: var(--blue); }
+
+/* Huecos ahora en IMDECO */
+.psc-huecos{ background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px 18px; margin: 4px 0 26px; }
+.psc-hc-t{ display:flex; align-items:baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.psc-hc-t b{ font-size: 16px; }
+.psc-hc-t span{ font-size: 12.5px; color: var(--muted-2); flex: 1; min-width: 0; }
+.psc-hc-recarga{ border: 1px solid var(--line); background: var(--w04); color: var(--text); width: 30px; height: 30px; border-radius: 9px; cursor: pointer; font-size: 15px; line-height: 1; }
+.psc-hc-recarga:disabled{ opacity: .4; }
+.psc-lib{ display:flex; align-items:center; gap: 10px; padding: 9px 12px; margin-bottom: 8px; border-radius: 12px; font-size: 13.5px;
+  background: color-mix(in srgb, var(--green) 12%, transparent); border: 1px solid color-mix(in srgb, var(--green) 35%, transparent); animation: psc-entra .3s ease; }
+.psc-lib span{ flex: 1; min-width: 0; }
+.psc-lib b{ color: var(--green); }
+.psc-lib small{ color: var(--muted); font-size: 12px; white-space: nowrap; }
+.psc-lib-punto{ flex: none !important; width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 0 var(--green); animation: psc-latido 1.6s infinite; }
+@keyframes psc-latido{ 0%{ box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 60%, transparent); } 70%{ box-shadow: 0 0 0 8px transparent; } 100%{ box-shadow: 0 0 0 0 transparent; } }
+.psc-hc-tabs{ display:flex; gap: 6px; margin: 4px 0 12px; overflow-x: auto; }
+.psc-hc-tab{ flex: 1; min-width: 0; display:flex; align-items:center; justify-content:center; gap: 6px; padding: 8px 10px; border-radius: 11px; border: 1px solid var(--line); background: var(--w02); color: var(--muted); font: inherit; font-size: 13.5px; cursor: pointer; white-space: nowrap; }
+.psc-hc-tab small{ color: var(--muted-2); }
+.psc-hc-tab em{ font-style: normal; font-size: 11.5px; padding: 1px 7px; border-radius: 999px; background: var(--w08); color: var(--text); }
+.psc-hc-tab.sel{ background: var(--text); color: var(--bg); border-color: var(--text); }
+.psc-hc-tab.sel small{ color: var(--bg); opacity: .6; }
+.psc-hc-tab.sel em{ background: var(--bg); color: var(--text); }
+.psc-hc-horas{ display:grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.psc-hc-horas .skel{ display:block; border-radius: 12px; }
+.psc-hc-hora{ display:flex; flex-direction:column; align-items:center; gap: 3px; padding: 10px 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--w02); color: var(--text); font: inherit; cursor: pointer; transition: border-color .15s; }
+.psc-hc-hora b{ font-size: 15px; font-variant-numeric: tabular-nums; }
+.psc-hc-hora span{ font-size: 11.5px; color: var(--muted-2); }
+.psc-hc-hora.libre span{ color: var(--green); }
+.psc-hc-hora.pocas span{ color: var(--amber); }
+.psc-hc-hora.llena span{ color: var(--coral); }
+.psc-hc-hora.pasada{ opacity: .35; cursor: default; }
+.psc-hc-hora.recien{ border-color: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent); }
+.psc-hc-hora.sel{ border-color: var(--text); }
+.psc-hc-det{ margin-top: 10px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.psc-hc-det b{ color: var(--text); font-weight: 600; }
+.psc-hc-det a{ color: var(--blue); white-space: nowrap; }
+@media (max-width: 640px){
+  .psc-huecos{ padding: 14px; border-radius: 16px; }
+  .psc-hc-horas{ grid-template-columns: repeat(3, 1fr); }
+  .psc-hc-tab{ padding: 8px 6px; gap: 5px; font-size: 13px; }
+  .psc-hc-tab small{ display: none; }
+}
+@media (prefers-reduced-motion: reduce){ .psc-lib-punto, .psc-lib{ animation: none; } }

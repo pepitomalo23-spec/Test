@@ -174,9 +174,73 @@ const PISCINA = (function(){
     if(!root || !document.getElementById('screen-piscina').classList.contains('active')) return;
     if(!currentUserIsAdmin){ root.innerHTML = '<div class="psc-lista-vacia">Esta pantalla es solo para administradores.</div>'; return; }
     const cuerpo = hecho ? exito() : calendario() + horas();
-    root.innerHTML = '<div class="psc-hero"><span>Elige día</span><span class="psc-hero-b">y hora</span></div>' +
+    root.innerHTML = '<div class="psc-huecos" id="pscHuecos">' + seccionHuecos() + '</div>' +
+      '<div class="psc-hero"><span>Elige día</span><span class="psc-hero-b">y hora</span></div>' +
       '<div class="psc-card' + (hecho ? ' psc-card-ok' : '') + '">' + cabeceraInfo() + '<div class="psc-cuerpo">' + cuerpo + '</div></div>' +
       (cargado || filas.length ? lista() : '<div class="psc-lista"><span class="skel" style="width:50%;height:16px"></span></div>');
+  }
+
+  /* ---------- huecos ahora en IMDECO (función piscina-huecos) ----------
+     Hoy, mañana y pasado: cuántas calles libres hay a cada hora, y las que
+     se acaban de liberar (alguien anuló). Se pide cada 30 s mientras la
+     pantalla está abierta y a la vista. */
+  const REFRESCO = 30000;
+  let huecos = null, huecosError = null, huecosCargando = false, diaHuecos = 0, horaHuecos = null, temporizador = null;
+  async function cargarHuecos(){
+    if(huecosCargando || !currentUserIsAdmin) return;
+    huecosCargando = true; pintarHuecos();
+    try{
+      const { data, error } = await sb.functions.invoke('piscina-huecos', { body: {} });
+      if(error) throw error;
+      if(data && data.error) throw new Error(data.error);
+      huecos = data; huecosError = data.aviso || null;
+    }catch(e){ huecosError = 'No se pudo consultar IMDECO' + (huecos ? ' (se ve lo último que hubo)' : ''); console.warn('piscina-huecos', e); }
+    huecosCargando = false; pintarHuecos();
+  }
+  function hace(iso){
+    const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000));
+    return s < 10 ? 'ahora mismo' : s < 60 ? 'hace ' + s + ' s' : s < 3600 ? 'hace ' + Math.round(s / 60) + ' min' : 'hace ' + Math.round(s / 3600) + ' h';
+  }
+  const nombreRel = f => f === hoy() ? 'Hoy' : f === masDias(hoy(), 1) ? 'Mañana' : cap(DIAS[deIso(f).getDay()]);
+  function seccionHuecos(){
+    if(!huecos) return '<div class="psc-hc-t"><b>Huecos ahora</b><span>' + (huecosError ? esc(huecosError) : 'Consultando IMDECO…') + '</span></div>' +
+      (huecosError ? '' : '<div class="psc-hc-horas">' + '<span class="skel" style="height:58px"></span>'.repeat(6) + '</div>');
+    const dias = huecos.dias || [];
+    const d = dias[Math.min(diaHuecos, dias.length - 1)];
+    const ahoraH = new Date().toTimeString().slice(0, 5);
+    const libs = (huecos.liberados || []);
+    const avisos = libs.slice(0, 4).map(l => '<div class="psc-lib"><span class="psc-lib-punto"></span><span><b>Se ha liberado</b> ' +
+      nombreRel(l.fecha).toLowerCase() + ' a las ' + esc(l.hora) + ' · ' + esc(l.calle) + '</span><small>' + hace(l.visto) + '</small></div>').join('');
+    const tabs = dias.map((x, i) => {
+      const n = x.horas.filter(h => !(x.fecha === hoy() && h.hora <= ahoraH)).reduce((a, h) => a + h.libres.length, 0);
+      return '<button type="button" class="psc-hc-tab' + (x === d ? ' sel' : '') + '" data-psc="hc-dia" data-i="' + i + '">' + nombreRel(x.fecha) + ' <small>' + deIso(x.fecha).getDate() + '</small><em>' + n + '</em></button>';
+    }).join('');
+    const horasHtml = d ? d.horas.map(h => {
+      const pasada = d.fecha === hoy() && h.hora <= ahoraH;
+      const n = h.libres.length, recien = libs.some(l => l.fecha === d.fecha && l.hora === h.hora);
+      const cls = pasada ? 'pasada' : n ? (n <= 2 ? 'pocas' : 'libre') : 'llena';
+      return '<button type="button" class="psc-hc-hora ' + cls + (recien && !pasada ? ' recien' : '') + (horaHuecos === h.hora ? ' sel' : '') + '" data-psc="hc-hora" data-h="' + h.hora + '"' + (pasada ? ' disabled' : '') + '>' +
+        '<b>' + h.hora + '</b><span>' + (pasada ? 'pasada' : n ? n + (n === 1 ? ' libre' : ' libres') : 'completo') + '</span></button>';
+    }).join('') : '';
+    const sel = d && horaHuecos && d.horas.find(h => h.hora === horaHuecos);
+    const detalle = sel ? '<div class="psc-hc-det">' + (sel.libres.length
+      ? '<b>' + sel.libres.length + ' de ' + sel.total + ' libres a las ' + sel.hora + ':</b> ' + sel.libres.map(esc).join(', ')
+      : 'A las ' + sel.hora + ' está todo ocupado.') + ' <a href="' + IMDECO + '" target="_blank" rel="noopener">Reservar en IMDECO ›</a></div>' : '';
+    return '<div class="psc-hc-t"><b>Huecos ahora</b><span>' + (huecosCargando ? 'Actualizando…' : 'Actualizado ' + hace(huecos.actualizado)) +
+        (huecosError ? ' · ' + esc(huecosError) : '') + '</span><button type="button" class="psc-hc-recarga" data-psc="hc-recargar" aria-label="Actualizar"' + (huecosCargando ? ' disabled' : '') + '>↻</button></div>' +
+      avisos + '<div class="psc-hc-tabs">' + tabs + '</div><div class="psc-hc-horas">' + horasHtml + '</div>' + detalle;
+  }
+  function pintarHuecos(){
+    const el = document.getElementById('pscHuecos');
+    if(el) el.innerHTML = seccionHuecos();
+  }
+  function vigilar(){
+    clearInterval(temporizador);
+    temporizador = setInterval(() => {
+      const activa = document.getElementById('screen-piscina')?.classList.contains('active');
+      if(!activa){ clearInterval(temporizador); temporizador = null; return; }
+      if(document.visibilityState === 'visible') cargarHuecos(); else pintarHuecos();
+    }, REFRESCO);
   }
 
   /* ---------- acciones ---------- */
@@ -224,6 +288,9 @@ const PISCINA = (function(){
       case 'borrar': borrar(el.dataset.id); break;
       case 'reprogramar': reprog = elegido; horaElegida = null; pintar(); break;
       case 'otro': hecho = null; elegido = null; pintar(); break;
+      case 'hc-dia': diaHuecos = Number(el.dataset.i); horaHuecos = null; pintarHuecos(); break;
+      case 'hc-hora': horaHuecos = horaHuecos === el.dataset.h ? null : el.dataset.h; pintarHuecos(); break;
+      case 'hc-recargar': cargarHuecos(); break;
       case 'ir': {
         hecho = null; elegido = el.dataset.f; horaElegida = null; reprog = null;
         const d = deIso(elegido); mes = new Date(d.getFullYear(), d.getMonth(), 1);
@@ -238,6 +305,10 @@ const PISCINA = (function(){
       root.dataset.listo = '1';
       root.addEventListener('click', onClick);
       root.addEventListener('keydown', e => { if(e.key === 'Enter' && e.target.dataset && e.target.dataset.psc === 'ir') onClick(e); });
+      // Al volver a la app con la pantalla abierta, los huecos al momento
+      document.addEventListener('visibilitychange', () => {
+        if(document.visibilityState === 'visible' && document.getElementById('screen-piscina').classList.contains('active')){ cargarHuecos(); if(!temporizador) vigilar(); }
+      });
     }
     if(currentUser && dueño !== currentUser.id){ dueño = currentUser.id; filas = []; cargado = false; leerCache(); }
     hecho = null; horaElegida = null; reprog = null;
@@ -246,6 +317,8 @@ const PISCINA = (function(){
     if(!elegido || elegido < primerDia() && !deDia(elegido)) elegido = null;
     pintar();
     cargar();
+    cargarHuecos();
+    vigilar();
   }
 
   /* ---------- para Inicio ---------- */
