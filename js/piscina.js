@@ -290,7 +290,7 @@ const PISCINA = (function(){
       const cls = pasada ? 'pasada' : n ? (n <= 2 ? 'pocas' : 'libre') : 'llena';
       return '<button type="button" class="psc-hc-hora ' + cls + (recien && !pasada ? ' recien' : '') + (horaHuecos === h.hora ? ' sel' : '') + '" data-psc="hc-hora" data-h="' + h.hora + '"' + (pasada ? ' disabled' : '') + '>' +
         '<b>' + h.hora + '</b><span>' + (pasada ? 'pasada' : n ? n + (n === 1 ? ' libre' : ' libres') : 'completo') + '</span>' +
-        (tuya ? '<i class="psc-hc-marca tuya">la tuya</i>' : vigilo ? '<i class="psc-hc-marca vigilo">vigilando</i>' : '') + '</button>';
+        (tuya ? '<i class="psc-hc-marca tuya">la tuya</i>' : vigilo ? (dePago(mia) ? '<i class="psc-hc-marca pago">de pago</i>' : '<i class="psc-hc-marca vigilo">vigilando</i>') : '') + '</button>';
     }).join('') : '';
     const sel = d && horaHuecos && d.horas.find(h => h.hora === horaHuecos);
     const detalle = sel ? '<div class="psc-hc-det">' + (sel.libres.length
