@@ -50,3 +50,9 @@ alter table public.di_datos enable row level security;
 drop policy if exists di_datos_propios on public.di_datos;
 create policy di_datos_propios on public.di_datos for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+-- Ayudas de cada dato: regla mnemotécnica y una imagen (URL pública del almacén
+-- question-notes, carpeta datos-<usuario>/). Salen al girar la ficha y al responder.
+alter table public.di_datos
+  add column if not exists regla text check (regla is null or char_length(regla) <= 1000),
+  add column if not exists imagen text check (imagen is null or char_length(imagen) <= 500);
