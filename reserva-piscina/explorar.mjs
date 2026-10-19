@@ -58,38 +58,46 @@ async function irAMiCuenta() {
 await irAMiCuenta();
 await describir('Mi cuenta');
 
-// Entrar en cada opción que tenga que ver con compras, carritos o reservas
-const opciones = await page.$$eval('a, .cronos-box, [onclick]', els => [...new Set(els.filter(e => e.offsetParent)
-  .map(e => (e.innerText || '').trim().replace(/\s+/g, ' ')).filter(t => t && t.length < 60))]);
-const interesantes = opciones.filter(t => /carrito|compra|pedido|reserva|anulaci|pendiente|historial|movimiento/i.test(t));
-log('Opciones interesantes en Mi cuenta:', interesantes.map(limpio).join(' | '));
-
-for (const op of interesantes.slice(0, 6)) {
-  await irAMiCuenta();
-  const el = page.getByText(op, { exact: true }).first();
-  if (!(await el.isVisible().catch(() => false))) continue;
-  await el.click();
-  await quieto();
-  await page.waitForTimeout(1500);
-  await describir(`Opción «${limpio(op)}»`);
-
-  // Si hay algo «Pendiente» que se pueda abrir, abrirlo
-  const pend = page.getByText(/^Pendiente$/).first();
-  if (await pend.isVisible().catch(() => false)) {
-    await pend.click().catch(() => {});
-    await quieto(); await page.waitForTimeout(1500);
-    await describir(`Dentro de lo pendiente («${limpio(op)}»)`);
-    if (CONFIRMAR) {
-      const b = page.getByRole('button', { name: /confirmar la compra/i }).or(page.getByText(/^Confirmar la compra$/)).first();
-      if (await b.isVisible().catch(() => false)) {
-        log('Pulso «Confirmar la compra»');
-        await b.click();
-        await quieto(); await page.waitForTimeout(2500);
-        await describir('Después de confirmar');
-        await navegador.close();
-        process.exit(0);
-      }
-    }
-  }
+// Acciones de la página escondidas en el código (postbacks y funciones), sin datos personales
+async function acciones(etiqueta) {
+  const html = await page.content();
+  const pb = [...new Set([...html.matchAll(/__doPostBack\(([^)]{0,160})\)/g)].map(m => m[1].replace(/\s+/g, ' ')))];
+  const fn = [...new Set([...html.matchAll(/function\s+([\w$]*(?:Carrito|Compra|Confirmar|Pagar|Anular|Eliminar|Pendiente)[\w$]*)\s*\(/gi)].map(m => m[1]))];
+  log(`  Postbacks en ${etiqueta}:`, pb.slice(0, 40).join(' || '));
+  log(`  Funciones en ${etiqueta}:`, fn.join(' | '));
 }
+
+await page.getByText('Anulaciones y gestión de reservas').first().click();
+await quieto(); await page.waitForTimeout(1500);
+await describir('Anulaciones y gestión de reservas');
+await acciones('Anulaciones');
+
+// Abrir la fila pendiente y su detalle (icono del ojo)
+const fila = page.locator('tr', { hasText: 'Pendiente' }).first();
+if (await fila.count()) {
+  await fila.click().catch(() => {});
+  await page.waitForTimeout(800);
+  const ojos = page.locator('button:visible, a:visible').filter({ has: page.locator('.glyphicon-eye-open, .material-icons, [class*=eye], i, span') });
+  log('  Botones con icono visibles:', await ojos.count());
+  const ojo = page.locator('tr', { hasText: 'Pendiente' }).first().locator('xpath=following-sibling::tr[1]').locator('button, a').first();
+  const objetivo = (await ojo.count()) ? ojo : ojos.first();
+  await objetivo.click().catch(e => log('  No pude pulsar el ojo:', e.message.slice(0, 80)));
+  await quieto(); await page.waitForTimeout(2000);
+  await describir('Detalle de la reserva pendiente');
+  await acciones('Detalle');
+  // Bajar del todo por si los botones están abajo
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.waitForTimeout(800);
+  await describir('Detalle (abajo del todo)');
+
+  if (CONFIRMAR) {
+    const b = page.locator('button, a, input[type=submit]').filter({ hasText: /confirmar la compra|confirmar/i }).first();
+    if (await b.isVisible().catch(() => false)) {
+      log('Pulso «Confirmar la compra»');
+      await b.click();
+      await quieto(); await page.waitForTimeout(2500);
+      await describir('Después de confirmar');
+    } else log('No hay botón de confirmar visible');
+  }
+} else log('No hay ninguna fila «Pendiente»');
 await navegador.close();
