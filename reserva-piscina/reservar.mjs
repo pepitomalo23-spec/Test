@@ -75,7 +75,7 @@ async function rpc(fn, cuerpo) {
   const t = await r.text();
   return t ? JSON.parse(t) : null;
 }
-const conApp = !!(SB_URL && SB_KEY && SB_CLAVE);
+const conApp = !!(SB_URL && SB_KEY && SB_CLAVE) && !process.env.SIN_APP; // SIN_APP: lo apunta quien lo llama (vigilar.mjs)
 let reservaApp = null; // { id, hora } de la app para este día
 async function buscarEnApp(dia) {
   if (!conApp) return null;

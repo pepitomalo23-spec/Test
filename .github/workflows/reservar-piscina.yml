@@ -26,7 +26,7 @@ on:
       explorar:
         description: 'Solo para depurar: recorrer «Mi cuenta» y describir las pantallas'
         type: choice
-        options: ['no', 'mirar', 'mirar y confirmar carrito']
+        options: ['no', 'mirar', 'mirar y confirmar carrito', 'probar anular (sin anular)']
         default: 'no'
 
 concurrency:
@@ -91,7 +91,9 @@ jobs:
           IMD_USUARIO: ${{ secrets.IMD_USUARIO }}
           IMD_CONTRASENA: ${{ secrets.IMD_CONTRASENA }}
         run: |
-          if [ "$EXPLORAR" = "mirar" ]; then
+          if [ "$EXPLORAR" = "probar anular (sin anular)" ]; then
+            node anular.mjs --fecha "$FECHA" --hora "$HORA" --prueba
+          elif [ "$EXPLORAR" = "mirar" ]; then
             node explorar.mjs
           elif [ "$EXPLORAR" = "mirar y confirmar carrito" ]; then
             node explorar.mjs --confirmar-carrito

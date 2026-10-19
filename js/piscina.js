@@ -58,7 +58,7 @@ const PISCINA = (function(){
     if(!currentUser || !currentUserIsAdmin) return Promise.resolve();
     if(dueño !== currentUser.id){ dueño = currentUser.id; filas = []; cargado = false; leerCache(); }
     intentado = true;
-    if(!cargando) cargando = sb.from('piscina_reservas').select('id, fecha, hora, estado, detalle, calle, updated_at')
+    if(!cargando) cargando = sb.from('piscina_reservas').select('id, fecha, hora, estado, detalle, calle, quiere_hora, updated_at')
       .gte('fecha', masDias(hoy(), -60)).order('fecha')
       .then(({ data, error }) => {
         if(error) throw error;
@@ -151,6 +151,7 @@ const PISCINA = (function(){
       '<button type="button" class="psc-confirmar" data-psc="otro">Programar otro día</button></div>';
   }
   function chip(r){
+    if(r.quiere_hora && r.fecha >= hoy()) return '<span class="psc-chip vigilando">Vigilando ' + r.quiere_hora + '</span>';
     const fue = r.estado === 'reservada' && r.detalle === 'Asistido';
     const t = fue ? 'Asistida' : { programada: 'Programada', reservada: 'Reservada', fallida: 'No se pudo' }[r.estado];
     return '<span class="psc-chip ' + r.estado + (fue ? ' asistida' : '') + '">' + t + '</span>';
@@ -161,7 +162,8 @@ const PISCINA = (function(){
     const fila = r => '<div class="psc-fila" role="button" tabindex="0" data-psc="ir" data-f="' + r.fecha + '">' +
       '<span class="psc-fila-dia"><b>' + deIso(r.fecha).getDate() + '</b><small>' + MESES[deIso(r.fecha).getMonth()].slice(0, 3) + '</small></span>' +
       '<span class="psc-fila-txt"><b>' + cap(DIAS[deIso(r.fecha).getDay()]) + ' · ' + r.hora + ' – ' + finHora(r.hora) + '</b>' +
-        '<span>' + (r.estado === 'programada' ? (r.fecha >= primerDia() ? 'Se reserva el ' + corto(masDias(r.fecha, -ANTELACION)) + ' a las 00:00' : 'Esta noche o ya abierto') :
+        '<span>' + (r.quiere_hora && r.fecha >= hoy() ? (r.estado === 'reservada' ? 'Tienes las ' + r.hora + (r.calle ? ' (' + esc(r.calle) + ')' : '') + ' · si se liberan las ' + r.quiere_hora + ', te cambio' : 'En cuanto haya sitio a las ' + r.quiere_hora + ', la cojo') + (r.detalle && r.detalle !== 'Asistido' ? ' · ' + esc(r.detalle) : '') :
+          r.estado === 'programada' ? (r.fecha >= primerDia() ? 'Se reserva el ' + corto(masDias(r.fecha, -ANTELACION)) + ' a las 00:00' : 'Esta noche o ya abierto') :
           r.estado === 'reservada' ? (r.calle ? esc(r.calle) : 'Hecha') : esc((r.detalle || '').slice(0, 90))) + '</span></span>' +
       chip(r) + '</div>';
     return '<div class="psc-lista"><div class="psc-lista-t">Próximas</div>' +
@@ -218,17 +220,61 @@ const PISCINA = (function(){
     const horasHtml = d ? d.horas.map(h => {
       const pasada = d.fecha === hoy() && h.hora <= ahoraH;
       const n = h.libres.length, recien = libs.some(l => l.fecha === d.fecha && l.hora === h.hora);
+      const mia = deDia(d.fecha), tuya = mia && mia.estado === 'reservada' && mia.hora === h.hora, vigilo = mia && mia.quiere_hora === h.hora;
       const cls = pasada ? 'pasada' : n ? (n <= 2 ? 'pocas' : 'libre') : 'llena';
       return '<button type="button" class="psc-hc-hora ' + cls + (recien && !pasada ? ' recien' : '') + (horaHuecos === h.hora ? ' sel' : '') + '" data-psc="hc-hora" data-h="' + h.hora + '"' + (pasada ? ' disabled' : '') + '>' +
-        '<b>' + h.hora + '</b><span>' + (pasada ? 'pasada' : n ? n + (n === 1 ? ' libre' : ' libres') : 'completo') + '</span></button>';
+        '<b>' + h.hora + '</b><span>' + (pasada ? 'pasada' : n ? n + (n === 1 ? ' libre' : ' libres') : 'completo') + '</span>' +
+        (tuya ? '<i class="psc-hc-marca tuya">la tuya</i>' : vigilo ? '<i class="psc-hc-marca vigilo">vigilando</i>' : '') + '</button>';
     }).join('') : '';
     const sel = d && horaHuecos && d.horas.find(h => h.hora === horaHuecos);
     const detalle = sel ? '<div class="psc-hc-det">' + (sel.libres.length
       ? '<b>' + sel.libres.length + ' de ' + sel.total + ' libres a las ' + sel.hora + ':</b> ' + sel.libres.map(esc).join(', ')
-      : 'A las ' + sel.hora + ' está todo ocupado.') + ' <a href="' + IMDECO + '" target="_blank" rel="noopener">Reservar en IMDECO ›</a></div>' : '';
+      : 'A las ' + sel.hora + ' está todo ocupado.') + ' <a href="' + IMDECO + '" target="_blank" rel="noopener">Reservar en IMDECO ›</a>' + accionHora(d.fecha, sel) + '</div>' : '';
     return '<div class="psc-hc-t"><b>Huecos ahora</b><span>' + (huecosCargando ? 'Actualizando…' : 'Actualizado ' + hace(huecos.actualizado)) +
         (huecosError ? ' · ' + esc(huecosError) : '') + '</span><button type="button" class="psc-hc-recarga" data-psc="hc-recargar" aria-label="Actualizar"' + (huecosCargando ? ' disabled' : '') + '>↻</button></div>' +
       avisos + '<div class="psc-hc-tabs">' + tabs + '</div><div class="psc-hc-horas">' + horasHtml + '</div>' + detalle;
+  }
+  /* ---------- «Cogerla si se libera» (lo hace reserva-piscina/vigilar.mjs) ----------
+     Se guarda la hora pedida en quiere_hora. Si ese día ya tienes reserva a otra
+     hora, el robot la anula en el momento de coger la nueva (IMDECO solo deja una)
+     y, si la nueva no saliera, vuelve a coger la de antes. */
+  function accionHora(fecha, h){
+    const r = deDia(fecha);
+    if(r && r.estado === 'reservada' && r.hora === h.hora) return '<div class="psc-hc-acc"><span class="psc-hc-ok">✓ Esta es tu reserva</span></div>';
+    if(r && r.quiere_hora === h.hora) return '<div class="psc-hc-acc"><span class="psc-hc-vig">● Vigilando: en cuanto haya sitio, la cojo' +
+      (r.estado === 'reservada' ? ' y anulo la de las ' + r.hora : '') + '</span><button type="button" class="psc-btn-sec" data-psc="no-vigilar" data-f="' + fecha + '">Dejar de vigilar</button></div>';
+    const cambio = r && r.estado === 'reservada';
+    const txt = cambio ? (h.libres.length ? 'Cambiar a las ' + h.hora : 'Cambiar a las ' + h.hora + ' si se libera')
+      : h.libres.length ? 'Cogérmela' : 'Cogerla si se libera';
+    const otra = (cambio ? '<small>Anulo tu reserva de las ' + r.hora + ' justo al coger la nueva; si la nueva no saliera, vuelvo a coger la tuya.</small>' : '') +
+      (r && r.quiere_hora ? '<small>Ahora vigilas las ' + r.quiere_hora + ': se cambia por esta.</small>' : '');
+    return '<div class="psc-hc-acc"><button type="button" class="psc-confirmar" data-psc="vigilar" data-f="' + fecha + '" data-h="' + h.hora + '">' + txt + '</button>' + otra +
+      '<small>Lo hace el robot: empieza a mirar en unos minutos y luego cada 20 s, de 6:30 a 23:20.</small></div>';
+  }
+  async function vigilarHora(fecha, hora){
+    const r = deDia(fecha);
+    const cambio = { quiere_hora: hora, updated_at: new Date().toISOString() };
+    const q = r
+      ? sb.from('piscina_reservas').update(r.estado === 'reservada' ? cambio : Object.assign(cambio, { hora, estado: 'programada', detalle: null })).eq('id', r.id)
+      : sb.from('piscina_reservas').insert({ fecha, hora, estado: 'programada', quiere_hora: hora });
+    const { data, error } = await q.select('id, fecha, hora, estado, detalle, calle, quiere_hora, updated_at').single();
+    if(error){ uiToast('No se pudo guardar: ' + error.message, 'error'); return; }
+    filas = filas.filter(x => x.fecha !== fecha).concat(data).sort((a, b) => a.fecha < b.fecha ? -1 : 1);
+    guardarCache(); pintar();
+    uiToast(r && r.estado === 'reservada' ? 'Vigilando las ' + hora + ': si se libera, cambio tu reserva' : 'Vigilando las ' + hora + ': en cuanto haya sitio, la cojo', 'success');
+  }
+  async function noVigilar(fecha){
+    const r = deDia(fecha);
+    if(!r) return;
+    // Sin reserva ese día (solo era la vigilancia de un día ya abierto): fuera la fila
+    const abierto = fecha < primerDia();
+    const q = r.estado !== 'reservada' && abierto
+      ? sb.from('piscina_reservas').delete().eq('id', r.id)
+      : sb.from('piscina_reservas').update({ quiere_hora: null, updated_at: new Date().toISOString() }).eq('id', r.id);
+    const { error } = await q;
+    if(error){ uiToast('No se pudo quitar: ' + error.message, 'error'); return; }
+    if(r.estado !== 'reservada' && abierto) filas = filas.filter(x => x.id !== r.id); else r.quiere_hora = null;
+    guardarCache(); pintar();
   }
   function pintarHuecos(){
     const el = document.getElementById('pscHuecos');
@@ -250,7 +296,7 @@ const PISCINA = (function(){
     guardando = true; pintar();
     const { data, error } = await sb.from('piscina_reservas')
       .upsert({ fecha: elegido, hora: horaElegida, estado: 'programada', detalle: null, calle: null, updated_at: new Date().toISOString() }, { onConflict: 'user_id,fecha' })
-      .select('id, fecha, hora, estado, detalle, calle, updated_at').single();
+      .select('id, fecha, hora, estado, detalle, calle, quiere_hora, updated_at').single();
     guardando = false;
     if(error){ uiToast('No se pudo guardar: ' + error.message, 'error'); pintar(); return; }
     filas = filas.filter(r => r.fecha !== data.fecha).concat(data).sort((a, b) => a.fecha < b.fecha ? -1 : 1);
@@ -291,6 +337,8 @@ const PISCINA = (function(){
       case 'hc-dia': diaHuecos = Number(el.dataset.i); horaHuecos = null; pintarHuecos(); break;
       case 'hc-hora': horaHuecos = horaHuecos === el.dataset.h ? null : el.dataset.h; pintarHuecos(); break;
       case 'hc-recargar': cargarHuecos(); break;
+      case 'vigilar': vigilarHora(el.dataset.f, el.dataset.h); break;
+      case 'no-vigilar': noVigilar(el.dataset.f); break;
       case 'ir': {
         hecho = null; elegido = el.dataset.f; horaElegida = null; reprog = null;
         const d = deIso(elegido); mes = new Date(d.getFullYear(), d.getMonth(), 1);
