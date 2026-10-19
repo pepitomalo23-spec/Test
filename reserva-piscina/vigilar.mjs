@@ -114,6 +114,7 @@ if (process.argv.includes('--prueba')) {
     let t = Date.now(); await r.abrir(); log(`Sesión iniciada (${Date.now() - t} ms)`);
     t = Date.now(); await r.armarReserva(fecha, hora); log(`Parrilla preparada (${Date.now() - t} ms)`);
     if (vieja) { t = Date.now(); await r.armarAnulacion(fecha, vieja); log(`Ficha de la de las ${vieja} con «Anular» a mano (${Date.now() - t} ms)`); }
+    if (vieja) { t = Date.now(); await r.anular(true); log(`Aviso «¿Seguro?» con «Sí» encontrado y cerrado con «No» (${Date.now() - t} ms); no se anula nada`); }
     for (let i = 0; i < 5; i++) { t = Date.now(); const l = await c.libres(fecha, hora); log(`Mirada ${i + 1}: ${l.length} libres (${Date.now() - t} ms)`); }
     t = Date.now();
     try { const calle = await r.reservar(true); log(`MODO PRUEBA: ${calle} seleccionada en ${Date.now() - t} ms; no pulso «Reservar»`); }
@@ -145,7 +146,9 @@ async function coger(v, libres) {
   if (armadoPara !== v.id + '|' + v.quiere_hora + '|' + v.hora) await armar(v);
   if (cambio) {
     try { await armado.anular(); log(`Anulada la de las ${v.hora} (${Date.now() - t0} ms)`); }
-    catch (e) { log('❌', e.message); await apuntar(v.id, null, null, `No pude anular la de las ${v.hora} para cambiarla; sigo vigilando`); armadoPara = null; return; }
+    // Aunque dé error puede haberse anulado ya: se intenta coger igual (si la vieja sigue, IMDECO
+    // no deja otra ese día y abajo se intenta «recuperar», que en ese caso no cambia nada)
+    catch (e) { log('⚠️ Al anular:', e.message.split('\n')[0]); }
   }
   try {
     const calle = await armado.reservar();
