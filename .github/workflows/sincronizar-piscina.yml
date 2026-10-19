@@ -1,0 +1,61 @@
+name: Sincronizar piscina
+
+# Copia en la app (pantalla «Piscina») las reservas de piscina que hay de verdad en IMDECO,
+# también las hechas a mano. Cada 3 horas, después de cada reserva del robot y a mano.
+on:
+  schedule:
+    - cron: '17 */3 * * *'
+  workflow_run:
+    workflows: ['Reservar piscina']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: 'Qué hacer'
+        type: choice
+        options: ['sincronizar', 'mirar']
+        default: 'sincronizar'
+
+concurrency:
+  group: sincronizar-piscina
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: reserva-piscina
+    env:
+      SUPABASE_URL: https://tsjaaqkvncgxqtpmlugv.supabase.co
+      SUPABASE_ANON_KEY: sb_publishable_F9-gdlx34vn7FQ_1hSHwcQ__L5EGMOS
+      PISCINA_CLAVE: ${{ secrets.PISCINA_CLAVE }}
+      IMD_USUARIO: ${{ secrets.IMD_USUARIO }}
+      IMD_CONTRASENA: ${{ secrets.IMD_CONTRASENA }}
+      MODO: ${{ inputs.modo || 'sincronizar' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: ¿Está todo configurado?
+        id: listo
+        run: |
+          if [ -z "$IMD_USUARIO" ] || { [ "$MODO" = "sincronizar" ] && [ -z "$PISCINA_CLAVE" ]; }; then
+            echo "Falta algún secreto (IMD_USUARIO / PISCINA_CLAVE): no hago nada."
+          else
+            echo "si=1" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Preparar el navegador
+        if: steps.listo.outputs.si == '1'
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Sincronizar
+        if: steps.listo.outputs.si == '1'
+        run: |
+          if [ "$MODO" = "mirar" ]; then node sincronizar.mjs --mirar; else node sincronizar.mjs; fi
