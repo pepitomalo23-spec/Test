@@ -229,6 +229,17 @@ const INICIO = (function(){
   // [{ nombre, tipo, total, bien: [], mal: [], sin: [] }] (bien/mal/sin: preguntas de Legislación u ids del Específico); null mientras carga.
   function semana(x){
     const temas = [], desde = desdeExa(x).getTime(), local = respuestasRecientes();
+    // Y lo que vas respondiendo en un test a medias empezado esta semana (de una en una: ya está corregido).
+    const aMedias = (k, id, ok, t) => { const c = k + ':' + id; if(t >= desde && !(local[c] && local[c][1] >= t)) local[c] = [ok ? 1 : 0, t]; };
+    if(quizState && quizState.mode && quizState.viewMode === 'card' && typeof ACTIVE_QUESTIONS !== 'undefined'){
+      // Si se empezó antes pero lo has seguido esta semana, cuenta como de esta semana.
+      let t = quizState.startedAt || 0;
+      if(t < desde){ try{ const g = JSON.parse(localStorage.getItem(quizProgressKey()) || 'null'); if(g && g.savedAt >= desde) t = desde; }catch(e){} }
+      ACTIVE_QUESTIONS.forEach((q, i) => { const a = (quizState.answers || [])[i], b = (quizState.blanked || [])[i];
+        if(a != null || b) aMedias('l', q.id, a === q.correct, t); });
+    }
+    const pr = typeof PRU !== 'undefined' && PRU.respuestasEnCurso ? PRU.respuestasEnCurso() : null;
+    if(pr) pr.lista.forEach(r => aMedias(r.k, r.id, r.ok, pr.inicio || Date.now()));
     // La última respuesta de cada pregunta: lo de la cuenta o lo de este dispositivo (lo que sea más nuevo).
     const ultima = (k, id, cuenta) => { const a = cuenta && cuenta.get(id), b = local[k + ':' + id];
       const bb = b && b[1] >= desde ? [!!b[0], b[1]] : null; const g = !a ? bb : !bb ? a : bb[1] >= a[1] ? bb : a; return g ? g[0] : null; };

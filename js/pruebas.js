@@ -1254,6 +1254,9 @@ const PRU = (function(){
     conjuntoDisponible: () => permitido('conjunto'), oficialDisponible: () => permitido('oficial'), empezarOficial, textoPen, empezarExamen, planExamen, fijarExamen,
     cargarHistorial: () => cargarHistorial(), revisarHistorial, borrarHistorial,
     abrirConfig, cerrarConfig, empezar, quitarFallos, continuar, aMedias, reiniciar, precargar, repasar,
+    // Lo ya corregido de la prueba que va a medias (de una en una): [{ k, id, ok }] y cuándo empezó.
+    respuestasEnCurso: () => !est || est.terminado || MODOS[est.modo].vista !== 'tarjeta' ? null :
+      { inicio: est.inicio, lista: est.items.map((it, j) => est.resp[j] != null || (est.blancas && est.blancas[j]) ? { k: it.k, id: it.id, ok: est.resp[j] === it.correcta } : null).filter(Boolean) },
     guardarSesion, historialHtml, nuevoId, cargarHistorialTb: () => cargarHistorial().then(repintarListas).catch(() => {}),
     panelHtml, cargarPanel, onPanelClick, onKey
   };
