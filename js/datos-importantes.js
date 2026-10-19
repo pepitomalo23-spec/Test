@@ -86,9 +86,18 @@ const DI = (function(){
     const ve = apa.sentido === 'ab' ? 'a' : apa.sentido === 'ba' ? 'b' : (Math.random() < .5 ? 'a' : 'b');
     const resp = ve === 'a' ? 'b' : 'a';
     const conTeclado = escribe(apa, resp);
-    const otros = [...new Set(deAp(apa.id).filter(x => x.id !== d.id).map(x => x[resp]).filter(v => normal(v) !== normal(d[resp])))];
+    // Las opciones falsas, primero del mismo tipo que la buena: misma forma de respuesta (un código, una
+    // lista de códigos o un texto) y pregunta parecida («Cifra 2» con otras cifras, «… empiezan por 2» con
+    // otras listas). Así no se mezclan listas de números con significados.
+    const forma = v => { const t = String(v).trim(); return /^[A-Z]{0,3}\s?\d{1,6}[A-Z]?$/i.test(t) ? 'cod' : /^[A-Z]?\d+[A-Z]?(\s*[,;\/]\s*[A-Z]?\d+[A-Z]?)+\.?$/i.test(t) ? 'lista' : 'texto'; };
+    const familia = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[a-z]?\d+[a-z]?/g, '#').split(/[^a-z#]+/).filter(Boolean).slice(0, 3).join(' ');
+    const fr = forma(d[resp]), fa = familia(d[ve]);
+    const resto = mezclar(deAp(apa.id).filter(x => x.id !== d.id && normal(x[resp]) !== normal(d[resp])));
+    const orden = resto.filter(x => forma(x[resp]) === fr && familia(x[ve]) === fa)
+      .concat(resto.filter(x => forma(x[resp]) === fr && familia(x[ve]) !== fa), resto.filter(x => forma(x[resp]) !== fr));
+    const otros = [...new Set(orden.map(x => x[resp]))];
     let tipo = conTeclado ? 'escribir' : otros.length >= 1 ? 'elegir' : 'saber';
-    const opciones = tipo === 'elegir' ? mezclar([d[resp]].concat(mezclar(otros).slice(0, 3))) : null;
+    const opciones = tipo === 'elegir' ? mezclar([d[resp]].concat(otros.slice(0, 3))) : null;
     return { d, apa, ve, resp, tipo, opciones, numerico: tipo === 'escribir' && soloNumeros(apa, resp) };
   }
   async function apuntar(d, bien){
