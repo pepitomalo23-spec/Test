@@ -27,6 +27,9 @@ const PRU = (function(){
     // Específico), con el formato de «Tu examen». Las preguntas salen sin decir de qué tema son, y un solo intento.
     'examen':        { titulo: 'Examen', corto: 'Examen', largo: 'Examen', legis: true, oficial: true, ciego: true, unico: true, vista: 'lista', flags: [], volver: 'screen-inicio',
                        cuantas: [0], minutos: [0], def: [0, 0] },
+    // Repasar de un tema del examen las falladas o las que faltan (Inicio › semana del examen).
+    'repaso':        { titulo: 'Repaso', corto: 'Repaso', largo: 'Repaso del examen', legis: true, vista: 'tarjeta', flags: [], volver: 'screen-inicio',
+                       cuantas: [0], minutos: [0], def: [0, 0] },
     'esp-estudio':   { titulo: 'Estudio', corto: 'Estudio', largo: 'Estudio del Específico', vista: 'tarjeta', temas: true, flags: ['especifico'], volver: 'screen-especifico',
                        cuantas: PREGUNTAS_OPTIONS.map(v => v || 0), minutos: MINUTOS_OPTIONS.map(v => v || 0), def: [0, 0] },
     'esp-fallos':    { titulo: 'Fallos', corto: 'Fallos', largo: 'Fallos del Específico', vista: 'tarjeta', falladas: true, flags: ['especifico', 'fallos'], volver: 'screen-especifico', cuantas: [0], minutos: [0], def: [0, 0] },
@@ -504,6 +507,18 @@ const PRU = (function(){
       inicio: Date.now(), fin: minutos ? Date.now() + minutos * 60000 : null, terminado: false, pen: pen === undefined ? null : pen, tarea: tarea || null };
     guardar();
     mostrar();
+  }
+  // Un repaso con esas preguntas (las de Legislación, objetos de QUESTIONS_POOL; las del Específico, ids), de una en una.
+  async function repasar(legis, espIds){
+    const g = guardado();
+    if(g && !(await uiConfirm('Tienes «' + MODOS[g.modo].largo + '» a medias.\n\nSi empiezas el repaso, esa prueba se pierde.', { title: '¿Empezar el repaso?', ok: 'Empezar', danger: true }))) return;
+    try{
+      if(espIds.length && !metaYa()) await refrescarMeta();
+      const esp = espIds.length ? await preguntasEsp(espIds) : [];
+      const items = legis.map(q => itemLegis(q)).concat(esp.filter(x => (x.opciones || []).length).map(x => itemEsp(x, meta ? meta.tests : {})));
+      if(!items.length) return uiToast('No hay preguntas que repasar', 'info');
+      arrancarCon('repaso', barajar(items), 0);
+    }catch(e){ uiToast('No se pudo preparar el repaso: ' + (e.message || e), 'error'); }
   }
   /* ---------- Simulacro oficial (lo abre js/examen.js con los ajustes del examen) ----------
      a = { preguntas, minutos, penalizacion (null: 1/(opciones-1)), pct_legis }. Entran
@@ -1236,7 +1251,7 @@ const PRU = (function(){
   return {
     conjuntoDisponible: () => permitido('conjunto'), oficialDisponible: () => permitido('oficial'), empezarOficial, textoPen, empezarExamen, planExamen, fijarExamen,
     cargarHistorial: () => cargarHistorial(), revisarHistorial, borrarHistorial,
-    abrirConfig, cerrarConfig, empezar, quitarFallos, continuar, aMedias, reiniciar, precargar,
+    abrirConfig, cerrarConfig, empezar, quitarFallos, continuar, aMedias, reiniciar, precargar, repasar,
     guardarSesion, historialHtml, nuevoId, cargarHistorialTb: () => cargarHistorial().then(repintarListas).catch(() => {}),
     panelHtml, cargarPanel, onPanelClick, onKey
   };

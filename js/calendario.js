@@ -1213,7 +1213,7 @@ const CAL = (function(){
     if(antes && antes.fecha >= desde) desde = masDias(antes.fecha, 1);
     const semana = tareas.filter(x => x.categoria !== 'examen' && x.fecha >= desde && x.fecha < t.fecha);
     const E = copiaExamen(t.examen);
-    return { id: t.id, titulo: t.titulo, fecha: t.fecha, hecho: !!t.hecho, fijo: (t.examen && t.examen.fijo) || null, de: fija(t) ? nombreCorreo(t.enviado_por) : null,
+    return { id: t.id, titulo: t.titulo, fecha: t.fecha, desde, hecho: !!t.hecho, fijo: (t.examen && t.examen.fijo) || null, de: fija(t) ? nombreCorreo(t.enviado_por) : null,
       para: fija(t) ? 0 : ((t.examen && t.examen.para) || []).length, resultado: (t.examen && t.examen.resultado) || null, dias: Math.round((deIso(t.fecha) - deIso(h)) / 864e5), cuando: nombreDia(t.fecha, true),
       legis: E.legis.flatMap(id => { const ts = titulosExamen(E, id);
         // ley y parte: los nombres completos (la ley como está en el temario y el título con su nombre), para el detalle.
