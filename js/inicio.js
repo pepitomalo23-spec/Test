@@ -462,7 +462,12 @@ const INICIO = (function(){
       const total = (quizState.answers || []).length, hechas = (quizState.answers || []).filter(a => a != null).length;
       // De una en una (estudio, fallos…): por la pregunta en la que estás, que es donde se abre
       const tarjeta = quizState.viewMode === 'card', vas = (quizState.index || 0) + 1;
-      out.push({ t: 'reanudar', titulo: (MODOS[quizState.mode] || 'Test').replace(/^./, c => c.toUpperCase()), grupo: 'Legislación',
+      // El tema (o los temas) del test: «Ley 7/1985» o «Ley 7/1985 y 2 más»
+      const ids = [...new Set((typeof ACTIVE_QUESTIONS !== 'undefined' ? ACTIVE_QUESTIONS : []).map(q => q.topic_id).filter(Boolean))];
+      const nombre = id => { const t = (typeof TOPICS !== 'undefined' ? TOPICS : []).find(x => x.id === id); return t ? t.name : String(id); };
+      const temas = !ids.length || quizState.mode === 'simulacro' ? '' : nombre(ids[0]) + (ids.length > 1 ? ' y ' + (ids.length - 1) + ' más' : '');
+      const modo = (MODOS[quizState.mode] || 'Test').replace(/^./, c => c.toUpperCase());
+      out.push({ t: 'reanudar', titulo: temas || modo, grupo: 'Legislación' + (temas ? ' · ' + modo : ''),
         hechas: tarjeta ? vas : hechas, total, texto: tarjeta ? 'vas por la pregunta ' + vas + ' de ' + total : null });
     }
     if(typeof PRU !== 'undefined'){ const m = PRU.aMedias(); if(m) out.push({ t: 'prueba', titulo: m.titulo, grupo: 'Prueba', hechas: m.hechas, total: m.total, texto: m.texto }); }
