@@ -6,6 +6,7 @@
 //   node reservar.mjs --fecha 2026-10-21 --hora 08:00   reserva ese día y hora ya, sin esperar
 //   añadir --prueba    llega hasta elegir la calle pero NO confirma la reserva
 //   añadir --anonimo   sin iniciar sesión (solo para probar la navegación; implica --prueba)
+//   --carrito          entra y confirma lo que haya en el carrito (si una reserva se quedó a medias)
 //   --comprobar        solo dice si esta noche hay algo que reservar (sin abrir el navegador)
 //
 // Variables de entorno: IMD_USUARIO, IMD_CONTRASENA, RESERVAS_JSON (ruta, por defecto ./reservas.json)
@@ -28,6 +29,7 @@ class ErrorWeb extends Error {}
 const args = process.argv.slice(2);
 const arg = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };
 const ANONIMO = args.includes('--anonimo');
+const CARRITO = args.includes('--carrito');
 const PRUEBA = ANONIMO || args.includes('--prueba');
 
 const log = (...m) => console.log(new Date().toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid' }), '·', ...m);
@@ -64,6 +66,7 @@ function franjaDeHora(hora) {
 let fecha = arg('--fecha');
 let hora = arg('--hora');
 let abre = null;
+if (CARRITO) { fecha = '0000-00-00'; hora = '00:00'; }
 if (!fecha) {
   const obj = medianocheObjetivo();
   if (!obj) { log('No es la hora: esto se ejecuta cerca de las 00:00 de Madrid. Nada que hacer.'); process.exit(0); }
@@ -83,7 +86,7 @@ if (args.includes('--comprobar')) {
 }
 const HHMM = hora.replace(':', '');
 const franja = franjaDeHora(hora);
-log(`Objetivo: ${fecha} a las ${hora} (${franja})${PRUEBA ? ' — MODO PRUEBA, no se confirma' : ''}`);
+log(CARRITO ? 'Objetivo: confirmar el carrito' : `Objetivo: ${fecha} a las ${hora} (${franja})${PRUEBA ? ' — MODO PRUEBA, no se confirma' : ''}`);
 
 if (!ANONIMO && (!process.env.IMD_USUARIO || !process.env.IMD_CONTRASENA)) {
   console.error('Faltan IMD_USUARIO / IMD_CONTRASENA'); process.exit(1);
@@ -192,9 +195,11 @@ async function elegirCalle() {
 }
 
 // Pulsa los botones de seguir hasta que la web diga que la reserva está hecha
-async function confirmar() {
-  await page.locator('[id$=uReservaCuadrante_btnReservar]').click();
-  log('Pulso «Reservar»');
+async function confirmar(desdeCarrito = false) {
+  if (!desdeCarrito) {
+    await page.locator('[id$=uReservaCuadrante_btnReservar]').click();
+    log('Pulso «Reservar»');
+  }
   const OK = /(reserva|compra) (realizada|confirmada|efectuada|finalizada)|realizad[ao] correctamente|se ha (realizado|registrado)|localizador|operaci[oó]n realizada|justificante/i;
   // Tras «Reservar» la calle va a un carrito: «Eliminar el carrito | Confirmar la compra | Seguir comprando»
   const SIGUE = /^(continuar|siguiente|confirmar|confirmar reserva|confirmar la compra|reservar( \(\d+\))?|aceptar|finalizar|pagar con (bono|abono)|bono|abono|usar bono|terminar)$/i;
@@ -229,10 +234,38 @@ async function confirmar() {
   return OK.test(await textoVisible());
 }
 
+async function describirPantalla() {
+  const titulos = await page.$$eval('h1, h2, h3, h4, .alert', els => els.filter(e => e.offsetParent && !e.closest('footer'))
+    .map(e => e.innerText.trim().replace(/\s+/g, ' ').slice(0, 80)).filter(t => t && !/@/.test(t))).catch(() => []);
+  return `Página: ${new URL(page.url()).host}${new URL(page.url()).pathname} · Títulos: ${titulos.join(' | ')} · Botones: ${(await botones()).join(' | ')}`;
+}
+
+// Abre el carrito y confirma la compra
+async function confirmarCarrito() {
+  await page.goto(`${BASE}/Home`, { waitUntil: 'networkidle' });
+  const enlace = page.locator('a, button').filter({ hasText: /carrito|cesta|shopping_cart/i })
+    .or(page.locator('[title*=arrito i], [aria-label*=arrito i], a[href*=arrito i]')).first();
+  if (!(await enlace.count())) {
+    const hrefs = await page.$$eval('a[href]', as => [...new Set(as.map(a => a.getAttribute('href')).filter(h => h && !/^(mailto|http|#|javascript:void)/.test(h)))]);
+    throw new Error('No encuentro el carrito. Enlaces: ' + hrefs.join(' | ') + ' · ' + await describirPantalla());
+  }
+  await enlace.click();
+  await quieto();
+  log('Carrito abierto. ' + await describirPantalla());
+  return confirmar(true);
+}
+
 // ---------- marcha ----------
 let salida = 1;
 try {
   await iniciarSesion();
+  if (CARRITO) {
+    if (!(await confirmarCarrito())) throw new Error('No he visto el mensaje de compra hecha. ' + await describirPantalla());
+    log('✅ Carrito confirmado. ' + await describirPantalla());
+    resumen('✅ Carrito confirmado.');
+    await navegador.close();
+    process.exit(0);
+  }
   await irAlCalendario();
   log('Calendario listo');
 
@@ -278,9 +311,7 @@ try {
         salida = 0; hecho = true;
       } else {
         // Sin mensaje de éxito ni de error: no reintentar, por no reservar dos veces
-        const titulos = await page.$$eval('h1, h2, h3, h4, .alert', els => els.filter(e => e.offsetParent && !e.closest('footer'))
-          .map(e => e.innerText.trim().replace(/\s+/g, ' ').slice(0, 80)).filter(t => t && !/@/.test(t))).catch(() => []);
-        throw new Error(`No he visto el mensaje de reserva hecha; revisa tus reservas en la web. Página: ${new URL(page.url()).host}${new URL(page.url()).pathname} · Títulos: ${titulos.join(' | ')} · Botones: ${(await botones()).join(' | ')}`);
+        throw new Error('No he visto el mensaje de reserva hecha; revisa tus reservas en la web. ' + await describirPantalla());
       }
     } catch (e) {
       if (!(e instanceof ErrorWeb) || Date.now() >= limite) throw e;
