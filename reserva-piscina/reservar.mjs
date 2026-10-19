@@ -195,9 +195,10 @@ async function elegirCalle() {
 async function confirmar() {
   await page.locator('[id$=uReservaCuadrante_btnReservar]').click();
   log('Pulso «Reservar»');
-  const OK = /reserva (realizada|confirmada|efectuada)|realizad[ao] correctamente|se ha (realizado|registrado)|localizador|operaci[oó]n realizada/i;
-  const SIGUE = /^(continuar|siguiente|confirmar|confirmar reserva|reservar( \(\d+\))?|aceptar|finalizar|pagar con (bono|abono)|bono|abono|usar bono|terminar)$/i;
-  const NO = /tarjeta|tpv|cancelar|atr[aá]s|volver|cerrar sesi|eliminar|borrar/i;
+  const OK = /(reserva|compra) (realizada|confirmada|efectuada|finalizada)|realizad[ao] correctamente|se ha (realizado|registrado)|localizador|operaci[oó]n realizada|justificante/i;
+  // Tras «Reservar» la calle va a un carrito: «Eliminar el carrito | Confirmar la compra | Seguir comprando»
+  const SIGUE = /^(continuar|siguiente|confirmar|confirmar reserva|confirmar la compra|reservar( \(\d+\))?|aceptar|finalizar|pagar con (bono|abono)|bono|abono|usar bono|terminar)$/i;
+  const NO = /tarjeta|tpv|cancelar|atr[aá]s|volver|cerrar sesi|eliminar|borrar|seguir comprando/i;
   for (let paso = 0; paso < 8; paso++) {
     await quieto();
     if (OK.test(await textoVisible())) return true;
@@ -277,7 +278,9 @@ try {
         salida = 0; hecho = true;
       } else {
         // Sin mensaje de éxito ni de error: no reintentar, por no reservar dos veces
-        throw new Error('No he visto el mensaje de reserva hecha; revisa tus reservas en la web. Botones en pantalla: ' + (await botones()).join(' | '));
+        const titulos = await page.$$eval('h1, h2, h3, h4, .alert', els => els.filter(e => e.offsetParent && !e.closest('footer'))
+          .map(e => e.innerText.trim().replace(/\s+/g, ' ').slice(0, 80)).filter(t => t && !/@/.test(t))).catch(() => []);
+        throw new Error(`No he visto el mensaje de reserva hecha; revisa tus reservas en la web. Página: ${new URL(page.url()).host}${new URL(page.url()).pathname} · Títulos: ${titulos.join(' | ')} · Botones: ${(await botones()).join(' | ')}`);
       }
     } catch (e) {
       if (!(e instanceof ErrorWeb) || Date.now() >= limite) throw e;
