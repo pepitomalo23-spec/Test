@@ -166,7 +166,7 @@ const PISCINA = (function(){
     const fila = r => '<div class="psc-fila" role="button" tabindex="0" data-psc="ir" data-f="' + r.fecha + '">' +
       '<span class="psc-fila-dia"><b>' + deIso(r.fecha).getDate() + '</b><small>' + MESES[deIso(r.fecha).getMonth()].slice(0, 3) + '</small></span>' +
       '<span class="psc-fila-txt"><b>' + cap(DIAS[deIso(r.fecha).getDay()]) + ' · ' + r.hora + ' – ' + finHora(r.hora) + '</b>' +
-        '<span>' + (r.quiere_hora && r.fecha >= hoy() ? (r.estado === 'reservada' ? 'Tienes las ' + r.hora + (r.calle ? ' (' + esc(r.calle) + ')' : '') + ' · si se liberan las ' + r.quiere_hora + ', te cambio' : (hayLibres(r.fecha, r.quiere_hora) ? 'Hay sitio a las ' + r.quiere_hora + ': el robot la está cogiendo' : 'En cuanto haya sitio a las ' + r.quiere_hora + ', la cojo')) + (r.detalle && r.detalle !== 'Asistido' ? ' · ' + esc(r.detalle) : '') :
+        '<span>' + (r.quiere_hora && r.fecha >= hoy() ? (r.estado === 'reservada' ? 'Tienes las ' + r.hora + (r.calle ? ' (' + esc(r.calle) + ')' : '') + ' · si se liberan las ' + r.quiere_hora + ', te cambio' : (otraEnVigor(r.fecha) ? 'La cojo a las ' + r.quiere_hora + ' cuando pase tu reserva del ' + corto(otraEnVigor(r.fecha).fecha) : hayLibres(r.fecha, r.quiere_hora) ? 'Hay sitio a las ' + r.quiere_hora + ': el robot la está cogiendo' : 'En cuanto haya sitio a las ' + r.quiere_hora + ', la cojo')) + (r.detalle && r.detalle !== 'Asistido' ? ' · ' + esc(r.detalle) : '') :
           r.estado === 'programada' ? (r.fecha >= primerDia() ? 'Se reserva el ' + corto(masDias(r.fecha, -ANTELACION)) + ' a las 00:00' : 'Esta noche o ya abierto') :
           r.anular && r.estado === 'reservada' ? 'El robot la está anulando en IMDECO' :
           r.estado === 'reservada' ? (r.calle ? esc(r.calle) : 'Hecha') : esc((r.detalle || '').slice(0, 90))) + '</span></span>' +
@@ -176,16 +176,64 @@ const PISCINA = (function(){
       (antes.length ? '<details class="psc-antes"><summary>Anteriores</summary>' + antes.map(fila).join('') + '</details>' : '') +
       '</div>';
   }
+  /* Todo en una pantalla, sin deslizar: arriba lo tuyo de los próximos días y los huecos de
+     ahora. Lo demás (programar un día, todas tus reservas, las liberadas, cómo funciona), en
+     botones que lo abren en una ventana. */
+  let ventana = null;   // 'programar' | 'lista' | 'liberadas' | 'info'
+  function proximas(){
+    const h = hoy();
+    const xs = filas.filter(r => r.fecha >= h && !(r.estado === 'fallida' && r.detalle === 'Anulada')).slice(0, 4);
+    if(!xs.length) return cargado ? '<div class="psc-mias-vacio">No tienes nada reservado ni programado.</div>' : '<span class="skel" style="width:40%;height:16px"></span>';
+    return xs.map(r => '<button type="button" class="psc-mia ' + r.estado + '" data-psc="ir" data-f="' + r.fecha + '">' +
+      '<b>' + cap(corto(r.fecha)) + ' · ' + r.hora + '</b>' + chip(r) + '</button>').join('');
+  }
   function pintar(){
     const root = document.getElementById('piscinaRoot');
     if(!root || !document.getElementById('screen-piscina').classList.contains('active')) return;
     if(!currentUserIsAdmin){ root.innerHTML = '<div class="psc-lista-vacia">Esta pantalla es solo para administradores.</div>'; return; }
-    const cuerpo = hecho ? exito() : calendario() + horas();
-    root.innerHTML = '<div class="psc-huecos" id="pscHuecos">' + seccionHuecos() + '</div>' +
-      '<div class="psc-hero"><span>Elige día</span><span class="psc-hero-b">y hora</span></div>' +
-      '<div class="psc-card' + (hecho ? ' psc-card-ok' : '') + '">' + cabeceraInfo() + '<div class="psc-cuerpo">' + cuerpo + '</div></div>' +
-      (cargado || filas.length ? lista() : '<div class="psc-lista"><span class="skel" style="width:50%;height:16px"></span></div>');
+    const n = filas.filter(r => r.fecha >= hoy()).length;
+    root.innerHTML = '<div class="psc-top"><div class="psc-top-t">' + OLAS + '<h2>Piscina</h2></div>' +
+        '<div class="psc-top-bts"><button type="button" class="psc-tb primario" data-psc="v-programar">+ Programar día</button>' +
+        '<button type="button" class="psc-tb" data-psc="v-lista">Mis reservas' + (n ? ' <em>' + n + '</em>' : '') + '</button>' +
+        '<button type="button" class="psc-tb redondo" data-psc="v-info" aria-label="Cómo funciona">?</button></div></div>' +
+      '<div class="psc-mias">' + proximas() + '</div>' +
+      '<div class="psc-huecos" id="pscHuecos">' + seccionHuecos() + '</div>';
+    pintarVentana();
   }
+  function contenidoVentana(){
+    if(ventana === 'programar') return ['Programar un día', 'El robot la reserva a las 00:00, dos días antes',
+      '<div class="psc-cuerpo' + (hecho ? ' psc-cuerpo-ok' : '') + '">' + (hecho ? exito() : calendario() + horas()) + '</div>'];
+    if(ventana === 'lista') return ['Mis reservas', 'Las de IMDECO y las programadas', cargado || filas.length ? lista() : '<span class="skel" style="width:50%;height:16px"></span>'];
+    if(ventana === 'liberadas') return ['Se han liberado', 'Calles que alguien ha anulado en las últimas horas', liberadasHtml(99) || '<div class="psc-lista-vacia">Nada liberado últimamente.</div>'];
+    return ['Cómo funciona', 'PMD Vista Alegre · 1 h · con tu abono', cabeceraInfo() +
+      '<ul class="psc-ayuda"><li><b>Programar día:</b> eliges día y hora y el robot la reserva a las 00:00, dos días antes.</li>' +
+      '<li><b>Huecos ahora:</b> las calles libres de hoy, mañana y pasado (se actualiza cada 30 s).</li>' +
+      '<li><b>Cógemela / Cogerla si se libera:</b> el robot la reserva en cuanto hay sitio. Si ese día ya tenías otra hora, la cambia.</li>' +
+      '<li><b>Anular en IMDECO:</b> en tu reserva; lo hace el robot.</li>' +
+      '<li>IMDECO solo deja una reserva en vigor a la vez, y el robot nunca compra una hora de pago.</li></ul>'];
+  }
+  function pintarVentana(){
+    let bg = document.getElementById('pscVentana');
+    if(!ventana || !document.getElementById('screen-piscina').classList.contains('active')){ if(bg) bg.remove(); ventana = null; return; }
+    const [t, sub, cuerpo] = contenidoVentana();
+    if(!bg){
+      bg = document.createElement('div');
+      bg.className = 'cal-hoja-bg psc-ventana-bg'; bg.id = 'pscVentana';
+      bg.addEventListener('click', e => {
+        if(e.target === bg || e.target.closest('[data-psc="v-cerrar"]')){ ventana = null; hecho = null; pintarVentana(); return; }
+        onClick(e);
+      });
+      document.body.appendChild(bg);
+      requestAnimationFrame(() => bg.classList.add('on'));
+    }
+    const scroll = bg.querySelector('.cal-hoja-cuerpo')?.scrollTop || 0;
+    bg.innerHTML = '<div class="cal-hoja psc-ventana' + (ventana === 'programar' ? ' ancha' : '') + '" style="--c: var(--blue)" role="dialog" aria-modal="true" aria-label="' + esc(t) + '">' +
+      '<div class="cal-hoja-top"><div class="cal-hoja-asa"></div><div class="cal-hoja-cab"><div class="cal-hoja-tit"><h3>' + esc(t) + '</h3><div class="cal-hoja-sub">' + esc(sub) + '</div></div>' +
+      '<button type="button" class="cal-x" data-psc="v-cerrar" aria-label="Cerrar">✕</button></div></div>' +
+      '<div class="cal-hoja-cuerpo">' + cuerpo + '</div></div>';
+    bg.querySelector('.cal-hoja-cuerpo').scrollTop = scroll;
+  }
+  function abrirVentana(v){ ventana = v; if(v !== 'programar') hecho = null; pintarVentana(); }
 
   /* ---------- huecos ahora en IMDECO (función piscina-huecos) ----------
      Hoy, mañana y pasado: cuántas calles libres hay a cada hora, y las que
@@ -214,6 +262,10 @@ const PISCINA = (function(){
     const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000));
     return s < 10 ? 'ahora mismo' : s < 60 ? 'hace ' + s + ' s' : s < 3600 ? 'hace ' + Math.round(s / 60) + ' min' : 'hace ' + Math.round(s / 3600) + ' h';
   }
+  function liberadasHtml(max){
+    return ((huecos && huecos.liberados) || []).slice(0, max).map(l => '<div class="psc-lib"><span class="psc-lib-punto"></span><span><b>Se ha liberado</b> ' +
+      nombreRel(l.fecha).toLowerCase() + ' a las ' + esc(l.hora) + ' · ' + esc(l.calle) + '</span><small>' + hace(l.visto) + '</small></div>').join('');
+  }
   const nombreRel = f => f === hoy() ? 'Hoy' : f === masDias(hoy(), 1) ? 'Mañana' : cap(DIAS[deIso(f).getDay()]);
   function seccionHuecos(){
     if(!huecos) return '<div class="psc-hc-t"><b>Huecos ahora</b><span>' + (huecosError ? esc(huecosError) : 'Consultando IMDECO…') + '</span></div>' +
@@ -222,8 +274,8 @@ const PISCINA = (function(){
     const d = dias[Math.min(diaHuecos, dias.length - 1)];
     const ahoraH = new Date().toTimeString().slice(0, 5);
     const libs = (huecos.liberados || []);
-    const avisos = libs.slice(0, 4).map(l => '<div class="psc-lib"><span class="psc-lib-punto"></span><span><b>Se ha liberado</b> ' +
-      nombreRel(l.fecha).toLowerCase() + ' a las ' + esc(l.hora) + ' · ' + esc(l.calle) + '</span><small>' + hace(l.visto) + '</small></div>').join('');
+    const avisos = libs.length ? '<button type="button" class="psc-lib-btn" data-psc="v-liberadas"><span class="psc-lib-punto"></span><b>' + libs.length + (libs.length === 1 ? ' liberada' : ' liberadas') + '</b>' +
+      '<span>la última ' + nombreRel(libs[0].fecha).toLowerCase() + ' a las ' + esc(libs[0].hora) + ', ' + hace(libs[0].visto) + '</span></button>' : '';
     const tabs = dias.map((x, i) => {
       const n = x.horas.filter(h => !(x.fecha === hoy() && h.hora <= ahoraH)).reduce((a, h) => a + h.libres.length, 0);
       return '<button type="button" class="psc-hc-tab' + (x === d ? ' sel' : '') + '" data-psc="hc-dia" data-i="' + i + '">' + nombreRel(x.fecha) + ' <small>' + deIso(x.fecha).getDate() + '</small><em>' + n + '</em></button>';
@@ -242,8 +294,8 @@ const PISCINA = (function(){
       ? '<b>' + sel.libres.length + ' de ' + sel.total + ' libres a las ' + sel.hora + ':</b> ' + sel.libres.map(esc).join(', ')
       : 'A las ' + sel.hora + ' está todo ocupado' + ((deDia(d.fecha) || {}).estado === 'reservada' && deDia(d.fecha).hora === sel.hora ? ' (una calle es la tuya).' : '.')) + ' <a href="' + IMDECO + '" target="_blank" rel="noopener">Reservar en IMDECO ›</a>' + accionHora(d.fecha, sel) + '</div>' : '';
     return '<div class="psc-hc-t"><b>Huecos ahora</b><span>' + (huecosCargando ? 'Actualizando…' : 'Actualizado ' + hace(huecos.actualizado)) +
-        (huecosError ? ' · ' + esc(huecosError) : '') + '</span><button type="button" class="psc-hc-recarga" data-psc="hc-recargar" aria-label="Actualizar"' + (huecosCargando ? ' disabled' : '') + '>↻</button></div>' +
-      avisos + '<div class="psc-hc-tabs">' + tabs + '</div><div class="psc-hc-horas">' + horasHtml + '</div>' + detalle;
+        (huecosError ? ' · ' + esc(huecosError) : '') + '</span>' + avisos + '<button type="button" class="psc-hc-recarga" data-psc="hc-recargar" aria-label="Actualizar"' + (huecosCargando ? ' disabled' : '') + '>↻</button></div>' +
+      '<div class="psc-hc-tabs">' + tabs + '</div><div class="psc-hc-horas">' + horasHtml + '</div>' + detalle;
   }
   /* ---------- «Cogerla si se libera» (lo hace reserva-piscina/vigilar.mjs) ----------
      Se guarda la hora pedida en quiere_hora. Si ese día ya tienes reserva a otra
@@ -328,7 +380,7 @@ const PISCINA = (function(){
     clearInterval(temporizador);
     temporizador = setInterval(() => {
       const activa = document.getElementById('screen-piscina')?.classList.contains('active');
-      if(!activa){ clearInterval(temporizador); temporizador = null; return; }
+      if(!activa){ clearInterval(temporizador); temporizador = null; ventana = null; pintarVentana(); return; }
       if(document.visibilityState === 'visible'){ cargarHuecos(); cargar(); } else pintarHuecos();
     }, REFRESCO);
   }
@@ -379,6 +431,10 @@ const PISCINA = (function(){
       case 'anular': anular(el.dataset.id); break;
       case 'reprogramar': reprog = elegido; horaElegida = null; pintar(); break;
       case 'otro': hecho = null; elegido = null; pintar(); break;
+      case 'v-programar': elegido = null; horaElegida = null; reprog = null; hecho = null; abrirVentana('programar'); break;
+      case 'v-lista': abrirVentana('lista'); break;
+      case 'v-info': abrirVentana('info'); break;
+      case 'v-liberadas': abrirVentana('liberadas'); break;
       case 'hc-dia': diaHuecos = Number(el.dataset.i); horaHuecos = null; pintarHuecos(); break;
       case 'hc-hora': horaHuecos = horaHuecos === el.dataset.h ? null : el.dataset.h; pintarHuecos(); break;
       case 'hc-recargar': cargarHuecos(); cargar(); break;
@@ -387,7 +443,7 @@ const PISCINA = (function(){
       case 'ir': {
         hecho = null; elegido = el.dataset.f; horaElegida = null; reprog = null;
         const d = deIso(elegido); mes = new Date(d.getFullYear(), d.getMonth(), 1);
-        pintar(); document.getElementById('screen-piscina').scrollIntoView({ behavior: 'smooth' }); break;
+        ventana = 'programar'; pintar(); break;
       }
     }
   }
@@ -404,7 +460,7 @@ const PISCINA = (function(){
       });
     }
     if(currentUser && dueño !== currentUser.id){ dueño = currentUser.id; filas = []; cargado = false; leerCache(); }
-    hecho = null; horaElegida = null; reprog = null;
+    hecho = null; horaElegida = null; reprog = null; ventana = null;
     const min = deIso(primerDia());
     if(!mes) mes = new Date(min.getFullYear(), min.getMonth(), 1);
     if(!elegido || elegido < primerDia() && !deDia(elegido)) elegido = null;

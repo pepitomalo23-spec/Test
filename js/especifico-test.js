@@ -301,14 +301,41 @@ const ESPT = (function(){
      de una tarea del calendario van con la tarea, como siempre. */
   const CURSO = 'pj_esp_curso:';
   const claveCurso = () => currentUser ? CURSO + currentUser.id : null;
-  function leerCurso(){ try{ return JSON.parse(localStorage.getItem(claveCurso()) || '{}') || {}; }catch(e){ return {}; } }
+  // En «_b» van los que se terminaron o descartaron (id → cuándo), para que al juntarlo con lo
+  // de otro dispositivo no vuelvan a salir. Se olvidan a los 30 días.
+  const BORRADOS = '_b', OLVIDAR = 30 * 864e5;
+  function leerTodo(){ try{ return JSON.parse(localStorage.getItem(claveCurso()) || '{}') || {}; }catch(e){ return {}; } }
+  function leerCurso(){ const c = leerTodo(); delete c[BORRADOS]; return c; }
   function escribirCurso(c){
     if(!claveCurso()) return;
+    const antes = leerTodo(), b = Object.assign({}, antes[BORRADOS]), ahora = Date.now();
+    delete c[BORRADOS];
     // Los 15 más recientes bastan.
-    const ids = Object.keys(c).sort((a, b) => (c[b].at || 0) - (c[a].at || 0));
+    const ids = Object.keys(c).sort((x, y) => (c[y].at || 0) - (c[x].at || 0));
     ids.slice(15).forEach(id => delete c[id]);
+    Object.keys(antes).forEach(id => { if(id !== BORRADOS && !c[id]) b[id] = ahora; });
+    Object.keys(c).forEach(id => delete b[id]);
+    Object.keys(b).forEach(id => { if(ahora - b[id] > OLVIDAR) delete b[id]; });
+    if(Object.keys(b).length) c[BORRADOS] = b;
     try{ Object.keys(c).length ? localStorage.setItem(claveCurso(), JSON.stringify(c)) : localStorage.removeItem(claveCurso()); }catch(e){}
     SINC.cambiado('esp');
+  }
+  // Juntar lo de este dispositivo con lo de la cuenta, test a test: gana el más reciente de cada uno
+  // (antes ganaba el bloque entero y se perdían los tests a medias del otro dispositivo).
+  function mezclarCurso(local, remoto){
+    local = local || {}; remoto = remoto || {};
+    const b = Object.assign({}, remoto[BORRADOS]);
+    Object.entries(local[BORRADOS] || {}).forEach(([id, at]) => { if(!(b[id] >= at)) b[id] = at; });
+    const out = {};
+    new Set([...Object.keys(local), ...Object.keys(remoto)]).forEach(id => {
+      if(id === BORRADOS) return;
+      const x = local[id], y = remoto[id];
+      const g = !x ? y : !y ? x : (y.at || 0) > (x.at || 0) ? y : x;
+      if(g && !(b[id] >= (g.at || 0))) out[id] = g;
+    });
+    Object.keys(out).forEach(id => delete b[id]);
+    if(Object.keys(b).length) out[BORRADOS] = b;
+    return out;
   }
   const claveMarcadas = f => 'marcadas:' + f;
   const enTandaMarcadas = () => modo === 'marcadas' && filtro != null && filtro !== 'sabidas';
@@ -327,11 +354,10 @@ const ESPT = (function(){
     else c[test.id] = { test: { id: test.id, titulo: test.titulo, tema: test.tema }, resp: Object.assign({}, resp), sesion, ultima, total: preguntas.length, at: Date.now() };
     escribirCurso(c);
   }
-  // Para Inicio: el test a medias más reciente y cada tanda de marcadas a medias (hasta «Finalizar»).
+  // Para Inicio: todos los tests a medias y cada tanda de marcadas a medias (hasta «Finalizar»), el más reciente primero.
   function aMedias(){
     const todo = Object.values(leerCurso()).sort((a, b) => (b.at || 0) - (a.at || 0));
-    const test = todo.find(x => !x.marcadas);
-    return todo.filter(x => x.marcadas || x === test).map(x => {
+    return todo.map(x => {
       const hechas = Object.keys(x.resp || {}).length;
       if(x.marcadas) return { id: claveMarcadas(x.marcadas.filtro), etiqueta: 'Continuar preguntas marcadas', titulo: x.marcadas.titulo, hechas, total: x.total || 0 };
       return { id: x.test.id, titulo: x.test.titulo, hechas, total: x.total || 0 };
@@ -369,7 +395,7 @@ const ESPT = (function(){
       if(x){ resp = Object.assign({}, x.resp); sesion = x.sesion || sesion; ultima = x.ultima || null; reanudado = true; pintar(); irAPendiente(); }
     }
     if(typeof INICIO !== 'undefined') INICIO.pintar();
-  });
+  }, mezclarCurso);
 
   /* ---------- abrir ---------- */
   function empezar(m){
