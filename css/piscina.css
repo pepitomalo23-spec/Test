@@ -98,6 +98,7 @@
 .psc-chip{ flex: none; font-size: 11.5px; padding: 4px 9px; border-radius: 999px; background: var(--w06); color: var(--blue); }
 .psc-chip.reservada{ color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
 .psc-chip.fallida{ color: var(--coral); background: color-mix(in srgb, var(--coral) 12%, transparent); }
+.psc-chip.asistida{ color: var(--muted); background: var(--w06); }
 .psc-chip.programada{ background: color-mix(in srgb, var(--blue) 12%, transparent); }
 .psc-antes summary{ cursor: pointer; color: var(--muted-2); font-size: 13px; padding: 10px 0 4px; border-top: 1px solid var(--line-soft); }
 .psc-antes .psc-fila{ opacity: .75; }
