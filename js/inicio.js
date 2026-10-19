@@ -222,6 +222,10 @@ const INICIO = (function(){
       .finally(() => pintar());
     return viejo;
   }
+  // «Solo marcadas» (Específico): las cuentas de la semana solo con tus preguntas marcadas del tema. Se recuerda.
+  const SOLO_MARC = () => 'pj_sem_solo_marcadas:' + (currentUser ? currentUser.id : '');
+  const soloMarcadas = () => { try{ return localStorage.getItem(SOLO_MARC()) === '1'; }catch(e){ return false; } };
+  const marcadasListas = () => typeof ESPT !== 'undefined' && ESPT.numMarcadas && ESPT.numMarcadas() != null;
   // [{ nombre, tipo, total, bien: [], mal: [], sin: [] }] (bien/mal/sin: preguntas de Legislación u ids del Específico); null mientras carga.
   function semana(x){
     const temas = [];
@@ -238,9 +242,11 @@ const INICIO = (function(){
     if(x.esp.length){
       const e = typeof ESTE !== 'undefined' && ESTE.semana ? ESTE.semana(desdeExa(x).getTime()) : null;
       if(!e) return null;
+      const solo = soloMarcadas();
+      if(solo && !marcadasListas()){ ESPT.cargarMarcadas().then(pintar, () => {}); return null; }
       x.esp.forEach(k => {
-        const t = { nombre: k.nombre, tipo: 'Específico', total: 0, bien: [], mal: [], sin: [] };
-        e.temaDe.forEach((tema, id) => { if(tema !== k.id) return; t.total++; (e.ultima.has(id) ? (e.ultima.get(id) ? t.bien : t.mal) : t.sin).push(id); });
+        const t = { nombre: k.nombre, tipo: 'Específico', total: 0, bien: [], mal: [], sin: [], marcadas: solo };
+        e.temaDe.forEach((tema, id) => { if(tema !== k.id || (solo && !ESPT.estaMarcada(id))) return; t.total++; (e.ultima.has(id) ? (e.ultima.get(id) ? t.bien : t.mal) : t.sin).push(id); });
         temas.push(t);
       });
     }
@@ -248,24 +254,34 @@ const INICIO = (function(){
   }
   const corto = iso => { const d = new Date(iso); return ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][d.getDay()] + ' ' + d.getDate(); };
   function abrirTemaSemana(x, i){
-    const temas = semana(x), t = temas && temas[i];
+    let t = (semana(x) || [])[i];
     if(!t) return;
     const n = v => Number(v).toLocaleString('es-ES');
     const fila = (cls, ico, tit, lista, boton, h) => '<div class="ini-sem-fila ' + cls + '"><span class="ini-sem-ico">' + ico + '</span><span class="ini-sem-txt"><b>' + tit + '</b></span>' +
       (lista.length && boton ? '<button type="button" class="cal-btn' + (cls === 'mal' ? ' primario' : '') + '" data-h="' + h + '">' + boton + '</button>' : '') + '</div>';
-    const pct = t.total ? Math.round(t.bien.length / t.total * 100) : 0;
-    const cuerpo = '<div class="ini-sem-pct"><b>' + pct + '<small>%</small></b><span>acertadas de ' + n(t.total) + ' preguntas del tema esta semana</span></div>' +
+    const esp = t.tipo === 'Específico';
+    const cuerpo = () => { const pct = t.total ? Math.round(t.bien.length / t.total * 100) : 0; return (esp ? '<div class="ini-sem-filtro">' +
+        '<button type="button" class="' + (t.marcadas ? '' : 'on') + '" data-h="todas">Todas</button><button type="button" class="' + (t.marcadas ? 'on' : '') + '" data-h="marcadas">★ Solo marcadas</button></div>' : '') +
+      (t.marcadas && !t.total ? '<p class="ini-sem-nota">No tienes preguntas marcadas en este tema.</p>' :
+      '<div class="ini-sem-pct"><b>' + pct + '<small>%</small></b><span>acertadas de ' + n(t.total) + (t.marcadas ? ' marcadas' : ' preguntas') + ' del tema esta semana</span></div>' +
       fila('mal', '✗', n(t.mal.length) + ' mal', t.mal, 'Repetir ' + (t.mal.length === 1 ? 'la fallada' : 'las ' + n(t.mal.length)), 'mal') +
-      fila('sin', '○', n(t.sin.length) + ' sin hacer', t.sin, 'Hacer ' + (t.sin.length > 40 ? '40 al azar' : t.sin.length === 1 ? 'la que falta' : 'las ' + n(t.sin.length)), 'sin') +
-      fila('bien', '✓', n(t.bien.length) + ' bien', t.bien, 'Repasarlas', 'bien') +
-      '<p class="ini-sem-nota">Cuenta lo que has respondido desde el ' + corto(desdeExa(x)) + '. En Legislación, los tests cuentan al terminarlos.</p>';
-    hoja(t.nombre, t.tipo + ' · examen ' + cuandoExa(x), cuerpo, '<button type="button" class="cal-btn" data-h="cerrar">Cerrar</button>',
-      (b, cerrar) => {
+      fila('sin', '○', n(t.sin.length) + ' sin hacer', t.sin, 'Hacer ' + (t.sin.length === 1 ? 'la que falta' : 'las ' + n(t.sin.length)), 'sin') +
+      fila('bien', '✓', n(t.bien.length) + ' bien', t.bien, 'Repasarlas', 'bien')) +
+      '<p class="ini-sem-nota">Cuenta lo que has respondido desde el ' + corto(desdeExa(x)) + '. En Legislación, los tests cuentan al terminarlos.</p>'; };
+    hoja(t.nombre, t.tipo + ' · examen ' + cuandoExa(x), cuerpo(), '<button type="button" class="cal-btn" data-h="cerrar">Cerrar</button>',
+      async (b, cerrar, poner) => {
+        if(b.dataset.h === 'todas' || b.dataset.h === 'marcadas'){
+          try{ localStorage.setItem(SOLO_MARC(), b.dataset.h === 'marcadas' ? '1' : '0'); }catch(e){}
+          if(b.dataset.h === 'marcadas' && !marcadasListas()) await ESPT.cargarMarcadas().catch(() => {});
+          t = (semana(x) || [])[i] || t;
+          poner(cuerpo()); pintar();
+          return;
+        }
         const lista = t[b.dataset.h];
         if(!lista) return;
         cerrar();
-        const elegidas = shuffleArray(lista.slice()).slice(0, b.dataset.h === 'sin' ? 40 : lista.length);
-        PRU.repasar(t.tipo === 'Legislación' ? elegidas : [], t.tipo === 'Específico' ? elegidas : []);
+        const elegidas = shuffleArray(lista.slice());
+        PRU.repasar(t.tipo === 'Legislación' ? elegidas : [], esp ? elegidas : []);
       }, 'ini-sem-hoja');
   }
   function anilloExa(p, grande){
@@ -547,7 +563,7 @@ const INICIO = (function(){
       const anillos = temas ? temas.map((t, i) => {
         const pct = t.total ? Math.round(t.bien.length / t.total * 100) : 0, color = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--amber)' : 'var(--coral)';
         return col('sem', pct + '<small>%</small>', pct, color, esc(t.nombre),
-          ['<strong class="ok">✓ ' + n(t.bien.length) + '</strong> bien · <strong class="mal">✗ ' + n(t.mal.length) + '</strong> mal', n(t.sin.length) + ' sin hacer · <em>Ver ›</em>'])
+          ['<strong class="ok">✓ ' + n(t.bien.length) + '</strong> bien · <strong class="mal">✗ ' + n(t.mal.length) + '</strong> mal', n(t.sin.length) + ' sin hacer' + (t.marcadas ? ' · ★ marcadas' : '') + ' · <em>Ver ›</em>'])
           .replace('data-ini="sem"', 'data-ini="sem" data-id="' + esc(x.id) + '" data-i="' + i + '"');
       }) : nombres.map(nm => col('sem', '…', 0, 'var(--line)', esc(nm), ['Cargando…']));
       const tot = temas ? temas.reduce((a, t) => a + t.total, 0) : 0, bien = temas ? temas.reduce((a, t) => a + t.bien.length, 0) : 0;
