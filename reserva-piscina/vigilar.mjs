@@ -179,6 +179,8 @@ async function armar(v) {
   log(`Preparado: ${v.fecha} a las ${v.quiere_hora}${esCambio(v) ? ` (cambiando la de las ${v.hora})` : ''}`);
 }
 
+const UNA_SOLA = /más de 1 reservas|mas de 1 reservas/i;
+const pausa = new Map();   // id → hasta cuándo no intentarlo (IMDECO: una sola reserva en vigor)
 async function coger(v, libres) {
   const cambio = esCambio(v), t0 = Date.now();
   log(`¡Libre! ${v.fecha} a las ${v.quiere_hora} (${libres.length} calles)${cambio ? ` → cambio desde las ${v.hora}` : ''}`);
@@ -196,7 +198,12 @@ async function coger(v, libres) {
     resumen(`✅ ${v.fecha}: reservada a las **${v.quiere_hora}** (${calle})${cambio ? ', antes a las ' + v.hora : ''}, en ${((Date.now() - t0) / 1000).toFixed(1)} s.`);
   } catch (e) {
     log('❌', e.message);
-    if (!cambio) { await apuntar(v.id, null, null, `Se liberó pero otro la cogió antes (${e.message.slice(0, 80)}). Sigo vigilando`); }
+    if (!cambio && UNA_SOLA.test(e.message)) {
+      // IMDECO no deja tener dos reservas a la vez: esperar a que pase la otra (sin insistir cada 3 s)
+      pausa.set(v.id, Date.now() + 15 * 60_000);
+      await apuntar(v.id, null, null, 'IMDECO solo deja una reserva en vigor a la vez y ya tienes otra. En cuanto pase esa, la cojo si sigue libre');
+    }
+    else if (!cambio) { await apuntar(v.id, null, null, `Se liberó pero otro la cogió antes (${e.message.slice(0, 80)}). Sigo vigilando`); }
     else {
       // La nueva no salió: recuperar la de antes
       log(`Recupero la de las ${v.hora}`);
@@ -267,7 +274,7 @@ try {
     }
     // Copiar de vez en cuando las reservas reales (lo que se haga a mano en IMDECO)
     if (Date.now() - sincronizadoAt > SINCRONIZAR) { sincronizadoAt = Date.now(); correr('sincronizar.mjs', []); }
-    const vivos = ahoraVivos(lista, ahora);
+    const vivos = ahoraVivos(lista, ahora).filter(v => !(pausa.get(v.id) > Date.now()));
     if (!vivos.length) { await espera(LISTA); leidaAt = 0; continue; }
     if (!armadoPara || !vivos.some(v => armadoPara === v.id + '|' + v.quiere_hora + '|' + v.hora)) {
       try { await armar(vivos[0]); }
