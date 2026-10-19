@@ -314,6 +314,8 @@ try {
         throw new Error('No he visto el mensaje de reserva hecha; revisa tus reservas en la web. ' + await describirPantalla());
       }
     } catch (e) {
+      // Reintentar no arregla tener ya una reserva pendiente (IMDECO solo deja 1 a la vez)
+      if (/m[aá]s de \d+ reservas/i.test(e.message)) throw new Error(e.message + ' Ya tienes otra reserva pendiente; IMDECO solo deja una a la vez.');
       if (!(e instanceof ErrorWeb) || Date.now() >= limite) throw e;
       log(`Intento ${intento}: ${e.message}. Reintento…`);
       await page.waitForTimeout(1000);
