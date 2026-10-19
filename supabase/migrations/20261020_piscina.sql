@@ -105,3 +105,32 @@ grant execute on function public.piscina_robot_sincronizar(text, jsonb) to anon;
 -- La clave y de quién son las reservas: insert into public.piscina_robot (id, clave_sha256) values (1, '<sha256 en hex de PISCINA_CLAVE>')
 --   on conflict (id) do update set clave_sha256 = excluded.clave_sha256;
 -- update public.piscina_robot set user_id = '<id del administrador>' where id = 1;
+
+-- «Cogerla si se libera» (reserva-piscina/vigilar.mjs): la hora que se quiere ese día. Si ya hay
+-- reserva a otra hora, el robot la cambia (anula la vieja y coge la nueva) cuando se libera.
+alter table public.piscina_reservas add column if not exists quiere_hora text
+  check (quiere_hora is null or quiere_hora in ('08:00', '09:00', '13:00', '14:00', '15:00', '22:00'));
+create or replace function public.piscina_robot_vigilar(p_clave text)
+returns table (id uuid, fecha date, hora text, estado text, quiere_hora text)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.piscina_robot_ok(p_clave) then raise exception 'clave incorrecta'; end if;
+  return query select r.id, r.fecha, r.hora, r.estado, r.quiere_hora from public.piscina_reservas r
+    where r.quiere_hora is not null and r.fecha >= (now() at time zone 'Europe/Madrid')::date order by r.fecha;
+end $$;
+-- Con p_hora: ya reservada a esa hora (se quita quiere_hora). Sin p_hora: solo una nota en detalle.
+create or replace function public.piscina_robot_cambiado(p_clave text, p_id uuid, p_hora text, p_calle text, p_detalle text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.piscina_robot_ok(p_clave) then raise exception 'clave incorrecta'; end if;
+  if p_hora is null then
+    update public.piscina_reservas set detalle = left(p_detalle, 500), updated_at = now() where id = p_id;
+  else
+    update public.piscina_reservas set hora = p_hora, calle = coalesce(left(p_calle, 60), calle), estado = 'reservada',
+      quiere_hora = null, detalle = left(p_detalle, 500), updated_at = now() where id = p_id;
+  end if;
+end $$;
+revoke all on function public.piscina_robot_vigilar(text) from public, authenticated;
+revoke all on function public.piscina_robot_cambiado(text, uuid, text, text, text) from public, authenticated;
+grant execute on function public.piscina_robot_vigilar(text) to anon;
+grant execute on function public.piscina_robot_cambiado(text, uuid, text, text, text) to anon;

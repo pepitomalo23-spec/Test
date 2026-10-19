@@ -1,0 +1,46 @@
+name: Vigilar piscina
+
+# «Cogerla si se libera» (pantalla Piscina de la app): mientras haya alguna hora pedida para un día
+# ya abierto, mira cada 20 s y, en cuanto se libera, la reserva (cambiando la que tuvieras ese día).
+# Cada 5 minutos comprueba si hay algo que vigilar; cada vigilancia dura hasta 50 minutos.
+on:
+  schedule:
+    - cron: '*/5 4-22 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: vigilar-piscina
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  vigilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: reserva-piscina
+    env:
+      SUPABASE_URL: https://tsjaaqkvncgxqtpmlugv.supabase.co
+      SUPABASE_ANON_KEY: sb_publishable_F9-gdlx34vn7FQ_1hSHwcQ__L5EGMOS
+      PISCINA_CLAVE: ${{ secrets.PISCINA_CLAVE }}
+      IMD_USUARIO: ${{ secrets.IMD_USUARIO }}
+      IMD_CONTRASENA: ${{ secrets.IMD_CONTRASENA }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: ¿Hay algo que vigilar?
+        id: toca
+        run: node vigilar.mjs --comprobar
+      - name: Preparar el navegador
+        if: steps.toca.outputs.hay == '1'
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Vigilar
+        if: steps.toca.outputs.hay == '1'
+        run: node vigilar.mjs
