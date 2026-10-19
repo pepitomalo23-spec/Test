@@ -139,10 +139,11 @@ export class Armado {
     await btn.click();
     // Aviso «¿Seguro?» → «Sí». Se pulsa una sola vez y se espera a que se cierre: mientras se
     // cierra sigue «visible» un momento y volver a buscarlo hacía fallar todo (ya anulada).
-    const si = p.locator('[id$=uWarningModal_btnYes]');
+    // (la web tiene el aviso dos veces con el mismo id, uno oculto: se usa el visible)
+    const si = p.locator('[id$=uWarningModal_btnYes]:visible').first();
     await si.waitFor({ state: 'visible', timeout: 8000 });   // si no sale, no se ha anulado nada
     if (prueba) {
-      const no = p.locator('[id$=uWarningModal_btnNo], [id$=uWarningModal] button:visible').filter({ hasText: /^no$/i }).first();
+      const no = p.locator('[id$=uWarningModal_btnNo]:visible, [id$=uWarningModal] button:visible').filter({ hasText: /^no$/i }).first();
       await no.click({ timeout: 5000 });
       await si.waitFor({ state: 'hidden', timeout: 10000 });
       return;
