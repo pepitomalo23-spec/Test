@@ -657,7 +657,9 @@ const PRU = (function(){
   function aMedias(modos){
     const g = guardado();
     if(!g || !permitido(g.modo) || (modos && !modos.includes(g.modo))) return null;
-    return { modo: g.modo, titulo: MODOS[g.modo].largo, hechas: (g.resp || []).filter(r => r != null).length, total: (g.items || []).length };
+    const total = (g.items || []).length, vas = (g.i || 0) + 1, tarjeta = MODOS[g.modo].vista === 'tarjeta';
+    // De una en una: por la pregunta en la que estás (es donde se abre); si no, las respondidas
+    return { modo: g.modo, titulo: MODOS[g.modo].largo, hechas: tarjeta ? vas : (g.resp || []).filter(r => r != null).length, total, texto: tarjeta ? 'vas por la pregunta ' + vas + ' de ' + total : null };
   }
 
   /* ---------- hacer la prueba ---------- */
