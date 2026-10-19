@@ -1,12 +1,17 @@
 name: Vigilar piscina
 
 # «Cogerla si se libera» (pantalla Piscina de la app): mientras haya alguna hora pedida para un día
-# ya abierto, mira cada 20 s y, en cuanto se libera, la reserva (cambiando la que tuvieras ese día).
-# Cada 5 minutos comprueba si hay algo que vigilar; cada vigilancia dura hasta 50 minutos.
+# ya abierto, mira cada 3 s y, en cuanto se libera, la reserva (cambiando la que tuvieras ese día),
+# con el navegador ya preparado. Cada 5 minutos comprueba si hay algo que vigilar; cada vigilancia
+# dura hasta 5 h 45 min y, al acabar, la siguiente empieza enseguida.
 on:
   schedule:
     - cron: '*/5 4-22 * * *'
   workflow_dispatch:
+    inputs:
+      prueba:
+        description: 'Prueba (sin anular ni reservar): AAAA-MM-DD HH:MM [hora de tu reserva para cambiar]'
+        required: false
 
 concurrency:
   group: vigilar-piscina
@@ -18,7 +23,7 @@ permissions:
 jobs:
   vigilar:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 360
     defaults:
       run:
         working-directory: reserva-piscina
@@ -35,7 +40,10 @@ jobs:
           node-version: 22
       - name: ¿Hay algo que vigilar?
         id: toca
-        run: node vigilar.mjs --comprobar
+        env:
+          PRUEBA: ${{ inputs.prueba }}
+        run: |
+          if [ -n "$PRUEBA" ]; then echo "hay=1" >> "$GITHUB_OUTPUT"; else node vigilar.mjs --comprobar; fi
       - name: Preparar el navegador
         if: steps.toca.outputs.hay == '1'
         run: |
@@ -43,4 +51,12 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Vigilar
         if: steps.toca.outputs.hay == '1'
-        run: node vigilar.mjs
+        env:
+          PRUEBA: ${{ inputs.prueba }}
+        run: |
+          if [ -n "$PRUEBA" ]; then
+            set -- $PRUEBA
+            node vigilar.mjs --prueba --fecha "$1" --hora "$2" ${3:+--vieja "$3"}
+          else
+            node vigilar.mjs
+          fi
