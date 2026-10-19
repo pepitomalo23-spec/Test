@@ -63,8 +63,9 @@ if (process.argv.includes('--comprobar')) {
   const vivos = lista.filter(v => abiertos.includes(v.fecha) && !(v.fecha === ahora.fecha && v.quiere_hora <= ahora.hora));
   vivos.push(...(await rpc('piscina_robot_por_anular', {}).catch(() => []) || []));
   const enHorario = ahora.hora < '23:20' && ahora.hora >= '06:30';
-  log(vivos.length ? `Hay ${vivos.length} para vigilar` : 'Nada que vigilar', enHorario ? '' : '(fuera de horario)');
-  if (vivos.length && enHorario && process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, 'hay=1\n');
+  log(vivos.length ? `Hay ${vivos.length} para vigilar` : 'Nada que vigilar ahora', enHorario ? '' : '(fuera de horario)');
+  // En horario arranca siempre: se queda leyendo la app para hacer al momento lo que se pida
+  if (enHorario && process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, 'hay=1\n');
   process.exit(0);
 }
 
@@ -240,14 +241,24 @@ async function anularPedidas() {
   if (pedidas.length) correr('sincronizar.mjs', []);
 }
 
-// Sin nada que hacer se queda un rato más (leyendo la app cada 30 s), para que lo que se pida
-// desde la app enseguida («Cógemela», «Anular») se haga en segundos y no en minutos.
-const ESPERA_SIN_NADA = 30 * 60_000, SINCRONIZAR = 10 * 60_000;
-let ocupadoAt = Date.now(), sincronizadoAt = Date.now();
+// Sin nada que hacer sigue en marcha (leyendo la app cada 30 s), para que lo que se pida desde
+// la app («Cógemela», «Anular») se haga en segundos: los avisos programados de GitHub casi nunca
+// llegan a tiempo. Al acabar sus 5 h 45 min se vuelve a lanzar solo (relevo()).
+const SINCRONIZAR = 10 * 60_000;
+let sincronizadoAt = 0, fueraDeHorario = false;
+// Lanza la siguiente vigilancia (GitHub la deja en cola hasta que acabe esta)
+async function relevo() {
+  const { GITHUB_TOKEN: t, GITHUB_REPOSITORY: repo } = process.env;
+  if (!t || !repo || fueraDeHorario) return;
+  const r = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/vigilar-piscina.yml/dispatches`, {
+    method: 'POST', headers: { authorization: `Bearer ${t}`, accept: 'application/vnd.github+json' }, body: JSON.stringify({ ref: 'main' }),
+  }).catch(e => ({ ok: false, status: e.message }));
+  log(r.ok ? 'Relevo lanzado: sigue otra vigilancia' : `No pude lanzar el relevo (${r.status})`);
+}
 try {
   while (Date.now() < fin) {
     const ahora = madrid();
-    if (ahora.hora >= '23:20' || ahora.hora < '06:30') { log('Fuera de horario (23:20–06:30): paro'); break; }
+    if (ahora.hora >= '23:20' || ahora.hora < '06:30') { log('Fuera de horario (23:20–06:30): paro'); fueraDeHorario = true; break; }
     if (Date.now() - leidaAt > LISTA) {
       try { lista = await rpc('piscina_robot_vigilar', {}) || []; leidaAt = Date.now(); }
       catch (e) { log('No pude leer la app:', e.message); await espera(CADA); continue; }
@@ -257,11 +268,7 @@ try {
     // Copiar de vez en cuando las reservas reales (lo que se haga a mano en IMDECO)
     if (Date.now() - sincronizadoAt > SINCRONIZAR) { sincronizadoAt = Date.now(); correr('sincronizar.mjs', []); }
     const vivos = ahoraVivos(lista, ahora);
-    if (!vivos.length) {
-      if (Date.now() - ocupadoAt > ESPERA_SIN_NADA) { log('Nada que vigilar desde hace un rato: paro'); break; }
-      await espera(LISTA); leidaAt = 0; continue;
-    }
-    ocupadoAt = Date.now();
+    if (!vivos.length) { await espera(LISTA); leidaAt = 0; continue; }
     if (!armadoPara || !vivos.some(v => armadoPara === v.id + '|' + v.quiere_hora + '|' + v.hora)) {
       try { await armar(vivos[0]); }
       catch (e) { log('No pude prepararlo:', e.message); await apuntar(vivos[0].id, null, null, e.message.slice(0, 200)); await espera(30_000); continue; }
@@ -280,4 +287,5 @@ try {
   }
 } finally {
   await armado?.cerrar();
+  await relevo();
 }
