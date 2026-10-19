@@ -26,7 +26,7 @@ on:
       explorar:
         description: 'Solo para depurar: recorrer «Mi cuenta» y describir las pantallas'
         type: choice
-        options: ['no', 'mirar', 'mirar y confirmar carrito', 'probar anular (sin anular)']
+        options: ['no', 'mirar', 'mirar y confirmar carrito', 'vaciar carrito', 'probar anular (sin anular)']
         default: 'no'
 
 concurrency:
@@ -95,6 +95,8 @@ jobs:
             node anular.mjs --fecha "$FECHA" --hora "$HORA" --prueba
           elif [ "$EXPLORAR" = "mirar" ]; then
             node explorar.mjs
+          elif [ "$EXPLORAR" = "vaciar carrito" ]; then
+            node reservar.mjs --vaciar-carrito
           elif [ "$EXPLORAR" = "mirar y confirmar carrito" ]; then
             node explorar.mjs --confirmar-carrito
           elif [ "$CARRITO" = "true" ]; then
