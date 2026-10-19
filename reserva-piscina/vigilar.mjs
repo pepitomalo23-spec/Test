@@ -217,9 +217,10 @@ async function coger(v, libres) {
 }
 
 // Anular lo que se ha pedido desde la app («Anular en IMDECO»)
+const anulacionFallida = new Set();   // no reintentar cada 30 s la que ya falló (sí en la próxima vigilancia)
 async function anularPedidas() {
   let pedidas = [];
-  try { pedidas = await rpc('piscina_robot_por_anular', {}) || []; } catch (e) { log('No pude leer lo que hay que anular:', e.message); return; }
+  try { pedidas = (await rpc('piscina_robot_por_anular', {}) || []).filter(a => !anulacionFallida.has(a.id)); } catch (e) { log('No pude leer lo que hay que anular:', e.message); return; }
   for (const a of pedidas) {
     log(`Anulo la del ${a.fecha} a las ${a.hora} (pedido desde la app)`);
     try {
@@ -231,6 +232,7 @@ async function anularPedidas() {
       resumen(`🗑️ ${a.fecha}: anulada la de las ${a.hora}.`);
     } catch (e) {
       log('❌ No pude anularla:', e.message.split('\n')[0]);
+      anulacionFallida.add(a.id);
       await apuntar(a.id, null, null, 'No pude anularla: ' + e.message.split('\n')[0].slice(0, 150));
     }
     armadoPara = null;
