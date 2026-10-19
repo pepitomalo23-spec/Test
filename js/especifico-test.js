@@ -454,19 +454,31 @@ const ESPT = (function(){
   }
   // Al seguir un test a medias, a la primera pregunta sin responder.
   // Justo donde se dejó: la siguiente a la última respondida (o la primera sin responder).
-  function irAPendiente(){
-    if(!Object.keys(resp).length) return;
+  // La pregunta por la que se sigue: la siguiente sin responder tras la última respondida.
+  function pendiente(){
+    if(!Object.keys(resp).length) return null;
     const i = preguntas.findIndex(x => x.id === ultima);
-    const p = (i >= 0 && preguntas.slice(i + 1).find(x => !resp[x.id])) || preguntas.find(x => !resp[x.id]) || preguntas[i];
+    return (i >= 0 && preguntas.slice(i + 1).find(x => !resp[x.id])) || preguntas.find(x => !resp[x.id]) || preguntas[i] || null;
+  }
+  // Lleva a esa pregunta y la mantiene ahí mientras se cargan las imágenes de arriba (que mueven
+  // todo), hasta 6 s o hasta que se toque la pantalla.
+  function irAPendiente(){
+    const p = pendiente();
     if(!p) return;
-    // Se busca la pregunta cada vez (la lista se puede volver a pintar al llegar
-    // las notas) y se repite un poco, por si las imágenes de arriba cambian el alto.
     const app = document.getElementById('app');
-    let tocado = false;
-    const mano = () => { tocado = true; };
-    if(app){ app.addEventListener('touchstart', mano, { once: true, passive: true }); app.addEventListener('wheel', mano, { once: true, passive: true }); }
-    const ir = () => { const el = !tocado && document.getElementById('espt-' + p.id); if(el) el.scrollIntoView({ block: 'center' }); };
-    requestAnimationFrame(ir); [250, 700, 1500].forEach(t => setTimeout(ir, t));
+    let tocado = false, obs = null;
+    const fin = () => { tocado = true; if(obs) obs.disconnect(); ['touchstart', 'wheel', 'keydown', 'pointerdown'].forEach(t => app && app.removeEventListener(t, fin)); };
+    if(app) ['touchstart', 'wheel', 'keydown', 'pointerdown'].forEach(t => app.addEventListener(t, fin, { passive: true }));
+    const ir = () => {
+      if(tocado) return;
+      const el = document.getElementById('espt-' + p.id);
+      if(el) el.scrollIntoView({ block: 'start' });
+    };
+    requestAnimationFrame(ir);
+    const lista = root() && root().querySelector('.espt-lista');
+    if(lista && typeof ResizeObserver !== 'undefined'){ obs = new ResizeObserver(() => requestAnimationFrame(ir)); obs.observe(lista); }
+    [300, 800, 1600, 3000].forEach(t => setTimeout(ir, t));
+    setTimeout(() => { if(obs) obs.disconnect(); }, 6000);
   }
   async function abrirMarcadas(){
     empezar('marcadas'); test = null; filtro = null; todasMarcadas = [];
@@ -531,6 +543,11 @@ const ESPT = (function(){
       (sab ? '<button type="button" class="espm-sabidas" data-espt="sabidas">🎉 Ya te las sabes · ' + sab + ' <span class="espm-flecha">›</span></button>' : '');
   }
 
+  // «Ir a la pregunta N ↓», por si se pierde el sitio
+  function irBoton(){
+    const p = pendiente(), n = p ? preguntas.indexOf(p) + 1 : 0;
+    return n ? ' <button type="button" data-espt="ir-pendiente">Ir a la pregunta ' + n + ' ↓</button>' : '';
+  }
   /* ---------- pintar ---------- */
   function cabecera(){
     if(modo === 'hoy') return '<nav class="espt-migas"><button type="button" data-espt="volver">' + ({ 'screen-inicio': 'Inicio' }[volverA] || 'Específico') + '</button> <span>›</span> <button type="button" data-espt="marcadas">Preguntas marcadas</button> <span>›</span> <b>De hoy</b></nav>' +
@@ -548,7 +565,7 @@ const ESPT = (function(){
         '<h2 class="espt-h">Preguntas marcadas</h2>' +
         '<div class="espt-cab"><div class="espt-etiqueta">' + (filtro === 'todas' ? 'Todas juntas' : 'Tema:') + '</div>' +
         (filtro === 'todas' ? '<div class="espt-cab-txt">Todas tus preguntas marcadas, ordenadas por tema y test.</div>' : '<div class="espt-campo">' + escapeHtml(temaDe(filtro)) + '</div>') + '</div>' +
-        '<div class="espt-sigue">' + (reanudado && Object.keys(resp).length ? 'Sigues donde lo dejaste: ' + Object.keys(resp).length + ' de ' + preguntas.length + ' respondidas. ' : 'Como un test normal: no cambia las fechas de «Marcadas de hoy». ') +
+        '<div class="espt-sigue">' + (reanudado && Object.keys(resp).length ? 'Sigues donde lo dejaste: ' + Object.keys(resp).length + ' de ' + preguntas.length + ' respondidas.' + irBoton() + ' ' : 'Como un test normal: no cambia las fechas de «Marcadas de hoy». ') +
         'Queda a medias en Inicio hasta que pulses <button type="button" data-espt="finalizar">Finalizar</button></div>';
     }
     const origen = { 'screen-calendario': 'Calendario', 'screen-inicio': 'Inicio' }[volverA] || 'Específico';
@@ -559,7 +576,7 @@ const ESPT = (function(){
         '<div class="espt-etiqueta">Descripción:</div><div class="espt-campo">' + escapeHtml(test ? test.titulo : '') + '</div>' +
       '</div>' +
       (reanudado && !tarea && Object.keys(resp).length ? '<div class="espt-sigue">Sigues donde lo dejaste: ' + Object.keys(resp).length + ' de ' + preguntas.length + ' respondidas.' +
-        ' <button type="button" data-espt="cero">Empezar de cero</button></div>' : '');
+        irBoton() + ' <button type="button" data-espt="cero">Empezar de cero</button></div>' : '');
   }
   function tarjeta(p){
     const elegida = resp[p.id];
@@ -776,6 +793,7 @@ const ESPT = (function(){
       case 'volver': showScreen(volverA || 'screen-especifico'); break;
       case 'filtro': elegirMarcadas(b.dataset.f || null); break;
       case 'cero': empezarDeCero(); break;
+      case 'ir-pendiente': irAPendiente(); break;
       case 'finalizar': finalizarMarcadas(); break;
       case 'dude': dude(id); break;
       case 'sig': if(hoyRep){ hoyRep.i++; pintar(); arriba(); } break;
