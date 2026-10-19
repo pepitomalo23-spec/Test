@@ -327,13 +327,15 @@ const ESPT = (function(){
     else c[test.id] = { test: { id: test.id, titulo: test.titulo, tema: test.tema }, resp: Object.assign({}, resp), sesion, ultima, total: preguntas.length, at: Date.now() };
     escribirCurso(c);
   }
-  // Para Inicio: el test a medias más reciente.
+  // Para Inicio: el test a medias más reciente y cada tanda de marcadas a medias (hasta «Finalizar»).
   function aMedias(){
-    const c = leerCurso(), x = Object.values(c).sort((a, b) => (b.at || 0) - (a.at || 0))[0];
-    if(!x) return null;
-    const hechas = Object.keys(x.resp || {}).length;
-    if(x.marcadas) return { id: claveMarcadas(x.marcadas.filtro), etiqueta: 'Continuar preguntas marcadas', titulo: x.marcadas.titulo, hechas, total: x.total || 0 };
-    return { id: x.test.id, titulo: x.test.titulo, hechas, total: x.total || 0 };
+    const todo = Object.values(leerCurso()).sort((a, b) => (b.at || 0) - (a.at || 0));
+    const test = todo.find(x => !x.marcadas);
+    return todo.filter(x => x.marcadas || x === test).map(x => {
+      const hechas = Object.keys(x.resp || {}).length;
+      if(x.marcadas) return { id: claveMarcadas(x.marcadas.filtro), etiqueta: 'Continuar preguntas marcadas', titulo: x.marcadas.titulo, hechas, total: x.total || 0 };
+      return { id: x.test.id, titulo: x.test.titulo, hechas, total: x.total || 0 };
+    });
   }
   function continuarCurso(id){
     const x = leerCurso()[id];
@@ -470,7 +472,8 @@ const ESPT = (function(){
         preguntas = x.ids.map(id => porId.get(id)).filter(Boolean);
         resp = Object.assign({}, x.resp); sesion = x.sesion || null; ultima = x.ultima || null; reanudado = true;
       }
-      marRep = { antes: new Map(preguntas.map(p => [p.id, Object.assign({}, plan.get(p.id))])), dudadas: new Set(), movidas: new Set() };
+      // Un tema suelto es para estudiarlo: no mueve los días. «Todas juntas» sí cuenta.
+      if(f === 'todas') marRep = { antes: new Map(preguntas.map(p => [p.id, Object.assign({}, plan.get(p.id))])), dudadas: new Set(), movidas: new Set() };
     }
     pintar();
     if(reanudado) irAPendiente(); else arriba();
@@ -512,12 +515,12 @@ const ESPT = (function(){
       if(filtro == null) return '<nav class="espt-migas"><button type="button" data-espt="volver">' + ({ 'screen-inicio': 'Inicio' }[volverA] || 'Específico') + '</button> <span>›</span> <b>Preguntas marcadas</b></nav>' +
         '<h2 class="espt-h">Preguntas marcadas</h2>' +
         '<div class="espt-cab"><div class="espt-etiqueta">Tus preguntas guardadas</div>' +
-        '<div class="espt-cab-txt">Cada día, «Marcadas de hoy»: se van espaciando y se quitan solas cuando ya te las sabes. Abajo, todas o por tema: también cuentan (cada pregunta, una vez al día) y quedan a medias hasta «Finalizar».</div></div>';
+        '<div class="espt-cab-txt">Cada día, «Marcadas de hoy»: se van espaciando y se quitan solas cuando ya te las sabes. Abajo, «Todas juntas» también cuenta (cada pregunta, una vez al día); por tema es para estudiarlo y no cambia los días. Quedan a medias hasta «Finalizar».</div></div>';
       return '<nav class="espt-migas"><button type="button" data-espt="volver">' + ({ 'screen-inicio': 'Inicio' }[volverA] || 'Específico') + '</button> <span>›</span> <button type="button" data-espt="filtro" data-f="">Preguntas marcadas</button> <span>›</span> <b>' + escapeHtml(nombreFiltro()) + '</b></nav>' +
         '<h2 class="espt-h">Preguntas marcadas</h2>' +
         '<div class="espt-cab"><div class="espt-etiqueta">' + (filtro === 'todas' ? 'Todas juntas' : 'Tema:') + '</div>' +
         (filtro === 'todas' ? '<div class="espt-cab-txt">Todas tus preguntas marcadas, ordenadas por tema y test.</div>' : '<div class="espt-campo">' + escapeHtml(temaDe(filtro)) + '</div>') + '</div>' +
-        '<div class="espt-sigue">' + (reanudado && Object.keys(resp).length ? 'Sigues donde lo dejaste: ' + Object.keys(resp).length + ' de ' + preguntas.length + ' respondidas. ' : 'Al responder ves cuándo vuelve cada una. ') +
+        '<div class="espt-sigue">' + (reanudado && Object.keys(resp).length ? 'Sigues donde lo dejaste: ' + Object.keys(resp).length + ' de ' + preguntas.length + ' respondidas. ' : (filtro === 'todas' ? 'Al responder ves cuándo vuelve cada una. ' : 'Para estudiar el tema: no cambia los días de repaso. ')) +
         'Queda a medias en Inicio hasta que pulses <button type="button" data-espt="finalizar">Finalizar</button></div>';
     }
     const origen = { 'screen-calendario': 'Calendario', 'screen-inicio': 'Inicio' }[volverA] || 'Específico';
@@ -731,7 +734,7 @@ const ESPT = (function(){
       guardarRespuesta(p.id, op.dataset.op === p.correcta);
       if(rep()) apuntarRepaso(p.id, op.dataset.op === p.correcta ? 'bien' : 'mal');
       // Al fallar (aquí), la explicación abierta.
-      if(rep() && op.dataset.op !== p.correcta && !abiertas.has(p.id) && (p.tiene_explicacion || notas.has(p.id))){
+      if((rep() || enTandaMarcadas()) && op.dataset.op !== p.correcta && !abiertas.has(p.id) && (p.tiene_explicacion || notas.has(p.id))){
         abiertas.add(p.id);
         if(!expl.has(p.id) && p.tiene_explicacion) explicacion(p.id).then(() => { if(abiertas.has(p.id)) repintar(p.id); });
       }

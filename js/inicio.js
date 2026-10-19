@@ -63,14 +63,14 @@ const INICIO = (function(){
   // Un test del Específico a medias (se sigue aquí o en otro dispositivo).
   function espAMedias(){
     if(typeof ESPT === 'undefined' || !ESPT.aMedias) return '';
-    const m = ESPT.aMedias();
-    if(!m) return '';
-    const pct = m.total ? Math.round(m.hechas / m.total * 100) : 0;
-    return '<button type="button" class="ini-continuar" data-ini="esp" data-id="' + esc(m.id) + '">' +
-      '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
-      '<span class="ini-continuar-txt"><b>' + esc(m.etiqueta || 'Continuar test del Específico') + '</b><span>' + esc(m.titulo) + ' · ' + m.hechas + ' de ' + m.total + ' respondidas</span>' +
-        '<span class="ini-barra"><i style="width:' + pct + '%"></i></span></span>' +
-      '<span class="ini-flecha">' + FLECHA + '</span></button>';
+    return ESPT.aMedias().map(m => {
+      const pct = m.total ? Math.round(m.hechas / m.total * 100) : 0;
+      return '<button type="button" class="ini-continuar" data-ini="esp" data-id="' + esc(m.id) + '">' +
+        '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
+        '<span class="ini-continuar-txt"><b>' + esc(m.etiqueta || 'Continuar test del Específico') + '</b><span>' + esc(m.titulo) + ' · ' + m.hechas + ' de ' + m.total + ' respondidas</span>' +
+          '<span class="ini-barra"><i style="width:' + pct + '%"></i></span></span>' +
+        '<span class="ini-flecha">' + FLECHA + '</span></button>';
+    }).join('');
   }
 
   // Marcadas del Específico que tocan hoy (el repaso de cada día).
