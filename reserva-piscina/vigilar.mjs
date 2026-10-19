@@ -180,7 +180,9 @@ async function armar(v) {
 }
 
 const UNA_SOLA = /más de 1 reservas|mas de 1 reservas/i;
-const pausa = new Map();   // id → hasta cuándo no intentarlo (IMDECO: una sola reserva en vigor)
+const pausa = new Map();   // id|hora → hasta cuándo no intentarlo (una sola reserva en vigor, o es de pago)
+const clavePausa = v => v.id + '|' + v.quiere_hora;
+const DE_PAGO = /de pago \(([\d.,]+) ?€\)/i;
 async function coger(v, libres, yaMirado = false) {
   const cambio = esCambio(v), t0 = Date.now();
   log(`¡Libre! ${v.fecha} a las ${v.quiere_hora} (${libres.length} calles)${cambio ? ` → cambio desde las ${v.hora}` : ''}`);
@@ -198,9 +200,16 @@ async function coger(v, libres, yaMirado = false) {
     resumen(`✅ ${v.fecha}: reservada a las **${v.quiere_hora}** (${calle})${cambio ? ', antes a las ' + v.hora : ''}, en ${((Date.now() - t0) / 1000).toFixed(1)} s.`);
   } catch (e) {
     log('❌', e.message);
-    if (!cambio && UNA_SOLA.test(e.message)) {
+    const pago = e.message.match(DE_PAGO);
+    if (pago && !cambio) {
+      // IMDECO la cobra (el bono no la cubre ese día): no insistir; se vuelve a mirar en 30 min
+      // por si deja de cobrarla, o antes si en la app se pide otra hora
+      pausa.set(clavePausa(v), Date.now() + 30 * 60_000);
+      await apuntar(v.id, null, null, `De pago: IMDECO cobra ${pago[1]} € por esta hora (tu bono no la cubre ese día), así que no la cojo. Si la quieres, resérvala y págala en IMDECO`);
+    }
+    else if (!cambio && UNA_SOLA.test(e.message)) {
       // IMDECO no deja tener dos reservas a la vez: esperar a que pase la otra (sin insistir cada 3 s)
-      pausa.set(v.id, Date.now() + 15 * 60_000);
+      pausa.set(clavePausa(v), Date.now() + 15 * 60_000);
       await apuntar(v.id, null, null, 'IMDECO solo deja una reserva en vigor a la vez y ya tienes otra. En cuanto pase esa, la cojo si sigue libre');
     }
     else if (!cambio) { await apuntar(v.id, null, null, `Se liberó pero otro la cogió antes (${e.message.slice(0, 80)}). Sigo vigilando`); }
@@ -210,7 +219,9 @@ async function coger(v, libres, yaMirado = false) {
       try {
         await armado.armarReserva(v.fecha, v.hora);
         const calle = await armado.reservar();
-        await apuntar(v.id, null, null, `Se liberó pero otro la cogió antes; mantienes la de las ${v.hora} (${calle}). Sigo vigilando`);
+        if (pago) pausa.set(clavePausa(v), Date.now() + 30 * 60_000);
+        await apuntar(v.id, null, null, pago ? `De pago: IMDECO cobra ${pago[1]} € por las ${v.quiere_hora} (tu bono no la cubre), así que no cambio; mantienes la de las ${v.hora} (${calle})`
+          : `Se liberó pero otro la cogió antes; mantienes la de las ${v.hora} (${calle}). Sigo vigilando`);
         resumen(`⚠️ ${v.fecha}: no salió el cambio a las ${v.quiere_hora}; mantienes la de las ${v.hora}.`);
       } catch (e2) {
         await apuntar(v.id, null, null, `Perdí el cambio: anulé la de las ${v.hora} y no pude coger ni la de las ${v.quiere_hora} ni volver a la de antes. Sigo vigilando las ${v.quiere_hora}`);
@@ -274,7 +285,7 @@ try {
     }
     // Copiar de vez en cuando las reservas reales (lo que se haga a mano en IMDECO)
     if (Date.now() - sincronizadoAt > SINCRONIZAR) { sincronizadoAt = Date.now(); correr('sincronizar.mjs', []); }
-    const vivos = ahoraVivos(lista, ahora).filter(v => !(pausa.get(v.id) > Date.now()));
+    const vivos = ahoraVivos(lista, ahora).filter(v => !(pausa.get(clavePausa(v)) > Date.now()));
     if (!vivos.length) { await espera(LISTA); leidaAt = 0; continue; }
     if (!armadoPara || !vivos.some(v => armadoPara === v.id + '|' + v.quiere_hora + '|' + v.hora)) {
       try { await armar(vivos[0]); }

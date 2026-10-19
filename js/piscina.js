@@ -152,7 +152,10 @@ const PISCINA = (function(){
       '<div class="psc-ok-n">El robot la reservará el ' + largo(abre) + ' a las 00:00</div>' +
       '<button type="button" class="psc-confirmar" data-psc="otro">Programar otro día</button></div>';
   }
+  // El robot no la coge porque IMDECO la cobra (el bono no la cubre)
+  const dePago = r => !!(r && r.quiere_hora && /^De pago/.test(r.detalle || ''));
   function chip(r){
+    if(dePago(r) && r.fecha >= hoy()) return '<span class="psc-chip fallida">De pago</span>';
     if(r.anular && r.estado === 'reservada') return '<span class="psc-chip vigilando">Anulando…</span>';
     if(r.estado === 'fallida' && r.detalle === 'Anulada') return '<span class="psc-chip fallida">Anulada</span>';
     if(r.quiere_hora && r.fecha >= hoy()) return '<span class="psc-chip vigilando">Vigilando ' + r.quiere_hora + '</span>';
@@ -166,7 +169,7 @@ const PISCINA = (function(){
     const fila = r => '<div class="psc-fila" role="button" tabindex="0" data-psc="ir" data-f="' + r.fecha + '">' +
       '<span class="psc-fila-dia"><b>' + deIso(r.fecha).getDate() + '</b><small>' + MESES[deIso(r.fecha).getMonth()].slice(0, 3) + '</small></span>' +
       '<span class="psc-fila-txt"><b>' + cap(DIAS[deIso(r.fecha).getDay()]) + ' · ' + r.hora + ' – ' + finHora(r.hora) + '</b>' +
-        '<span>' + (r.quiere_hora && r.fecha >= hoy() ? (r.estado === 'reservada' ? 'Tienes las ' + r.hora + (r.calle ? ' (' + esc(r.calle) + ')' : '') + ' · si se liberan las ' + r.quiere_hora + ', te cambio' : (otraEnVigor(r.fecha) ? 'La cojo a las ' + r.quiere_hora + ' cuando pase tu reserva del ' + corto(otraEnVigor(r.fecha).fecha) : hayLibres(r.fecha, r.quiere_hora) ? 'Hay sitio a las ' + r.quiere_hora + ': el robot la está cogiendo' : 'En cuanto haya sitio a las ' + r.quiere_hora + ', la cojo')) + (r.detalle && r.detalle !== 'Asistido' ? ' · ' + esc(r.detalle) : '') :
+        '<span>' + (dePago(r) && r.fecha >= hoy() ? esc(r.detalle) : r.quiere_hora && r.fecha >= hoy() ? (r.estado === 'reservada' ? 'Tienes las ' + r.hora + (r.calle ? ' (' + esc(r.calle) + ')' : '') + ' · si se liberan las ' + r.quiere_hora + ', te cambio' : (otraEnVigor(r.fecha) ? 'La cojo a las ' + r.quiere_hora + ' cuando pase tu reserva del ' + corto(otraEnVigor(r.fecha).fecha) : hayLibres(r.fecha, r.quiere_hora) ? 'Hay sitio a las ' + r.quiere_hora + ': el robot la está cogiendo' : 'En cuanto haya sitio a las ' + r.quiere_hora + ', la cojo')) + (r.detalle && r.detalle !== 'Asistido' ? ' · ' + esc(r.detalle) : '') :
           r.estado === 'programada' ? (r.fecha >= primerDia() ? 'Se reserva el ' + corto(masDias(r.fecha, -ANTELACION)) + ' a las 00:00' : 'Esta noche o ya abierto') :
           r.anular && r.estado === 'reservada' ? 'El robot la está anulando en IMDECO' :
           r.estado === 'reservada' ? (r.calle ? esc(r.calle) : 'Hecha') : esc((r.detalle || '').slice(0, 90))) + '</span></span>' +
@@ -307,6 +310,7 @@ const PISCINA = (function(){
       (r.anular ? '<small>El robot la está anulando…</small>' : '<button type="button" class="psc-btn-sec" data-psc="anular" data-id="' + esc(r.id) + '">Anular en IMDECO</button>') + '</div>';
     if(r && r.quiere_hora === h.hora){
       const o = r.estado !== 'reservada' && otraEnVigor(fecha);
+      if(dePago(r)) return '<div class="psc-hc-acc"><span class="psc-aviso">' + esc(r.detalle) + '</span><button type="button" class="psc-btn-sec" data-psc="no-vigilar" data-f="' + fecha + '">Dejar de vigilar</button></div>';
       return '<div class="psc-hc-acc"><span class="psc-hc-vig">● Vigilando: ' + (o ? 'la cojo en cuanto pase tu reserva del ' + corto(o.fecha) + ' (' + o.hora + '–' + finHora(o.hora) + '), si sigue libre. IMDECO solo deja una reserva en vigor a la vez'
         : 'en cuanto haya sitio, la cojo' + (r.estado === 'reservada' ? ' y anulo la de las ' + r.hora : '')) + '</span><button type="button" class="psc-btn-sec" data-psc="no-vigilar" data-f="' + fecha + '">Dejar de vigilar</button></div>';
     }
@@ -326,6 +330,7 @@ const PISCINA = (function(){
   async function vigilarHora(fecha, hora){
     const r = deDia(fecha);
     const cambio = { quiere_hora: hora, updated_at: new Date().toISOString() };
+    if(r && /^De pago/.test(r.detalle || '')) cambio.detalle = null;
     const q = r
       ? sb.from('piscina_reservas').update(r.estado === 'reservada' ? cambio : Object.assign(cambio, { hora, estado: 'programada', detalle: null })).eq('id', r.id)
       : sb.from('piscina_reservas').insert({ fecha, hora, estado: 'programada', quiere_hora: hora });
