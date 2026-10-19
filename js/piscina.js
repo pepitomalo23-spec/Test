@@ -152,6 +152,12 @@ const PISCINA = (function(){
       '<div class="psc-ok-n">El robot la reservará el ' + largo(abre) + ' a las 00:00</div>' +
       '<button type="button" class="psc-confirmar" data-psc="otro">Programar otro día</button></div>';
   }
+  // El robot vigilante para de 23:20 a 00:20 (hora de Madrid) para dejar sitio al de las 00:00
+  function robotEnPausa(){
+    const h = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
+    return h >= '23:20' || h < '00:20';
+  }
+  const PAUSA_TXT = 'el robot está en pausa hasta las 00:20 (a medianoche hace las reservas programadas); entonces la coge si sigue libre';
   // El robot no la coge porque IMDECO la cobra (el bono no la cubre)
   const dePago = r => !!(r && r.quiere_hora && /^De pago/.test(r.detalle || ''));
   function chip(r){
@@ -169,7 +175,7 @@ const PISCINA = (function(){
     const fila = r => '<div class="psc-fila" role="button" tabindex="0" data-psc="ir" data-f="' + r.fecha + '">' +
       '<span class="psc-fila-dia"><b>' + deIso(r.fecha).getDate() + '</b><small>' + MESES[deIso(r.fecha).getMonth()].slice(0, 3) + '</small></span>' +
       '<span class="psc-fila-txt"><b>' + cap(DIAS[deIso(r.fecha).getDay()]) + ' · ' + r.hora + ' – ' + finHora(r.hora) + '</b>' +
-        '<span>' + (dePago(r) && r.fecha >= hoy() ? esc(r.detalle) : r.quiere_hora && r.fecha >= hoy() ? (r.estado === 'reservada' ? 'Tienes las ' + r.hora + (r.calle ? ' (' + esc(r.calle) + ')' : '') + ' · si se liberan las ' + r.quiere_hora + ', te cambio' : (otraEnVigor(r.fecha) ? 'La cojo a las ' + r.quiere_hora + ' cuando pase tu reserva del ' + corto(otraEnVigor(r.fecha).fecha) : hayLibres(r.fecha, r.quiere_hora) ? 'Hay sitio a las ' + r.quiere_hora + ': el robot la está cogiendo' : 'En cuanto haya sitio a las ' + r.quiere_hora + ', la cojo')) + (r.detalle && r.detalle !== 'Asistido' ? ' · ' + esc(r.detalle) : '') :
+        '<span>' + (dePago(r) && r.fecha >= hoy() ? esc(r.detalle) : r.quiere_hora && r.fecha >= hoy() ? (r.estado === 'reservada' ? 'Tienes las ' + r.hora + (r.calle ? ' (' + esc(r.calle) + ')' : '') + ' · si se liberan las ' + r.quiere_hora + ', te cambio' : (otraEnVigor(r.fecha) ? 'La cojo a las ' + r.quiere_hora + ' cuando pase tu reserva del ' + corto(otraEnVigor(r.fecha).fecha) : robotEnPausa() ? 'Las ' + r.quiere_hora + ': ' + PAUSA_TXT : hayLibres(r.fecha, r.quiere_hora) ? 'Hay sitio a las ' + r.quiere_hora + ': el robot la está cogiendo' : 'En cuanto haya sitio a las ' + r.quiere_hora + ', la cojo')) + (r.detalle && r.detalle !== 'Asistido' ? ' · ' + esc(r.detalle) : '') :
           r.estado === 'programada' ? (r.fecha >= primerDia() ? 'Se reserva el ' + corto(masDias(r.fecha, -ANTELACION)) + ' a las 00:00' : 'Esta noche o ya abierto') :
           r.anular && r.estado === 'reservada' ? 'El robot la está anulando en IMDECO' :
           r.estado === 'reservada' ? (r.calle ? esc(r.calle) : 'Hecha') : esc((r.detalle || '').slice(0, 90))) + '</span></span>' +
@@ -312,6 +318,7 @@ const PISCINA = (function(){
       const o = r.estado !== 'reservada' && otraEnVigor(fecha);
       if(dePago(r)) return '<div class="psc-hc-acc"><span class="psc-aviso">' + esc(r.detalle) + '</span><button type="button" class="psc-btn-sec" data-psc="no-vigilar" data-f="' + fecha + '">Dejar de vigilar</button></div>';
       return '<div class="psc-hc-acc"><span class="psc-hc-vig">● Vigilando: ' + (o ? 'la cojo en cuanto pase tu reserva del ' + corto(o.fecha) + ' (' + o.hora + '–' + finHora(o.hora) + '), si sigue libre. IMDECO solo deja una reserva en vigor a la vez'
+        : robotEnPausa() ? PAUSA_TXT
         : h.libres.length ? 'hay sitio: el robot la está reservando ahora (unos segundos)…' + (r.estado === 'reservada' ? ' y anula la de las ' + r.hora : '')
         : 'en cuanto se libere una calle, la cojo' + (r.estado === 'reservada' ? ' y anulo la de las ' + r.hora : '')) + '</span><button type="button" class="psc-btn-sec" data-psc="no-vigilar" data-f="' + fecha + '">Dejar de vigilar</button></div>';
     }
@@ -327,8 +334,8 @@ const PISCINA = (function(){
       (r && r.quiere_hora ? '<small>Ahora vigilas las ' + r.quiere_hora + ': se cambia por esta.</small>' : '') +
       (otra1 ? '<small class="psc-aviso">IMDECO solo deja una reserva en vigor a la vez y ya tienes la del ' + corto(otra1.fecha) + ' a las ' + otra1.hora +
         '. El robot la vigila y la coge en cuanto pase esa (a las ' + finHora(otra1.hora) + '), si sigue libre. Si la quieres ya, anula antes la otra.</small>'
-        : '<small>' + (hay ? '«' + (cambio ? 'Cambiar' : 'Reservar') + ' ahora»: el robot la coge en unos segundos. ' : '') +
-          '«Cuando se libere»: mira unas 2 veces por segundo, de 6:30 a 23:20, y la coge en cuanto alguien deje una calle. Solo con tu bono: si cobrase algo, no la compra.</small>');
+        : '<small>' + (robotEnPausa() ? 'Ahora ' + PAUSA_TXT + '. ' : hay ? '«' + (cambio ? 'Cambiar' : 'Reservar') + ' ahora»: el robot la coge en unos segundos. ' : '') +
+          '«Cuando se libere»: mira unas 2 veces por segundo (todo el día salvo de 23:20 a 00:20) y la coge en cuanto alguien deje una calle. Solo con tu bono: si cobrase algo, no la compra.</small>');
     return '<div class="psc-hc-acc">' + botones + notas + '</div>';
   }
   async function vigilarHora(fecha, hora){
@@ -345,7 +352,7 @@ const PISCINA = (function(){
     const ya = hayLibres(fecha, hora);
     seguirDeCerca();
     uiToast(r && r.estado === 'reservada' ? (ya ? 'Hay sitio: el robot cambia tu reserva a las ' + hora : 'Vigilando las ' + hora + ': si se libera, cambio tu reserva')
-      : ya ? 'Hay sitio: el robot reserva las ' + hora + ' ya' : 'Vigilando las ' + hora + ': en cuanto haya sitio, la cojo', 'success');
+      : robotEnPausa() ? 'Pedida: el robot está en pausa hasta las 00:20 y entonces la coge si sigue libre' : ya ? 'Hay sitio: el robot reserva las ' + hora + ' ya' : 'Vigilando las ' + hora + ': en cuanto haya sitio, la cojo', 'success');
   }
   // Otra reserva tuya que aún no ha terminado (IMDECO no deja tener dos)
   function otraEnVigor(fecha){

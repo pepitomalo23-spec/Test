@@ -7,8 +7,8 @@
 //     en el momento; si la nueva no sale, vuelve a coger la de antes;
 //   - si no tenías: la coge.
 // Luego apunta en la app cómo fue y copia las reservas reales de IMDECO.
-// Dura hasta 5 h 45 min (GitHub lo vuelve a lanzar) y para a las 23:20, para no estorbar al
-// robot de las 00:00.
+// Dura hasta 5 h 45 min (al acabar lanza la siguiente) y está en marcha todo el día, salvo una pausa
+// de 23:20 a 00:20 para no estorbar al robot de las 00:00 (en la pausa cierra la sesión y espera).
 //
 // Variables: IMD_USUARIO, IMD_CONTRASENA, SUPABASE_URL, SUPABASE_ANON_KEY, PISCINA_CLAVE
 // Los registros son públicos: no se escriben datos personales.
@@ -30,6 +30,8 @@ function madrid(d = new Date()) {
     .formatToParts(d).map(x => [x.type, x.value]));
   return { fecha: `${p.year}-${p.month}-${p.day}`, hora: `${p.hour}:${p.minute}` };
 }
+// Pausa para el robot de las 00:00 (reservar.mjs, de 23:35 a pocos minutos pasadas las 00:00)
+const enPausa = hora => hora >= '23:20' || hora < '00:20';
 const masDias = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 async function rpc(fn, cuerpo) {
@@ -62,10 +64,10 @@ if (process.argv.includes('--comprobar')) {
   const lista = await rpc('piscina_robot_vigilar', {}).catch(e => { log('No pude leer la app:', e.message); return []; }) || [];
   const vivos = lista.filter(v => abiertos.includes(v.fecha) && !(v.fecha === ahora.fecha && v.quiere_hora <= ahora.hora));
   vivos.push(...(await rpc('piscina_robot_por_anular', {}).catch(() => []) || []));
-  const enHorario = ahora.hora < '23:20' && ahora.hora >= '06:30';
+  const enHorario = !enPausa(ahora.hora);
   log(vivos.length ? `Hay ${vivos.length} para vigilar` : 'Nada que vigilar ahora', enHorario ? '' : '(fuera de horario)');
-  // En horario arranca siempre: se queda leyendo la app para hacer al momento lo que se pida
-  if (enHorario && process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, 'hay=1\n');
+  // Arranca siempre (también en la pausa: espera dentro hasta las 00:20)
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, 'hay=1\n');
   process.exit(0);
 }
 
@@ -263,11 +265,11 @@ async function anularPedidas() {
 // la app («Cógemela», «Anular») se haga en segundos: los avisos programados de GitHub casi nunca
 // llegan a tiempo. Al acabar sus 5 h 45 min se vuelve a lanzar solo (relevo()).
 const SINCRONIZAR = 10 * 60_000;
-let sincronizadoAt = 0, fueraDeHorario = false;
+let sincronizadoAt = 0, pausado = false;
 // Lanza la siguiente vigilancia (GitHub la deja en cola hasta que acabe esta)
 async function relevo() {
   const { GITHUB_TOKEN: t, GITHUB_REPOSITORY: repo } = process.env;
-  if (!t || !repo || fueraDeHorario) return;
+  if (!t || !repo) return;
   const r = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/vigilar-piscina.yml/dispatches`, {
     method: 'POST', headers: { authorization: `Bearer ${t}`, accept: 'application/vnd.github+json' }, body: JSON.stringify({ ref: 'main' }),
   }).catch(e => ({ ok: false, status: e.message }));
@@ -276,7 +278,12 @@ async function relevo() {
 try {
   while (Date.now() < fin) {
     const ahora = madrid();
-    if (ahora.hora >= '23:20' || ahora.hora < '06:30') { log('Fuera de horario (23:20–06:30): paro'); fueraDeHorario = true; break; }
+    if (enPausa(ahora.hora)) {
+      // El robot de las 00:00 usa la cuenta: sin sesión abierta hasta las 00:20
+      if (!pausado) { log('Pausa de 23:20 a 00:20 (reservas de medianoche)'); pausado = true; await armado?.cerrar().catch(() => {}); armado = null; armadoPara = null; }
+      await espera(30_000); continue;
+    }
+    if (pausado) { log('Sigo tras la pausa'); pausado = false; leidaAt = 0; }
     if (Date.now() - leidaAt > LISTA) {
       try { lista = await rpc('piscina_robot_vigilar', {}) || []; leidaAt = Date.now(); }
       catch (e) { log('No pude leer la app:', e.message); await espera(CADA); continue; }
