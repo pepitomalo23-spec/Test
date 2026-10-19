@@ -77,6 +77,35 @@ const esCambio = v => v.estado === 'reservada' && v.hora && v.hora !== v.quiere_
 // --prueba --fecha F --hora H [--vieja HH:MM]: se prepara, mira 5 veces y llega a seleccionar
 // la calle, sin pulsar «Anular» ni «Reservar». Para medir tiempos con la cuenta real.
 const arg = n => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
+// --ida-y-vuelta --fecha F --hora DESTINO --vieja ORIGEN: prueba real del cambio, de ORIGEN a DESTINO y
+// enseguida de vuelta a ORIGEN (todo seguido, para que la calle de ORIGEN quede libre lo menos posible).
+if (process.argv.includes('--ida-y-vuelta')) {
+  const { Armado } = await import('./rapido.mjs');
+  const fecha = arg('--fecha'), destino = arg('--hora'), origen = arg('--vieja');
+  const r = new Armado();
+  try {
+    await r.abrir();
+    await r.armarReserva(fecha, destino);
+    await r.armarAnulacion(fecha, origen);
+    log(`Preparado. Ida: ${origen} → ${destino}`);
+    let t = Date.now();
+    await r.anular(); log(`Anulada la de las ${origen} (${Date.now() - t} ms)`);
+    const c1 = await r.reservar(); log(`✅ Reservada a las ${destino} (${c1}) en ${Date.now() - t} ms en total`);
+    resumen(`Ida: ${origen} → ${destino} en ${((Date.now() - t) / 1000).toFixed(1)} s (${c1}).`);
+    log(`Vuelta: ${destino} → ${origen}`);
+    const t2 = Date.now();
+    await r.armarReserva(fecha, origen);
+    await r.armarAnulacion(fecha, destino);
+    log(`Preparada la vuelta (${Date.now() - t2} ms)`);
+    t = Date.now();
+    await r.anular(); log(`Anulada la de las ${destino} (${Date.now() - t} ms)`);
+    const c2 = await r.reservar(); log(`✅ De vuelta a las ${origen} (${c2}) en ${Date.now() - t} ms; la calle de las ${origen} estuvo libre ${((Date.now() - t2 + (t - t2)) / 1000).toFixed(1)} s como mucho`);
+    resumen(`Vuelta: ${destino} → ${origen} (${c2}).`);
+  } catch (e) { log('❌', e.message); process.exitCode = 1; }
+  finally { await r.cerrar(); }
+  await correr('sincronizar.mjs', []);
+  process.exit();
+}
 if (process.argv.includes('--prueba')) {
   const { Armado } = await import('./rapido.mjs');
   const fecha = arg('--fecha'), hora = arg('--hora'), vieja = arg('--vieja');
