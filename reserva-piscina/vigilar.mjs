@@ -20,7 +20,7 @@ import { appendFileSync } from 'node:fs';
 import { Consulta } from './huecos.mjs';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
-const DURACION = 345 * 60_000, CADA = 3000, LISTA = 30_000;
+const DURACION = 345 * 60_000, CADA = 500, LISTA = 30_000;   // entre mirada y mirada: 0,5 s (más lo que tarda cada una, ~0,3 s)
 const log = (...m) => console.log(new Date().toLocaleTimeString('es-ES', { timeZone: 'Europe/Madrid' }), '·', ...m);
 const resumen = (t) => { if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, t + '\n'); };
 const espera = ms => new Promise(r => setTimeout(r, ms));
@@ -154,9 +154,9 @@ if (process.argv.includes('--prueba')) {
     t = Date.now(); await r.armarReserva(fecha, hora); log(`Parrilla preparada (${Date.now() - t} ms)`);
     if (vieja) { t = Date.now(); await r.armarAnulacion(fecha, vieja); log(`Ficha de la de las ${vieja} con «Anular» a mano (${Date.now() - t} ms)`); }
     if (vieja) { t = Date.now(); await r.anular(true); log(`Aviso «¿Seguro?» con «Sí» encontrado y cerrado con «No» (${Date.now() - t} ms); no se anula nada`); }
-    for (let i = 0; i < 5; i++) { t = Date.now(); const l = await c.libres(fecha, hora); log(`Mirada ${i + 1}: ${l.length} libres (${Date.now() - t} ms)`); }
+    for (let i = 0; i < 5; i++) { t = Date.now(); const l = await r.mirar(); log(`Mirada ${i + 1} (navegador): ${l.length} libres (${Date.now() - t} ms)`); }
     t = Date.now();
-    try { const calle = await r.reservar(true); log(`MODO PRUEBA: ${calle} seleccionada en ${Date.now() - t} ms; no pulso «Reservar»`); }
+    try { const calle = await r.reservar(true, true); log(`MODO PRUEBA: ${calle} seleccionada en ${Date.now() - t} ms; no pulso «Reservar»`); }
     catch (e) { log('Al seleccionar:', e.message, `(${Date.now() - t} ms)`); }
   } catch (e) { log('❌', e.message); process.exitCode = 1; }
   finally { await r.cerrar(); }
@@ -181,7 +181,7 @@ async function armar(v) {
 
 const UNA_SOLA = /más de 1 reservas|mas de 1 reservas/i;
 const pausa = new Map();   // id → hasta cuándo no intentarlo (IMDECO: una sola reserva en vigor)
-async function coger(v, libres) {
+async function coger(v, libres, yaMirado = false) {
   const cambio = esCambio(v), t0 = Date.now();
   log(`¡Libre! ${v.fecha} a las ${v.quiere_hora} (${libres.length} calles)${cambio ? ` → cambio desde las ${v.hora}` : ''}`);
   if (armadoPara !== v.id + '|' + v.quiere_hora + '|' + v.hora) await armar(v);
@@ -192,7 +192,7 @@ async function coger(v, libres) {
     catch (e) { log('⚠️ Al anular:', e.message.split('\n')[0]); }
   }
   try {
-    const calle = await armado.reservar();
+    const calle = await armado.reservar(false, yaMirado);
     log(`✅ Reservada a las ${v.quiere_hora} (${calle}) en ${Date.now() - t0} ms desde que la vi libre`);
     await apuntar(v.id, v.quiere_hora, calle, cambio ? `Cambiada desde las ${v.hora}` : 'Cogida al liberarse');
     resumen(`✅ ${v.fecha}: reservada a las **${v.quiere_hora}** (${calle})${cambio ? ', antes a las ' + v.hora : ''}, en ${((Date.now() - t0) / 1000).toFixed(1)} s.`);
@@ -283,12 +283,15 @@ try {
     vueltas++;
     const abiertos = [ahora.fecha, masDias(ahora.fecha, 1), masDias(ahora.fecha, 2)];
     for (const v of vivos) {
+      // La que tiene el navegador preparado se mira en su propia página (~0,3 s) y, si hay sitio, se
+      // pulsa ahí mismo; las demás, con la consulta sin sesión.
+      const armadaEsta = armadoPara === v.id + '|' + v.quiere_hora + '|' + v.hora;
       let libres = [];
-      try { libres = await consulta.libres(v.fecha, v.quiere_hora, abiertos); }
-      catch (e) { log('Error mirando huecos:', e.message); continue; }
-      if (libres.length) { await coger(v, libres); break; }
+      try { libres = armadaEsta ? await armado.mirar() : await consulta.libres(v.fecha, v.quiere_hora, abiertos); }
+      catch (e) { log('Error mirando huecos:', e.message.split('\n')[0]); if (armadaEsta) armadoPara = null; continue; }
+      if (libres.length) { await coger(v, libres, armadaEsta); break; }
     }
-    if (vueltas % 200 === 0) log(`Sigo vigilando (${vueltas} miradas)`);
+    if (vueltas % 1000 === 0) log(`Sigo vigilando (${vueltas} miradas)`);
     try { await armado?.refrescarSiHace(12); } catch (e) { log('No pude renovar la sesión:', e.message); armadoPara = null; }
     await espera(CADA);
   }
