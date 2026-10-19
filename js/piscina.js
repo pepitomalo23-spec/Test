@@ -151,8 +151,9 @@ const PISCINA = (function(){
       '<button type="button" class="psc-confirmar" data-psc="otro">Programar otro día</button></div>';
   }
   function chip(r){
-    const t = { programada: 'Programada', reservada: 'Reservada', fallida: 'No se pudo' }[r.estado];
-    return '<span class="psc-chip ' + r.estado + '">' + t + '</span>';
+    const fue = r.estado === 'reservada' && r.detalle === 'Asistido';
+    const t = fue ? 'Asistida' : { programada: 'Programada', reservada: 'Reservada', fallida: 'No se pudo' }[r.estado];
+    return '<span class="psc-chip ' + r.estado + (fue ? ' asistida' : '') + '">' + t + '</span>';
   }
   function lista(){
     const h = hoy();
@@ -199,7 +200,7 @@ const PISCINA = (function(){
     const r = filas.find(x => x.id === id);
     if(!r) return;
     const ok = await uiConfirm('¿Quitar el ' + largo(r.fecha) + '?\n\n' + (r.estado === 'reservada'
-      ? 'Solo se quita de esta lista. La reserva sigue hecha en IMDECO: si no vas a ir, anúlala allí.'
+      ? 'Solo se quita de esta lista: la reserva sigue hecha en IMDECO y volverá a salir aquí. Si no vas a ir, anúlala en IMDECO.'
       : 'El robot ya no la reservará.'), { ok: 'Quitar', danger: true });
     if(!ok) return;
     const { error } = await sb.from('piscina_reservas').delete().eq('id', id);

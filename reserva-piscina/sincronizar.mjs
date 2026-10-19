@@ -93,20 +93,26 @@ try {
     }
     salida = 0;
   } else {
-    // Reconocer cada columna por su título
-    const col = (re) => (columnas.find(c => re.test(c.titulo)) || {}).nombre;
-    const cFecha = col(/fecha/i), cHora = col(/hora inicial|hora desde|inicio/i), cRecinto = col(/recinto/i), cUso = col(/^uso$/i);
-    const cEstado = col(/estado/i) || (columnas[0] && columnas[0].nombre);
-    if (!cFecha || !cHora) throw new Error('No reconozco las columnas de la tabla: ' + columnas.map(c => c.titulo).join(', '));
-    const aIso = (s) => { const m = String(s).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : null; };
+    // Columnas de la tabla de IMDECO (FooTable): FECHA_ALQUILER (20261020), HORA_RESERVA (09:00),
+    // NOM_RECINTO (Piscina M 12), NOM_USO (Piscina Mañana), ESTADO_CONFIRMACION ('' o Anulado),
+    // ASISTENCIA ('' o Asistido)
+    const falta = ['FECHA_ALQUILER', 'HORA_RESERVA'].filter(c => !columnas.some(x => x.nombre === c));
+    if (falta.length) throw new Error('La tabla de IMDECO ha cambiado, faltan: ' + falta.join(', ') + '. Columnas: ' + columnas.map(c => c.nombre).join(', '));
+    const aIso = (s) => {
+      s = String(s);
+      let m = s.match(/^(\d{4})(\d{2})(\d{2})/); if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+      m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+      return null;
+    };
     const reservas = filas.map(f => ({
-      fecha: aIso(f[cFecha]),
-      hora: (String(f[cHora]).match(/\d{1,2}:\d{2}/) || [''])[0].padStart(5, '0'),
-      calle: cRecinto ? String(f[cRecinto]).slice(0, 60) : null,
-      uso: cUso ? String(f[cUso]) : '',
-      estado: cEstado ? String(f[cEstado]).slice(0, 40) : '',
+      fecha: aIso(f.FECHA_ALQUILER),
+      hora: (String(f.HORA_RESERVA).match(/\d{1,2}:\d{2}/) || [''])[0].padStart(5, '0'),
+      calle: String(f.NOM_RECINTO || '').slice(0, 60) || null,
+      uso: String(f.NOM_USO || ''),
+      anulado: /anulad/i.test(f.ESTADO_CONFIRMACION || ''),
+      asistido: /asistid/i.test(f.ASISTENCIA || ''),
     })).filter(r => r.fecha && r.hora && (/piscina/i.test(r.uso) || /piscina/i.test(r.calle || '')));
-    log(`Reservas de piscina en IMDECO: ${reservas.length}`, reservas.map(r => `${r.fecha} ${r.hora} (${r.estado || '—'})`).join(' · '));
+    log(`Reservas de piscina en IMDECO: ${reservas.length}`, reservas.map(r => `${r.fecha} ${r.hora}${r.anulado ? ' (anulada)' : r.asistido ? ' (asistida)' : ''}`).join(' · '));
 
     const r = await fetch(`${process.env.SUPABASE_URL}/rest/v1/rpc/piscina_robot_sincronizar`, {
       method: 'POST', headers: { apikey: process.env.SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
