@@ -1,0 +1,57 @@
+name: Programar piscina
+
+# Formulario para apuntar (o quitar) un día de piscina. La lista se guarda en la rama «piscina»
+# y «Reservar piscina» la lee cada noche.
+on:
+  workflow_dispatch:
+    inputs:
+      fecha:
+        description: 'Día que quieres nadar (p. ej. 23/10/2026)'
+        required: false
+      hora:
+        description: 'Hora'
+        type: choice
+        options: ['08:00', '09:00', '13:00', '14:00', '15:00', '22:00', 'Quitar ese día', 'Solo ver la lista']
+
+concurrency:
+  group: programar-piscina
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  programar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Ir a la rama de la lista
+        run: |
+          if git ls-remote --exit-code --heads origin piscina >/dev/null; then
+            git checkout piscina
+          else
+            git checkout -b piscina
+          fi
+      - name: Apuntar
+        env:
+          FECHA: ${{ inputs.fecha }}
+          HORA: ${{ inputs.hora }}
+        run: node reserva-piscina/programar.mjs
+      - name: Guardar
+        env:
+          FECHA: ${{ inputs.fecha }}
+          HORA: ${{ inputs.hora }}
+        run: |
+          git add reserva-piscina/reservas.json
+          if git diff --cached --quiet && git ls-remote --exit-code --heads origin piscina >/dev/null; then
+            echo "Sin cambios"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "Piscina: $HORA $FECHA"
+          git push origin piscina
