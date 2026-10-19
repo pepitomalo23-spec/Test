@@ -101,15 +101,18 @@ export class Armado {
     if (await error.count()) throw new Error('La web dice: ' + (await error.innerText()).replace(/^x\s*/, '').trim().slice(0, 200));
     await confirmarCompra.click();
     await p.waitForURL(/CarritoResultado/i, { timeout: 25000 }).catch(() => {});
-    if (!/CarritoResultado/i.test(new URL(p.url()).pathname)) throw new Error('No llegué a la confirmación de la compra');
-    if (await p.locator('.alert-danger:visible').count()) throw new Error('La web dio un error al confirmar');
+    if (!/CarritoResultado/i.test(new URL(p.url()).pathname)) {
+      // A veces la compra se hace pero no se llega a esa página: se mira en la lista de reservas
+      log(`Sin página de confirmación (estoy en ${new URL(p.url()).pathname}); lo miro en tus reservas`);
+      if (!(await this.tiene(fecha, hora))) throw new Error('No llegué a la confirmación de la compra');
+    } else if (await p.locator('.alert-danger:visible').count()) throw new Error('La web dio un error al confirmar');
     this.objetivo = null;
     return calle;
   }
 
   /* ---------- anular ---------- */
-  // Deja abierta la ficha de la reserva vieja con el botón «Anular» a mano
-  async armarAnulacion(fecha, hora) {
+  // Abre «Anulaciones y gestión de reservas» y busca la reserva viva de ese día y hora (su carrito)
+  async buscar(fecha, hora) {
     if (!this.pa) { this.pa = await this.ctx.newPage(); this.pa.on('dialog', d => d.accept()); }
     const p = this.pa;
     await this.inicio(p);
@@ -126,9 +129,15 @@ export class Armado {
       const v = ft && ft.rows.all.map(r => r.value).find(v => String(v.FECHA_ALQUILER) === clave && String(v.HORA_RESERVA).slice(0, 5) === hora && !/anulad/i.test(String(v.ESTADO_CONFIRMACION || '')));
       return v ? String(v.COD_CARRITO) : null;
     }, { clave, hora });
+    return carrito;
+  }
+  async tiene(fecha, hora) { return !!(await this.buscar(fecha, hora).catch(() => null)); }
+  // Deja abierta la ficha de la reserva vieja con el botón «Anular» a mano
+  async armarAnulacion(fecha, hora) {
+    const carrito = await this.buscar(fecha, hora);
     if (!carrito) throw new Error(`No encuentro tu reserva del ${fecha} a las ${hora} para poder cambiarla`);
-    await p.addScriptTag({ content: `__doPostBack('ContentSection_uAlquileres_uAlert_uplAlert', JSON.stringify({ action: 'Consultar', args: { cartCode: '${carrito}' } }));` });
-    await p.locator('#ContentSection_uAlquileres_uCarritosFicha_btnRefundCart').waitFor({ state: 'visible', timeout: 20000 });
+    await this.pa.addScriptTag({ content: `__doPostBack('ContentSection_uAlquileres_uAlert_uplAlert', JSON.stringify({ action: 'Consultar', args: { cartCode: '${carrito}' } }));` });
+    await this.pa.locator('#ContentSection_uAlquileres_uCarritosFicha_btnRefundCart').waitFor({ state: 'visible', timeout: 20000 });
     this.vieja = { fecha, hora };
   }
   // prueba: abre el aviso, comprueba que está el «Sí» y pulsa «No» (no anula nada)
@@ -148,9 +157,11 @@ export class Armado {
       await si.waitFor({ state: 'hidden', timeout: 10000 });
       return;
     }
+    // Basta con que la web conteste a la anulación (antes se esperaban hasta 18 s de más)
+    const respuesta = p.waitForResponse(r => r.request().method() === 'POST', { timeout: 15000 }).catch(() => null);
     await si.click({ timeout: 5000 });
-    await si.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await p.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await respuesta;
+    await si.waitFor({ state: 'hidden', timeout: 1500 }).catch(() => {});
     // Algún aviso de después («Aceptar»): se cierra si sale, sin esperar por él
     for (let i = 0; i < 2; i++) {
       const ok = p.locator('button:visible, a.btn:visible').filter({ hasText: /^(aceptar|cerrar|ok)$/i }).first();
