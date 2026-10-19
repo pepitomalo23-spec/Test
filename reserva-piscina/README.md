@@ -11,7 +11,16 @@ que es cuando se abre el día de dentro de 2 días.
 2. Haz una prueba: **Actions → Reservar piscina → Run workflow**, con una fecha que ya esté abierta
    y la casilla «Solo prueba» marcada. Entra con tu usuario y llega hasta elegir calle, pero no reserva.
 
-## Uso normal
+## Desde la app (lo normal)
+
+En la web de tests, **Inicio → Piscina** (solo administradores): eliges día y hora y pulsas «Confirmar».
+Se guarda en Supabase (`piscina_reservas`, ver `supabase/migrations/20261020_piscina.sql`) y ahí mismo
+se ve después si quedó **Reservada** o **No se pudo** (con el motivo).
+
+Para que el robot lea esa lista necesita el secreto `PISCINA_CLAVE` en GitHub (su SHA-256 está en la
+tabla `piscina_robot`). Sin él, solo usa la lista de la rama `piscina` de abajo.
+
+## Uso desde GitHub (alternativa)
 
 - **Apuntar un día:** Actions → **Programar piscina** → Run workflow → fecha (p. ej. `23/10/2026`) y hora.
   Puedes apuntar con toda la antelación que quieras. El día D se reserva solo a las 00:00 del día D-2.
