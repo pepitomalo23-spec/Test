@@ -1137,7 +1137,7 @@ const PRU = (function(){
         '<div><div class="m-name">' + (k === 'esp-estudio' ? 'Modo estudio' : MODOS[k].corto) + '</div><div class="m-sub">' + sub[k] + '</div></div></div>').join('');
     const g = aMedias(Object.keys(ICO_MODO));
     const nm = typeof ESPT !== 'undefined' ? ESPT.numMarcadas() : null;
-    return (g ? '<button type="button" class="ini-continuar" data-pru="continuar"><span class="ini-continuar-txt"><b>Continuar ' + escapeHtml(MODOS[g.modo].corto.toLowerCase()) + '</b><span>' + g.hechas + ' de ' + g.total + ' respondidas</span></span><span class="ini-flecha">›</span></button>' : '') +
+    return (g ? '<button type="button" class="ini-continuar" data-pru="continuar"><span class="ini-continuar-txt"><b>Continuar ' + escapeHtml(MODOS[g.modo].corto.toLowerCase()) + '</b><span>' + (g.texto || g.hechas + ' de ' + g.total + ' respondidas') + '</span></span><span class="ini-flecha">›</span></button>' : '') +
       '<div class="modes pru-modos">' + cards + '</div>' +
 
       '<button type="button" class="esp-marcadas pru-marcadas" data-marcadas="1"><span class="esp-marcadas-ico"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17l-5.9 3.3 1.3-6.5L2.5 9.3l6.6-.8z"/></svg></span><span class="esp-marcadas-txt"><b>Preguntas marcadas</b><span>' +
