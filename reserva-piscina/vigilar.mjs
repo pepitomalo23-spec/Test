@@ -61,6 +61,7 @@ if (process.argv.includes('--comprobar')) {
   const ahora = madrid(), abiertos = [ahora.fecha, masDias(ahora.fecha, 1), masDias(ahora.fecha, 2)];
   const lista = await rpc('piscina_robot_vigilar', {}).catch(e => { log('No pude leer la app:', e.message); return []; }) || [];
   const vivos = lista.filter(v => abiertos.includes(v.fecha) && !(v.fecha === ahora.fecha && v.quiere_hora <= ahora.hora));
+  vivos.push(...(await rpc('piscina_robot_por_anular', {}).catch(() => []) || []));
   const enHorario = ahora.hora < '23:20' && ahora.hora >= '06:30';
   log(vivos.length ? `Hay ${vivos.length} para vigilar` : 'Nada que vigilar', enHorario ? '' : '(fuera de horario)');
   if (vivos.length && enHorario && process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, 'hay=1\n');
@@ -215,6 +216,32 @@ async function coger(v, libres) {
   correr('sincronizar.mjs', []);   // por detrás: copiar las reservas reales en la app
 }
 
+// Anular lo que se ha pedido desde la app («Anular en IMDECO»)
+async function anularPedidas() {
+  let pedidas = [];
+  try { pedidas = await rpc('piscina_robot_por_anular', {}) || []; } catch (e) { log('No pude leer lo que hay que anular:', e.message); return; }
+  for (const a of pedidas) {
+    log(`Anulo la del ${a.fecha} a las ${a.hora} (pedido desde la app)`);
+    try {
+      if (!armado) { armado = new Armado(); await armado.abrir(); log('Sesión iniciada'); }
+      await armado.armarAnulacion(a.fecha, a.hora);
+      await armado.anular();
+      await rpc('piscina_robot_anulada', { p_id: a.id });
+      log('✅ Anulada');
+      resumen(`🗑️ ${a.fecha}: anulada la de las ${a.hora}.`);
+    } catch (e) {
+      log('❌ No pude anularla:', e.message.split('\n')[0]);
+      await apuntar(a.id, null, null, 'No pude anularla: ' + e.message.split('\n')[0].slice(0, 150));
+    }
+    armadoPara = null;
+  }
+  if (pedidas.length) correr('sincronizar.mjs', []);
+}
+
+// Sin nada que hacer se queda un rato más (leyendo la app cada 30 s), para que lo que se pida
+// desde la app enseguida («Cógemela», «Anular») se haga en segundos y no en minutos.
+const ESPERA_SIN_NADA = 30 * 60_000, SINCRONIZAR = 10 * 60_000;
+let ocupadoAt = Date.now(), sincronizadoAt = Date.now();
 try {
   while (Date.now() < fin) {
     const ahora = madrid();
@@ -223,9 +250,16 @@ try {
       try { lista = await rpc('piscina_robot_vigilar', {}) || []; leidaAt = Date.now(); }
       catch (e) { log('No pude leer la app:', e.message); await espera(CADA); continue; }
       for (const v of lista.filter(v => v.estado === 'reservada' && v.hora === v.quiere_hora)) await apuntar(v.id, v.hora, null, null);
+      await anularPedidas();
     }
+    // Copiar de vez en cuando las reservas reales (lo que se haga a mano en IMDECO)
+    if (Date.now() - sincronizadoAt > SINCRONIZAR) { sincronizadoAt = Date.now(); correr('sincronizar.mjs', []); }
     const vivos = ahoraVivos(lista, ahora);
-    if (!vivos.length) { log(vueltas ? 'Ya no queda nada que vigilar' : 'Nada que vigilar ahora'); break; }
+    if (!vivos.length) {
+      if (Date.now() - ocupadoAt > ESPERA_SIN_NADA) { log('Nada que vigilar desde hace un rato: paro'); break; }
+      await espera(LISTA); leidaAt = 0; continue;
+    }
+    ocupadoAt = Date.now();
     if (!armadoPara || !vivos.some(v => armadoPara === v.id + '|' + v.quiere_hora + '|' + v.hora)) {
       try { await armar(vivos[0]); }
       catch (e) { log('No pude prepararlo:', e.message); await apuntar(vivos[0].id, null, null, e.message.slice(0, 200)); await espera(30_000); continue; }
