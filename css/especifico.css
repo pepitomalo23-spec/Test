@@ -149,6 +149,7 @@
 .espm-todas-txt span{ font-size:13.5px; opacity:.9; }
 .espm-todas .espm-flecha{ color:#fff; }
 .espm-sub{ font-family:'Roboto Slab', serif; font-weight:700; font-size:17px; color: var(--esp-titulo); margin:30px 0 12px; }
+.espm-nota{ margin:-6px 0 12px; color: var(--muted); font-size:13.5px; line-height:1.45; }
 .espm-lista{ display:flex; flex-direction:column; }
 .espm-fila{ display:flex; align-items:center; gap:14px; width:100%; padding:13px 16px; text-align:left; font:inherit; color: var(--text); cursor:pointer;
   background: var(--card); border:1px solid var(--esp-borde); transition: background .15s; }

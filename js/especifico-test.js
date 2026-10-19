@@ -79,7 +79,7 @@ const ESPT = (function(){
   const NUEVAS_DIA = 30;
   let plan = new Map();    // pregunta_id → { escalon, proxima ('AAAA-MM-DD'), ultima, sabida }
   let hoyRep = null;       // en el repaso de hoy: { antes: Map(id → plan de antes), dudadas: Set, mas: n.º de tandas extra de nuevas }
-  let marRep = null;       // haciendo las marcadas de un tema (o todas juntas): { antes: Map, dudadas: Set }; también mueven los escalones
+  let marRep = null;       // ya no se usa: por tema o todas juntas no mueven las fechas (solo «Marcadas de hoy»)
   const rep = () => modo === 'hoy' ? hoyRep : modo === 'marcadas' ? marRep : null;
   function hoyISO(dias){
     const d = new Date(); d.setHours(12, 0, 0, 0); if(dias) d.setDate(d.getDate() + dias);
@@ -498,8 +498,7 @@ const ESPT = (function(){
         preguntas = x.ids.map(id => porId.get(id)).filter(Boolean);
         resp = Object.assign({}, x.resp); sesion = x.sesion || null; ultima = x.ultima || null; reanudado = true;
       }
-      // Un tema suelto es para estudiarlo: no mueve los días. «Todas juntas» sí cuenta.
-      if(f === 'todas') marRep = { antes: new Map(preguntas.map(p => [p.id, Object.assign({}, plan.get(p.id))])), dudadas: new Set(), movidas: new Set() };
+      // Por tema o todas juntas es como un test cualquiera: no mueve las fechas (eso solo «Marcadas de hoy»).
     }
     pintar();
     if(reanudado) irAPendiente(); else arriba();
@@ -523,7 +522,9 @@ const ESPT = (function(){
     const hoy = q ? '<button type="button" class="espm-todas espm-hoy" data-espt="hoy"' + (q.total || q.quedanNuevas ? '' : ' disabled') + '><span class="espm-todas-txt"><b>Marcadas de hoy' + (q.total ? ' · ' + q.total : '') + '</b>' +
         '<span>' + (q.total ? 'Todos los temas mezclados' + (q.quedanNuevas ? ' · ' + q.quedanNuevas + ' nuevas esperan a otro día' : '') : q.quedanNuevas ? '¡Hecho por hoy! Si quieres, ' + Math.min(NUEVAS_DIA, q.quedanNuevas) + ' nuevas más' : '¡Nada por hoy! Vuelven cuando les toque') + '</span></span><span class="espm-flecha">›</span></button>' : '';
     const curso = leerCurso(), medias = f => { const x = curso[claveMarcadas(f)]; return x ? ' · a medias: ' + Object.keys(x.resp || {}).length + ' de ' + x.total : ''; };
-    return hoy + '<h3 class="espm-sub">Todas juntas o por tema</h3>' + '<button type="button" class="espm-todas" data-espt="filtro" data-f="todas"><span class="espm-todas-txt"><b>Hacer todas juntas</b>' +
+    return hoy + '<h3 class="espm-sub">Practicar como un test normal</h3>' +
+      '<p class="espm-nota">Por tema o todas juntas: respondes y ves si aciertas, sin tocar las fechas de «Marcadas de hoy».</p>' +
+      '<button type="button" class="espm-todas" data-espt="filtro" data-f="todas"><span class="espm-todas-txt"><b>Todas juntas</b>' +
         '<span>' + vivas.length + (vivas.length === 1 ? ' pregunta' : ' preguntas') + ' de ' + temas.length + (temas.length === 1 ? ' tema' : ' temas') + ', ordenadas por tema' + medias('todas') + '</span></span><span class="espm-flecha">›</span></button>' +
       '<h3 class="espm-sub">Por tema</h3>' +
       '<div class="espm-lista">' + temas.map(t => fila(t.clave, t.icono, escapeHtml(t.titulo), 'Tema ' + t.num + medias(t.clave), n[t.clave])).join('') + '</div>' +
@@ -533,7 +534,8 @@ const ESPT = (function(){
   /* ---------- pintar ---------- */
   function cabecera(){
     if(modo === 'hoy') return '<nav class="espt-migas"><button type="button" data-espt="volver">' + ({ 'screen-inicio': 'Inicio' }[volverA] || 'Específico') + '</button> <span>›</span> <button type="button" data-espt="marcadas">Preguntas marcadas</button> <span>›</span> <b>De hoy</b></nav>' +
-      '<h2 class="espt-h">Marcadas de hoy</h2>';
+      '<h2 class="espt-h">Marcadas de hoy</h2>' +
+      '<div class="espt-sigue">El repaso del día: mueve las fechas de cada pregunta. ¿Quieres un tema suelto sin tocarlas? <button type="button" data-espt="marcadas">Practicar por tema ›</button></div>';
     if(modo === 'marcadas' && filtro === 'sabidas') return '<nav class="espt-migas"><button type="button" data-espt="volver">Específico</button> <span>›</span> <button type="button" data-espt="marcadas">Preguntas marcadas</button> <span>›</span> <b>Ya te las sabes</b></nav>' +
       '<h2 class="espt-h">Ya te las sabes</h2>' +
       '<div class="espt-cab"><div class="espt-cab-txt">Las que pasaron todos los escalones. Si una se te olvida, márcala otra vez con la estrella y vuelve a empezar.</div></div>';
@@ -541,12 +543,12 @@ const ESPT = (function(){
       if(filtro == null) return '<nav class="espt-migas"><button type="button" data-espt="volver">' + ({ 'screen-inicio': 'Inicio' }[volverA] || 'Específico') + '</button> <span>›</span> <b>Preguntas marcadas</b></nav>' +
         '<h2 class="espt-h">Preguntas marcadas</h2>' +
         '<div class="espt-cab"><div class="espt-etiqueta">Tus preguntas guardadas</div>' +
-        '<div class="espt-cab-txt">Cada día, «Marcadas de hoy»: se van espaciando y se quitan solas cuando ya te las sabes. Abajo, «Todas juntas» también cuenta (cada pregunta, una vez al día); por tema es para estudiarlo y no cambia los días. Quedan a medias hasta «Finalizar».</div></div>';
+        '<div class="espt-cab-txt">«Marcadas de hoy» es el repaso de cada día: se van espaciando y se quitan solas cuando ya te las sabes. Abajo, por tema o todas juntas, como un test normal (no cambia las fechas); queda a medias hasta «Finalizar».</div></div>';
       return '<nav class="espt-migas"><button type="button" data-espt="volver">' + ({ 'screen-inicio': 'Inicio' }[volverA] || 'Específico') + '</button> <span>›</span> <button type="button" data-espt="filtro" data-f="">Preguntas marcadas</button> <span>›</span> <b>' + escapeHtml(nombreFiltro()) + '</b></nav>' +
         '<h2 class="espt-h">Preguntas marcadas</h2>' +
         '<div class="espt-cab"><div class="espt-etiqueta">' + (filtro === 'todas' ? 'Todas juntas' : 'Tema:') + '</div>' +
         (filtro === 'todas' ? '<div class="espt-cab-txt">Todas tus preguntas marcadas, ordenadas por tema y test.</div>' : '<div class="espt-campo">' + escapeHtml(temaDe(filtro)) + '</div>') + '</div>' +
-        '<div class="espt-sigue">' + (reanudado && Object.keys(resp).length ? 'Sigues donde lo dejaste: ' + Object.keys(resp).length + ' de ' + preguntas.length + ' respondidas. ' : (filtro === 'todas' ? 'Al responder ves cuándo vuelve cada una. ' : 'Para estudiar el tema: no cambia los días de repaso. ')) +
+        '<div class="espt-sigue">' + (reanudado && Object.keys(resp).length ? 'Sigues donde lo dejaste: ' + Object.keys(resp).length + ' de ' + preguntas.length + ' respondidas. ' : 'Como un test normal: no cambia las fechas de «Marcadas de hoy». ') +
         'Queda a medias en Inicio hasta que pulses <button type="button" data-espt="finalizar">Finalizar</button></div>';
     }
     const origen = { 'screen-calendario': 'Calendario', 'screen-inicio': 'Inicio' }[volverA] || 'Específico';
@@ -585,7 +587,7 @@ const ESPT = (function(){
       // Repaso de hoy: tras acertar, «Dudé» (se queda en su escalón en vez de subir).
       ((modo === 'hoy' || marRep) && rep() && elegida === p.correcta && !yaHoy(p.id) && (plan.get(p.id) || {}).como ? '<button type="button" class="espm-dude' + (rep().dudadas.has(p.id) ? ' on' : '') + '" data-espt="dude" data-p="' + p.id + '">' +
         (rep().dudadas.has(p.id) ? '✓ Dudé: se queda en su escalón' : '¿Dudaste? Toca aquí') + '</button>' : '') +
-      ((modo === 'hoy' || marRep) && elegida ? resultadoHoy(p.id) : modo === 'marcadas' ? escalonHtml(p.id) : '') +
+      ((modo === 'hoy' || marRep) && elegida ? resultadoHoy(p.id) : modo === 'marcadas' && filtro === 'sabidas' ? escalonHtml(p.id) : '') +
       (modo === 'hoy' && elegida && hoyRep ? '<button type="button" class="espm-sig" data-espt="sig">' + (hoyRep.i + 1 < preguntas.length ? 'Siguiente ›' : 'Terminar') + '</button>' : '') +
       // La explicación (al pulsar el «?») y, dentro, tu nota.
       (abiertas.has(p.id) ? '<div class="espt-exp">' + (!p.tiene_explicacion ? '' : expl.has(p.id) ? html(expl.get(p.id)) : '<span class="espt-cargando">Cargando explicación…</span>') + notaHtml(p.id) + '</div>' : '') +
