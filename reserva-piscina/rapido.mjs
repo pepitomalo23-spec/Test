@@ -140,6 +140,16 @@ export class Armado {
     await this.pa.locator('#ContentSection_uAlquileres_uCarritosFicha_btnRefundCart').waitFor({ state: 'visible', timeout: 20000 });
     this.vieja = { fecha, hora };
   }
+  // Abre la ficha de esa reserva (sea cual sea su estado) y dice qué botones tiene, sin pulsar nada
+  async verFicha(fecha, hora) {
+    const carrito = await this.buscar(fecha, hora);
+    if (!carrito) throw new Error(`No encuentro la reserva del ${fecha} a las ${hora}`);
+    const p = this.pa;
+    await p.addScriptTag({ content: `__doPostBack('ContentSection_uAlquileres_uAlert_uplAlert', JSON.stringify({ action: 'Consultar', args: { cartCode: '${carrito}' } }));` });
+    await p.waitForTimeout(4000);
+    return p.$$eval('button, input[type=submit], input[type=button], a.btn', bs => bs.filter(b => b.offsetParent)
+      .map(b => `${(b.innerText || b.value || '').trim().slice(0, 40)} [${(b.id || '').replace(/^ContentSection_/, '')}]`));
+  }
   // prueba: abre el aviso, comprueba que está el «Sí» y pulsa «No» (no anula nada)
   async anular(prueba = false) {
     const p = this.pa;

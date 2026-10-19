@@ -56,7 +56,9 @@ jobs:
         run: |
           if [ -n "$PRUEBA" ]; then
             set -- $PRUEBA
-            if [ "$1" = "cambiar" ]; then
+            if [ "$1" = "ficha" ]; then
+              node vigilar.mjs --ficha --fecha "$2" --hora "$3"
+            elif [ "$1" = "cambiar" ]; then
               node vigilar.mjs --cambiar --fecha "$2" --hora "$3" --vieja "$4"
             elif [ "$1" = "ida-y-vuelta" ]; then
               node vigilar.mjs --ida-y-vuelta --fecha "$2" --hora "$3" --vieja "$4"
