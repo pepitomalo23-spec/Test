@@ -1,6 +1,39 @@
 /* Núcleo: avisos y confirmaciones propios, esqueletos de carga, cliente de
    Supabase, resultados de tests pendientes de subir y usuario actual. */
 
+/* ---------- Almacenamiento del dispositivo lleno ----------
+   Si se llena, guardar algo (por dónde vas en un test, un ajuste…) fallaba sin avisar y se
+   perdía. Al llenarse, se borran las copias que la app vuelve a descargar sola y se intenta
+   otra vez; si aun así no cabe, se avisa una vez y se apunta en Errores (con lo que más ocupa). */
+(function(){
+  let avisado = false;
+  const RECARGABLES = ['pj_especifico_tests_v1', 'nq_sets_cache_v1', 'pj_calendario_v1:', 'pj_datos_v1:', 'pj_examen_v1:', 'pj_piscina_v1:', 'pj_esp_meta_v1:'];
+  const lleno = e => e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014 || /quota/i.test(e.message || ''));
+  const loQueOcupa = st => {
+    const xs = [];
+    for(let i = 0; i < st.length; i++){ const k = st.key(i); xs.push([k, (st.getItem(k) || '').length]); }
+    xs.sort((a, b) => b[1] - a[1]);
+    return 'Total ' + Math.round(xs.reduce((n, x) => n + x[1], 0) / 1024) + ' KB · ' + xs.slice(0, 8).map(([k, n]) => k.replace(/[0-9a-f-]{36}/, '…') + ' ' + Math.round(n / 1024) + ' KB').join(' · ');
+  };
+  try{
+    const S = Storage.prototype, orig = S.setItem;
+    S.setItem = function(k, v){
+      try{ return orig.call(this, k, v); }
+      catch(e){
+        if(!lleno(e)) throw e;
+        const antes = loQueOcupa(this);
+        for(let i = this.length - 1; i >= 0; i--){ const x = this.key(i); if(x !== k && RECARGABLES.some(p => x && x.indexOf(p) === 0)) this.removeItem(x); }
+        try{ const r = orig.call(this, k, v); if(typeof reportClientError === 'function') reportClientError('almacenamiento', 'Almacenamiento lleno: se borraron las copias recargables y se pudo guardar', antes); return r; }
+        catch(e2){
+          if(typeof reportClientError === 'function') reportClientError('almacenamiento', 'Almacenamiento lleno: no se pudo guardar ' + String(k).replace(/[0-9a-f-]{36}/, '…'), loQueOcupa(this));
+          if(!avisado && typeof uiToast === 'function'){ avisado = true; uiToast('El almacenamiento de este dispositivo está lleno: no se pudo guardar por dónde vas. Avísame.', 'error', { duration: 6000 }); }
+          throw e2;
+        }
+      }
+    };
+  }catch(e){}
+})();
+
 /* ==================== SUPABASE SETUP ==================== */
 /* ---------- Avisos y confirmaciones propios ----------
    uiToast(): aviso pequeño que desaparece solo (sustituye a alert()).
