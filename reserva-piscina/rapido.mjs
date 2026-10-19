@@ -131,16 +131,31 @@ export class Armado {
     await p.locator('#ContentSection_uAlquileres_uCarritosFicha_btnRefundCart').waitFor({ state: 'visible', timeout: 20000 });
     this.vieja = { fecha, hora };
   }
-  async anular() {
+  // prueba: abre el aviso, comprueba que está el «Sí» y pulsa «No» (no anula nada)
+  async anular(prueba = false) {
     const p = this.pa;
     const btn = p.locator('#ContentSection_uAlquileres_uCarritosFicha_btnRefundCart');
     if (!(await btn.isVisible().catch(() => false))) await this.armarAnulacion(this.vieja.fecha, this.vieja.hora);
     await btn.click();
-    for (let i = 0; i < 3; i++) {
-      const si = p.locator('button:visible, a.btn:visible').filter({ hasText: /^(sí|si|aceptar|confirmar)$/i }).first();
-      try { await si.waitFor({ timeout: i ? 1500 : 5000 }); } catch { break; }
-      await si.click();
-      await p.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    // Aviso «¿Seguro?» → «Sí». Se pulsa una sola vez y se espera a que se cierre: mientras se
+    // cierra sigue «visible» un momento y volver a buscarlo hacía fallar todo (ya anulada).
+    // (la web tiene el aviso dos veces con el mismo id, uno oculto: se usa el visible)
+    const si = p.locator('[id$=uWarningModal_btnYes]:visible').first();
+    await si.waitFor({ state: 'visible', timeout: 8000 });   // si no sale, no se ha anulado nada
+    if (prueba) {
+      const no = p.locator('[id$=uWarningModal_btnNo]:visible, [id$=uWarningModal] button:visible').filter({ hasText: /^no$/i }).first();
+      await no.click({ timeout: 5000 });
+      await si.waitFor({ state: 'hidden', timeout: 10000 });
+      return;
+    }
+    await si.click({ timeout: 5000 });
+    await si.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    await p.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    // Algún aviso de después («Aceptar»): se cierra si sale, sin esperar por él
+    for (let i = 0; i < 2; i++) {
+      const ok = p.locator('button:visible, a.btn:visible').filter({ hasText: /^(aceptar|cerrar|ok)$/i }).first();
+      if (!(await ok.count())) break;
+      await ok.click({ timeout: 2000 }).catch(() => {});
     }
     const error = await p.locator('.alert-danger:visible').first().innerText().catch(() => '');
     if (error) throw new Error('No se pudo anular: ' + error.replace(/^x\s*/, '').trim().slice(0, 200));
