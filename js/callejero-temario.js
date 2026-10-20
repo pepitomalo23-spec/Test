@@ -304,26 +304,25 @@ const CJT = (function(){
 
   /* ---------- preguntas ---------- */
   // Tipos de pregunta que admite cada elemento (según su apartado y sus datos).
-  // Una pregunta por cada paso de un recorrido (todas se llaman qRecorridoPaso, para
-  // quitarlas o contarlas juntas).
-  function porPaso(pasos){
-    return pasos.slice(1).map((p, i) => Object.defineProperty(x => qRecorridoPaso(x, i + 1), 'name', { value: 'qRecorridoPaso' }));
-  }
   function generadores(x){
     const s = x._s, g = [];
     const geo = tieneGeo(x);
     switch(s.tipo){
       case 'datos': if(x.r && x.falsas && x.falsas.length) g.push(qDato); break;
-      case 'linea': g.push(qLineaSiguiente); if(geo) g.push(qTocar); break;
+      // La línea: qué parque acude a una calle de al lado (lo útil), cuál de estas calles la forma y tocarla.
+      case 'linea': if(geo) g.push(qLineaParque, qLineaCual, qTocar); break;
       case 'distritos': g.push(qDistritoDeBarrio); if(x.b) g.push(qTocar); break;
       case 'carreteras': g.push(qCarreteraCodigo, qCarreteraQueEs); if(geo) g.push(qTocar); break;
       case 'salidas': g.push(qSalidaDestino, qSalidaNumero); break;
       case 'urbanizaciones': g.push(qUrbanizacion); break;
+      // Polígonos: lo que hace falta en un aviso. Una empresa al azar (no una pregunta por cada una),
+      // su peligro (PEMUCO), por dónde se accede, qué parque sale y su recorrido (destino y la calle que falta).
       case 'poligonos':
-        g.push(qPoligonoDistrito, qParque, qPoligonoAcceso);
-        // Una pregunta por cada empresa del polígono.
-        g.push(...industriasPropias(x).map((e, k) => Object.defineProperty(y => qPoligonoIndustria(y, k), 'name', { value: 'qPoligonoIndustria' })));
-        if(x.recorrido && x.recorrido.length > 1) g.push(...porPaso(x.recorrido));
+        g.push(qParque, qPoligonoAcceso);
+        if(industriasPropias(x).length) g.push(qPoligonoIndustria);
+        if(x.pemuco) g.push(qPoligonoPeligro);
+        if(x.recorrido && x.recorrido.length > 2) g.push(qRecorridoFalta);
+        if(x.pv && x.pv.length) g.push(qRecorridoDestino);
         if(geo) g.push(qTocar);
         break;
       case 'lugares': if(x.dir) g.push(qCalleDe); if(geo) g.push(qTocar); break;
@@ -342,7 +341,8 @@ const CJT = (function(){
       case 'otro_nombre': g.push(qNombreReal, qNombreColoquial); if(geo) g.push(qTocar); break;
       case 'plano': g.push(qPlanoTocar, qPlanoQueEs); break;
       case 'barrios': if(x.b) g.push(qTocar, qMarcado); else g.push(qBarrioDistrito); break;
-      case 'recorridos': g.push(qParque); if(x.pasos && x.pasos.length > 1) g.push(...porPaso(x.pasos)); break;
+      // Recorridos: desde qué parque, a dónde lleva (dibujado en el mapa) y la calle que lo distingue.
+      case 'recorridos': g.push(qParque); if(x.pv && x.pv.length) g.push(qRecorridoDestino); if(x.pasos && x.pasos.length > 2) g.push(qRecorridoFalta); break;
       case 'plazas': case 'jardines': if(geo) g.push(qTocar, qMarcado); if(x.barrio) g.push(qBarrioDe); break;
     }
     return g;
@@ -422,18 +422,43 @@ const CJT = (function(){
       detalle: detalleDe(x)
     });
   }
-  function qDato(x){ return opciones(x, 'Datos generales', x.n, x.r, barajar(x.falsas)); }
-  function qLineaSiguiente(x){
-    const s = x._s, k = x._i;
-    const cerca = barajar(s.items.filter((y, j) => j !== k && j !== k - 1 && Math.abs(j - k) <= 6).map(y => y.n));
-    const antes = api => {
-      const pts = [];
-      s.items.slice(0, k).forEach(y => { const gy = geoDe(y); if(gy){ dibujarGeo(api, gy, AZUL, false); puntosGeo(gy).forEach(p => pts.push(p)); } });
-      if(pts.length) encuadrar(api, pts);
-    };
-    if(k === 0) return opciones(x, 'Línea entre el Parque Central y el Granadal', '¿Por dónde empieza (al norte)?', x.n, cerca, { despues: verDespues(x) });
-    return opciones(x, 'Línea entre los parques (de norte a sur) · después de…', s.items[k - 1].n, x.n, cerca, { antes, despues: verDespues(x) });
+  /* ---------- la línea entre los parques ---------- */
+  const centroCaja = v => [(v.caja.s + v.caja.n) / 2, (v.caja.o + v.caja.e) / 2];
+  const PARQUE_DE_CODIGO = { 1: 'central', 2: 'granadal' };
+  // Calles con parque cerca de este tramo de la línea (sin ser de la línea), de la más cercana a la más lejana.
+  function callesJuntoLinea(x, max){
+    const g = geoDe(x), d = CJ.datos();
+    if(!g || !g.vias.length || !d) return [];
+    const enLinea = new Set(x._s.items.map(y => normalizar(y.n)));
+    const deLinea = new Set(x._s.items.flatMap(y => (geoDe(y) || { vias: [] }).vias));
+    const c = centroCaja(g.vias[0]);
+    return d.jugables.filter(v => PARQUE_DE_CODIGO[v.parque] && !deLinea.has(v) && !enLinea.has(normalizar(v.nombre)))
+      .map(v => ({ v, dd: distancia(centroCaja(v), c) })).filter(o => o.dd < 0.012)
+      .sort((a, b) => a.dd - b.dd).slice(0, max || 40).map(o => o.v);
   }
+  // Toda la línea en el mapa (sus calles, en azul).
+  function dibujarLinea(api, s, pts){
+    s.items.forEach(y => { const gy = geoDe(y); if(gy){ dibujarGeo(api, gy, AZUL, false); if(pts) puntosGeo(gy).forEach(p => pts.push(p)); } });
+  }
+  // Una calle junto a la línea, marcada en el mapa: ¿qué parque acude? (Central a la izquierda, Granadal a la derecha.)
+  function qLineaParque(x){
+    const cerca = callesJuntoLinea(x, 30);
+    if(!cerca.length) return null;
+    const v = cerca[Math.floor(Math.random() * cerca.length)];
+    const bien = PARQUE_NOMBRE[PARQUE_DE_CODIGO[v.parque]];
+    const q = base(x, '¿Qué parque acude? · junto a la línea', v.nombre, { respuesta: 'opciones', opciones: Object.values(PARQUE_NOMBRE), resumen: 'A ' + v.nombre + ' acude el ' + bien + '.',
+      detalle: 'En azul, la línea entre los dos parques.',
+      antes: api => { const pts = []; dibujarLinea(api, x._s, null); api.resaltar(v, ROJO, true); pts.push([v.caja.s, v.caja.o], [v.caja.n, v.caja.e]); const g = geoDe(x); if(g) puntosGeo(g).forEach(p => pts.push(p)); encuadrar(api, pts); } });
+    q.correcta = q.opciones.indexOf(bien);
+    return q;
+  }
+  // ¿Cuál de estas calles forma la línea? (las falsas, calles de al lado que no la forman).
+  function qLineaCual(x){
+    const falsas = [...new Set(callesJuntoLinea(x, 25).map(v => v.nombre))];
+    return opciones(x, 'Línea entre los parques', '¿Cuál de estas calles forma la línea?', x.n, barajar(falsas.slice(0, 12)),
+      { resumen: x.n + ' es parte de la línea.', despues: api => { const pts = []; dibujarLinea(api, x._s, pts); const g = geoDe(x); if(g) dibujarGeo(api, g, VERDE, true); encuadrar(api, g ? puntosGeo(g) : pts); } });
+  }
+  function qDato(x){ return opciones(x, 'Datos generales', x.n, x.r, barajar(x.falsas)); }
   function qDistritoDeBarrio(x){
     return opciones(x, '¿En qué distrito está?', 'Barrio ' + x.n, x.distrito, barajar(T.distritos),
       { resumen: x.n + ' es del distrito ' + x.distrito + '.', despues: verDespues(x) });
@@ -475,9 +500,6 @@ const CJT = (function(){
     return opciones(x, '¿Por qué carretera se llega?', x.n, x.via, barajar(x._s.items.map(y => y.via)),
       { resumen: 'Por la ' + x.via + '.', despues: c ? verDespues(c) : null });
   }
-  function qPoligonoDistrito(x){
-    return opciones(x, '¿En qué distrito está?', x.n, x.distrito, barajar(T.distritos), { resumen: x.n + ' está en el distrito ' + x.distrito + '.', despues: verDespues(x) });
-  }
   function qParque(x){
     const bien = PARQUE_NOMBRE[x.parque];
     if(!bien) return null;
@@ -498,38 +520,54 @@ const CJT = (function(){
     const otros = x._s.items.filter(y => y !== x);
     return (x.industrias || []).filter(i => !otros.some(y => (y.industrias || []).some(j => normalizar(j) === normalizar(i))));
   }
+  // Su peligro (PEMUCO): ¿qué hay que tener en cuenta en este polígono?
+  function qPoligonoPeligro(x){
+    if(!x.pemuco) return null;
+    return opciones(x, '¿Qué hay que tener en cuenta? (PEMUCO)', x.n, x.pemuco, barajar(x._s.items.filter(y => y !== x && y.pemuco).map(y => y.pemuco)),
+      { resumen: x.pemuco, despues: verDespues(x) }, 2);
+  }
   // ¿En qué polígono está la empresa n.º k? (sin k, una al azar).
   function qPoligonoIndustria(x, k){
     const otros = x._s.items.filter(y => y !== x), propias = industriasPropias(x);
     if(!propias.length) return null;
     const i = propias[k >= 0 && k < propias.length ? k : Math.floor(Math.random() * propias.length)];
-    return opciones(x, '¿En qué polígono está?', i, x.n, barajar(otros.map(y => y.n)), { resumen: i + ' está en el ' + x.n + '.', despues: verDespues(x) });
+    return opciones(x, 'Hay un aviso en esta empresa: ¿en qué polígono está?', i, x.n, barajar(otros.map(y => y.n)), { resumen: i + ' está en el ' + x.n + '.', despues: verDespues(x) });
   }
-  // Un paso del recorrido (k): ¿qué viene después del anterior? (sin k, uno al azar).
-  function qRecorridoPaso(x, k){
-    const pasos = x.pasos || x.recorrido;
-    if(!pasos || pasos.length < 2) return null;
-    if(!(k >= 1 && k < pasos.length)) k = 1 + Math.floor(Math.random() * (pasos.length - 1));
-    const prohibidas = new Set([normalizar(pasos[k]), normalizar(pasos[k - 1])]);
-    const otrosPasos = x._f.secciones.filter(s => s.tipo === 'recorridos' || s.tipo === 'poligonos').flatMap(s => s.items)
-      .filter(y => y !== x).flatMap(y => y.pasos || y.recorrido || []);
-    const falsas = barajar(pasos.filter((p, j) => j !== k && j !== k - 1)).concat(barajar(otrosPasos)).filter(p => !prohibidas.has(normalizar(p)));
+  // Todos los recorridos (los de los apartados de recorridos y los de los polígonos).
+  function todosRecorridos(){ return T.fichas.flatMap(f => f.secciones.filter(s => s.tipo === 'recorridos' || s.tipo === 'poligonos').flatMap(s => s.items)).filter(y => (y.pasos || y.recorrido || []).length); }
+  // El recorrido dibujado en el mapa: ¿a dónde lleva? (las falsas, otros destinos del mismo parque).
+  function qRecorridoDestino(x){
+    if(!x.pv || !x.pv.length) return null;
+    // Sin los que hacen el mismo recorrido (en el documento hay destinos que comparten ruta): no tendrían respuesta única.
+    const firma = y => (y.pasos || y.recorrido || []).map(normalizar).join('|');
+    const otros = todosRecorridos().filter(y => y !== x && normalizar(y.n) !== normalizar(x.n) && firma(y) !== firma(x));
+    const falsas = barajar(otros.filter(y => y.parque === x.parque).map(y => y.n)).concat(barajar(otros.map(y => y.n)));
     const parque = PARQUE_NOMBRE[x.parque] || 'el parque';
-    return opciones(x, 'Recorrido desde el ' + parque + ' a ' + x.n + ' · después de…', pasos[k - 1], pasos[k], falsas, {
-      resumen: 'Después de ' + pasos[k - 1] + ' viene ' + pasos[k] + '.',
-      detalle: pasos.map((p, j) => (j + 1) + '. ' + p).join(' → '),
-      antes: x.pv ? api => {
-        const pts = dibujarRecorrido(api, x, k, AZUL);
-        const sig = pasosRuta(x)[k];
-        if(sig && sig.en) pts.push(sig.en);
-        encuadrar(api, pts);
-      } : null,
-      despues: x.pv ? api => {
-        const sig = pasosRuta(x)[k];
-        if(!sig) return;
-        sig.vias.forEach(v => api.resaltar(v, VERDE, true));
-        if(sig.en) numero(api, sig.en, k + 1, VERDE);
-      } : null
+    return opciones(x, '¿A dónde lleva este recorrido?', 'Sale del ' + parque, x.n, falsas, {
+      resumen: 'Es el recorrido a ' + x.n + '.',
+      detalle: (x.pasos || x.recorrido).map((p, j) => (j + 1) + '. ' + p).join(' → '),
+      antes: api => { const pts = dibujarRecorrido(api, x, x.pv.length, AZUL); encuadrar(api, pasosRuta(x).encuadre.length ? pasosRuta(x).encuadre : pts); }
+    });
+  }
+  // El recorrido entero con un hueco: la calle que lo distingue (la que menos se repite en los demás
+  // recorridos; las de salida, que comparten todos, no). Las falsas, calles de otros recorridos.
+  function qRecorridoFalta(x){
+    const pasos = x.pasos || x.recorrido;
+    if(!pasos || pasos.length < 3) return null;
+    const todos = todosRecorridos().filter(y => y !== x);
+    const veces = p => todos.filter(y => (y.pasos || y.recorrido).some(q => normalizar(q) === normalizar(p))).length;
+    const cand = pasos.map((p, k) => ({ k, n: veces(p) })).filter(o => o.k > 0).sort((a, b) => a.n - b.n || Math.random() - .5);
+    const minimo = cand[0].n, k = barajar(cand.filter(o => o.n === minimo))[0].k;
+    const propias = new Set(pasos.map(normalizar));
+    const falsas = barajar([...new Set(todos.filter(y => y.parque === x.parque).flatMap(y => y.pasos || y.recorrido))]).concat(barajar(todos.flatMap(y => y.pasos || y.recorrido)))
+      .filter(p => !propias.has(normalizar(p)));
+    const parque = PARQUE_NOMBRE[x.parque] || 'el parque';
+    return opciones(x, 'Recorrido desde el ' + parque + ' a ' + x.n + ' · ¿qué calle falta?',
+      pasos.map((p, j) => (j + 1) + '. ' + (j === k ? '___' : p)).join(' → '), pasos[k], falsas, {
+      resumen: 'Falta ' + pasos[k] + ' (paso ' + (k + 1) + ').',
+      detalle: x.nota || '',
+      antes: x.pv ? api => { encuadrar(api, dibujarRecorrido(api, x, k, AZUL)); } : null,
+      despues: x.pv ? api => { const sig = pasosRuta(x)[k]; if(!sig) return; sig.vias.forEach(v => api.resaltar(v, VERDE, true)); if(sig.en) numero(api, sig.en, k + 1, VERDE); } : null
     });
   }
   function qCalleDe(x){
