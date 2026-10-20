@@ -10,11 +10,7 @@ const INICIO = (function(){
   const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   const FLECHA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>';
-  const ICO = {
-    reanudar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>',
-    piscina: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 15c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg>'
-  };
-  const ICO_CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
+  const ICO_CAL = '<span class="ico3d i-calendario" aria-hidden="true"></span>';
   const MAX_TAREAS = 5;
   const esc = s => escapeHtml(String(s == null ? '' : s));
   const datosListos = () => typeof appDataReady !== 'undefined' && appDataReady && QUESTIONS_POOL.length > 0;
@@ -30,7 +26,7 @@ const INICIO = (function(){
     if(!currentUserIsAdmin || typeof PISCINA === 'undefined') return '';
     const r = PISCINA.proxima();
     return '<button type="button" class="ini-continuar ini-piscina" data-ini="piscina">' +
-      '<span class="ini-continuar-ico">' + ICO.piscina + '</span>' +
+      '<span class="ini-continuar-ico ico-img"><span class="ico3d i-piscina"></span></span>' +
       '<span class="ini-continuar-txt"><b>Piscina</b><span>' + esc(PISCINA.textoProxima(r)) + '</span></span>' +
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }
@@ -44,7 +40,7 @@ const INICIO = (function(){
     if(!q.total) return '';
     // Con lo que está a medias y con el mismo aspecto (estrella azul).
     return '<button type="button" class="ini-continuar ini-marcadas" data-ini="marcadas">' +
-      '<span class="ini-continuar-ico">★</span>' +
+      '<span class="ini-continuar-ico ico-img"><span class="ico3d i-marcadas"></span></span>' +
       '<span class="ini-continuar-txt"><b>Marcadas de hoy</b><span>' + q.total + (q.total === 1 ? ' pregunta para repasar' : ' preguntas para repasar') + '</span></span>' +
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }
@@ -480,7 +476,7 @@ const INICIO = (function(){
     if(!xs.length) return '';
     const sub = xs.length === 1 ? esc(xs[0].titulo) + ' · ' + esc(xs[0].texto || xs[0].hechas + ' de ' + xs[0].total) : xs.length + ' a medias · el último: ' + esc(xs[0].titulo);
     return '<button type="button" class="ini-continuar" data-ini="tests">' +
-      '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
+      '<span class="ini-continuar-ico ico-img"><span class="ico3d i-reanudar"></span></span>' +
       '<span class="ini-continuar-txt"><b>Continuar test</b><span>' + sub + '</span>' + (xs.length === 1 ? barraPct(xs[0]) : '') + '</span>' +
       (xs.length > 1 ? '<span class="ini-num">' + xs.length + '</span>' : '') +
       '<span class="ini-flecha">' + FLECHA + '</span></button>';

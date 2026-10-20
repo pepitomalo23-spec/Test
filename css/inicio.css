@@ -364,3 +364,7 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .ini-sem-filtro{ display:inline-flex; gap:4px; padding:4px; border-radius:99px; background: var(--line-soft); margin-bottom:14px; }
 .ini-sem-filtro button{ border:0; background:none; color: var(--muted); font:inherit; font-size:13px; font-weight:700; padding:7px 14px; border-radius:99px; cursor:pointer; }
 .ini-sem-filtro button.on{ background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+/* Iconos de la app (.ico3d) */
+.ini-continuar .ini-continuar-ico.ico-img{ background:none; border-radius:0; }
+.ini-continuar-ico.ico-img .ico3d{ width:100%; height:100%; border-radius:24%; }
+.ini-cal-btn .ico3d{ width:20px; height:20px; border-radius:5px; box-shadow:none; }

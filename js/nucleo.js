@@ -1,6 +1,11 @@
 /* Núcleo: avisos y confirmaciones propios, esqueletos de carga, cliente de
    Supabase, resultados de tests pendientes de subir y usuario actual. */
 
+/* Iconos de la app (hechos con Higgsfield): una sola imagen de 3×6 que se recorta con CSS (.ico3d en
+   base.css). Dirección absoluta: en una variable CSS, una relativa se leería desde css/. */
+const ICONOS_APP = 'datos/iconos-app.webp?v=0a8431bb7c';
+document.documentElement.style.setProperty('--ico-app', 'url("' + new URL(ICONOS_APP, location.href).href + '")');
+
 /* ---------- Almacenamiento del dispositivo lleno ----------
    Si se llena, guardar algo (por dónde vas en un test, un ajuste…) fallaba sin avisar y se
    perdía. Al llenarse, se borran las copias que la app vuelve a descargar sola y se intenta

@@ -294,3 +294,24 @@
   }
   .header-user-admin-count.hidden{ display:none; }
   .admin-badge.pending{ color: var(--coral); border-color: var(--coral); background: rgba(242,102,92,0.1); }
+
+/* Iconos de la app (datos/iconos-app.webp, 3×6; la imagen la pone js/nucleo.js en --ico-app) */
+.ico3d{ display:inline-block; flex-shrink:0; width:24px; height:24px; border-radius:22%; background: var(--ico-app) 0 0 / 300% 600% no-repeat; box-shadow: 0 2px 6px rgba(0,0,0,.18); vertical-align: middle; }
+.ico3d.i-normativas{ background-position: 0% 0%; }
+.ico3d.i-legislacion{ background-position: 50% 0%; }
+.ico3d.i-callejero{ background-position: 100% 0%; }
+.ico3d.i-especifico{ background-position: 0% 20%; }
+.ico3d.i-test{ background-position: 50% 20%; }
+.ico3d.i-examen{ background-position: 100% 20%; }
+.ico3d.i-fisico{ background-position: 0% 40%; }
+.ico3d.i-repaso{ background-position: 50% 40%; }
+.ico3d.i-otro{ background-position: 100% 40%; }
+.ico3d.i-piscina{ background-position: 0% 60%; }
+.ico3d.i-datos{ background-position: 50% 60%; }
+.ico3d.i-onu{ background-position: 100% 60%; }
+.ico3d.i-nip{ background-position: 0% 80%; }
+.ico3d.i-libre{ background-position: 50% 80%; }
+.ico3d.i-marcadas{ background-position: 100% 80%; }
+.ico3d.i-reanudar{ background-position: 0% 100%; }
+.ico3d.i-calendario{ background-position: 50% 100%; }
+.ico3d.i-mnemotecnia{ background-position: 100% 100%; }

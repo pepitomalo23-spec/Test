@@ -250,3 +250,7 @@ div.cal-test.acabado:hover{ border-color: var(--line); }
 /* Examen: a quién se manda, y la copia que te han mandado */
 .cal-exa-para{ display:flex; flex-wrap:wrap; gap:6px; }
 .cal-exa-de{ font-size:14px; line-height:1.45; padding:10px 12px; border-radius:12px; background: color-mix(in srgb, var(--c, #E5484D) 10%, transparent); }
+/* Iconos de las categorías (.ico3d) */
+.cal-hoja-ico:has(.ico3d){ background:none; border:0; }
+.cal-hoja-ico .ico3d{ width:52px; height:52px; border-radius:14px; }
+.cal-cat-op .ico3d{ width:30px; height:30px; border-radius:8px; }
