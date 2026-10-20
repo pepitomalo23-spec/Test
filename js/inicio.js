@@ -10,9 +10,13 @@ const INICIO = (function(){
   const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   const FLECHA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>';
+  // Iconos de línea grandes y en color, como los de Estudio
+  const linea = d => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
   const ICO = {
-    reanudar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>',
-    piscina: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 15c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg>'
+    // Continuar test: hoja de test con un «play»
+    reanudar: linea('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a1 1 0 0 0 1 1h5"/><path d="m10 11 5 3-5 3Z"/>'),
+    // Piscina: escalerilla sobre el agua
+    piscina: linea('<path d="M7 15V5.5a2.5 2.5 0 0 1 5 0"/><path d="M15 15V5.5a2.5 2.5 0 0 1 5 0"/><path d="M7 8.5h8"/><path d="M7 12.5h8"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 22c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>')
   };
   const ICO_CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
   const MAX_TAREAS = 5;
@@ -30,7 +34,7 @@ const INICIO = (function(){
     if(!currentUserIsAdmin || typeof PISCINA === 'undefined') return '';
     const r = PISCINA.proxima();
     return '<button type="button" class="ini-continuar ini-piscina" data-ini="piscina">' +
-      '<span class="ini-continuar-ico">' + ICO.piscina + '</span>' +
+      '<span class="ini-continuar-ico linea">' + ICO.piscina + '</span>' +
       '<span class="ini-continuar-txt"><b>Piscina</b><span>' + esc(PISCINA.textoProxima(r)) + '</span></span>' +
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }
@@ -480,7 +484,7 @@ const INICIO = (function(){
     if(!xs.length) return '';
     const sub = xs.length === 1 ? esc(xs[0].titulo) + ' · ' + esc(xs[0].texto || xs[0].hechas + ' de ' + xs[0].total) : xs.length + ' a medias · el último: ' + esc(xs[0].titulo);
     return '<button type="button" class="ini-continuar" data-ini="tests">' +
-      '<span class="ini-continuar-ico">' + ICO.reanudar + '</span>' +
+      '<span class="ini-continuar-ico linea">' + ICO.reanudar + '</span>' +
       '<span class="ini-continuar-txt"><b>Continuar test</b><span>' + sub + '</span>' + (xs.length === 1 ? barraPct(xs[0]) : '') + '</span>' +
       (xs.length > 1 ? '<span class="ini-num">' + xs.length + '</span>' : '') +
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
