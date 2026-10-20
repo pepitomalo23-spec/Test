@@ -38,7 +38,7 @@
 .di-como{ font-size: 13px; color: var(--muted-2); margin-bottom: 12px; line-height: 1.5; }
 .di-ayuda{ background: var(--w03); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 16px; font-size: 13.5px; line-height: 1.55; color: var(--muted); }
 .di-ayuda summary{ cursor: pointer; color: var(--text); font-weight: 600; }
-.di-ayuda div{ margin-top: 8px; }
+.di-ayuda > div{ margin-top: 8px; }
 .di-ayuda ul{ margin: 6px 0; padding-left: 20px; }
 .di-ayuda b{ color: var(--text); }
 .di-add{ display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; margin-bottom: 8px; }
@@ -83,9 +83,9 @@
 .di-ver.mal b{ color: var(--coral); }
 .di-ficha{ display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 260px; margin: 10px 0 16px; padding: 24px; border-radius: 20px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; cursor: pointer; text-align: center; transition: transform .25s, background .25s; }
 .di-ficha.girada{ background: var(--card-hi); border-color: var(--amber); }
-.di-ficha small{ color: var(--muted-2); font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; }
-.di-ficha span{ font-size: clamp(22px, 5vw, 36px); font-weight: 700; line-height: 1.3; word-break: break-word; }
-.di-ficha em{ font-style: normal; color: var(--muted-2); font-size: 12px; }
+.di-ficha > small{ color: var(--muted-2); font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; }
+.di-ficha > span{ font-size: clamp(22px, 5vw, 36px); font-weight: 700; line-height: 1.3; word-break: break-word; }
+.di-ficha > em{ font-style: normal; color: var(--muted-2); font-size: 12px; }
 .di-ficha-nav{ display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .di-fin{ display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 26px 0; }
 .di-fin-n{ width: 86px; height: 86px; border-radius: 50%; display: grid; place-items: center; font-size: 30px; font-weight: 800; border: 3px solid var(--coral); color: var(--coral); }
@@ -132,3 +132,49 @@
 .di-img-act img{ width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
 .di-hoja input[type=file]{ color: var(--muted); font-size: 13px; }
 .di-ficha + .di-ayudas{ margin: -4px 0 16px; }
+
+/* NIP (código Kemler): cada cifra con el color de la etiqueta ADR de su clase y un icono */
+.di-chips{ display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; }
+.di-chip{ display: inline-flex; flex-direction: column; align-items: center; justify-content: center; width: 28px; height: 38px; border-radius: 7px; box-sizing: border-box; flex: none; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); line-height: 1; }
+.di-chip-i{ font-size: 12px; line-height: 1; }
+.di-chip-n{ font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.di-chip.g{ width: 40px; height: 52px; border-radius: 9px; }
+.di-chip.g .di-chip-i{ font-size: 17px; }
+.di-chip.g .di-chip-n{ font-size: 21px; }
+.di-chip.c2{ background: #2f9a55; color: #fff; }
+.di-chip.c3{ background: #d8392b; color: #fff; }
+.di-chip.c4{ background: linear-gradient(#d8392b, #d8392b) bottom / 100% 52% no-repeat, repeating-linear-gradient(90deg, #d8392b 0 4px, #fff 4px 8px); color: #fff; }
+.di-chip.c5{ background: #f4c21f; color: #1a1a1a; }
+.di-chip.c6{ background: #fff; color: #1a1a1a; box-shadow: inset 0 0 0 1.5px #1a1a1a; }
+.di-chip.c7{ background: linear-gradient(#f6d33a 50%, #fff 50%); color: #1a1a1a; }
+.di-chip.c8{ background: linear-gradient(#fff 48%, #1f1f1f 48%); color: #fff; box-shadow: inset 0 0 0 1.5px #1f1f1f; }
+.di-chip.c9{ background: linear-gradient(#fff, #fff) bottom / 100% 52% no-repeat, repeating-linear-gradient(90deg, #1f1f1f 0 3px, #fff 3px 6px); color: #1a1a1a; box-shadow: inset 0 0 0 1.5px #1f1f1f; }
+.di-chip.cX{ background: #2b74d6; color: #fff; }
+.di-chip.c0{ background: none; color: var(--muted); box-shadow: none; border: 1.5px dashed var(--muted-2); }
+.di-chip.c0 .di-chip-i{ opacity: 0; }
+.di-ojo{ font-size: 15px; margin-left: 4px; }
+.di-a-cod{ border: 0; background: none; color: var(--text); font: inherit; padding: 2px; margin: -2px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; }
+.di-a-cod:hover, .di-a-cod[aria-expanded="true"]{ background: var(--w06); }
+.di-fila-dg{ padding: 4px 16px 14px; background: var(--w02); }
+
+/* Desglose de un código, cifra a cifra */
+.di-dg{ display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.di-dg-l{ display: flex; align-items: center; gap: 12px; font-size: 14.5px; line-height: 1.4; }
+.di-dg-l b{ color: var(--text); }
+.di-dg-ojo{ display: flex; gap: 10px; padding: 10px 12px; border-radius: 12px; font-size: 14px; line-height: 1.45; background: color-mix(in srgb, var(--amber) 12%, transparent); border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent); }
+.di-ficha + .di-dg{ margin: -4px 0 16px; }
+.di-ficha + .di-dg + .di-ayudas{ margin: 0 0 16px; }
+
+/* Chuleta: las cifras de un vistazo */
+.di-leyenda{ display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 12px; margin: 10px 0 6px; }
+.di-ley{ display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 13.5px; line-height: 1.3; }
+
+/* Panel naranja: arriba el NIP, abajo el nº ONU */
+.di-panel{ display: inline-flex; flex-direction: column; min-width: 4.6em; background: #f39200; color: #111; border: .14em solid #111; border-radius: .22em; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: .05em; line-height: 1.15; vertical-align: middle; }
+.di-panel > span{ padding: .1em .45em; text-align: center; min-height: 1.15em; }
+.di-panel > span + span{ border-top: .12em solid #111; }
+.di-panel > .vacio{ opacity: .35; }
+.di-lista .di-panel{ font-size: 14px; }
+.di-fila .di-chip:not(.g){ width: 24px; height: 34px; border-radius: 6px; }
+.di-fila .di-chip:not(.g) .di-chip-i{ font-size: 10.5px; }
+.di-fila .di-chip:not(.g) .di-chip-n{ font-size: 14.5px; }
