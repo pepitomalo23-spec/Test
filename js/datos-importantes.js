@@ -209,7 +209,7 @@ const DI = (function(){
       : /inflamab|explosiv/i.test(t) ? 'rango'                             // rango de inflamabilidad
       : /\bADR\b|clases?\b|etiquetas?/i.test(t) ? 'adr'                    // rombo de etiqueta
       : 'libre';
-    return '<img src="' + ICO_AP[k] + '" alt="">';
+    return '<img src="' + ICO_AP[k] + '" alt="" width="52" height="52">';
   }
   let aps = [], datos = [], cargado = false, cargando = null, dueño = null;
   let vista = { v: 'lista' };     // lista | apartado | estudio

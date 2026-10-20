@@ -12,9 +12,9 @@ const INICIO = (function(){
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>';
   // Iconos de Continuar test, Piscina y Marcadas de hoy (hechos con Higgsfield, planos y en color)
   const ICO = {
-    reanudar: '<img src="datos/inicio-test.webp?v=d1d252cff3" alt="">',
-    piscina: '<img src="datos/inicio-piscina.webp?v=14dbcf6a99" alt="">',
-    marcadas: '<img src="datos/inicio-marcadas.webp?v=cb31f96abd" alt="">'
+    reanudar: '<img src="datos/inicio-test.webp?v=d1d252cff3" alt="" width="34" height="34">',
+    piscina: '<img src="datos/inicio-piscina.webp?v=14dbcf6a99" alt="" width="34" height="34">',
+    marcadas: '<img src="datos/inicio-marcadas.webp?v=cb31f96abd" alt="" width="34" height="34">'
   };
   const ICO_CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
   const MAX_TAREAS = 5;

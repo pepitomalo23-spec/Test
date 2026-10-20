@@ -9,7 +9,10 @@
    - Cada css/ y js/ va enlazado con un ?v= que cambia con su contenido
      (scripts/versionar.mjs). Antes de guardar un index.html nuevo se
      descargan todos sus archivos, para que nunca se mezclen archivos de
-     dos versiones y la nueva funcione también sin conexión.
+     dos versiones y la nueva funcione también sin conexión. Cada uno se
+     guarda solo si su contenido cuadra con su ?v= (mientras Vercel cambia
+     de versión puede servir el archivo viejo en la dirección nueva); al
+     activarse un service worker nuevo se quitan los guardados que no cuadren.
    - Los datos/ (el temario del callejero) también se piden con su ?v=:
      se guardan la primera vez que se usan y, al llegar una versión
      nueva, se borra la anterior. Las páginas del documento del temario
@@ -60,6 +63,7 @@ self.addEventListener('activate', event => {
     for(const k of await caches.keys()){
       if(!keep.includes(k)) await caches.delete(k);
     }
+    await repasarGuardados().catch(() => {});
     await self.clients.claim();
   })());
 });
@@ -115,6 +119,40 @@ async function pruneDataVersions(cache, url){
     if(req.url !== url && new URL(req.url).pathname === p) await cache.delete(req);
   }
 }
+// ¿Lo que ha llegado es de verdad la versión que pide su ?v=? El ?v= es la huella de su contenido
+// (scripts/versionar.mjs: los 10 primeros del sha256). Mientras Vercel pasa de una versión a otra
+// puede servir unos segundos el archivo viejo en la dirección nueva y, guardado así, se quedaría
+// para siempre (los versionados no se vuelven a pedir).
+async function esSuVersion(url, res){
+  const v = new URL(url).searchParams.get('v');
+  if(!v || !/^[0-9a-f]{10}$/.test(v)) return true;
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-256', await res.clone().arrayBuffer()));
+  return [...h.slice(0, 5)].map(b => b.toString(16).padStart(2, '0')).join('') === v;
+}
+// Descarga un archivo versionado y comprueba que es su versión; si no, lo vuelve a pedir un poco
+// después (hasta 3 veces). Si nunca cuadra, error: no se guarda.
+async function bajarVersion(u){
+  for(let i = 0; i < 3; i++){
+    const res = await fetch(u, { cache: i ? 'reload' : 'no-cache' });
+    if(!res.ok) throw new Error('No se pudo descargar ' + u);
+    if(await esSuVersion(u, res)) return res;
+    await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+  }
+  throw new Error('El archivo descargado no es su versión: ' + u);
+}
+// Fuera los archivos versionados guardados que no son su versión (guardados antes de comprobarlo):
+// la próxima vez que se pidan se descargan bien.
+async function repasarGuardados(){
+  for(const nombre of [SHELL, STATIC]){
+    const cache = await caches.open(nombre);
+    for(const req of await cache.keys()){
+      const url = req.url;
+      if(!(isAppFile(url) || isDataFile(url)) || !new URL(url).searchParams.has('v')) continue;
+      const res = await cache.match(req);
+      if(res && !(await esSuVersion(url, res))) await cache.delete(req);
+    }
+  }
+}
 // Descarga los que aún no estén guardados y guarda cada uno en cuanto llega:
 // si el móvil corta la descarga a medias (iOS lo hace con lo que va en
 // segundo plano), lo ya bajado se queda y la vez siguiente solo falta el
@@ -128,9 +166,7 @@ async function cacheAppFiles(cache, urls){
   for(let i = 0; i < missing.length; i += 4){
     await Promise.all(missing.slice(i, i + 4).map(async u => {
       try{
-        const res = await fetch(u, { cache: 'no-cache' });
-        if(!res.ok) throw new Error('No se pudo descargar ' + u);
-        await cache.put(u, res);
+        await cache.put(u, await bajarVersion(u));
       }catch(e){ fallo = fallo || e; }
     }));
   }
@@ -189,8 +225,9 @@ async function handleStatic(event, cacheName){
   const url = event.request.url;
   const versionado = (isAppFile(url) || isDataFile(url)) && new URL(url).searchParams.has('v');
   if(cached && versionado) return cached;
-  const network = fetch(event.request).then(res => {
-    if(res && (res.ok || res.type === 'opaque')){
+  const network = fetch(event.request).then(async res => {
+    // Un versionado solo se guarda si es de verdad su versión (si no, se usa pero no se guarda).
+    if(res && (res.ok || res.type === 'opaque') && (!versionado || res.type === 'opaque' || await esSuVersion(url, res))){
       cache.put(event.request, res.clone())
         .then(() => versionado && isDataFile(url) ? pruneDataVersions(cache, url) : null).catch(() => {});
     }
