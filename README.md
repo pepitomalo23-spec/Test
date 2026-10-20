@@ -48,7 +48,7 @@ js/                  código, en orden de carga (ver el final de index.html)
                      copias, errores, boe, temario, importar-ia, especifico, callejero)
   normativas.js      Normativas (fichas estilo Quizlet)
   datos-importantes.js  Datos importantes: apartados de fichas propios de cada usuario (Nº ONU, NIP, cifras…);
-                     el NIP con iconos por cifra (datos/nip-iconos.webp), panel naranja y cada código cifra a cifra;
+                     el NIP con iconos de línea por cifra, panel naranja y cada código cifra a cifra;
                      guía del NIP (listas «empiezan por…»): mapa de códigos y modo Retos
   callejero.js       Callejero: mapa, modos de juego, modo estudio, tareas y modo selección
   callejero-temario.js   Callejero: temario de la academia (fichas, en el mapa, preguntas y planos)
