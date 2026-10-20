@@ -57,9 +57,30 @@ const DI = (function(){
   const codigo = v => String(v == null ? '' : v).trim().replace(/\s/g, '').toUpperCase();
   const esKemler = v => /^X?[2-9]\d{1,2}$/.test(codigo(v));
   const especial = v => ESPECIALES[codigo(v).replace(/^X/, '')] || null;
-  // Iconos de las cifras (hechos con Higgsfield): una sola imagen de 3×3 (2-9 y X); cada cifra se recorta con CSS
-  const ICONOS_NIP = 'datos/nip-iconos.webp?v=af95e83d43';
-  const chip = (c, grande) => '<span class="di-chip c' + c + (grande ? ' g' : '') + '" title="' + CIFRAS[c].nombre + '"><span class="di-chip-i"></span><span class="di-chip-n">' + c + '</span></span>';
+  // Iconos de las cifras: de línea, como los del resto de la app, cada uno en el color de su peligro (CSS)
+  const trazo = d => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  const ICONO_CIFRA = {
+    // 2 gas: viento
+    '2': trazo('<path d="M12.8 19.6A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/><path d="M9.8 4.4A2 2 0 1 1 11 8H2"/>'),
+    // 3 líquido inflamable: llama
+    '3': trazo('<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/>'),
+    // 4 sólido inflamable: llama sobre un bloque
+    '4': trazo('<path d="M12 2c2 2.6 4 4.4 4 7.4a4 4 0 0 1-8 0C8 7 10 5 12 2Z"/><rect x="3" y="16" width="18" height="6" rx="1"/><path d="M8 16v6"/><path d="M16 16v6"/>'),
+    // 5 comburente: llama sobre un círculo (oxígeno)
+    '5': trazo('<circle cx="12" cy="16" r="6"/><path d="M12 1.5c1.6 2.2 3 3.6 3 5.8a3 3 0 0 1-6 0c0-1.9 1.4-3.6 3-5.8Z"/>'),
+    // 6 tóxico: calavera
+    '6': trazo('<path d="M8 21v-3.2a7 7 0 1 1 8 0V21Z"/><circle cx="9" cy="11" r="1.4"/><circle cx="15" cy="11" r="1.4"/><path d="M12 14v1.5"/><path d="M10.5 21v-2"/><path d="M13.5 21v-2"/>'),
+    // 7 radiactivo: trébol
+    '7': trazo('<circle cx="12" cy="12" r="1.6"/><path d="M10.4 9.3 7.5 4.3A9 9 0 0 0 3 12h5.6a3.4 3.4 0 0 1 1.8-2.7Z"/><path d="M13.6 9.3 16.5 4.3A9 9 0 0 1 21 12h-5.6a3.4 3.4 0 0 0-1.8-2.7Z"/><path d="M10.3 14.9 7.5 19.8a9 9 0 0 0 9 0l-2.8-4.9a3.4 3.4 0 0 1-3.4 0Z"/>'),
+    // 8 corrosivo: tubo que gotea sobre una superficie
+    '8': trazo('<path d="M14.5 2 21 8.5"/><path d="M20 7.5 11 16.5a3.5 3.5 0 0 1-5-5L15 2.5"/><path d="M8 14h5"/><path d="M4 18.5v1"/><path d="M3 22h18"/>'),
+    // 9 reacción violenta: estallido
+    '9': trazo('<path d="M12 2.5 13.8 8 19 5.5 16.2 10.5 21.5 12 16.2 13.5 19 18.5 13.8 16 12 21.5 10.2 16 5 18.5 7.8 13.5 2.5 12 7.8 10.5 5 5.5 10.2 8Z"/>'),
+    // X: gota tachada (no echar agua)
+    X: trazo('<path d="M12 3c-2.3 3.2-6 6.8-6 11a6 6 0 0 0 12 0c0-4.2-3.7-7.8-6-11Z"/><path d="m3 3 18 18"/>'),
+    '0': ''
+  };
+  const chip = (c, grande) => '<span class="di-chip c' + c + (grande ? ' g' : '') + '" title="' + CIFRAS[c].nombre + '"><span class="di-chip-i">' + ICONO_CIFRA[c] + '</span><span class="di-chip-n">' + c + '</span></span>';
   const chips = v => '<span class="di-chips">' + [...codigo(v)].map(c => chip(c)).join('') + (especial(v) ? '<span class="di-ojo" title="Código especial: tiene significado propio">⚠️</span>' : '') + '</span>';
   // El código cifra a cifra
   function desglose(v){
@@ -461,7 +482,7 @@ const DI = (function(){
       enun = 'Falta uno de los NIP que empiezan por ' + q.d + '. ¿Cuál?' + '<div class="di-reto-pills">' + q.lista.map(c => c === q.c ? '<span class="di-pill hueco">?</span>' : '<span class="di-pill">' + esc(c) + '</span>').join('') + '</div>';
       cuerpo = escribe('El que falta');
     } else if(q.icono){
-      enun = '¿Qué cifra es este icono?' + grande('<span class="di-chip c' + q.icono + ' xl"><span class="di-chip-i"></span></span>');
+      enun = '¿Qué cifra es este icono?' + grande('<span class="di-chip c' + q.icono + ' xl"><span class="di-chip-i">' + ICONO_CIFRA[q.icono] + '</span></span>');
       cuerpo = escribe('Cifra (o X)');
     } else {
       enun = 'Escribe el NIP que significa:' + grande('<span class="di-reto-frase">' + esc(q.texto) + '</span>');
@@ -708,8 +729,6 @@ const DI = (function(){
     const r = root();
     if(r && !r.dataset.listo){
       r.dataset.listo = '1';
-      // En <html>, para que también la vean las ventanitas; absoluta: si no, se leería desde css/
-      document.documentElement.style.setProperty('--nip-iconos', 'url("' + new URL(ICONOS_NIP, location.href).href + '")');
       r.addEventListener('click', onClick);
       r.addEventListener('submit', onSubmit);
       r.addEventListener('keydown', e => { if((e.key === 'Enter' || e.key === ' ') && e.target.matches('.back-link, .di-fila')){ e.preventDefault(); onClick(e); } });

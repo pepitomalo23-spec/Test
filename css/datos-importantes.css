@@ -129,22 +129,23 @@
 
 /* NIP (código Kemler): cada cifra con el color de la etiqueta ADR de su clase y un icono */
 .di-chips{ display: inline-flex; align-items: flex-start; gap: 4px; vertical-align: middle; }
-/* Cada cifra: su icono (datos/nip-iconos.webp, 3×3: 2 3 4 / 5 6 7 / 8 9 X) y el número debajo */
-.di-chip{ display: inline-flex; flex-direction: column; align-items: center; gap: 2px; flex: none; line-height: 1; }
-.di-chip-i{ width: 30px; height: 30px; border-radius: 7px; background: var(--nip-iconos) 0 0 / 300% 300% no-repeat; box-shadow: 0 1px 3px rgba(0,0,0,.28); }
+/* Cada cifra: su icono de línea en el color de su peligro, sobre un fondo suave, y el número debajo */
+.di-chip{ display: inline-flex; flex-direction: column; align-items: center; gap: 2px; flex: none; line-height: 1; --c: var(--muted); }
+.di-chip-i{ display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; box-sizing: border-box; padding: 5px; color: var(--c); background: color-mix(in srgb, var(--c) 13%, transparent); }
+.di-chip-i svg{ width: 100%; height: 100%; }
 .di-chip-n{ font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
-.di-chip.g .di-chip-i{ width: 46px; height: 46px; border-radius: 11px; }
+.di-chip.g .di-chip-i{ width: 46px; height: 46px; border-radius: 12px; padding: 9px; }
 .di-chip.g .di-chip-n{ font-size: 19px; }
-.di-chip.c2 .di-chip-i{ background-position: 0 0; }
-.di-chip.c3 .di-chip-i{ background-position: 50% 0; }
-.di-chip.c4 .di-chip-i{ background-position: 100% 0; }
-.di-chip.c5 .di-chip-i{ background-position: 0 50%; }
-.di-chip.c6 .di-chip-i{ background-position: 50% 50%; }
-.di-chip.c7 .di-chip-i{ background-position: 100% 50%; }
-.di-chip.c8 .di-chip-i{ background-position: 0 100%; }
-.di-chip.c9 .di-chip-i{ background-position: 50% 100%; }
-.di-chip.cX .di-chip-i{ background-position: 100% 100%; }
-.di-chip.c0 .di-chip-i{ background: none; box-shadow: none; border: 2px dashed var(--muted-2); box-sizing: border-box; }
+.di-chip.c2{ --c: var(--green); }
+.di-chip.c3{ --c: var(--coral); }
+.di-chip.c4{ --c: #C2410C; }
+.di-chip.c5{ --c: var(--orange); }
+.di-chip.c6{ --c: var(--purple); }
+.di-chip.c7{ --c: #CA9A04; }
+.di-chip.c8{ --c: #64748B; }
+.di-chip.c9{ --c: #DB2777; }
+.di-chip.cX{ --c: var(--blue); }
+.di-chip.c0 .di-chip-i{ background: none; border: 2px dashed var(--muted-2); }
 .di-chip.c0 .di-chip-n{ color: var(--muted); }
 .di-ojo{ font-size: 15px; margin-left: 4px; }
 
@@ -166,7 +167,7 @@
 .di-panel > span + span{ border-top: .12em solid #111; }
 .di-panel > .vacio{ opacity: .35; }
 .di-lista .di-panel{ font-size: 14px; }
-.di-fila .di-chip:not(.g) .di-chip-i{ width: 26px; height: 26px; border-radius: 6px; }
+.di-fila .di-chip:not(.g) .di-chip-i{ width: 26px; height: 26px; border-radius: 7px; padding: 4px; }
 .di-fila .di-chip:not(.g) .di-chip-n{ font-size: 14px; }
 
 /* Dentro de un apartado */
@@ -228,7 +229,7 @@ button.di-pill:hover{ border-color: var(--muted-2); }
 .di-op.falta{ border: 1.5px dashed var(--green); color: var(--green); }
 .di-op.nada{ opacity: .45; }
 .di-reto-comp{ display: block; width: 100%; margin-top: 12px; }
-.di-chip.xl .di-chip-i{ width: 88px; height: 88px; border-radius: 20px; }
+.di-chip.xl .di-chip-i{ width: 88px; height: 88px; border-radius: 22px; padding: 18px; }
 .di-reto-lista{ margin-top: 14px; font-size: 13.5px; color: var(--muted); }
 .di-reto-lista .di-reto-pills{ margin-top: 8px; }
 .di-reto-lista .di-pill{ cursor: default; }
