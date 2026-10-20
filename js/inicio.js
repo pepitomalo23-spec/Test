@@ -10,13 +10,11 @@ const INICIO = (function(){
   const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   const FLECHA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>';
-  // Iconos de línea grandes y en color, como los de Estudio
-  const linea = d => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  // Iconos de Continuar test, Piscina y Marcadas de hoy (hechos con Higgsfield, planos y en color)
   const ICO = {
-    // Continuar test: hoja de test con un «play»
-    reanudar: linea('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a1 1 0 0 0 1 1h5"/><path d="m10 11 5 3-5 3Z"/>'),
-    // Piscina: escalerilla sobre el agua
-    piscina: linea('<path d="M7 15V5.5a2.5 2.5 0 0 1 5 0"/><path d="M15 15V5.5a2.5 2.5 0 0 1 5 0"/><path d="M7 8.5h8"/><path d="M7 12.5h8"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 22c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>')
+    reanudar: '<img src="datos/inicio-test.webp?v=d1d252cff3" alt="">',
+    piscina: '<img src="datos/inicio-piscina.webp?v=14dbcf6a99" alt="">',
+    marcadas: '<img src="datos/inicio-marcadas.webp?v=cb31f96abd" alt="">'
   };
   const ICO_CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
   const MAX_TAREAS = 5;
@@ -46,9 +44,9 @@ const INICIO = (function(){
     const q = ESPT.cuantasHoy();
     if(!q){ if(!marcadasPedidas){ marcadasPedidas = true; ESPT.cargarMarcadas().then(pintar, () => {}); } return ''; }
     if(!q.total) return '';
-    // Con lo que está a medias y con el mismo aspecto (estrella azul).
+    // Con lo que está a medias y con el mismo aspecto.
     return '<button type="button" class="ini-continuar ini-marcadas" data-ini="marcadas">' +
-      '<span class="ini-continuar-ico">★</span>' +
+      '<span class="ini-continuar-ico linea">' + ICO.marcadas + '</span>' +
       '<span class="ini-continuar-txt"><b>Marcadas de hoy</b><span>' + q.total + (q.total === 1 ? ' pregunta para repasar' : ' preguntas para repasar') + '</span></span>' +
       '<span class="ini-flecha">' + FLECHA + '</span></button>';
   }

@@ -364,7 +364,7 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .ini-sem-filtro{ display:inline-flex; gap:4px; padding:4px; border-radius:99px; background: var(--line-soft); margin-bottom:14px; }
 .ini-sem-filtro button{ border:0; background:none; color: var(--muted); font:inherit; font-size:13px; font-weight:700; padding:7px 14px; border-radius:99px; cursor:pointer; }
 .ini-sem-filtro button.on{ background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
-/* Piscina y Continuar test: icono de línea grande y en color, sin círculo (como los de Estudio) */
+/* Piscina, Continuar test y Marcadas de hoy: icono grande en color, sin círculo */
 .ini-continuar .ini-continuar-ico.linea{ background:none; color: var(--coral); border-radius:0; }
-.ini-continuar .ini-continuar-ico.linea svg{ width:32px; height:32px; margin:0; }
+.ini-continuar .ini-continuar-ico.linea img{ width:34px; height:34px; margin:0; display:block; }
 .ini-piscina .ini-continuar-ico.linea{ color: var(--blue); }
