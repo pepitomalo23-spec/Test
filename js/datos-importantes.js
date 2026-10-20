@@ -100,6 +100,75 @@ const DI = (function(){
     };
   }
 
+  /* ---------- Guía del NIP: un apartado con «Cifra 2… », «Letra X…» y listas «NIP que empiezan por 2» ----------
+     Las listas se pintan juntas como un mapa de códigos y alimentan el modo Retos (preguntas cortas y
+     variadas que se generan solas: ¿existe?, ¿cuál existe?, toca los que existen, completa la lista,
+     ¿qué cifra es?, ¿qué icono es?, constrúyelo). */
+  function guia(a){
+    if(!esNipAp(a)) return null;
+    const listas = {}, cifras = {};
+    for(const d of deAp(a.id)){
+      const m = String(d.a).match(/empiezan?\s+por\s+(?:el\s+)?([2-9])\b/i);
+      if(m){
+        const cods = [...new Set(String(d.b).toUpperCase().split(/[\s,;\/.]+/).map(codigo).filter(esKemler))];
+        if(cods.length) listas[m[1]] = { d, cods };
+        continue;
+      }
+      const c = String(d.a).match(/^\s*cifra\s+([0-9])\b/i);
+      if(c && CIFRAS[c[1]]) cifras[d.id] = c[1];
+      else if(/^\s*letra\s+x\b/i.test(d.a)) cifras[d.id] = 'X';
+    }
+    if(!Object.keys(listas).length) return null;
+    return { listas, cifras, todos: new Set(Object.values(listas).flatMap(l => l.cods)) };
+  }
+  const azar = l => l[Math.floor(Math.random() * l.length)];
+  // Un código que no está en las listas, con pinta de NIP (sin 1, que no se usa)
+  function falso(g, pri){
+    const dig = '0234567899';
+    for(let k = 0; k < 300; k++){
+      let c = pri || azar(Object.keys(g.listas));
+      const largo = Math.random() < .7 ? 2 : 3;
+      while(c.length < largo) c += c.length === 2 ? dig[1 + Math.floor(Math.random() * 9)] : azar(dig);
+      if(!g.todos.has(c) && !g.todos.has('X' + c)) return c;
+    }
+    return '21';
+  }
+  // Un código dicho con palabras, siguiendo la regla: 336 → Líquido inflamable · peligro más intenso · además tóxico
+  function describir(c){
+    return [...c].map((n, k) => k === 0 ? CIFRAS[n].nombre : n === '0' ? 'sin más peligros' : n === c[k - 1] ? 'peligro más intenso' : 'además ' + CIFRAS[n].luego).join(' · ');
+  }
+  function retos(g){
+    const digs = Object.keys(g.listas), todos = [...g.todos];
+    const cortas = digs.filter(d => g.listas[d].cods.length >= 2 && g.listas[d].cods.length <= 8);
+    const construibles = todos.filter(c => !c.startsWith('X') && !especial(c));
+    const hacer = {
+      existe(){ const real = Math.random() < .5, c = real ? azar(todos) : falso(g); return { tipo: 'sino', titulo: '¿Existe?', c, buena: real ? 'si' : 'no', ver: c[0] === 'X' ? c[1] : c[0] }; },
+      cual(){
+        const c = azar(todos), pri = c[0] === 'X' ? c[1] : c[0], ops = [c];
+        while(ops.length < 4){ const f = falso(g, pri); if(!ops.includes(f)) ops.push(f); }
+        return { tipo: 'cual', titulo: '¿Cuál existe?', ops: mezclar(ops), buena: c, ver: pri };
+      },
+      toca(){
+        const d = azar(digs), reales = mezclar(g.listas[d].cods.filter(c => c[0] !== 'X')).slice(0, 5), ops = reales.slice();
+        while(ops.length < 9){ const f = falso(g, d); if(!ops.includes(f)) ops.push(f); }
+        return { tipo: 'toca', titulo: 'Toca los que existen', d, ops: mezclar(ops), reales: new Set(reales), ver: d };
+      },
+      completa(){
+        if(!cortas.length) return hacer.cual();
+        const d = azar(cortas), cods = g.listas[d].cods, c = azar(cods);
+        return { tipo: 'escribe', titulo: 'Completa la lista', d, lista: cods, c, buena: c, ver: d };
+      },
+      cifra(){ const n = azar([...'23456789X']); return { tipo: 'cifra', titulo: '¿Qué cifra es?', n, buena: n }; },
+      icono(){ const n = azar([...'23456789X']); return { tipo: 'escribe', titulo: '¿Qué cifra es este icono?', icono: n, buena: n }; },
+      construye(){
+        if(!construibles.length) return hacer.cifra();
+        const c = azar(construibles);
+        return { tipo: 'escribe', titulo: 'Constrúyelo', texto: describir(c), c, buena: c };
+      }
+    };
+    return mezclar(['existe', 'existe', 'cual', 'cual', 'toca', 'completa', 'cifra', 'icono', 'construye', 'construye']).map(t => hacer[t]());
+  }
+
   // Chuletas que salen dentro de cada plantilla
   const AYUDA = {
     nip: '<b>Cómo se lee un NIP</b> (número de peligro, arriba en el panel naranja):' +
@@ -123,6 +192,7 @@ const DI = (function(){
     borrar: svg('<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/>'),
     fichas: svg('<rect x="2" y="6" width="16" height="12" rx="2"/><path d="M6 6V4h16v12h-4"/>'),
     aprender: svg('<path d="M2 10 12 5l10 5-10 5Z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/>'),
+    retos: svg('<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/>'),
     probar: svg('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>')
   };
 
@@ -130,6 +200,7 @@ const DI = (function(){
   let vista = { v: 'lista' };     // lista | apartado | estudio
   let st = null;                  // estado del modo de estudio
   let abiertoId = null;           // el dato desplegado en la lista (uno cada vez)
+  let mapaSel = null;             // el código abierto en el mapa de la guía del NIP
   const root = () => document.getElementById('datosRoot');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const arriba = () => { const a = document.getElementById('app'); (a || window).scrollTo(0, 0); };
@@ -222,30 +293,50 @@ const DI = (function(){
   // Dentro de un apartado, lo justo: progreso, los 3 modos, (en el NIP) la tira de cifras y la lista.
   // Añadir, la chuleta y los ajustes van en ventanitas; cada dato se despliega al tocarlo.
   function vistaApartado(a){
-    const ds = deAp(a.id), dom = ds.filter(dominada).length, f = formas(a), pct = ds.length ? Math.round(dom * 100 / ds.length) : 0;
+    const ds = deAp(a.id), dom = ds.filter(dominada).length, f = formas(a), g = guia(a), pct = ds.length ? Math.round(dom * 100 / ds.length) : 0;
+    const lista = d => g && Object.values(g.listas).find(l => l.d === d);
+    // En la guía del NIP: las cifras con su icono y su palabra clave; las listas, resumidas (se ven en el mapa)
+    const celdas = d => {
+      const n = g && g.cifras[d.id], l = lista(d);
+      if(n) return '<span class="di-a di-a-ico">' + chip(n) + '<span>' + esc(d.a) + '</span></span><span class="di-b"><b class="di-clave">' + CIFRAS[n].nombre + '</b>' + esc(d.b) + '</span>';
+      if(l) return '<span class="di-a">' + esc(d.a) + '</span><span class="di-b">' + l.cods.length + (l.cods.length === 1 ? ' código' : ' códigos') + ' · están en el mapa</span>';
+      return '<span class="di-a">' + f.celda('a', d.a) + '</span><span class="di-b">' + f.celda('b', d.b) + '</span>';
+    };
     const filas = ds.map(d => {
       const abierto = abiertoId === d.id;
       return '<div class="di-fila' + (dominada(d) ? ' dom' : '') + (abierto ? ' abierta' : '') + '" role="button" tabindex="0" data-di="fila" data-id="' + d.id + '" aria-expanded="' + abierto + '">' +
-        '<span class="di-a">' + f.celda('a', d.a) + '</span><span class="di-b">' + f.celda('b', d.b) + '</span>' +
+        celdas(d) +
         (dominada(d) ? '<span class="di-ok" title="Dominado">✓</span>' : '') + '<span class="di-flecha" aria-hidden="true">›</span></div>' +
         (abierto ? '<div class="di-fila-mas">' + f.dg(d) + ayudas(d) +
           '<div class="di-fila-btns"><button type="button" class="di-btn sec" data-di="editar" data-id="' + d.id + '">✎ Editar</button>' +
           '<button type="button" class="di-btn peligro" data-di="quitar" data-id="' + d.id + '">Borrar</button></div></div>' : '');
     }).join('');
     const pocos = ds.length < 2;
-    const modo = (k, nombre, sub) => '<button type="button" class="di-modo" data-di="modo" data-m="' + k + '" title="' + sub + '"' + (pocos ? ' disabled' : '') + '><span class="di-modo-ico">' + ICO[k] + '</span><b>' + nombre + '</b></button>';
+    const modo = (k, nombre, sub) => '<button type="button" class="di-modo" data-di="modo" data-m="' + k + '" title="' + sub + '"' + (pocos && k !== 'retos' ? ' disabled' : '') + '><span class="di-modo-ico">' + ICO[k] + '</span><b>' + nombre + '</b></button>';
     const cifras = f.nip ? '<button type="button" class="di-cifras" data-di="chuleta"><span class="di-cifras-t"><b>Las cifras</b><span>Ver reglas ›</span></span>' +
       '<span class="di-cifras-fila">' + [...'23456789X'].map(c => chip(c)).join('') + '</span></button>' : '';
     return '<span class="back-link" role="button" tabindex="0" data-di="lista">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="11,6 5,12 11,18"/></svg>Datos importantes</span>' +
       '<div class="di-cab"><h1>' + esc(a.titulo) + '</h1><button type="button" class="di-ico-btn di-cab-aj" data-di="ajustes" aria-label="Ajustes">' + ICO.ajustes + '</button></div>' +
       (ds.length ? '<div class="di-prog"><span class="di-barra"><i style="width:' + pct + '%"></i></span><span>' + dom + ' de ' + ds.length + ' dominados</span></div>' : '') +
-      '<div class="di-modos">' + modo('fichas', 'Fichas', 'Girar y repasar') + modo('aprender', 'Aprender', 'Hasta que salgan todas') + modo('probar', 'Probar', PRUEBA + ' preguntas con nota') + '</div>' +
-      cifras +
+      '<div class="di-modos' + (g ? ' cuatro' : '') + '">' + modo('fichas', 'Fichas', 'Girar y repasar') + modo('aprender', 'Aprender', 'Hasta que salgan todas') + modo('probar', 'Probar', PRUEBA + ' preguntas con nota') +
+        (g ? modo('retos', 'Retos', 'Preguntas cortas y variadas') : '') + '</div>' +
+      (g ? mapa(g) : cifras) +
       '<div class="di-sec"><b>Tus datos</b>' + (ayudaDe(a) && !f.nip ? '<button type="button" class="di-link" data-di="chuleta">Chuleta</button>' : '') +
         '<button type="button" class="di-btn di-mas" data-di="anadir">' + ICO.mas + ' Añadir</button></div>' +
       (pocos && ds.length ? '<div class="di-vacio">Añade al menos 2 datos para estudiar.</div>' : '') +
       '<div class="di-lista">' + (filas || '<div class="di-vacio">Aún no hay datos. Pulsa <b>Añadir</b> para escribir uno o pegar una lista entera.</div>') + '</div>';
+  }
+  // Todas las listas juntas: una fila por cifra, cada código una ficha; al tocarlo se lee cifra a cifra
+  function mapa(g){
+    const filas = Object.keys(g.listas).sort().map(d => {
+      const cods = g.listas[d].cods, sel = cods.includes(mapaSel) ? mapaSel : null;
+      return '<div class="di-mapa-f">' + chip(d) + '<div class="di-mapa-cods">' + cods.map(c =>
+          '<button type="button" class="di-pill' + (c[0] === 'X' ? ' x' : '') + (especial(c) ? ' esp' : '') + (c === sel ? ' sel' : '') + '" data-di="mapacod" data-c="' + esc(c) + '">' + esc(c) + '</button>').join('') + '</div></div>' +
+        (sel ? '<div class="di-mapa-dg">' + desglose(sel) + '</div>' : '');
+    }).join('');
+    return '<div class="di-mapa"><div class="di-mapa-t"><b>Mapa de los NIP</b><span>' + g.todos.size + ' códigos · toca uno para leerlo</span></div>' + filas +
+      '<div class="di-mapa-ley"><span class="di-pill x">X</span> reacciona con el agua <span class="di-pill esp">⚠️</span> va aparte</div></div>';
   }
   function chuleta(){
     hoja('Chuleta', '<div class="di-ayuda">' + ayudaDe(ap(vista.id)) + '</div><div class="di-hoja-btns"><button type="button" class="di-btn" data-cerrar>Entendido</button></div>', () => {});
@@ -279,6 +370,7 @@ const DI = (function(){
   /* ---------- estudio ---------- */
   function empezar(modo){
     const a = ap(vista.id), ds = deAp(a.id);
+    if(modo === 'retos'){ st = { modo, a, qs: retos(guia(a)), i: 0, res: null, sel: new Set(), bien: 0, mal: [] }; pintar(); arriba(); return; }
     if(modo === 'fichas') st = { modo, a, cartas: ds.slice(), i: 0, girada: false, cara: a.sentido === 'ba' ? 'b' : 'a' };
     else if(modo === 'aprender'){
       // Primero las no dominadas, las más falladas antes; tandas de 10
@@ -309,7 +401,87 @@ const DI = (function(){
     if(st.modo === 'aprender'){ if(st.res.bien) st.bien.add(d.id); else st.cola.splice(Math.min(st.cola.length, 3), 0, d); }   // la fallada vuelve un poco después
     siguiente(); pintar();
   }
+  /* ---------- Retos (guía del NIP) ---------- */
+  function resumen(q){
+    switch(q.tipo){
+      case 'sino': return q.buena === 'si' ? 'El ' + q.c + ' sí existe' : 'El ' + q.c + ' no existe';
+      case 'cual': return 'El que existe es el ' + q.buena;
+      case 'toca': return 'Existían: ' + [...q.reales].join(', ');
+      case 'cifra': return CIFRAS[q.n].nombre + ' es el ' + q.n;
+      default: return q.lista ? 'Faltaba el ' + q.c : q.icono ? 'Es el ' + q.icono + ': ' + CIFRAS[q.icono].nombre : q.texto + ' → ' + q.c;
+    }
+  }
+  function responderReto(v){
+    if(!st || st.res) return;
+    const q = st.qs[st.i];
+    const bien = q.tipo === 'toca' ? q.ops.every(c => q.reales.has(c) === st.sel.has(c)) : q.tipo === 'escribe' ? igual(v, q.buena) : v === q.buena;
+    st.res = { bien, dada: v };
+    if(bien) st.bien++; else st.mal.push(q);
+    pintar();
+  }
+  function sigReto(){ if(!st || !st.res) return; st.i++; st.res = null; st.sel = new Set(); pintar(); arriba(); }
+  function vistaRetos(){
+    const a = st.a, g = guia(a);
+    const cab = '<div class="di-est-cab"><button type="button" class="di-link" data-di="salir">✕ Salir</button><b>Retos · ' + esc(a.titulo) + '</b></div>';
+    if(st.i >= st.qs.length){
+      const total = st.qs.length, nota = Math.round(st.bien * 100 / total) / 10;
+      const mal = st.mal.map(q => '<div class="di-fila"><span class="di-a">' + esc(q.titulo) + '</span><span class="di-b">' + esc(resumen(q)) + '</span></div>').join('');
+      return cab + '<div class="di-fin"><div class="di-fin-n' + (nota >= 5 ? ' ok' : '') + '">' + String(nota).replace('.', ',') + '</div><b>' + st.bien + ' de ' + total + ' bien</b>' +
+        (mal ? '<span>Para repasar:</span><div class="di-lista">' + mal + '</div>' : '<span>¡Todos bien!</span>') +
+        '<div class="di-fin-btns"><button type="button" class="di-btn" data-di="modo" data-m="retos">Otros retos</button><button type="button" class="di-btn sec" data-di="salir">Volver</button></div></div>';
+    }
+    const q = st.qs[st.i], r = st.res;
+    const op = (v, html, cls) => {
+      let c = 'di-op' + (cls ? ' ' + cls : '');
+      if(r){ if(v === q.buena) c += ' bien'; else if(r.dada === v) c += ' mal'; }
+      return '<button type="button" class="' + c + '" data-di="reto-op" data-v="' + esc(v) + '"' + (r ? ' disabled' : '') + '>' + html + '</button>';
+    };
+    const escribe = ph => '<form class="di-escribe" data-di-form="reto"><input class="di-resp-input' + (r ? (r.bien ? ' bien' : ' mal') : '') + '" name="r" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="' + ph + '"' +
+      (r ? ' disabled value="' + esc(r.dada || '') + '"' : '') + '>' + (r ? '' : '<button type="submit" class="di-btn">Comprobar</button>') + '</form>';
+    const grande = t => '<div class="di-reto-txt">' + t + '</div>';
+    let enun = '', cuerpo = '';
+    if(q.tipo === 'sino'){
+      enun = '¿Existe este NIP?' + grande(panel(q.c, ''));
+      cuerpo = '<div class="di-ops dos">' + op('si', 'Sí, existe') + op('no', 'No existe') + '</div>';
+    } else if(q.tipo === 'cual'){
+      enun = 'Solo uno de estos NIP existe. ¿Cuál?';
+      cuerpo = '<div class="di-ops dos">' + q.ops.map(c => op(c, esc(c), 'cod')).join('') + '</div>';
+    } else if(q.tipo === 'toca'){
+      enun = '<span class="di-reto-con">Toca todos los que existen de los que empiezan por ' + chip(q.d) + '</span>';
+      cuerpo = '<div class="di-ops tres">' + q.ops.map(c => {
+        let cl = 'di-op cod';
+        if(r){ cl += q.reales.has(c) ? (st.sel.has(c) ? ' bien' : ' falta') : (st.sel.has(c) ? ' mal' : ' nada'); }
+        else if(st.sel.has(c)) cl += ' marcada';
+        return '<button type="button" class="' + cl + '" data-di="reto-toca" data-v="' + esc(c) + '"' + (r ? ' disabled' : '') + '>' + esc(c) + '</button>';
+      }).join('') + '</div>' + (r ? '' : '<button type="button" class="di-btn di-reto-comp" data-di="reto-comprobar">Comprobar</button>');
+    } else if(q.tipo === 'cifra'){
+      enun = '¿Qué cifra significa…?' + grande(CIFRAS[q.n].nombre);
+      cuerpo = '<div class="di-ops cifras">' + [...'23456789X'].map(c => op(c, chip(c, true), 'ico')).join('') + '</div>';
+    } else if(q.lista){
+      enun = 'Falta uno de los NIP que empiezan por ' + q.d + '. ¿Cuál?' + '<div class="di-reto-pills">' + q.lista.map(c => c === q.c ? '<span class="di-pill hueco">?</span>' : '<span class="di-pill">' + esc(c) + '</span>').join('') + '</div>';
+      cuerpo = escribe('El que falta');
+    } else if(q.icono){
+      enun = '¿Qué cifra es este icono?' + grande('<span class="di-chip c' + q.icono + ' xl"><span class="di-chip-i"></span></span>');
+      cuerpo = escribe('Cifra (o X)');
+    } else {
+      enun = 'Escribe el NIP que significa:' + grande('<span class="di-reto-frase">' + esc(q.texto) + '</span>');
+      cuerpo = escribe('NIP');
+    }
+    let extra = '';
+    if(r){
+      const real = q.tipo === 'cual' ? q.buena : q.c && g.todos.has(q.c) ? q.c : null;
+      if(real) extra += desglose(real);
+      if(q.tipo === 'cifra' || q.icono){ const n = q.n || q.icono; extra += '<div class="di-dg"><div class="di-dg-l">' + chip(n, true) + '<span><b>' + CIFRAS[n].nombre + '</b></span></div></div>'; }
+      const d = q.ver && g.listas[q.ver];
+      if(d && (q.tipo === 'toca' || q.tipo === 'cual' || (q.tipo === 'sino' && !real)))
+        extra += '<div class="di-reto-lista"><span>Los que empiezan por ' + q.ver + ':</span><div class="di-reto-pills">' + d.cods.map(c => '<span class="di-pill' + (c[0] === 'X' ? ' x' : '') + (especial(c) ? ' esp' : '') + '">' + esc(c) + '</span>').join('') + '</div></div>';
+    }
+    const veredicto = r ? '<div class="di-ver ' + (r.bien ? 'bien' : 'mal') + '"><b>' + (r.bien ? '¡Bien!' : esc(resumen(q))) + '</b><button type="button" class="di-btn" data-di="reto-seguir">Continuar</button></div>' + extra : '';
+    return cab + '<div class="di-paso">' + (st.i + 1) + ' de ' + st.qs.length + '</div><div class="di-barra grande"><i style="width:' + (st.i * 100 / st.qs.length) + '%"></i></div>' +
+      '<div class="di-preg di-reto"><small>' + esc(q.titulo) + '</small><div class="di-reto-enun">' + enun + '</div></div>' + cuerpo + veredicto;
+  }
   function vistaEstudio(){
+    if(st.modo === 'retos') return vistaRetos();
     const a = st.a, titulo = { fichas: 'Fichas', aprender: 'Aprender', probar: 'Probar' }[st.modo], f = formas(a);
     const cab = '<div class="di-est-cab"><button type="button" class="di-link" data-di="salir">✕ Salir</button><b>' + titulo + ' · ' + esc(a.titulo) + '</b></div>';
     if(st.modo === 'fichas'){
@@ -489,6 +661,11 @@ const DI = (function(){
       case 'pegar': pegar(); break;
       case 'editar': editar(el.dataset.id); break;
       case 'quitar': quitar(el.dataset.id); break;
+      case 'mapacod': mapaSel = mapaSel === el.dataset.c ? null : el.dataset.c; pintar(); break;
+      case 'reto-op': responderReto(el.dataset.v); break;
+      case 'reto-toca': if(!st.res){ st.sel.has(el.dataset.v) ? st.sel.delete(el.dataset.v) : st.sel.add(el.dataset.v); pintar(); } break;
+      case 'reto-comprobar': responderReto(null); break;
+      case 'reto-seguir': sigReto(); break;
       case 'fila': abiertoId = abiertoId === el.dataset.id ? null : el.dataset.id; pintar(); break;
       case 'chuleta': chuleta(); break;
       case 'anadir': anadir(); break;
@@ -510,11 +687,13 @@ const DI = (function(){
     if(!f) return;
     e.preventDefault();
     if(f.dataset.diForm === 'resp'){ responder(f.r.value); return; }
+    if(f.dataset.diForm === 'reto'){ responderReto(f.r.value); return; }
   }
   // Teclado: Intro para continuar; 1-4 para elegir; espacio para girar la ficha
   function onKey(e){
     if(!st || !document.getElementById('screen-datos').classList.contains('active') || document.querySelector('.di-hoja-bg')) return;
     if(e.target.matches && e.target.matches('input, textarea') && !st.res) return;
+    if(st.modo === 'retos'){ if(st.res && e.key === 'Enter'){ e.preventDefault(); sigReto(); } return; }
     if(st.modo === 'fichas'){
       if(e.key === ' ' || e.key === 'Enter'){ e.preventDefault(); st.girada = !st.girada; pintar(); }
       else if(e.key === 'ArrowRight'){ onClick({ target: root().querySelector('[data-di="sig"]') }); }
