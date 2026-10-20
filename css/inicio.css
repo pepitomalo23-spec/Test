@@ -236,11 +236,10 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .simc-veredicto.mal{ background: var(--coral); }
 
 
-/* Pantalla grande: la cabecera ancha con lo de hoy dentro, y al lado lo que está a medias y el examen.
-   En el móvil se ve lo de siempre (.ini-movil). */
-.ini-pc{ display:none; }
+/* Inicio (móvil y pantalla grande): la cabecera de color con lo de hoy dentro, lo que está a medias y
+   «Cómo vas». En la pantalla grande, la cabecera y «Para seguir» lado a lado; en el móvil, en una columna. */
+.ini-pc{ display:flex; flex-direction:column; gap:14px; }
 @media (min-width: 900px){
-  .ini-movil{ display:none; }
   /* Llena el alto de la pantalla: «Cómo vas» se estira hasta abajo */
   .ini-pc{ display:grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto minmax(200px, 1fr); gap:22px; align-items:stretch;
     min-height: calc(100dvh - var(--header-h, 72px) - 32px - 40px); }
@@ -368,3 +367,34 @@ button.ini-cifra:hover b{ color: var(--coral); }
 .ini-continuar .ini-continuar-ico.linea{ background:none; color: var(--coral); border-radius:0; }
 .ini-continuar .ini-continuar-ico.linea img{ width:34px; height:34px; margin:0; display:block; }
 .ini-piscina .ini-continuar-ico.linea{ color: var(--blue); }
+
+/* Inicio en el móvil: el mismo diseño que en la pantalla grande, en una columna */
+@media (max-width: 899px){
+  .ini-heropc{ grid-template-columns: minmax(0, 1fr); gap:16px; padding:18px 18px 18px; border-radius:22px; }
+  /* Arriba: el día grande a la izquierda y, a su lado, el día de la semana, el mes y cuántas van */
+  .ini-heropc-izq{ display:grid; grid-template-columns: auto minmax(0, 1fr); column-gap:14px; row-gap:2px; align-items:center; }
+  .ini-heropc-izq > *{ grid-column: 1 / -1; }
+  .ini-heropc .ini-h.ini-heropc-dia{ grid-column:1; grid-row:1 / span 3; font-size:64px; margin:0; }
+  .ini-heropc-izq > .ini-fecha{ grid-column:2; grid-row:1; align-self:end; margin:0; }
+  .ini-heropc-mes{ grid-column:2; grid-row:2; margin:0; font-size:13px; }
+  .ini-heropc-n{ grid-column:2; grid-row:3; flex-direction:row; align-items:baseline; gap:6px; margin:0; }
+  .ini-heropc-n b{ font-size:18px; }
+  .ini-heropc-izq .ini-hero-exa{ margin:12px 0 0; }
+  .ini-heropc-bts{ margin-top:12px; }
+  .ini-ht{ padding:12px 14px; gap:12px; }
+  .ini-panel{ padding:6px 16px 4px; border-radius:22px; }
+  .ini-panel .ini-continuar{ padding:14px 0; }
+  /* Cómo vas: un anillo por fila, más pequeño */
+  .ini-cvg{ grid-template-columns: minmax(0, 1fr); border-radius:22px; padding:4px; }
+  .ini-cv{ justify-content:flex-start; gap:16px; padding:14px 14px; }
+  .ini-cv + .ini-cv{ box-shadow: inset 0 1px 0 var(--line); border-radius:0; }
+  .ini-cv-aro{ width:76px; height:76px; }
+  .ini-cv-aro circle{ stroke-width:10; }
+  .ini-cv-aro b{ font-size:21px; }
+  .ini-cv-aro b small{ font-size:12px; }
+  .ini-cv-t{ font-size:15px; margin-bottom:2px; }
+  .ini-cvg-t{ padding:14px 14px 2px; }
+  .ini-cvg-temas{ grid-template-columns: minmax(0, 1fr); }
+  .ini-cvg-temas .ini-cv-aro{ width:76px; height:76px; }
+  .ini-cvg-temas .ini-cv-aro b{ font-size:21px; }
+}
