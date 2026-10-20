@@ -1094,3 +1094,6 @@
 .cjr-anadir:hover{ border-color: var(--coral); color: var(--coral); }
 .cjr-anadir svg{ width:18px; height:18px; }
 .cjr-listo:disabled{ opacity:.5; }
+/* Mapa: debajo de los dos botones, lo de por apartados y las notas, en pequeño */
+.cjm-links{ display:flex; justify-content:center; flex-wrap:wrap; gap:4px 18px; margin-top:6px; }
+.cjm-links .cjr-ajustes{ margin:6px 0 0; }

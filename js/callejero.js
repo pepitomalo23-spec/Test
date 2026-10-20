@@ -2585,15 +2585,15 @@ const CJ = (function(){
     return '<div class="cj-ini-tarjetas">' + fallas + sabesHtml() + '</div>' +
       '<div class="cj-grandes">' +
       boton('repasar', 'repaso', ICONOS.repasar, 'Estudiar', 'Lo que llevas', 0) +
-      boton('aprender', 'nuevo', ICONOS.aprender, 'Aprender', 'Ver lo que hay, por tipo', 0) +
+      boton('aprender', 'nuevo', ICONOS.mapa, 'Mapa', 'Consultar o preguntas al azar', 0) +
     '</div>';
   }
   // La pantalla de cada botón, con su cabecera para volver.
   function subHtml(){
-    const titulos = { repasar: 'Estudiar', aprender: 'Aprender', callesbarrio: 'Calles de cada barrio', temario: 'Temario de la academia', todo: 'Todo lo dado hasta ahora', notas: 'Mis notas', repasoelegir: 'Añadir cosas' };
+    const titulos = { repasar: 'Estudiar', aprender: 'Mapa', apartados: 'Por apartados', callesbarrio: 'Calles de cada barrio', temario: 'Temario de la academia', todo: 'Todo lo dado hasta ahora', notas: 'Mis notas', repasoelegir: 'Añadir cosas' };
     const cuerpo = subInicio === 'repasar' ? repasarHtml() : subInicio === 'repasoelegir' ? repasoElegirHtml() : subInicio === 'todo' ? todoHtml()
-      : subInicio === 'temario' ? temarioHtml() : subInicio === 'notas' ? notasHtml() : subInicio === 'callesbarrio' ? callesBarrioHtml() : aprenderHtml();
-    const atras = subInicio === 'repasoelegir' || subInicio === 'todo' ? 'repasar' : subInicio === 'temario' || subInicio === 'notas' || subInicio === 'callesbarrio' ? 'aprender' : '';
+      : subInicio === 'temario' ? temarioHtml() : subInicio === 'notas' ? notasHtml() : subInicio === 'callesbarrio' ? callesBarrioHtml() : subInicio === 'apartados' ? aprenderHtml() : mapaHtml();
+    const atras = subInicio === 'repasoelegir' || subInicio === 'todo' ? 'repasar' : subInicio === 'callesbarrio' || subInicio === 'temario' ? 'apartados' : subInicio === 'notas' || subInicio === 'apartados' ? 'aprender' : '';
     return '<div class="cjt-cab"><button type="button" class="cj-salir" onclick="CJ.irA(\'' + atras + '\')" aria-label="Volver">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>' +
         '<div><div class="cjt-cab-etq">Callejero</div><h2>' + titulos[subInicio] + '</h2></div></div>' + cuerpo;
@@ -2712,6 +2712,8 @@ const CJ = (function(){
   }
   function seguirGuiada(){
     const g = rondaGuiada;
+    if(g && g.tipo === 'azar'){ preguntarAzar(); return; }
+    if(g && g.tipo === 'repaso' && !g.modo){ empezarRepaso(); return; }
     if(g && g.tipo === 'repaso') repasar(g.modo); else if(g && g.tipo === 'todo') repasarTodo(g.modo);
     else if(g && g.tipo === 'fallos') empezarFallos();
     else if(g && g.tipo === 'vuelta') repasarVuelta(g.modo);
@@ -3259,6 +3261,45 @@ const CJ = (function(){
     }
     cacheFilas.set(k, out);
     return out;
+  }
+  /* ---------- Mapa: consultar el mapa o preguntas al azar de todo ----------
+     Antes «Aprender». Consultar: el mapa libre (se toca cualquier calle, plaza o sitio y dice qué es,
+     y se puede buscar). Al azar: preguntas mezcladas de toda Córdoba, sin fin. Lo de por apartados
+     (la lista de antes) y las notas quedan abajo, en pequeño. */
+  const ICONO_AZAR = 'M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22|m18 2 4 4-4 4|M2 6h1.9c1.5 0 2.9.9 3.6 2.2|M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8|m18 14 4 4-4 4';
+  function mapaHtml(){
+    const grande = (accion, clase, icono, titulo, texto) => '<button type="button" class="cj-grande ' + clase + '" onclick="' + accion + '">' +
+      '<span class="cj-grande-icono">' + svgIcono(icono) + '</span><span class="cj-grande-txt"><b>' + titulo + '</b><small>' + texto + '</small></span>' + FLECHA_FILA + '</button>';
+    const nn = notas.size;
+    return '<div class="cj-grandes">' +
+        grande('CJ.consultarMapa()', 'nuevo', ICONOS.mapa, 'Consultar el mapa', 'Toca cualquier calle, plaza o sitio y te dice qué es') +
+        grande('CJ.preguntarAzar()', 'repaso', ICONO_AZAR, 'Preguntas al azar', 'De todo: calles, plazas, carreteras, barrios y sitios') +
+      '</div>' +
+      '<div class="cjm-links"><button type="button" class="cjr-ajustes" onclick="CJ.irA(\'apartados\')">Ver por apartados ›</button>' +
+        '<button type="button" class="cjr-ajustes" onclick="CJ.irA(\'notas\')">Mis notas' + (nn ? ' (' + nn + ')' : '') + ' ›</button></div>';
+  }
+  async function consultarMapa(){
+    try{ await Promise.all([cargarLeaflet(), cargarDatos()]); }catch(e){ uiToast(e.message, 'error'); return; }
+    guardarZona('');
+    await estudio({ sinProfesor: true });
+    if(modo === 'estudio') el('cjBarraTitulo').textContent = 'Mapa';
+  }
+  // Una tanda al azar de todo Córdoba (al acabar, otra): calles de cada tipo, barrios, distritos y sitios.
+  function poolAzar(){
+    const calles = barajar(porNombre(datos.jugables.filter(v => !v.oculta)).map(vs => vs[0]));
+    const de = cl => calles.filter(v => claseVia(v) === cl);
+    return { vias: de('calles').slice(0, 10).concat(de('plazas').slice(0, 4), de('carreteras').slice(0, 2)),
+      barrios: barajar(datos.barrios.filter(esBarrio).map(b => b.nombre)).slice(0, 3),
+      distritos: barajar(datos.distritos.slice()).slice(0, 1),
+      lugares: barajar(datos.lugares.slice()).slice(0, 4), claves: [], temFallos: false };
+  }
+  async function preguntarAzar(){
+    try{ await Promise.all([cargarLeaflet(), cargarDatos()]); }catch(e){ uiToast(e.message, 'error'); return; }
+    guardarZona('');
+    actualizarFiltro();
+    const c = { forma: cfgRepaso().forma, temario: false };
+    const crear = () => preguntasRepaso(c, poolAzar());
+    empezarMixta('Al azar', crear(), { tipo: 'azar' }, crear);
   }
   function aprenderHtml(){
     let h = '<p class="cj-aprender-intro">Para ver lo que hay, de lo más general a lo más concreto. Toca una fila: sale en el mapa con su lista y, arriba, eliges el distrito. Para estudiar algo, añádelo desde Estudiar (o con «+ Estudiar» al tocarlo).</p>' +
@@ -5861,7 +5902,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, elegirEnMapa, panelElegir, quitarElegidoMapa, quitarFichaMapa, listoMapa, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, tarjetaEstadisticas, irARepasarFallos, cambiarRepaso, empezarRepaso, listoElegirRepaso, verRepasoMapa, alternarFuera, cogerCalle, verMarcado, abrirMarcado, anadirCosas, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, elegirEnMapa, panelElegir, quitarElegidoMapa, quitarFichaMapa, listoMapa, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, tarjetaEstadisticas, irARepasarFallos, cambiarRepaso, empezarRepaso, listoElegirRepaso, verRepasoMapa, alternarFuera, cogerCalle, verMarcado, abrirMarcado, anadirCosas, consultarMapa, preguntarAzar, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el temario (js/callejero-temario.js) y las estadísticas
