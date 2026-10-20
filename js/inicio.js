@@ -536,11 +536,8 @@ const INICIO = (function(){
     if(!root || !document.getElementById('screen-inicio').classList.contains('active') || !currentUser) return;
     const r = typeof CAL !== 'undefined' ? CAL.resumenHoy() : null;
     const enCurso = continuarTests() + marcadasHoy() + piscina();
-    const lado = examenSemana() + (exaSemana() ? '' : cifras());
-    // Móvil y pantalla grande: se pintan los dos y el CSS enseña el que toca.
-    root.innerHTML = '<div class="ini-movil">' + cabecera(r, enCurso) +
-        '<div class="ini-cuerpo"><div class="ini-col">' + hoyCompacto(r) + '</div><div class="ini-col">' + lado + '</div></div></div>' +
-      '<div class="ini-pc">' + cabeceraGrande(r) + panelSeguir(enCurso) + comoVasGrande() + '</div>';
+    // El mismo diseño en el móvil que en la pantalla grande (el CSS lo pone en una columna en el móvil).
+    root.innerHTML = '<div class="ini-pc">' + cabeceraGrande(r) + panelSeguir(enCurso) + comoVasGrande() + '</div>';
   }
 
   // Pantalla grande: al lado del recuadro, un panel «Para seguir» con una fila por cosa:
