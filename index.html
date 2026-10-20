@@ -54,17 +54,17 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&family=Roboto+Slab:wght@700&display=swap" media="print" onload="this.media='all'">
 <!-- Estilos de la app. El ?v= lo pone scripts/versionar.mjs (no editar a mano). -->
-<link rel="stylesheet" href="css/base.css?v=d159d934a1">
+<link rel="stylesheet" href="css/base.css?v=e5b02ca70c">
 <link rel="stylesheet" href="css/admin.css?v=2aa7b6d0f2">
-<link rel="stylesheet" href="css/pantallas.css?v=b0b17f086f">
+<link rel="stylesheet" href="css/pantallas.css?v=40c8417c15">
 <link rel="stylesheet" href="css/test.css?v=f664df882c">
 <link rel="stylesheet" href="css/normativas.css?v=55964752d6">
-<link rel="stylesheet" href="css/datos-importantes.css?v=6af06ad6f6">
+<link rel="stylesheet" href="css/datos-importantes.css?v=e08ad87195">
 <link rel="stylesheet" href="css/callejero.css?v=4b3fcae37e">
-<link rel="stylesheet" href="css/calendario.css?v=581fb29ee5">
+<link rel="stylesheet" href="css/calendario.css?v=be7c51aabb">
 <link rel="stylesheet" href="css/piscina.css?v=3a6e5bdea6">
 <link rel="stylesheet" href="css/especifico.css?v=030f8ade61">
-<link rel="stylesheet" href="css/inicio.css?v=c098f0c84a">
+<link rel="stylesheet" href="css/inicio.css?v=fb4f986449">
 <link rel="stylesheet" href="css/mnemotecnia.css?v=7933e62382">
 </head>
 <body>
@@ -184,28 +184,61 @@
       <h1>Estudio</h1>
       <div class="estudio-cards">
         <div class="estudio-card legislacion" role="button" tabindex="0" onclick="showScreen('screen-home')" onkeydown="if(event.key==='Enter')showScreen('screen-home')">
-          <div class="estudio-card-icono"><span class="ico3d i-legislacion" aria-hidden="true"></span></div>
+          <div class="estudio-card-icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="m19 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"/><path d="m5 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M7 21h10"/></svg></div>
           <div><div class="estudio-card-nombre">Legislación</div><div class="estudio-card-sub">Tests por temas, fallos, simulacros y exámenes</div></div>
           <svg class="estudio-card-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </div>
         <div class="estudio-card normativas hidden" id="estudioCardNormativas" data-feature="normativas" role="button" tabindex="0" onclick="showScreen('screen-normativas')" onkeydown="if(event.key==='Enter')showScreen('screen-normativas')">
-          <div class="estudio-card-icono"><span class="ico3d i-normativas" aria-hidden="true"></span></div>
+          <div class="estudio-card-icono"><svg class="icon-diagonal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 9.5 L10 15.5"/>
+          <path d="M10.5 -2 A1 1 0 0 1 11.5 -1"/>
+          <path d="M12 26 A1 1 0 0 1 13 25"/>
+          <path d="M14 15.5 L10 9.5"/>
+          <path d="M14 9.5 L14 15.5"/>
+          <path d="M17.5 -4 L22.5 -4"/>
+          <path d="M18 15.5 L18 9.5"/>
+          <path d="M18 15.5 L22 15.5"/>
+          <path d="M18 9.5 L22 9.5"/>
+          <path d="M2 14.5 L2 9.5"/>
+          <path d="M20.5 12.5 L18 12.5"/>
+          <path d="M24 -3 L19 -3"/>
+          <path d="M27.5 13 A1 1 0 0 1 28.5 14"/>
+          <path d="M28 13.134 A1 1 0 0 1 28.5 13.995"/>
+          <path d="M28.5 12.5 A1 1 0 0 1 29.5 11.5"/>
+          <path d="M29 15.5 A1 1 0 0 1 28 16.5"/>
+          <path d="M3 15.5 A1 1 0 0 1 2 14.5"/>
+          <path d="M30.5 13.5 A1 1 0 0 1 29.5 12.5"/>
+          <path d="M31.5 11 A1 1 0 0 1 30.5 10"/>
+          <path d="M32.366 9.5 A1 1 0 0 1 31.495 11"/>
+          <path d="M32.5 8 L32.5 3"/>
+          <path d="M33 3.5 A1 1 0 0 1 34 4.5"/>
+          <path d="M33 4.5 L33 9.5"/>
+          <path d="M33.5 6 A1 1 0 0 1 34.5 5"/>
+          <path d="M34 5 L34 10"/>
+          <path d="M4.5 27.5 A1 1 0 0 1 3.5 26.5"/>
+          <path d="M5 15.5 L3 15.5"/>
+          <path d="M6 -1.5 A1 1 0 0 1 7 -2.5"/>
+          <path d="M6 14.5 A1 1 0 0 1 5 15.5"/>
+          <path d="M6 14.5 L6 9.5"/>
+          <path d="M7.5 -3 L12.5 -3"/>
+          <path d="M8.5 25.5 A1 1 0 0 1 7.5 26.5"/>
+        </svg></div>
           <div><div class="estudio-card-nombre">Normativas</div><div class="estudio-card-sub">Fichas para memorizar y repasar</div></div>
           <svg class="estudio-card-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </div>
         <div class="estudio-card datos hidden" id="estudioCardDatos" data-feature="datos" role="button" tabindex="0" onclick="showScreen('screen-datos')" onkeydown="if(event.key==='Enter')showScreen('screen-datos')">
-          <div class="estudio-card-icono"><span class="ico3d i-datos" aria-hidden="true"></span></div>
+          <div class="estudio-card-icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 12h18"/><path d="M8 9h1"/><path d="M8 15h3"/></svg></div>
           <div><div class="estudio-card-nombre">Datos importantes</div><div class="estudio-card-sub">Nº ONU, NIP, cifras… para memorizar</div></div>
           <svg class="estudio-card-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </div>
         <div class="estudio-card callejero hidden" id="estudioCardCallejero" data-feature="callejero" role="button" tabindex="0" onclick="showScreen('screen-callejero')" onkeydown="if(event.key==='Enter')showScreen('screen-callejero')">
-          <div class="estudio-card-icono"><span class="ico3d i-callejero" aria-hidden="true"></span></div>
+          <div class="estudio-card-icono"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg></div>
           <div><div class="estudio-card-nombre">Callejero</div><div class="estudio-card-sub">Mapa y juego de calles</div></div>
           <b class="nav-aviso estudio-card-aviso hidden" id="estudioCallejeroAviso">0</b>
           <svg class="estudio-card-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </div>
         <div class="estudio-card especifico hidden" id="estudioCardEspecifico" data-feature="especifico" role="button" tabindex="0" onclick="showScreen('screen-especifico')" onkeydown="if(event.key==='Enter')showScreen('screen-especifico')">
-          <div class="estudio-card-icono"><span class="ico3d i-especifico" aria-hidden="true"></span></div>
+          <div class="estudio-card-icono"><span class="esp-logo" aria-hidden="true"></span></div>
           <div><div class="estudio-card-nombre">Específico</div><div class="estudio-card-sub">Temario de bombero</div></div>
           <svg class="estudio-card-flecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
         </div>
@@ -1190,7 +1223,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <!-- Código de la app, en orden de carga. El ?v= lo pone scripts/versionar.mjs (no editar a mano). -->
-<script src="js/nucleo.js?v=e4b288cb2d"></script>
+<script src="js/nucleo.js?v=9b19c81d03"></script>
 <script src="js/pwa.js?v=b3b8906f86"></script>
 <script src="js/errores.js?v=2fdc270c12"></script>
 <script src="js/alturas.js?v=cb41af982f"></script>
@@ -1225,13 +1258,13 @@
 <script src="js/admin/especifico.js?v=71f38846e6"></script>
 <script src="js/admin/callejero.js?v=5d85c58ac1"></script>
 <script src="js/normativas.js?v=de05c01e02"></script>
-<script src="js/datos-importantes.js?v=53383ef0c1"></script>
+<script src="js/datos-importantes.js?v=7e890298fc"></script>
 <script src="js/callejero.js?v=d274a28c17"></script>
 <script src="js/callejero-temario.js?v=cc2829e92f"></script>
 <script src="js/callejero-profesor.js?v=419ec24353"></script>
 <script src="js/callejero-2026.js?v=fa3d7bc195"></script>
 <script src="js/mnemotecnia.js?v=c08acd5057"></script>
-<script src="js/calendario.js?v=b50214b6fe"></script>
+<script src="js/calendario.js?v=20d226bedb"></script>
 <script src="js/piscina.js?v=8db1b45d9b"></script>
 <script src="js/especifico.js?v=d59253a436"></script>
 <script src="js/colocar-tb.js?v=96ce703d50"></script>
@@ -1240,7 +1273,7 @@
 <script src="js/estadisticas-especifico.js?v=412b1fb504"></script>
 <script src="js/pruebas.js?v=be68f5bcfc"></script>
 <script src="js/examen.js?v=d8ce487f69"></script>
-<script src="js/inicio.js?v=f2d71c1dfd"></script>
+<script src="js/inicio.js?v=674961d315"></script>
 <script src="js/arranque.js?v=838162d6bd"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
   <button type="button" class="image-lightbox-close" onclick="closeImageLightbox(event)" title="Cerrar">

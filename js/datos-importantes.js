@@ -280,7 +280,7 @@ const DI = (function(){
     const tarjetas = aps.map(a => {
       const ds = deAp(a.id), dom = ds.filter(dominada).length, pct = ds.length ? Math.round(dom * 100 / ds.length) : 0;
       return '<button type="button" class="di-ap di-' + a.plantilla + '" data-di="abrir" data-id="' + a.id + '">' +
-        '<span class="di-ap-ico ico-img"><span class="ico3d i-' + a.plantilla + '"></span></span>' +
+        '<span class="di-ap-ico">' + ICO[a.plantilla] + '</span>' +
         '<span class="di-ap-txt"><b>' + esc(a.titulo) + '</b><span>' + ds.length + (ds.length === 1 ? ' dato' : ' datos') + (ds.length ? ' · ' + pct + ' % dominado' : '') + '</span>' +
         (ds.length ? '<span class="di-barra"><i style="width:' + pct + '%"></i></span>' : '') + '</span></button>';
     }).join('');
