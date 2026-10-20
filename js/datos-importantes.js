@@ -129,7 +129,7 @@ const DI = (function(){
   let aps = [], datos = [], cargado = false, cargando = null, dueño = null;
   let vista = { v: 'lista' };     // lista | apartado | estudio
   let st = null;                  // estado del modo de estudio
-  const abiertos = new Set();     // códigos NIP desplegados cifra a cifra en la lista
+  let abiertoId = null;           // el dato desplegado en la lista (uno cada vez)
   const root = () => document.getElementById('datosRoot');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const arriba = () => { const a = document.getElementById('app'); (a || window).scrollTo(0, 0); };
@@ -219,30 +219,53 @@ const DI = (function(){
         '<button type="button" class="di-ap di-nuevo" data-di="nuevo"><span class="di-ap-ico">' + ICO.mas + '</span><span class="di-ap-txt"><b>Añadir apartado</b><span>NIP, teléfonos, cifras…</span></span></button>' +
       '</div>';
   }
+  // Dentro de un apartado, lo justo: progreso, los 3 modos, (en el NIP) la tira de cifras y la lista.
+  // Añadir, la chuleta y los ajustes van en ventanitas; cada dato se despliega al tocarlo.
   function vistaApartado(a){
-    const ds = deAp(a.id), dom = ds.filter(dominada).length, f = formas(a);
-    // En un NIP, el código es un botón: al tocarlo se ve cifra a cifra
-    const celdaA = d => f.nip === 'a' && esKemler(d.a)
-      ? '<button type="button" class="di-a di-a-cod" data-di="desglose" data-id="' + d.id + '" aria-expanded="' + abiertos.has(d.id) + '" title="Ver qué significa cada cifra">' + chips(d.a) + '</button>'
-      : '<span class="di-a">' + f.celda('a', d.a) + '</span>';
-    const filas = ds.map(d => '<div class="di-fila' + (dominada(d) ? ' dom' : '') + '">' + celdaA(d) + '<span class="di-b">' + f.celda('b', d.b) + (d.regla ? ' <i class="di-marca" title="Tiene regla mnemotécnica">💡</i>' : '') + (d.imagen ? ' <i class="di-marca" title="Tiene imagen">🖼️</i>' : '') + '</span>' +
-      '<button type="button" class="di-ico-btn" data-di="editar" data-id="' + d.id + '" aria-label="Editar">✎</button>' +
-      '<button type="button" class="di-ico-btn" data-di="quitar" data-id="' + d.id + '" aria-label="Borrar">' + ICO.borrar + '</button></div>' +
-      (abiertos.has(d.id) && f.dg(d) ? '<div class="di-fila-dg">' + f.dg(d) + '</div>' : '')).join('');
+    const ds = deAp(a.id), dom = ds.filter(dominada).length, f = formas(a), pct = ds.length ? Math.round(dom * 100 / ds.length) : 0;
+    const filas = ds.map(d => {
+      const abierto = abiertoId === d.id;
+      return '<div class="di-fila' + (dominada(d) ? ' dom' : '') + (abierto ? ' abierta' : '') + '" role="button" tabindex="0" data-di="fila" data-id="' + d.id + '" aria-expanded="' + abierto + '">' +
+        '<span class="di-a">' + f.celda('a', d.a) + '</span><span class="di-b">' + f.celda('b', d.b) + '</span>' +
+        (dominada(d) ? '<span class="di-ok" title="Dominado">✓</span>' : '') + '<span class="di-flecha" aria-hidden="true">›</span></div>' +
+        (abierto ? '<div class="di-fila-mas">' + f.dg(d) + ayudas(d) +
+          '<div class="di-fila-btns"><button type="button" class="di-btn sec" data-di="editar" data-id="' + d.id + '">✎ Editar</button>' +
+          '<button type="button" class="di-btn peligro" data-di="quitar" data-id="' + d.id + '">Borrar</button></div></div>' : '');
+    }).join('');
     const pocos = ds.length < 2;
-    const modo = (k, nombre, sub) => '<button type="button" class="di-modo" data-di="modo" data-m="' + k + '"' + (pocos ? ' disabled' : '') + '><span class="di-modo-ico">' + ICO[k] + '</span><b>' + nombre + '</b><span>' + sub + '</span></button>';
-    const como = c => escribe(a, c) ? 'escribiendo' : 'eligiendo entre 4';
-    return cabecera(a.titulo, ds.length + (ds.length === 1 ? ' dato' : ' datos') + (ds.length ? ' · ' + dom + ' dominados' : '') +
-        ' · <button type="button" class="di-link" data-di="ajustes">' + ICO.ajustes + ' Ajustes</button>', ['lista', 'Datos importantes']) +
+    const modo = (k, nombre, sub) => '<button type="button" class="di-modo" data-di="modo" data-m="' + k + '" title="' + sub + '"' + (pocos ? ' disabled' : '') + '><span class="di-modo-ico">' + ICO[k] + '</span><b>' + nombre + '</b></button>';
+    const cifras = f.nip ? '<button type="button" class="di-cifras" data-di="chuleta"><span class="di-cifras-t"><b>Las cifras</b><span>Ver reglas ›</span></span>' +
+      '<span class="di-cifras-fila">' + [...'23456789X'].map(c => chip(c)).join('') + '</span></button>' : '';
+    return '<span class="back-link" role="button" tabindex="0" data-di="lista">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="11,6 5,12 11,18"/></svg>Datos importantes</span>' +
+      '<div class="di-cab"><h1>' + esc(a.titulo) + '</h1><button type="button" class="di-ico-btn di-cab-aj" data-di="ajustes" aria-label="Ajustes">' + ICO.ajustes + '</button></div>' +
+      (ds.length ? '<div class="di-prog"><span class="di-barra"><i style="width:' + pct + '%"></i></span><span>' + dom + ' de ' + ds.length + ' dominados</span></div>' : '') +
       '<div class="di-modos">' + modo('fichas', 'Fichas', 'Girar y repasar') + modo('aprender', 'Aprender', 'Hasta que salgan todas') + modo('probar', 'Probar', PRUEBA + ' preguntas con nota') + '</div>' +
-      (pocos ? '<div class="di-vacio">Añade al menos 2 datos para estudiar.</div>' : '') +
-      '<div class="di-como">Pregunta ' + ({ ab: esc(a.nombre_a) + ' → ' + esc(a.nombre_b), ba: esc(a.nombre_b) + ' → ' + esc(a.nombre_a), ambos: 'en los dos sentidos' }[a.sentido]) +
-        '; ' + esc(a.nombre_a) + ' se responde ' + como('a') + ' y ' + esc(a.nombre_b) + ', ' + como('b') + '. Con ✎ en cada dato puedes ponerle una regla mnemotécnica o una imagen.' + (f.nip === 'a' ? ' <b>Toca un código para verlo cifra a cifra.</b>' : '') + '</div>' +
-      (ayudaDe(a) ? '<details class="di-ayuda"' + (f.nip ? ' open' : '') + '><summary>Chuleta</summary><div>' + ayudaDe(a) + '</div></details>' : '') +
-      '<form class="di-add" data-di-form="add"><input name="a" placeholder="' + esc(a.nombre_a) + '" autocomplete="off" required maxlength="200"' + (a.plantilla !== 'libre' ? ' inputmode="' + (a.plantilla === 'onu' ? 'numeric' : 'text') + '"' : '') + '>' +
-        '<input name="b" placeholder="' + esc(a.nombre_b) + '" autocomplete="off" required maxlength="1000"><button type="submit" class="di-btn">Añadir</button></form>' +
-      '<button type="button" class="di-link di-pegar" data-di="pegar">Pegar una lista entera</button>' +
-      '<div class="di-lista">' + (filas || '<div class="di-vacio">Aún no hay datos: escribe arriba ' + esc(a.nombre_a.toLowerCase()) + ' y ' + esc(a.nombre_b.toLowerCase()) + ', o pega una lista entera.</div>') + '</div>';
+      cifras +
+      '<div class="di-sec"><b>Tus datos</b>' + (ayudaDe(a) && !f.nip ? '<button type="button" class="di-link" data-di="chuleta">Chuleta</button>' : '') +
+        '<button type="button" class="di-btn di-mas" data-di="anadir">' + ICO.mas + ' Añadir</button></div>' +
+      (pocos && ds.length ? '<div class="di-vacio">Añade al menos 2 datos para estudiar.</div>' : '') +
+      '<div class="di-lista">' + (filas || '<div class="di-vacio">Aún no hay datos. Pulsa <b>Añadir</b> para escribir uno o pegar una lista entera.</div>') + '</div>';
+  }
+  function chuleta(){
+    hoja('Chuleta', '<div class="di-ayuda">' + ayudaDe(ap(vista.id)) + '</div><div class="di-hoja-btns"><button type="button" class="di-btn" data-cerrar>Entendido</button></div>', () => {});
+  }
+  // Añadir datos de uno en uno (la ventanita se queda abierta para el siguiente) o pegar una lista
+  function anadir(){
+    const apa = ap(vista.id);
+    const bg = hoja('Añadir datos',
+      '<label class="di-campo">' + esc(apa.nombre_a) + '<input name="a" autocomplete="off" required maxlength="200"' + (apa.plantilla !== 'libre' ? ' inputmode="' + (apa.plantilla === 'onu' ? 'numeric' : 'text') + '"' : '') + '></label>' +
+      '<label class="di-campo">' + esc(apa.nombre_b) + '<input name="b" autocomplete="off" required maxlength="1000"></label>' +
+      '<div class="di-hoja-btns"><button type="button" class="di-link" data-pegar>Pegar una lista</button><span></span><button type="button" class="di-btn sec" data-cerrar>Cerrar</button><button type="submit" class="di-btn">Añadir</button></div>',
+      async (fd, bg) => {
+        const a = String(fd.get('a') || '').trim(), b = String(fd.get('b') || '').trim();
+        if(!a || !b) return false;
+        if(!(await añadir(a, b))) return false;
+        pintar(); uiToast('Añadido: ' + a, 'success');
+        const form = bg.querySelector('form'); form.reset(); form.a.focus();
+        return false;   // se queda abierta para añadir otro
+      });
+    bg.querySelector('[data-pegar]').addEventListener('click', () => { bg.remove(); pegar(); });
   }
   function pintar(){
     const r = root();
@@ -466,7 +489,9 @@ const DI = (function(){
       case 'pegar': pegar(); break;
       case 'editar': editar(el.dataset.id); break;
       case 'quitar': quitar(el.dataset.id); break;
-      case 'desglose': abiertos.has(el.dataset.id) ? abiertos.delete(el.dataset.id) : abiertos.add(el.dataset.id); pintar(); break;
+      case 'fila': abiertoId = abiertoId === el.dataset.id ? null : el.dataset.id; pintar(); break;
+      case 'chuleta': chuleta(); break;
+      case 'anadir': anadir(); break;
       case 'modo': empezar(el.dataset.m); break;
       case 'salir': st = null; pintar(); arriba(); break;
       case 'op': responder(el.dataset.v); break;
@@ -485,14 +510,6 @@ const DI = (function(){
     if(!f) return;
     e.preventDefault();
     if(f.dataset.diForm === 'resp'){ responder(f.r.value); return; }
-    if(f.dataset.diForm === 'add'){
-      const a = f.a.value.trim(), b = f.b.value.trim();
-      if(!a || !b) return;
-      f.querySelector('button').disabled = true;
-      const ok = await añadir(a, b);
-      f.querySelector('button').disabled = false;
-      if(ok){ pintar(); const nf = root().querySelector('[data-di-form="add"] input[name=a]'); if(nf) nf.focus(); }
-    }
   }
   // Teclado: Intro para continuar; 1-4 para elegir; espacio para girar la ficha
   function onKey(e){
@@ -512,10 +529,11 @@ const DI = (function(){
     const r = root();
     if(r && !r.dataset.listo){
       r.dataset.listo = '1';
-      r.style.setProperty('--nip-iconos', 'url("' + new URL(ICONOS_NIP, location.href).href + '")');   // absoluta: si no, se leería desde css/
+      // En <html>, para que también la vean las ventanitas; absoluta: si no, se leería desde css/
+      document.documentElement.style.setProperty('--nip-iconos', 'url("' + new URL(ICONOS_NIP, location.href).href + '")');
       r.addEventListener('click', onClick);
       r.addEventListener('submit', onSubmit);
-      r.addEventListener('keydown', e => { if(e.key === 'Enter' && e.target.classList.contains('back-link')) onClick(e); });
+      r.addEventListener('keydown', e => { if((e.key === 'Enter' || e.key === ' ') && e.target.matches('.back-link, .di-fila')){ e.preventDefault(); onClick(e); } });
       document.addEventListener('keydown', onKey);
     }
     if(currentUser && dueño !== currentUser.id){ dueño = currentUser.id; aps = []; datos = []; cargado = false; leerCache(); }
