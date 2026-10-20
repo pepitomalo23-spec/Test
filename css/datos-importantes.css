@@ -192,3 +192,49 @@
 .di-fila-btns{ display: flex; gap: 8px; margin-top: 14px; }
 .di-fila-btns .di-btn{ padding: 8px 14px; font-size: 13.5px; }
 .di-hoja .di-ayuda{ margin: 0; background: none; border: 0; padding: 0; }
+
+/* Guía del NIP: cifras con icono, mapa de códigos y retos */
+.di-modos.cuatro{ grid-template-columns: repeat(4, 1fr); }
+.di-a-ico{ display: inline-flex; align-items: center; gap: 10px; }
+.di-clave{ display: block; color: var(--text); font-size: 15px; margin-bottom: 2px; }
+.di-mapa{ padding: 14px 16px; margin-bottom: 22px; border-radius: 16px; border: 1px solid var(--line); background: var(--card); }
+.di-mapa-t{ display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 12px; font-size: 14.5px; }
+.di-mapa-t span{ font-size: 12.5px; color: var(--muted); text-align: right; }
+.di-mapa-f{ display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line-soft); }
+.di-mapa-t + .di-mapa-f{ border-top: 0; }
+.di-mapa-cods, .di-reto-pills{ flex: 1; display: flex; flex-wrap: wrap; gap: 6px; }
+.di-mapa-dg{ padding: 0 0 10px 42px; }
+.di-mapa-dg .di-dg{ margin-top: 2px; }
+.di-mapa-ley{ display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); font-size: 12.5px; color: var(--muted); }
+.di-mapa-ley .di-pill{ padding: 2px 7px; cursor: default; }
+.di-pill{ display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--w03); color: var(--text); font: inherit; font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; line-height: 1.2; }
+button.di-pill:hover{ border-color: var(--muted-2); }
+.di-pill.x{ background: color-mix(in srgb, #2b74d6 16%, transparent); border-color: color-mix(in srgb, #2b74d6 55%, transparent); }
+.di-pill.esp{ border-color: color-mix(in srgb, var(--amber) 70%, transparent); background: color-mix(in srgb, var(--amber) 12%, transparent); }
+.di-pill.sel{ background: var(--text); color: var(--bg); border-color: var(--text); }
+.di-pill.hueco{ border-style: dashed; border-color: var(--amber); color: var(--amber); min-width: 34px; justify-content: center; }
+
+.di-reto-enun{ font-size: 16px; line-height: 1.45; margin-top: 8px; }
+.di-reto-con{ display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.di-reto-txt{ font-size: clamp(22px, 5vw, 32px); font-weight: 800; margin: 12px 0 2px; line-height: 1.25; }
+.di-reto-frase{ font-size: clamp(17px, 4vw, 22px); font-weight: 700; }
+.di-reto .di-reto-pills{ justify-content: center; margin-top: 12px; }
+.di-ops.dos{ grid-template-columns: 1fr 1fr; }
+.di-ops.tres{ grid-template-columns: repeat(3, 1fr); }
+.di-ops.cifras{ grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
+.di-op.cod{ text-align: center; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: .03em; }
+.di-op.ico{ display: grid; place-items: center; padding: 10px 6px; }
+.di-op.marcada{ border-color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, transparent); }
+.di-op.falta{ border: 1.5px dashed var(--green); color: var(--green); }
+.di-op.nada{ opacity: .45; }
+.di-reto-comp{ display: block; width: 100%; margin-top: 12px; }
+.di-chip.xl .di-chip-i{ width: 88px; height: 88px; border-radius: 20px; }
+.di-reto-lista{ margin-top: 14px; font-size: 13.5px; color: var(--muted); }
+.di-reto-lista .di-reto-pills{ margin-top: 8px; }
+.di-reto-lista .di-pill{ cursor: default; }
+@media (max-width: 640px){
+  .di-modos.cuatro{ grid-template-columns: 1fr 1fr; }
+  .di-ops.dos{ grid-template-columns: 1fr 1fr; }
+}
+.di-ops.dos .di-op{ text-align: center; }
+.di-pill.x.esp{ background: color-mix(in srgb, #2b74d6 16%, transparent); border-color: color-mix(in srgb, var(--amber) 80%, transparent); }
