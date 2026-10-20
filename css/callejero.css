@@ -1098,25 +1098,12 @@
 .cj-info-repaso.cj-info-quitar{ border-color: var(--coral); color: var(--coral); }
   .cjr-mapa > svg{ width:20px; height:20px; flex-shrink:0; color: var(--muted); }
 
-/* ---------- Lo que repasas: ordenado por origen y por tipo ---------- */
-.cjr-fuente{ margin-bottom:10px; border-radius:16px; border:1px solid var(--line); background: var(--card); overflow:hidden; }
-.cjr-fuente > summary{ display:flex; align-items:center; gap:12px; padding:12px 14px 12px 10px; cursor:pointer; list-style:none; }
-.cjr-fuente > summary::-webkit-details-marker{ display:none; }
-.cjr-fuente-check{ flex-shrink:0; padding:4px; border:0; background:none; cursor:pointer; display:flex; }
-.cjr-fuente-check .cje-check{ pointer-events:none; }
-.cjr-fuente-flecha{ display:flex; color: var(--muted); transition: transform .2s; }
-.cjr-fuente-flecha svg{ width:18px; height:18px; }
-.cjr-fuente[open] .cjr-fuente-flecha{ transform: rotate(90deg); }
-.cjr-fuente:not(.on) .cjr-op-txt b{ color: var(--muted); }
-.cjr-fuente-cuerpo{ padding:2px 14px 14px; border-top:1px solid var(--line); }
-.cjr-fuente:not(.on) .cjr-fuente-cuerpo{ opacity:.55; }
-.cjr-grupo{ margin-top:12px; }
-.cjr-grupo-t{ font-size:12.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color: var(--muted); margin-bottom:8px; }
-.cjr-grupo-t span{ font-weight:600; letter-spacing:0; text-transform:none; margin-left:4px; }
-.cjr-fichas{ display:flex; flex-wrap:wrap; gap:6px; }
-.cjr-ficha{ padding:6px 11px; border-radius:99px; border:1px solid rgba(78,155,247,.45); background: rgba(78,155,247,.12); color: var(--text); font: inherit; font-size:13.5px; cursor:pointer; line-height:1.25; text-align:left; }
-.cjr-ficha:hover{ border-color:#4E9BF7; }
-.cjr-ficha.fuera{ border-color: var(--line); background:none; color: var(--muted); text-decoration: line-through; }
-.cjr-mas{ align-self:center; font-size:13px; color: var(--muted); }
-.cjr-vacia{ margin-top:12px; font-size:13.5px; color: var(--muted); }
-.cjr-fuente-cuerpo .cjr-cambiar{ margin-top:12px; }
+/* ---------- Lo que repasas: qué entra (arriba) y lo tuyo, colocado como en Aprender ---------- */
+.cjr-srcs{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+.cjr-src{ display:inline-flex; align-items:center; gap:8px; padding:7px 12px 7px 8px; border-radius:99px; border:1px solid var(--line); background: var(--card); color: var(--muted); font: inherit; font-size:13.5px; font-weight:600; cursor:pointer; }
+.cjr-src.on{ color: var(--text); border-color: color-mix(in srgb, var(--coral) 55%, transparent); }
+.cjr-src .cje-check{ width:20px; height:20px; border-radius:6px; pointer-events:none; }
+.cjr-src .cje-check svg{ width:13px; height:13px; }
+.cjr-cambiar-lista{ display:inline-block; margin:-4px 0 14px; }
+.cjr-vacia{ margin:4px 0 12px; font-size:13.5px; color: var(--muted); }
+.cjr-tem{ display:flex; width:100%; padding:12px 14px; margin-bottom:0; }

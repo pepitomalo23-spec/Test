@@ -2854,7 +2854,16 @@ const CJ = (function(){
   // Lo quitado de Repasar desde «Ver todo en el mapa» («se me ha colado»): sus claves 'v:', 'b:', 'd:', 'l:'.
   // No sale en Repasar aunque se falle o esté marcado, hasta que se vuelva a poner.
   const fueraRepaso = () => new Set(cfgRepaso().fuera || []);
-  const estaFuera = it => { const ks = clavesItem(it), f = fueraRepaso(); return ks.length > 0 && ks.every(k => f.has(k)); };
+  const estaFuera = it => { const ks = clavesPrincipales(it), f = fueraRepaso(); return ks.length > 0 && ks.every(k => f.has(k)); };
+  // Las claves que de verdad son esa cosa (no el barrio donde está un colegio): del temario, el lugar,
+  // las calles y, si no hay nada de eso, sus barrios o su distrito.
+  function clavesPrincipales(it){
+    if(it.distritoFila) return ['d:' + it.distritoFila];
+    if(it.barrioFila) return it.barrioFila.barrio ? ['b:' + it.barrioFila.barrio.nombre] : [];
+    const ks = clavesItem(it);
+    for(const x of ['t:', 'l:', 'v:']){ const de = ks.filter(k => k.startsWith(x)); if(de.length) return de; }
+    return ks;
+  }
   function guardarCfgRepaso(){ try{ localStorage.setItem(REPASO_KEY + (currentUser ? currentUser.id : ''), JSON.stringify(repasoCfg)); SINC.cambiado('cj-repaso'); }catch(e){} }
   // Cómo se repasa, igual en todos los dispositivos (js/sincro.js).
   SINC.registrar('cj-repaso', () => currentUser ? REPASO_KEY + currentUser.id : null, () => { repasoCfg = null; if(vistaActual === 'inicio' && subInicio === 'repasar') pintarInicio(); });
@@ -2971,71 +2980,74 @@ const CJ = (function(){
     empezarMixta('Repasar', qs, { tipo: 'repaso' }, crear);
   }
   // Qué y cómo se repasa (antes, la pantalla de Repasar entera).
-  // Lo que repasas, ordenado: cada origen (lo que fallas, lo marcado en Aprender, lo mandado, tu lista)
-  // con su casilla para que entre o no y, dentro, todo lo suyo por tipo (calles, sitios, barrios,
-  // distritos y temario). Tocar una cosa la quita (en gris) o la vuelve a poner. Debajo, el cómo.
-  const MAX_FICHAS = 400;
+  // Lo que repasas, colocado como en Aprender: sus grupos y filas, pero cada fila solo con lo tuyo
+  // (y solo las filas en las que tienes algo). Al tocar una, sale en el mapa solo eso, para quitar lo
+  // que se haya colado. Arriba, qué entra (los orígenes); debajo, el cómo.
+  // Las claves de todo lo que entra en Repasar (también lo quitado, que sale en gris).
+  function clavesPool(p){
+    return new Set([].concat(p.vias.map(v => 'v:' + v.nombre), p.lugares.map(l => 'l:' + l.id), p.barrios.map(b => 'b:' + b),
+      p.distritos.map(d => 'd:' + d), p.claves.map(k => 't:' + String(k).split('/').pop())));
+  }
+  // Lo tuyo de una fila de Aprender, listo para el mapa (null mientras se descarga algo).
+  function misDeFila(k, claves){
+    if(k === 'calles-barrio') return [];
+    const its = itemsElegir(k);
+    if(!its) return null;
+    return its.filter(it => clavesPrincipales(it).some(x => claves.has(x))).map(it => {
+      if(it.distritoFila) return Object.assign(it, { vias: it.vias || [], distrito: it.distritoFila, barrios: datos.barrios.filter(b => b.distrito === it.distritoFila), tipo: 'Distrito' });
+      if(it.barrioFila) return Object.assign(it, { vias: it.vias || [], barrio: it.barrioFila.barrio || null, tipo: 'Barrio', grupo: it.grupo });
+      if(!it.vias) it.vias = [];
+      return it;
+    });
+  }
   function repasoAjustesHtml(){
-    const c = cfgRepaso(), fuera = new Set(c.fuera || []);
-    if(typeof CJT !== 'undefined' && !CJT.listo()) CJT.cargar().then(() => { if(vistaActual === 'inicio' && subInicio === 'repasoajustes') pintarInicio(); }, () => {});
+    const c = cfgRepaso();
+    if(typeof CJT !== 'undefined' && !CJT.listo()) CJT.cargar().then(() => { cacheElegir.clear(); if(vistaActual === 'inicio' && subInicio === 'repasoajustes') pintarInicio(); }, () => {});
     const n = k => k.toLocaleString('es-ES');
-    const nl = contarLista();
     const caja = on => '<span class="cje-check' + (on ? ' on' : '') + '">' + (on ? svgIcono('M20 6 9 17l-5-5') : '') + '</span>';
-    const check = (k, titulo, sub) => '<button type="button" class="cjr-op' + (c[k] ? ' on' : '') + '" aria-pressed="' + !!c[k] + '" onclick="CJ.cambiarRepaso(\'' + k + '\')">' +
-      caja(c[k]) + '<span class="cjr-op-txt"><b>' + titulo + '</b><small>' + sub + '</small></span></button>';
+    const fuente = (k, t) => '<button type="button" class="cjr-src' + (c[k] ? ' on' : '') + '" aria-pressed="' + !!c[k] + '" onclick="CJ.cambiarRepaso(\'' + k + '\')">' + caja(c[k]) + escapeHtml(t) + '</button>';
     const forma = (k, titulo, sub) => '<button type="button" role="radio" aria-checked="' + (c.forma === k) + '" class="cjr-forma' + (c.forma === k ? ' on' : '') + '" onclick="CJ.cambiarRepaso(\'forma\', \'' + k + '\')"><b>' + titulo + '</b><small>' + sub + '</small></button>';
-    const ficha = ([k, nombre]) => '<button type="button" class="cjr-ficha' + (fuera.has(k) ? ' fuera' : '') + '" data-k="' + escapeHtml(k) + '" onclick="CJ.fueraClave(this.dataset.k)" title="' + (fuera.has(k) ? 'Quitada: toca para volver a ponerla' : 'Toca para quitarla') + '">' + escapeHtml(nombre) + '</button>';
-    const grupo = (titulo, lista) => {
-      if(!lista.length) return '';
-      const dentro = lista.filter(([k]) => !fuera.has(k)).length;
-      return '<div class="cjr-grupo"><div class="cjr-grupo-t">' + titulo + ' <span>' + (dentro === lista.length ? n(lista.length) : n(dentro) + ' de ' + n(lista.length)) + '</span></div>' +
-        '<div class="cjr-fichas">' + lista.slice(0, MAX_FICHAS).map(ficha).join('') + (lista.length > MAX_FICHAS ? '<span class="cjr-mas">y ' + n(lista.length - MAX_FICHAS) + ' más</span>' : '') + '</div></div>';
-    };
-    const orden = l => l.sort((x, y) => x[1].localeCompare(y[1], 'es'));
-    const FUENTES = [
-      ['fallos', 'Lo que fallas', 'Lo que la última vez respondiste mal'],
-      ['visto', 'Lo marcado en Aprender', 'Lo que tocaste en Aprender con «+ A repasar»'],
-      ['mandado', 'Lo que te has mandado', 'Tus tareas y las de tu profesor'],
-      ['lista', 'Tu lista', 'Lo que eliges cosa a cosa de la lista de Aprender']
-    ];
-    const solo = { fallos: false, visto: false, mandado: false, lista: false };
-    const fuentes = FUENTES.map(([k, titulo, sub]) => {
-      let p = null;
-      try{ p = poolRepaso(Object.assign({}, c, solo, { [k]: true }), true); }catch(e){}
-      const grupos = p ? [
-        ['Calles', orden(p.vias.map(v => ['v:' + v.nombre, v.nombre]))],
-        ['Sitios', orden(p.lugares.map(l => ['l:' + l.id, l.nombre]))],
-        ['Barrios', orden(p.barrios.map(b => ['b:' + b, b]))],
-        ['Distritos', p.distritos.map(d => ['d:' + d, conNumero(d)])]] : [];
-      const nTem = p ? p.claves.length + (k === 'fallos' && typeof CJT !== 'undefined' && CJT.listo() ? CJT.preguntasFalladas().length : 0) : 0;
-      const total = grupos.reduce((a, g) => a + g[1].length, 0) + nTem;
-      const cuerpo = grupos.map(g => grupo(g[0], g[1])).join('') +
-        (nTem ? '<div class="cjr-grupo"><div class="cjr-grupo-t">Temario <span>' + n(nTem) + (nTem === 1 ? ' pregunta o ficha' : ' preguntas y fichas') + '</span></div></div>' : '') +
-        (total ? '' : '<div class="cjr-vacia">' + (k === 'visto' ? 'Nada. En Aprender, toca algo y dale a «+ A repasar».' : k === 'lista' ? 'Aún no has elegido nada.' : 'Nada ahora mismo.') + '</div>') +
-        (k === 'lista' ? '<button type="button" class="cjr-cambiar" onclick="CJ.irA(\'repasoelegir\')">' + (nl ? 'Cambiar lo elegido' : 'Elegir de la lista') + ' ›</button>' : '');
-      return '<details class="cjr-fuente' + (c[k] ? ' on' : '') + '"' + (c[k] && total ? ' open' : '') + '>' +
-        '<summary><button type="button" class="cjr-fuente-check" aria-pressed="' + !!c[k] + '" aria-label="Que entre en el repaso" onclick="event.preventDefault(); CJ.cambiarRepaso(\'' + k + '\')">' + caja(c[k]) + '</button>' +
-          '<span class="cjr-op-txt"><b>' + titulo + '</b><small>' + (total ? n(total) + (total === 1 ? ' cosa' : ' cosas') + (c[k] ? '' : ' · no entra') : sub) + '</small></span>' +
-          '<span class="cjr-fuente-flecha">' + FLECHA_FILA + '</span></summary>' +
-        '<div class="cjr-fuente-cuerpo">' + cuerpo + '</div></details>';
-    }).join('');
-    return '<div class="cjr-nota cj-repaso-vacio">Marca lo que entra en el repaso. Dentro, toca cualquier cosa para quitarla (se queda en gris) o volver a ponerla.</div>' +
-      '<div class="cj-seccion">Lo que tienes</div>' + fuentes +
+    let claves = new Set();
+    try{ claves = clavesPool(poolRepaso(c, true)); }catch(e){}
+    const fuera = fueraRepaso();
+    let filas = '', cargando = false, gi = 0;
+    APRENDER.forEach(g => {
+      const hs = g.filas.map(f => {
+        const mis = misDeFila(f.k, claves);
+        if(mis === null){ cargando = true; return ''; }
+        if(!mis.length) return '';
+        const dentro = mis.filter(it => !estaFuera(it)).length;
+        return '<button type="button" class="cj-cat-fila" onclick="CJ.verRepasoFila(' + escapeHtml(JSON.stringify(f.k)) + ')">' +
+          '<span class="cj-cat-icono">' + svgIcono(ICONOS[f.i] || ICONOS.localiza) + '</span>' +
+          '<span class="cj-cat-txt"><b>' + escapeHtml(f.t) + '</b><small>' + (dentro === mis.length ? '' : n(mis.length - dentro) + ' quitadas') + '</small></span>' +
+          '<span class="cj-cat-n">' + n(dentro) + '</span>' + FLECHA_FILA + '</button>';
+      }).join('');
+      if(hs) filas += '<div class="cj-seccion cj-paso"><span class="cj-paso-n">' + (++gi) + '</span>' + escapeHtml(g.g) + '</div><div class="cj-card cj-aprender cj-cat-' + g.c + '">' + hs + '</div>';
+    });
+    const nl = contarLista();
+    return '<div class="cjr-srcs">' + fuente('fallos', 'Lo que fallas') + fuente('visto', 'Lo marcado en Aprender') + fuente('mandado', 'Lo mandado') + fuente('lista', 'Tu lista') + '</div>' +
+      (c.lista ? '<button type="button" class="cjr-cambiar cjr-cambiar-lista" onclick="CJ.irA(\'repasoelegir\')">' + (nl ? 'Cambiar tu lista (' + n(nl) + ')' : 'Elegir tu lista') + ' ›</button>' : '') +
+      (filas || '<div class="cj-card"><div class="cj-repaso-vacio">' + (cargando ? 'Cargando…' : 'No tienes nada para repasar con esto. Marca arriba de dónde sale, o en Aprender dale a «+ A repasar».') + '</div></div>') +
+      (filas && cargando ? '<div class="cjr-vacia">Cargando el temario…</div>' : '') +
       '<div class="cj-seccion">Cómo</div><div class="cjr-formas" role="radiogroup">' +
         forma('que', '¿Qué es?', 'Te lo marco') + forma('donde', '¿Dónde está?', 'Lo tocas') + forma('mezcla', 'Mezclado', 'De las dos') +
       '</div>' +
-      '<div class="cj-card cjr-card">' + check('temario', 'Y las preguntas del temario', 'Tipo test (a, b, c, d) de lo elegido') + '</div>' +
+      '<button type="button" class="cjr-op cj-card cjr-card cjr-tem' + (c.temario ? ' on' : '') + '" aria-pressed="' + !!c.temario + '" onclick="CJ.cambiarRepaso(\'temario\')">' + caja(c.temario) +
+        '<span class="cjr-op-txt"><b>Y las preguntas del temario</b><small>Tipo test (a, b, c, d) de lo elegido</small></span></button>' +
       '<button type="button" class="cjr-empezar cjr-listo" onclick="CJ.irA(\'repasar\')">Listo</button>';
   }
-  // Quitar una cosa del repaso o volver a ponerla (desde la lista ordenada).
-  function fueraClave(k){
-    const c = cfgRepaso(), f = new Set(c.fuera || []);
-    f.has(k) ? f.delete(k) : f.add(k);
-    c.fuera = [...f];
-    guardarCfgRepaso();
-    const abiertos = [...document.querySelectorAll('.cjr-fuente')].map(d => d.open);
-    pintarInicio();
-    document.querySelectorAll('.cjr-fuente').forEach((d, i) => { if(abiertos[i] !== undefined) d.open = abiertos[i]; });
+  // Una fila de «Lo que repasas» en el mapa: solo lo tuyo (lo quitado, en gris).
+  async function verRepasoFila(k){
+    try{ await Promise.all([cargarLeaflet(), cargarDatos()]); }catch(e){ uiToast(e.message, 'error'); return; }
+    if(typeof CJT !== 'undefined'){ try{ await CJT.cargar(); }catch(e){} }
+    if(VIAS_FILA[k] && typeof CJ26 !== 'undefined') try{ await CJ26.cargar(); }catch(e){}
+    actualizarFiltro();
+    const f = filaAprender(k);
+    const items = misDeFila(k, clavesPool(poolRepaso(cfgRepaso(), true))) || [];
+    if(!items.length){ uiToast('Aquí no tienes nada para repasar.', 'info'); return; }
+    if(!conMapa(k, items)){ uiToast('Esto no va en el mapa: sale en las preguntas del temario.', 'info'); return; }
+    await estudio({ titulo: 'Repasar · ' + (f ? f.t : ''), items: items.filter(it => it.vias.length || it.lugar || it.barrio || it.barrios), foco: -1, distritos: [], porGrupos: true,
+      lista: 'Lista', repaso: true, pista: 'Toca algo para quitarlo si se te ha colado, o toca otra calle para cogerla' });
   }
   // Repasar: lo justo. Cuánto hay, Empezar, verlo todo en el mapa (y quitar lo que se haya colado)
   // y, aparte, cambiar qué y cómo.
@@ -3089,7 +3101,7 @@ const CJ = (function(){
   function alternarFuera(){
     const it = itemInfo;
     if(!it) return;
-    const ks = clavesItem(it);
+    const ks = clavesPrincipales(it);
     if(!ks.length) return;
     const c = cfgRepaso(), f = new Set(c.fuera || []), quitar = !estaFuera(it);
     ks.forEach(k => quitar ? f.add(k) : f.delete(k));
@@ -5946,7 +5958,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, elegirEnMapa, panelElegir, quitarElegidoMapa, quitarFichaMapa, listoMapa, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, tarjetaEstadisticas, irARepasarFallos, cambiarRepaso, empezarRepaso, listoElegirRepaso, verRepasoMapa, alternarFuera, cogerCalle, fueraClave, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, elegirEnMapa, panelElegir, quitarElegidoMapa, quitarFichaMapa, listoMapa, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, tarjetaEstadisticas, irARepasarFallos, cambiarRepaso, empezarRepaso, listoElegirRepaso, verRepasoMapa, alternarFuera, cogerCalle, verRepasoFila, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)
