@@ -143,7 +143,6 @@ async function onLoggedIn(user, isFreshSignIn){
     profile = created;
   }
   currentUserIsAdmin = !!(profile && profile.is_admin);
-  currentUserIsProfesor = !!(profile && profile.es_profesor);
   // Sin perfil (falló la conexión) se quedan los permisos guardados: nunca «todo activado».
   if(profile) setMyFeatureFlags(profile.feature_flags || {});
   else applyFeatureVisibility();
@@ -393,9 +392,7 @@ function onLoggedOut(){
   currentUser = null;
   currentUserIsAdmin = false;
   applyFeatureVisibility();
-  currentUserIsProfesor = false;
   if(typeof CJ !== 'undefined') CJ.reiniciar();
-  if(typeof CJP !== 'undefined') CJP.reiniciar();
   if(typeof ESPT !== 'undefined') ESPT.reiniciar();
   if(typeof ESTE !== 'undefined') ESTE.reiniciar();
   if(typeof PRU !== 'undefined') PRU.reiniciar();

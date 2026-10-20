@@ -50,9 +50,8 @@ js/                  código, en orden de carga (ver el final de index.html)
   datos-importantes.js  Datos importantes: apartados de fichas propios de cada usuario (Nº ONU, NIP, cifras…);
                      el NIP con iconos por cifra (datos/nip-iconos.webp), panel naranja y cada código cifra a cifra;
                      guía del NIP (listas «empiezan por…»): mapa de códigos y modo Retos
-  callejero.js       Callejero: mapa, modos de juego, modo estudio, tareas y modo selección
+  callejero.js       Callejero: mapa, modos de juego, modo estudio, Repasar (lo marcado) y modo selección
   callejero-temario.js   Callejero: temario de la academia (fichas, en el mapa, preguntas y planos)
-  callejero-profesor.js  Callejero: los alumnos del profesor, tareas y mensajes
   mnemotecnia.js     Mnemotecnia: calculadora del código fonético de Ramón Campayo
   calendario.js      Calendario: tareas de estudio de cada día
   piscina.js         Piscina (solo administradores): huecos ahora en IMDECO (función piscina-huecos) y
@@ -312,30 +311,13 @@ responder tocando están dibujados en `js/callejero-temario.js`, a grandes rasgo
 - El archivo lleva `?v=` con su huella (la pone `scripts/versionar.mjs` en el js que lo pide): el service
   worker lo guarda al usarlo y, cuando cambia, borra el anterior.
 
-## Profesor del callejero
+## Profesor del callejero y lo mandado (quitado)
 
-Un profesor es una cuenta normal (se registra con su correo como cualquiera y el administrador la
-confirma) que el administrador marca como **Profesor del callejero** en Administración → Usuarios,
-donde también le elige sus alumnos (`profiles.es_profesor` y tabla `tutorias`). No es administrador:
-solo ve el callejero de sus alumnos, a través de funciones que lo comprueban.
-
-- En Callejero ve dos pestañas, **Alumnos** y **Temario**, y el enlace «Mi callejero ›» (el de un alumno, con
-  «‹ Volver a mis alumnos» arriba). En Alumnos, cada uno con un semáforo (verde: estudió en los 2 últimos días;
-  ámbar: esta semana; rojo: hace más o nunca), rondas y aciertos de la semana, tareas y mensajes sin leer.
-- La página de un alumno va en pestañas: **Tareas**, **Progreso** (temario, calles en la zona que elija y
-  últimas rondas), **Fallos** (lo que más falla, con botón para mandárselo) y **Mensajes** (la conversación de
-  cada tarea); «Mandar tarea» está siempre a mano.
-- Le manda **tareas** (`callejero_tareas`) en dos pasos. 1) Qué: fichas, apartados o cosas sueltas del temario;
-  calles y lugares elegidos uno a uno en el mapa (tocándolos, buscándolos o añadiendo un barrio o distrito
-  entero); una zona entera; o varias de las tres cosas juntas en la misma tarea. 2) Para quién, título y
-  mensaje; plegado en «Más opciones»: cuántas rondas y con qué mínimo de aciertos, fecha límite, qué modos
-  cuentan con las calles (las preguntas del temario cuentan siempre) y «solo esto». Se puede mandar a varios
-  alumnos a la vez y crear una directamente con lo que el alumno más falla (temario y calles, juntos).
-- Al alumno le salen en «Lo que te ha mandado» (y en la ventanita, si son nuevas) y lo de calles de cada tarea es una zona más: en sus rondas solo salen sus calles
-  y lugares (y los de su zona, si la lleva).
-  Con **«solo esto»**, mientras la tarea esté activa el alumno solo puede elegir las tareas del profesor.
-- Cada tarea tiene su conversación (`callejero_mensajes`). Tareas nuevas y mensajes se avisan con una
-  notificación (`push-reminders`, a quien tenga activado el recordatorio) y con un número en la pestaña.
+El papel de profesor del callejero y todo lo mandado (tareas del profesor, «Mandarme algo», mensajes,
+avisos y «solo esto») se quitaron de la app en octubre de 2026: ya no hay `js/callejero-profesor.js`, el
+callejero no carga tareas y en Administración no sale el interruptor de profesor. Las tablas
+(`callejero_tareas`, `callejero_mensajes`, `callejero_tareas_hechas`, `tutorias`, `profiles.es_profesor`)
+y sus funciones siguen en la base de datos, sin usarse, por si se quisiera recuperar.
 
 ## Barra superior e Inicio
 
