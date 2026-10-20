@@ -1080,30 +1080,13 @@
     .cjs-cifras .stat-sub{ font-size:11px; }
   }
 
-/* ---------- Repasar: lo justo (cuánto hay, Empezar, verlo en el mapa) ---------- */
-.cjr-resumen{ padding:16px 18px; }
-.cjr-num{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:34px; font-weight:800; line-height:1.1; }
-.cjr-num small{ font-size:14px; font-weight:600; color: var(--muted); }
-.cjr-de{ margin-top:6px; font-size:13.5px; color: var(--muted); line-height:1.45; }
-.cjr-mapa{ display:flex; align-items:center; gap:12px; width:100%; padding:14px 16px; border-radius:16px; border:1px solid var(--line); background: var(--card); color: var(--text); font: inherit; text-align:left; cursor:pointer; }
-.cjr-mapa:hover:not(:disabled){ border-color: var(--muted-2, var(--muted)); }
-.cjr-mapa:disabled{ opacity:.45; cursor:default; }
-.cjr-mapa-ico{ width:40px; height:40px; flex-shrink:0; border-radius:12px; display:grid; place-items:center; color:#4E9BF7; background: rgba(78,155,247,.14); }
-.cjr-mapa-ico svg{ width:22px; height:22px; }
-.cjr-mapa-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.cjr-mapa-txt b{ font-size:15.5px; }
-.cjr-mapa-txt small{ font-size:13px; color: var(--muted); }
+/* ---------- Repasar: solo lo marcado, ordenado por tipo ---------- */
+.cjr-empezar:disabled{ opacity:.45; cursor:default; }
+.cjr-como{ display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:4px; padding:4px; margin:0 0 6px; border-radius:14px; background: var(--card); border:1px solid var(--line); }
+.cjr-como button{ padding:9px 6px; border:0; border-radius:10px; background:none; color: var(--muted); font: inherit; font-size:14px; font-weight:600; cursor:pointer; }
+.cjr-como button.on{ background: var(--coral); color:#fff; }
+.cjr-barrios{ padding:0 0 4px 46px; }
+.cjr-barrios .cj-cat-fila{ padding-top:9px; padding-bottom:9px; }
 .cjr-ajustes{ display:block; margin:14px auto 0; padding:8px 12px; border:0; background:none; color: var(--muted); font: inherit; font-size:14px; cursor:pointer; }
 .cjr-ajustes:hover{ color: var(--text); }
 .cj-info-repaso.cj-info-quitar{ border-color: var(--coral); color: var(--coral); }
-  .cjr-mapa > svg{ width:20px; height:20px; flex-shrink:0; color: var(--muted); }
-
-/* ---------- Lo que repasas: qué entra (arriba) y lo tuyo, colocado como en Aprender ---------- */
-.cjr-srcs{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
-.cjr-src{ display:inline-flex; align-items:center; gap:8px; padding:7px 12px 7px 8px; border-radius:99px; border:1px solid var(--line); background: var(--card); color: var(--muted); font: inherit; font-size:13.5px; font-weight:600; cursor:pointer; }
-.cjr-src.on{ color: var(--text); border-color: color-mix(in srgb, var(--coral) 55%, transparent); }
-.cjr-src .cje-check{ width:20px; height:20px; border-radius:6px; pointer-events:none; }
-.cjr-src .cje-check svg{ width:13px; height:13px; }
-.cjr-cambiar-lista{ display:inline-block; margin:-4px 0 14px; }
-.cjr-vacia{ margin:4px 0 12px; font-size:13.5px; color: var(--muted); }
-.cjr-tem{ display:flex; width:100%; padding:12px 14px; margin-bottom:0; }

@@ -2677,16 +2677,16 @@ const CJ = (function(){
     return '<div class="cj-ini-tarjetas">' + fallas + sabesHtml() + '</div>' +
       '<div class="cj-grandes">' +
       boton('tareas', 'profe', ICONOS.localiza, 'Lo que te has mandado', porHacer ? (porHacer === 1 ? '1 por estudiar' : porHacer + ' por estudiar') : 'Nada pendiente', porHacer) +
-      boton('repasar', 'repaso', ICONOS.repasar, 'Repasar', 'Eliges qué y cómo', 0) +
+      boton('repasar', 'repaso', ICONOS.repasar, 'Repasar', 'Lo que te has marcado', 0) +
       boton('aprender', 'nuevo', ICONOS.aprender, 'Aprender', 'Ver lo que hay, por tipo', 0) +
     '</div>';
   }
   // La pantalla de cada botón, con su cabecera para volver.
   function subHtml(){
-    const titulos = { tareas: 'Lo que te has mandado', repasar: 'Repasar', aprender: 'Aprender', callesbarrio: 'Calles de cada barrio', temario: 'Temario de la academia', todo: 'Todo lo dado hasta ahora', notas: 'Mis notas', repasoelegir: 'Elige qué repasar', repasoajustes: 'Lo que repasas' };
-    const cuerpo = subInicio === 'tareas' ? tareasHtml() : subInicio === 'repasar' ? repasarHtml() : subInicio === 'repasoajustes' ? repasoAjustesHtml() : subInicio === 'repasoelegir' ? repasoElegirHtml() : subInicio === 'todo' ? todoHtml()
+    const titulos = { tareas: 'Lo que te has mandado', repasar: 'Repasar', aprender: 'Aprender', callesbarrio: 'Calles de cada barrio', temario: 'Temario de la academia', todo: 'Todo lo dado hasta ahora', notas: 'Mis notas', repasoelegir: 'Elige qué repasar' };
+    const cuerpo = subInicio === 'tareas' ? tareasHtml() : subInicio === 'repasar' ? repasarHtml() : subInicio === 'repasoelegir' ? repasoElegirHtml() : subInicio === 'todo' ? todoHtml()
       : subInicio === 'temario' ? temarioHtml() : subInicio === 'notas' ? notasHtml() : subInicio === 'callesbarrio' ? callesBarrioHtml() : aprenderHtml();
-    const atras = subInicio === 'repasoelegir' ? 'repasoajustes' : subInicio === 'todo' || subInicio === 'repasoajustes' ? 'repasar' : subInicio === 'temario' || subInicio === 'notas' || subInicio === 'callesbarrio' ? 'aprender' : '';
+    const atras = subInicio === 'repasoelegir' || subInicio === 'todo' ? 'repasar' : subInicio === 'temario' || subInicio === 'notas' || subInicio === 'callesbarrio' ? 'aprender' : '';
     return '<div class="cjt-cab"><button type="button" class="cj-salir" onclick="CJ.irA(\'' + atras + '\')" aria-label="Volver">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>' +
         '<div><div class="cjt-cab-etq">Callejero</div><h2>' + titulos[subInicio] + '</h2></div></div>' + cuerpo;
@@ -2971,120 +2971,110 @@ const CJ = (function(){
     try{ await Promise.all([cargarLeaflet(), cargarDatos()]); }catch(e){ uiToast(e.message, 'error'); return; }
     if(typeof CJT !== 'undefined'){ try{ await CJT.cargar(); }catch(e){} }
     actualizarFiltro();
-    const c = cfgRepaso();
-    if(!c.fallos && !c.visto && !c.mandado && !c.lista){ uiToast('Elige qué quieres repasar.', 'info'); return; }
+    const c = fuentesMarcado();
     const pool = poolRepaso(c);
     const crear = () => preguntasRepaso(c, pool);
     const qs = crear();
-    if(!qs.length){ uiToast('No hay nada que repasar con esto. Elige otra cosa (o marca «+ A repasar» en Aprender).', 'info'); return; }
+    if(!qs.length){ uiToast('No tienes nada marcado para repasar. En Aprender, toca algo y dale a «+ A repasar».', 'info'); return; }
     empezarMixta('Repasar', qs, { tipo: 'repaso' }, crear);
   }
-  // Qué y cómo se repasa (antes, la pantalla de Repasar entera).
-  // Lo que repasas, colocado como en Aprender: sus grupos y filas, pero cada fila solo con lo tuyo
-  // (y solo las filas en las que tienes algo). Al tocar una, sale en el mapa solo eso, para quitar lo
-  // que se haya colado. Arriba, qué entra (los orígenes); debajo, el cómo.
-  // Las claves de todo lo que entra en Repasar (también lo quitado, que sale en gris).
-  function clavesPool(p){
-    return new Set([].concat(p.vias.map(v => 'v:' + v.nombre), p.lugares.map(l => 'l:' + l.id), p.barrios.map(b => 'b:' + b),
-      p.distritos.map(d => 'd:' + d), p.claves.map(k => 't:' + String(k).split('/').pop())));
+  /* ---------- Repasar: solo lo marcado, ordenado ----------
+     Lo que te has marcado tú (en Aprender, «+ A repasar», o tu lista) y lo que te han mandado; lo
+     fallado no (eso va en «Lo que fallas»). Arriba, Empezar con todo y cómo; debajo, ordenado por tipo:
+     distritos, barrios, calles (por barrio o todas), glorietas y plazas (por barrio o todas),
+     carreteras y caminos, sitios y temario. Cada fila abre en el mapa solo eso, para quitar lo que se
+     haya colado (en gris) o coger otra calle. */
+  const TIPOS_PLAZA = new Set(['PLAZA', 'GLORIETA', 'PLAZUELA']);
+  const TIPOS_CARRETERA = new Set(['CARRETERA', 'AUTOVIA', 'ENLACE', 'VIA DE SERVICIO', 'ACCESO', 'CAMINO', 'VEREDA', 'SENDERO', 'CARRIL']);
+  const claseVia = v => TIPOS_PLAZA.has(v.tipo) ? 'plazas' : TIPOS_CARRETERA.has(v.tipo) ? 'carreteras' : 'calles';
+  const fuentesMarcado = () => Object.assign({}, cfgRepaso(), { fallos: false, visto: true, mandado: true });
+  let abiertoMarcado = null;   // «por barrio» desplegado ('calles' o 'plazas')
+  // Lo marcado de un tipo, para el mapa (con lo quitado, que sale en gris). k: 'distritos', 'barrios',
+  // 'calles', 'plazas', 'carreteras', 'sitios', 'temario' o 'todo'; 'calles@<barrio>' y 'plazas@<barrio>'.
+  function itemsMarcado(k, p){
+    p = p || poolRepaso(fuentesMarcado(), true);
+    const [tipo, barrio] = k.split('@');
+    const porNombre = (x, y) => x.nombre.localeCompare(y.nombre, 'es');
+    const calles = cl => p.vias.filter(v => claseVia(v) === cl).map(itemCalleRepaso)
+      .filter(it => !barrio || it.vias.some(v => v.barrios.some(b => b.nombre === barrio))).sort(porNombre);
+    const de = {
+      distritos: () => p.distritos.map(d => ({ nombre: conNumero(d), tipo: 'Distrito', vias: [], lugar: null, barrios: datos.barrios.filter(b => b.distrito === d), distrito: d, detalle: [] })),
+      barrios: () => p.barrios.map(n => datos.barrios.find(b => b.nombre === n)).filter(Boolean)
+        .map(b => ({ nombre: b.nombre, tipo: 'Barrio', vias: [], lugar: null, barrios: [b], detalle: ['Distrito ' + conNumero(b.distrito)] })).sort(porNombre),
+      calles: () => calles('calles'), plazas: () => calles('plazas'), carreteras: () => calles('carreteras'),
+      sitios: () => p.lugares.map(l => ({ nombre: l.nombre, tipo: l.categoria, vias: [], lugar: l, detalle: l.direccion ? [l.direccion] : [] })).sort(porNombre),
+      temario: () => typeof CJT !== 'undefined' && CJT.listo() ? CJT.geoClaves(p.claves).filter(g => g.lugar || (g.vias && g.vias.length))
+        .map(g => ({ nombre: g.nombre, tipo: g.tipo || 'Temario', vias: g.vias || [], lugar: g.lugar || null, id: g.id, detalle: [] })) : []
+    };
+    if(tipo === 'todo') return ['distritos', 'barrios', 'calles', 'plazas', 'carreteras', 'sitios', 'temario'].flatMap(t => de[t]());
+    return de[tipo] ? de[tipo]() : [];
   }
-  // Lo tuyo de una fila de Aprender, listo para el mapa (null mientras se descarga algo).
-  function misDeFila(k, claves){
-    if(k === 'calles-barrio') return [];
-    const its = itemsElegir(k);
-    if(!its) return null;
-    return its.filter(it => clavesPrincipales(it).some(x => claves.has(x))).map(it => {
-      if(it.distritoFila) return Object.assign(it, { vias: it.vias || [], distrito: it.distritoFila, barrios: datos.barrios.filter(b => b.distrito === it.distritoFila), tipo: 'Distrito' });
-      if(it.barrioFila) return Object.assign(it, { vias: it.vias || [], barrio: it.barrioFila.barrio || null, tipo: 'Barrio', grupo: it.grupo });
-      if(!it.vias) it.vias = [];
-      return it;
+  const dentroDe = its => its.filter(it => !estaFuera(it)).length;
+  // Los barrios con lo marcado de un tipo de calle, y cuántas tiene cada uno.
+  function barriosMarcado(cl, p){
+    const m = new Map();
+    p.vias.filter(v => claseVia(v) === cl).forEach(v => {
+      const it = itemCalleRepaso(v);
+      if(estaFuera(it)) return;
+      new Set(it.vias.flatMap(x => x.barrios.map(b => b.nombre))).forEach(b => m.set(b, (m.get(b) || 0) + 1));
     });
+    return [...m].sort((a, b) => a[0].localeCompare(b[0], 'es'));
   }
-  function repasoAjustesHtml(){
-    const c = cfgRepaso();
-    if(typeof CJT !== 'undefined' && !CJT.listo()) CJT.cargar().then(() => { cacheElegir.clear(); if(vistaActual === 'inicio' && subInicio === 'repasoajustes') pintarInicio(); }, () => {});
-    const n = k => k.toLocaleString('es-ES');
-    const caja = on => '<span class="cje-check' + (on ? ' on' : '') + '">' + (on ? svgIcono('M20 6 9 17l-5-5') : '') + '</span>';
-    const fuente = (k, t) => '<button type="button" class="cjr-src' + (c[k] ? ' on' : '') + '" aria-pressed="' + !!c[k] + '" onclick="CJ.cambiarRepaso(\'' + k + '\')">' + caja(c[k]) + escapeHtml(t) + '</button>';
-    const forma = (k, titulo, sub) => '<button type="button" role="radio" aria-checked="' + (c.forma === k) + '" class="cjr-forma' + (c.forma === k ? ' on' : '') + '" onclick="CJ.cambiarRepaso(\'forma\', \'' + k + '\')"><b>' + titulo + '</b><small>' + sub + '</small></button>';
-    let claves = new Set();
-    try{ claves = clavesPool(poolRepaso(c, true)); }catch(e){}
-    const fuera = fueraRepaso();
-    let filas = '', cargando = false, gi = 0;
-    APRENDER.forEach(g => {
-      const hs = g.filas.map(f => {
-        const mis = misDeFila(f.k, claves);
-        if(mis === null){ cargando = true; return ''; }
-        if(!mis.length) return '';
-        const dentro = mis.filter(it => !estaFuera(it)).length;
-        return '<button type="button" class="cj-cat-fila" onclick="CJ.verRepasoFila(' + escapeHtml(JSON.stringify(f.k)) + ')">' +
-          '<span class="cj-cat-icono">' + svgIcono(ICONOS[f.i] || ICONOS.localiza) + '</span>' +
-          '<span class="cj-cat-txt"><b>' + escapeHtml(f.t) + '</b><small>' + (dentro === mis.length ? '' : n(mis.length - dentro) + ' quitadas') + '</small></span>' +
-          '<span class="cj-cat-n">' + n(dentro) + '</span>' + FLECHA_FILA + '</button>';
-      }).join('');
-      if(hs) filas += '<div class="cj-seccion cj-paso"><span class="cj-paso-n">' + (++gi) + '</span>' + escapeHtml(g.g) + '</div><div class="cj-card cj-aprender cj-cat-' + g.c + '">' + hs + '</div>';
-    });
-    const nl = contarLista();
-    return '<div class="cjr-srcs">' + fuente('fallos', 'Lo que fallas') + fuente('visto', 'Lo marcado en Aprender') + fuente('mandado', 'Lo mandado') + fuente('lista', 'Tu lista') + '</div>' +
-      (c.lista ? '<button type="button" class="cjr-cambiar cjr-cambiar-lista" onclick="CJ.irA(\'repasoelegir\')">' + (nl ? 'Cambiar tu lista (' + n(nl) + ')' : 'Elegir tu lista') + ' ›</button>' : '') +
-      (filas || '<div class="cj-card"><div class="cj-repaso-vacio">' + (cargando ? 'Cargando…' : 'No tienes nada para repasar con esto. Marca arriba de dónde sale, o en Aprender dale a «+ A repasar».') + '</div></div>') +
-      (filas && cargando ? '<div class="cjr-vacia">Cargando el temario…</div>' : '') +
-      '<div class="cj-seccion">Cómo</div><div class="cjr-formas" role="radiogroup">' +
-        forma('que', '¿Qué es?', 'Te lo marco') + forma('donde', '¿Dónde está?', 'Lo tocas') + forma('mezcla', 'Mezclado', 'De las dos') +
-      '</div>' +
-      '<button type="button" class="cjr-op cj-card cjr-card cjr-tem' + (c.temario ? ' on' : '') + '" aria-pressed="' + !!c.temario + '" onclick="CJ.cambiarRepaso(\'temario\')">' + caja(c.temario) +
-        '<span class="cjr-op-txt"><b>Y las preguntas del temario</b><small>Tipo test (a, b, c, d) de lo elegido</small></span></button>' +
-      '<button type="button" class="cjr-empezar cjr-listo" onclick="CJ.irA(\'repasar\')">Listo</button>';
-  }
-  // Una fila de «Lo que repasas» en el mapa: solo lo tuyo (lo quitado, en gris).
-  async function verRepasoFila(k){
-    try{ await Promise.all([cargarLeaflet(), cargarDatos()]); }catch(e){ uiToast(e.message, 'error'); return; }
-    if(typeof CJT !== 'undefined'){ try{ await CJT.cargar(); }catch(e){} }
-    if(VIAS_FILA[k] && typeof CJ26 !== 'undefined') try{ await CJ26.cargar(); }catch(e){}
-    actualizarFiltro();
-    const f = filaAprender(k);
-    const items = misDeFila(k, clavesPool(poolRepaso(cfgRepaso(), true))) || [];
-    if(!items.length){ uiToast('Aquí no tienes nada para repasar.', 'info'); return; }
-    if(!conMapa(k, items)){ uiToast('Esto no va en el mapa: sale en las preguntas del temario.', 'info'); return; }
-    await estudio({ titulo: 'Repasar · ' + (f ? f.t : ''), items: items.filter(it => it.vias.length || it.lugar || it.barrio || it.barrios), foco: -1, distritos: [], porGrupos: true,
-      lista: 'Lista', repaso: true, pista: 'Toca algo para quitarlo si se te ha colado, o toca otra calle para cogerla' });
-  }
-  // Repasar: lo justo. Cuánto hay, Empezar, verlo todo en el mapa (y quitar lo que se haya colado)
-  // y, aparte, cambiar qué y cómo.
   function repasarHtml(){
     const c = cfgRepaso();
     if(typeof CJT !== 'undefined' && !CJT.listo()) CJT.cargar().then(() => { if(vistaActual === 'inicio' && subInicio === 'repasar') pintarInicio(); }, () => {});
     let p = null;
-    try{ p = poolRepaso(c); }catch(e){}
-    const nMapa = p ? p.vias.length + p.barrios.length + p.distritos.length + p.lugares.length : 0;
-    const nFuera = (c.fuera || []).length;
-    const de = [c.fallos && 'lo que fallas', c.visto && 'lo marcado en Aprender', c.mandado && 'lo que te has mandado', c.lista && 'tu lista'].filter(Boolean);
-    const como = { que: '¿Qué es?', donde: '¿Dónde está?', mezcla: '¿Qué es? y ¿Dónde está?' }[c.forma] || '';
-    const txtDe = de.length ? de.join(', ').replace(/, ([^,]*)$/, ' y $1') : 'nada elegido';
-    return '<div class="cj-card cjr-resumen"><div class="cjr-num">' + nMapa.toLocaleString('es-ES') + '<small>' + (nMapa === 1 ? 'calle o sitio' : 'calles y sitios') + '</small></div>' +
-        '<div class="cjr-de">De ' + escapeHtml(txtDe) + ' · ' + escapeHtml(como) + (c.temario ? ' · y el temario' : '') + '</div></div>' +
-      '<button type="button" class="cjr-empezar" onclick="CJ.empezarRepaso()">Empezar<small>sin límite, paras cuando quieras</small></button>' +
-      '<button type="button" class="cjr-mapa" onclick="CJ.verRepasoMapa()"' + (nMapa || nFuera ? '' : ' disabled') + '><span class="cjr-mapa-ico">' + svgIcono(ICONOS.mapa) + '</span>' +
-        '<span class="cjr-mapa-txt"><b>Ver todo en el mapa</b><small>Quita lo que se te haya colado' + (nFuera ? ' · ' + nFuera + (nFuera === 1 ? ' quitada' : ' quitadas') : '') + '</small></span>' + FLECHA_FILA + '</button>' +
-      '<button type="button" class="cjr-ajustes" onclick="CJ.irA(\'repasoajustes\')">Ver y cambiar lo que repasas ›</button>';
+    try{ p = poolRepaso(fuentesMarcado(), true); }catch(e){}
+    if(!p) return '<div class="cj-card">' + skelList(3) + '</div>';
+    const n = k => k.toLocaleString('es-ES');
+    const cuenta = {};
+    ['distritos', 'barrios', 'calles', 'plazas', 'carreteras', 'sitios'].forEach(k => { const its = itemsMarcado(k, p); cuenta[k] = { dentro: dentroDe(its), total: its.length }; });
+    const nTem = p.claves.length;
+    const total = Object.values(cuenta).reduce((a, x) => a + x.dentro, 0) + nTem;
+    if(!total && !Object.values(cuenta).some(x => x.total)) return '<div class="cj-card"><div class="cj-repaso-vacio">No tienes nada marcado para repasar. En Aprender, toca una calle o un sitio y dale a «+ A repasar»; lo que te mande tu profesor también sale aquí.</div></div>';
+    const flecha = abierto => '<svg class="cje-flecha' + (abierto ? ' abierta' : '') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+    const fila = (k, titulo, x, icono, sub) => '<button type="button" class="cj-cat-fila" onclick="CJ.verMarcado(' + escapeHtml(JSON.stringify(k)) + ')">' +
+      '<span class="cj-cat-icono">' + svgIcono(ICONOS[icono] || ICONOS.localiza) + '</span><span class="cj-cat-txt"><b>' + escapeHtml(titulo) + '</b>' +
+      (sub || x.total > x.dentro ? '<small>' + (sub || n(x.total - x.dentro) + ' quitadas') + '</small>' : '') + '</span>' +
+      '<span class="cj-cat-n">' + n(x.dentro) + '</span>' + FLECHA_FILA + '</button>';
+    const porBarrio = (cl, titulo) => {
+      const bs = barriosMarcado(cl, p), abierto = abiertoMarcado === cl;
+      if(!bs.length) return '';
+      return '<button type="button" class="cj-cat-fila" aria-expanded="' + abierto + '" onclick="CJ.abrirMarcado(\'' + cl + '\')">' +
+          '<span class="cj-cat-icono">' + svgIcono(ICONOS.enbarrio) + '</span><span class="cj-cat-txt"><b>' + titulo + '</b><small>' + n(bs.length) + (bs.length === 1 ? ' barrio' : ' barrios') + '</small></span>' + flecha(abierto) + '</button>' +
+        (abierto ? '<div class="cjr-barrios">' + bs.map(([b, k]) => '<button type="button" class="cj-cat-fila cj-cat-sub" onclick="CJ.verMarcado(' + escapeHtml(JSON.stringify(cl + '@' + b)) + ')">' +
+          '<span class="cj-cat-txt"><b>' + escapeHtml(b) + '</b></span><span class="cj-cat-n">' + n(k) + '</span>' + FLECHA_FILA + '</button>').join('') + '</div>' : '');
+    };
+    const grupo = (titulo, color, filas) => filas ? '<div class="cj-seccion">' + titulo + '</div><div class="cj-card cj-aprender cj-cat-' + color + '">' + filas + '</div>' : '';
+    const hay = k => cuenta[k].total > 0;
+    const forma = (k, t) => '<button type="button" role="radio" aria-checked="' + (c.forma === k) + '"' + (c.forma === k ? ' class="on"' : '') + ' onclick="CJ.cambiarRepaso(\'forma\', \'' + k + '\')">' + t + '</button>';
+    return '<button type="button" class="cjr-empezar" onclick="CJ.empezarRepaso()"' + (total ? '' : ' disabled') + '>Empezar · ' + n(total) + '</button>' +
+      '<div class="cjr-como" role="radiogroup">' + forma('que', '¿Qué es?') + forma('donde', '¿Dónde está?') + forma('mezcla', 'Mezclado') + '</div>' +
+      grupo('Córdoba', 'rojo', (hay('distritos') ? fila('distritos', 'Distritos', cuenta.distritos, 'barrios') : '') + (hay('barrios') ? fila('barrios', 'Barrios', cuenta.barrios, 'enbarrio') : '')) +
+      grupo('Calles', 'morado', hay('calles') ? porBarrio('calles', 'Calles por barrio') + fila('calles', 'Todas las calles', cuenta.calles, 'mapa') : '') +
+      grupo('Glorietas y plazas', 'turquesa', hay('plazas') ? porBarrio('plazas', 'Glorietas y plazas por barrio') + fila('plazas', 'Todas las glorietas y plazas', cuenta.plazas, 'localiza') : '') +
+      grupo('Carreteras y caminos', 'naranja', hay('carreteras') ? fila('carreteras', 'Carreteras, autovías y caminos', cuenta.carreteras, 'cruces') : '') +
+      grupo('Sitios y temario', 'verde', (hay('sitios') ? fila('sitios', 'Sitios', cuenta.sitios, 'lugares') : '') +
+        (nTem ? fila('temario', 'Del temario', { dentro: nTem, total: nTem }, 'estudio', 'Sus preguntas salen al repasar') : '')) +
+      '<button type="button" class="cjr-ajustes" onclick="CJ.verMarcado(\'todo\')">Ver todo en el mapa ›</button>';
   }
-  // Todo lo de Repasar en el mapa: en azul lo que entra y en gris lo quitado. Al tocarlo, su ficha
-  // dice si se queda o se quita («se me ha colado»); al tocar otra calle, se puede coger para Repasar.
-  async function verRepasoMapa(){
+  function abrirMarcado(cl){ abiertoMarcado = abiertoMarcado === cl ? null : cl; pintarInicio(); }
+  const TITULOS_MARCADO = { distritos: 'Distritos', barrios: 'Barrios', calles: 'Calles', plazas: 'Glorietas y plazas', carreteras: 'Carreteras y caminos', sitios: 'Sitios', temario: 'Del temario', todo: 'Todo lo marcado' };
+  async function verMarcado(k){
     try{ await Promise.all([cargarLeaflet(), cargarDatos()]); }catch(e){ uiToast(e.message, 'error'); return; }
     if(typeof CJT !== 'undefined'){ try{ await CJT.cargar(); }catch(e){} }
     actualizarFiltro();
-    const p = poolRepaso(cfgRepaso(), true);
-    const items = [].concat(
-      p.vias.map(itemCalleRepaso).sort((x, y) => x.nombre.localeCompare(y.nombre, 'es')),
-      p.lugares.map(l => ({ nombre: l.nombre, tipo: l.categoria, vias: [], lugar: l, detalle: l.direccion ? [l.direccion] : [] })),
-      p.barrios.map(n => datos.barrios.find(b => b.nombre === n)).filter(Boolean).map(b => ({ nombre: b.nombre, tipo: 'Barrio', vias: [], lugar: null, barrios: [b], detalle: ['Distrito ' + conNumero(b.distrito)] })),
-      p.distritos.map(d => ({ nombre: conNumero(d), tipo: 'Distrito', vias: [], lugar: null, barrios: datos.barrios.filter(b => b.distrito === d), distrito: d, detalle: [] })));
-    if(!items.length){ uiToast('No tienes nada para repasar en el mapa.', 'info'); return; }
-    await estudio({ titulo: 'Para repasar', items, foco: -1, distritos: [], lista: 'Lista', repaso: true,
+    const items = itemsMarcado(k);
+    if(!items.length){ uiToast(k === 'temario' ? 'Lo del temario que tienes no va en el mapa: sale en sus preguntas al repasar.' : 'Aquí no tienes nada marcado.', 'info'); return; }
+    const [t, b] = k.split('@');
+    const titulo = (TITULOS_MARCADO[t] || 'Repasar') + (b ? ' · ' + b : '');
+    await estudio({ titulo, items, foco: -1, distritos: [], lista: 'Lista', repaso: true,
       pista: 'Toca algo para quitarlo si se te ha colado, o toca otra calle para cogerla' });
-    if(modo === 'estudio') el('cjBarraTitulo').textContent = 'Para repasar';
+    if(modo === 'estudio') el('cjBarraTitulo').textContent = titulo;
   }
+  // Todo lo de Repasar en el mapa: en azul lo que entra y en gris lo quitado. Al tocarlo, su ficha
+  // dice si se queda o se quita («se me ha colado»); al tocar otra calle, se puede coger para Repasar.
+  function verRepasoMapa(){ return verMarcado('todo'); }
   // Una calle para el visor: con todos sus tramos (mismo nombre).
   function itemCalleRepaso(v){
     const vs = (datos.porNombre.get(v.nombre.toLowerCase()) || [v]).filter(x => x.jugable);
@@ -3133,7 +3123,7 @@ const CJ = (function(){
     return '<div class="cj-repaso-vacio cjr-nota">Marca lo que quieras repasar: una fila entera, un distrito o cosa a cosa.</div>' + elegirHtml() +
       '<button type="button" class="cjr-empezar cjr-listo" onclick="CJ.listoElegirRepaso()">Listo</button>';
   }
-  function listoElegirRepaso(){ const c = cfgRepaso(); c.lista = contarLista() > 0; guardarCfgRepaso(); irA('repasoajustes'); }
+  function listoElegirRepaso(){ const c = cfgRepaso(); c.lista = contarLista() > 0; guardarCfgRepaso(); irA('repasar'); }
   // Aprender: ver en el mapa, con su nombre, los distritos, los barrios,
   // todas las calles (sin lo del profesor), las plazas y los lugares por
   // tipo; y el temario. Se toca cualquier cosa (o se elige de la lista) y
@@ -5958,7 +5948,7 @@ const CJ = (function(){
     // tareas, rondas y avisos
     alternarRondas, cambiarVistaProfesor, comprobarAvisos, reiniciar, recargarTareas, volver,
     // pestañas de la pantalla principal
-    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, elegirEnMapa, panelElegir, quitarElegidoMapa, quitarFichaMapa, listoMapa, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, tarjetaEstadisticas, irARepasarFallos, cambiarRepaso, empezarRepaso, listoElegirRepaso, verRepasoMapa, alternarFuera, cogerCalle, verRepasoFila, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
+    cambiarPestana, abrirCalles, cerrarCalles, irA, marcarAprendido, repasarZonas, verCat, quitarPropia, alternarRepaso, empezarElegir, elegirHtml, elegirFila, abrirElegir, elegirGrupo, abrirGrupoElegir, elegirItem, elegirEnMapa, panelElegir, quitarElegidoMapa, quitarFichaMapa, listoMapa, resultadoElegir, filtrarGrupo, repasarJunto, repasarTemario, abrirAprender: d => { abiertoAprender = d; }, marcarTarea, empezarFallos, restablecerFallos, tarjetaEstadisticas, irARepasarFallos, cambiarRepaso, empezarRepaso, listoElegirRepaso, verRepasoMapa, alternarFuera, cogerCalle, verMarcado, abrirMarcado, ver, repasarTodo, repasarVuelta, reiniciarVuelta, ventana, editarNota, verNota, repasarCalles, aprender, repasar, seguirGuiada, empezarEn, estudioEn, mosaicoModos, cambiarVerEstudio,
     // modo selección
     seleccionar, alternarElegida, anadirZona, irAElegida, quitarTodas, terminarSeleccion,
     // lo que usa el profesor (js/callejero-profesor.js)
