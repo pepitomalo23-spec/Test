@@ -196,6 +196,21 @@ const DI = (function(){
     probar: svg('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>')
   };
 
+  // Icono de cada apartado según de qué trata (hechos con Higgsfield, planos y en color)
+  const ICO_AP = {
+    onu: 'datos/di-ap-onu.webp?v=18da92bd63', rango: 'datos/di-ap-rango.webp?v=ccd9cc8b04', adr: 'datos/di-ap-adr.webp?v=c4a2255acd',
+    kemler: 'datos/di-ap-kemler.webp?v=7c8272e03e', leer: 'datos/di-ap-leer.webp?v=28696238ad', libre: 'datos/di-ap-libre.webp?v=cc364ca44c'
+  };
+  function iconoAp(a){
+    const t = a.titulo || '';
+    const k = /c[oó]mo se lee|\bleer\b|lectura/i.test(t) ? 'leer'          // NIP · Cómo se leen
+      : a.plantilla === 'nip' || /kemler|\bNIP\b|n[uú]mero de peligro/i.test(t) ? 'kemler'
+      : a.plantilla === 'onu' || /\bONU\b|MMPP/i.test(t) ? 'onu'          // camión cisterna
+      : /inflamab|explosiv/i.test(t) ? 'rango'                             // rango de inflamabilidad
+      : /\bADR\b|clases?\b|etiquetas?/i.test(t) ? 'adr'                    // rombo de etiqueta
+      : 'libre';
+    return '<img src="' + ICO_AP[k] + '" alt="">';
+  }
   let aps = [], datos = [], cargado = false, cargando = null, dueño = null;
   let vista = { v: 'lista' };     // lista | apartado | estudio
   let st = null;                  // estado del modo de estudio
@@ -280,7 +295,7 @@ const DI = (function(){
     const tarjetas = aps.map(a => {
       const ds = deAp(a.id), dom = ds.filter(dominada).length, pct = ds.length ? Math.round(dom * 100 / ds.length) : 0;
       return '<button type="button" class="di-ap di-' + a.plantilla + '" data-di="abrir" data-id="' + a.id + '">' +
-        '<span class="di-ap-ico">' + ICO[a.plantilla] + '</span>' +
+        '<span class="di-ap-ico img">' + iconoAp(a) + '</span>' +
         '<span class="di-ap-txt"><b>' + esc(a.titulo) + '</b><span>' + ds.length + (ds.length === 1 ? ' dato' : ' datos') + (ds.length ? ' · ' + pct + ' % dominado' : '') + '</span>' +
         (ds.length ? '<span class="di-barra"><i style="width:' + pct + '%"></i></span>' : '') + '</span></button>';
     }).join('');
