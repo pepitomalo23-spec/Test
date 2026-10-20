@@ -612,7 +612,7 @@ const CJT = (function(){
       propias = data.filter(r => r.tipo === 'propia');
     }catch(e){}
   }
-  function puedeEditar(){ try{ return !!(currentUserIsAdmin || currentUserIsProfesor); }catch(e){ return false; } }
+  function puedeEditar(){ try{ return !!currentUserIsAdmin; }catch(e){ return false; } }
   function propiasDe(x){ return propias.filter(p => p.item_id === x.id); }
   function qPropia(p, x, sec){
     const lista = barajar(p.opciones.map((t, i) => ({ t, i })));
@@ -882,20 +882,6 @@ const CJT = (function(){
     '</div>';
   }
 
-  /* ---------- el profesor manda desde el temario ---------- */
-  function esProfe(){ return typeof currentUserIsProfesor !== 'undefined' && !!currentUserIsProfesor && typeof CJP !== 'undefined'; }
-  // Una ficha o un apartado entero, tal cual.
-  function mandar(k){ CJP.mandarTemario([k], nombreClave(k)); }
-  // Cosas sueltas: se eligen en el propio temario (con la ficha ya abierta) y luego, a quién.
-  async function elegirParaMandar(){
-    if(!vista) return;
-    const fid = String(vista.claves[0]).split('/')[0];
-    const r = await seleccionar([], fid, 'Mandar');
-    if(r && r.length) CJP.mandarTemario(r, r.length === 1 ? nombreClave(r[0]) : describirFichas(r));
-    else{ if(r) uiToast('No has elegido nada.', 'info'); pintar(); }
-  }
-  const ICONO_MANDAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>';
-
   /* ---------- pantalla del temario ---------- */
   // Una ficha (o una tarea) con cuatro pestañas:
   //   Lista:     los apartados; al abrir uno, sus botones (Preguntar, En el
@@ -1034,7 +1020,6 @@ const CJT = (function(){
     root.innerHTML =
       cabecera(t ? (t.profesor_id === t.alumno_id ? 'Tu tarea' : 'Tarea de tu profesor') : vista.acumulado ? 'De tu profesor' : vista.soloVer ? 'Aprender' : 'Temario', vista.titulo, r.total && !vista.soloVer ? pct(r) : null) +
       (t ? tarjetaTarea(t) : '') +
-      (esProfe() && !t && !vista.acumulado ? barraMandar() : '') +
       '<div class="cj-segmento cj-pestanas cjt-pestanas" role="tablist">' + pestanas.map(([k, texto]) =>
         '<button type="button" role="tab" aria-selected="' + (k === p) + '"' + (k === p ? ' class="activo"' : '') +
           ' onclick="CJT.cambiarPestana(\'' + k + '\')">' + texto + '</button>').join('') + '</div>' +
@@ -1065,17 +1050,7 @@ const CJT = (function(){
         (soloTemario
           ? '<button type="button" class="btn btn-primary btn-light" onclick="CJT.preguntarTarea(' + t.id + ')">Preguntar (cuenta para la tarea)</button>'
           : '<button type="button" class="btn btn-primary btn-light" onclick="CJT.cambiarPestana(\'preguntar\')">Preguntar y jugar</button>') +
-        '<button type="button" class="btn btn-ghost" onclick="CJP.abrirMensajes(' + t.id + ')">Mensajes' +
-          (t.sin_leer ? ' <span class="cj-num">' + t.sin_leer + '</span>' : (t.mensajes ? ' (' + t.mensajes + ')' : '')) + '</button>' +
       '</div></div>';
-  }
-  // Al profesor: mandar la ficha entera o elegir qué cosas.
-  function barraMandar(){
-    return '<div class="cj-card cjt-mandar">' +
-      '<span class="cjt-mandar-t">' + ICONO_MANDAR + 'Para tus alumnos</span>' +
-      '<button type="button" class="btn btn-primary btn-light cjt-btn-mandar" onclick="CJT.mandar(\'' + escapeHtml(vista.claves[0]) + '\')">Mandar la ficha</button>' +
-      '<button type="button" class="btn btn-ghost" onclick="CJT.elegirParaMandar()">Elegir cosas</button>' +
-    '</div>';
   }
 
   // Una fila que lleva a algo (ver en el mapa, preguntar...).
@@ -1174,7 +1149,6 @@ const CJT = (function(){
         ? '<div class="cjt-sec-acciones">' +
             (r.total && !ver ? '<button type="button" class="btn btn-primary btn-light" onclick="CJT.preguntarSec(\'' + escapeHtml(k) + '\')">Preguntar</button>' : '') +
             (conMapa ? '<button type="button" class="btn btn-ghost" onclick="CJT.verSec(\'' + escapeHtml(k) + '\')">En el mapa</button>' : '') +
-            (esProfe() && !vista.tarea && !vista.acumulado ? '<button type="button" class="btn btn-ghost cjt-btn-mandar" onclick="CJT.mandar(\'' + escapeHtml(k) + '\')">' + ICONO_MANDAR + 'Mandar</button>' : '') +
           '</div>' +
           (s.texto ? '<div class="cjt-texto">' + escapeHtml(s.texto) + '</div>' : '') +
           galeria(s) +
@@ -1611,21 +1585,6 @@ const CJT = (function(){
   }
   function fuente(){ return T ? T.fuente + (T.faltan && T.faltan.length ? ' Faltan las fichas de ' + T.faltan.join(', ') + '.' : '') : ''; }
 
-  // Para el profesor, en su pestaña «Temario»: todo el temario, para verlo y mandarlo.
-  function tarjetaInicio(){
-    if(!asegurar()) return cargandoHtml();
-    return '<div class="cj-hab-det cjt-intro">Abre una ficha para verla (lista, documento y mapa) y mandar a tus alumnos la ficha, un apartado o cosas sueltas.</div>' +
-      '<div class="cj-card cjt-inicio">' +
-        T.fichas.map(f => {
-          const n = f.secciones.reduce((a, s) => a + s.items.length, 0);
-          return '<button type="button" class="cjt-ficha" onclick="CJT.abrir(\'' + escapeHtml(f.id) + '\')">' +
-            '<span class="cjt-ficha-txt"><span class="cjt-ficha-n">' + escapeHtml(f.titulo) + '</span>' +
-              '<span class="cjt-ficha-d">' + f.secciones.length + ' apartados · ' + n + ' cosas · ' + (f.docs || []).reduce((a, d) => a + d.paginas, 0) + ' páginas</span></span>' +
-            FLECHA + '</button>';
-        }).join('') +
-        (T.faltan && T.faltan.length ? '<div class="cj-hab-det">Todavía faltan: ' + escapeHtml(T.faltan.join(', ')) + '.</div>' : '') +
-      '</div>';
-  }
 
   /* ---------- para el profesor ---------- */
   // Progreso de un alumno por ficha.
@@ -1822,10 +1781,10 @@ const CJT = (function(){
   }
 
   return {
-    cargar, listo, contarSecciones, clavesSecciones, listaBarrios, clavesBarrio, clavesDistrito, comprimir, itemsCategoria, verEnFicha, auditar, repasarClaves, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaInicio, tarjetaProgresoAlumno,
+    cargar, listo, contarSecciones, clavesSecciones, listaBarrios, clavesBarrio, clavesDistrito, comprimir, itemsCategoria, verEnFicha, auditar, repasarClaves, nombreAmbito, describirFichas, nombreItem, claveDeItem, tarjetaProgresoAlumno,
     filasFichas, tarjetaProgresoFichas, resumen, repasar, preguntarSinMapa, temarioMandado, preguntarVistas, contarVistas, editarPregunta, anadirPregunta, editarPropia, puedeEditar, ultimasPropias, falladas, repasarFalladas, preguntasFalladas, preguntasDeClaves, idsDeClaves, fuente, reintentar, geoClaves,
     abrir, abrirTarea, abrirProfesor, preguntarProfesor, volver, repintar, alternar, cambiarPestana, verTodo, verSec, verItem, preguntarClave, preguntarSec, preguntarTarea,
-    abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar, mandar, elegirParaMandar,
+    abrirDoc, ampliar, seleccionar, elegirFicha, marcar, terminarEleccion, contarElegidas, reiniciar,
     clicPlano, pintarPlano, marcarPlano, verEnPlano
   };
 })();
