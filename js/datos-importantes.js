@@ -5,6 +5,9 @@
      · Nº ONU ↔ materia: el número se escribe (teclado numérico); la materia se elige entre 4.
      · NIP ↔ significado: el código se escribe (33, X423…); el significado se elige entre 4.
      · Libre: dato ↔ qué es, eligiendo entre 4 (o escribiendo, si se marca).
+   En un NIP cada cifra sale con su color e icono, el código se puede ver cifra a cifra (tocándolo en la
+   lista, al girar la ficha o tras responder) y los códigos con significado propio llevan ⚠️. En las
+   preguntas el NIP y el nº ONU salen en el panel naranja, como en el camión.
    Modos: Fichas (girar), Aprender (las que fallas vuelven hasta que salen; dominada
    con 3 aciertos seguidos) y Probar (10 preguntas con nota). Copia en el
    dispositivo para pintar al momento. */
@@ -19,16 +22,95 @@ const DI = (function(){
     libre: { titulo: '', nombre_a: 'Dato', nombre_b: 'Qué es', escribir_a: false, escribir_b: false, sentido: 'ambos',
       sub: 'Cualquier otra cosa: teléfonos, cifras, siglas… Eliges entre 4 (o escribes, si lo cambias).', ejemplo: ['112', 'Teléfono único de emergencias'] }
   };
+  /* ---------- NIP (código Kemler) ----------
+     Cada cifra significa siempre lo mismo: se pinta con su color (el de la etiqueta ADR de su clase) y un
+     icono que ayuda a recordarla, y cada código se puede «descifrar» cifra a cifra. Los códigos con
+     significado propio (no salen de la regla) se marcan con ⚠️. */
+  const CIFRAS = {
+    X: { ico: '🚱', nombre: 'No echar agua', luego: '¡No echar agua! Reacciona peligrosamente con ella' },
+    '2': { ico: '💨', nombre: 'Gas', luego: 'desprende gases', muy: '' },
+    '3': { ico: '⛽', nombre: 'Líquido inflamable', luego: 'inflamable', muy: 'muy inflamable' },
+    '4': { ico: '🪵', nombre: 'Sólido inflamable', luego: 'sólido inflamable', muy: '' },
+    '5': { ico: '🅾️', nombre: 'Comburente (aviva el fuego)', luego: 'comburente', muy: 'muy comburente' },
+    '6': { ico: '☠️', nombre: 'Tóxico', luego: 'tóxico', muy: 'muy tóxico' },
+    '7': { ico: '☢️', nombre: 'Radiactivo', luego: 'radiactivo', muy: 'muy radiactivo' },
+    '8': { ico: '🧪', nombre: 'Corrosivo', luego: 'corrosivo', muy: 'muy corrosivo' },
+    '9': { ico: '💥', nombre: 'Reacción violenta espontánea', luego: 'puede reaccionar violentamente', muy: '' },
+    '0': { ico: '·', nombre: 'Nada más', luego: 'sin más peligros (el 0 solo rellena)' }
+  };
+  const ESPECIALES = {
+    '22': 'Gas licuado refrigerado, asfixiante.',
+    '323': 'Líquido inflamable que reacciona con el agua desprendiendo gases inflamables.',
+    '333': 'Líquido pirofórico: arde solo al contacto con el aire.',
+    '362': 'Líquido inflamable y tóxico que reacciona con el agua desprendiendo gases inflamables.',
+    '382': 'Líquido inflamable y corrosivo que reacciona con el agua desprendiendo gases inflamables.',
+    '423': 'Sólido que reacciona con el agua desprendiendo gases inflamables.',
+    '43': 'Sólido que arde solo (pirofórico).',
+    '44': 'Sólido inflamable que va fundido, a temperatura elevada.',
+    '446': 'Sólido inflamable y tóxico que va fundido, a temperatura elevada.',
+    '462': 'Sólido que reacciona con el agua desprendiendo gases tóxicos.',
+    '482': 'Sólido que reacciona con el agua desprendiendo gases corrosivos.',
+    '539': 'Peróxido orgánico inflamable.',
+    '90': 'Peligroso para el medio ambiente, o peligros diversos.',
+    '99': 'Materia peligrosa diversa que va en caliente (temperatura elevada).'
+  };
+  const codigo = v => String(v == null ? '' : v).trim().replace(/\s/g, '').toUpperCase();
+  const esKemler = v => /^X?[2-9]\d{1,2}$/.test(codigo(v));
+  const especial = v => ESPECIALES[codigo(v).replace(/^X/, '')] || null;
+  const chip = (c, grande) => '<span class="di-chip c' + c + (grande ? ' g' : '') + '" title="' + CIFRAS[c].nombre + '"><span class="di-chip-i">' + CIFRAS[c].ico + '</span><span class="di-chip-n">' + c + '</span></span>';
+  const chips = v => '<span class="di-chips">' + [...codigo(v)].map(c => chip(c)).join('') + (especial(v) ? '<span class="di-ojo" title="Código especial: tiene significado propio">⚠️</span>' : '') + '</span>';
+  // El código cifra a cifra
+  function desglose(v){
+    const c = codigo(v), lineas = [];
+    let i = 0;
+    if(c[0] === 'X'){ lineas.push(['X', '<b>' + CIFRAS.X.luego + '</b>']); i = 1; }
+    for(let k = i; k < c.length; k++){
+      const n = c[k], f = CIFRAS[n];
+      const txt = k === i ? '<b>Peligro principal:</b> ' + f.nombre.toLowerCase()
+        : n === '0' ? f.luego
+        : n === c[k - 1] ? '<b>Repetida:</b> peligro más intenso' + (f.muy ? ' (' + f.muy + ')' : '')
+        : '<b>Además:</b> ' + f.luego;
+      lineas.push([n, txt]);
+    }
+    const esp = especial(v);
+    return '<div class="di-dg">' + lineas.map(([n, t]) => '<div class="di-dg-l">' + chip(n, true) + '<span>' + t + '</span></div>').join('') +
+      (esp ? '<div class="di-dg-ojo">⚠️ <span><b>Ojo, este código va aparte:</b> ' + esp + '</span></div>' : '') + '</div>';
+  }
+  // Panel naranja como el del camión: arriba el NIP, abajo el nº ONU
+  const panel = (arriba, abajo) => '<span class="di-panel"><span' + (arriba ? '' : ' class="vacio"') + '>' + esc(arriba) + '</span><span' + (abajo ? '' : ' class="vacio"') + '>' + esc(abajo) + '</span></span>';
+  const esNipAp = a => a.plantilla === 'nip' || /\bNIP\b|n[uú]mero de peligro|kemler/i.test(a.titulo);
+  const esOnuAp = a => a.plantilla === 'onu' || (!esNipAp(a) && /\bONU\b|MMPP/i.test(a.titulo));
+  // Qué cara del apartado lleva los códigos ('a', 'b' o null)
+  function ladoDe(a, prueba){
+    const ds = deAp(a.id), na = ds.filter(d => prueba(d.a)).length, nb = ds.filter(d => prueba(d.b)).length;
+    return !na && !nb ? null : na >= nb ? 'a' : 'b';
+  }
+  // Cómo se pinta cada apartado: cifras de colores (NIP), panel naranja (ONU) o tal cual
+  function formas(a){
+    const nip = esNipAp(a) ? ladoDe(a, esKemler) : null, onu = esOnuAp(a) ? ladoDe(a, v => /^\d{4}$/.test(codigo(v))) : null;
+    return {
+      nip, onu,
+      // En listas: el código con sus cifras de colores
+      celda: (cara, v) => cara === nip && esKemler(v) ? chips(v) : cara === onu && /^\d{4}$/.test(codigo(v)) ? panel('', codigo(v)) : esc(v),
+      // En preguntas y fichas: el panel naranja (sin colores, para no dar pistas)
+      grande: (cara, v) => cara === nip && esKemler(v) ? panel(codigo(v), '') : cara === onu && /^\d{4}$/.test(codigo(v)) ? panel('', codigo(v)) : esc(v),
+      dg: d => nip && esKemler(d[nip]) ? desglose(d[nip]) : ''
+    };
+  }
+
   // Chuletas que salen dentro de cada plantilla
   const AYUDA = {
-    nip: '<b>Cómo se lee un NIP</b> (número de identificación de peligro, arriba en el panel naranja):<ul>' +
-      '<li><b>2</b> emanación de gases (por presión o reacción química)</li><li><b>3</b> inflamabilidad de líquidos (vapores) y gases</li>' +
-      '<li><b>4</b> inflamabilidad de sólidos</li><li><b>5</b> comburente (favorece el incendio)</li><li><b>6</b> toxicidad o peligro de infección</li>' +
-      '<li><b>7</b> radiactividad</li><li><b>8</b> corrosividad</li><li><b>9</b> peligro de reacción violenta espontánea</li></ul>' +
-      'Cifra repetida: el peligro es más intenso (33, 66, 88). Si basta una cifra, se completa con 0 (30, 60, 80). <b>X</b> delante: reacciona peligrosamente con el agua.',
+    nip: '<b>Cómo se lee un NIP</b> (número de peligro, arriba en el panel naranja):' +
+      '<div class="di-leyenda">' + [...'23456789X0'].map(c => '<div class="di-ley">' + chip(c, true) + '<span>' + CIFRAS[c].nombre + '</span></div>').join('') + '</div>' +
+      '<ul><li>La <b>1.ª cifra</b> es el peligro principal; las siguientes, peligros añadidos.</li>' +
+      '<li><b>Cifra repetida</b>: el peligro es más intenso (33, 66, 88).</li>' +
+      '<li>Si basta una cifra, se completa con <b>0</b> (30, 60, 80).</li>' +
+      '<li><b>X</b> delante: reacciona peligrosamente con el agua.</li>' +
+      '<li>⚠️ <b>Van aparte</b> (significado propio): ' + Object.keys(ESPECIALES).join(', ') + '.</li></ul>' +
+      'Toca cualquier código de tu lista para verlo cifra a cifra.',
     onu: '<b>Panel naranja</b>: arriba va el NIP (número de peligro) y abajo el <b>número ONU</b>, de 4 cifras, que identifica la materia.'
   };
-  const ayudaDe = a => AYUDA[a.plantilla] || (/\bNIP\b|n[uú]mero de peligro/i.test(a.titulo) ? AYUDA.nip : /\bONU\b|MMPP/i.test(a.titulo) ? AYUDA.onu : null);
+  const ayudaDe = a => AYUDA[a.plantilla] || (esNipAp(a) ? AYUDA.nip : esOnuAp(a) ? AYUDA.onu : null);
   const svg = d => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
   const ICO = {
     onu: svg('<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M3 12h18"/>'),
@@ -45,6 +127,7 @@ const DI = (function(){
   let aps = [], datos = [], cargado = false, cargando = null, dueño = null;
   let vista = { v: 'lista' };     // lista | apartado | estudio
   let st = null;                  // estado del modo de estudio
+  const abiertos = new Set();     // códigos NIP desplegados cifra a cifra en la lista
   const root = () => document.getElementById('datosRoot');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const arriba = () => { const a = document.getElementById('app'); (a || window).scrollTo(0, 0); };
@@ -135,10 +218,15 @@ const DI = (function(){
       '</div>';
   }
   function vistaApartado(a){
-    const ds = deAp(a.id), dom = ds.filter(dominada).length;
-    const filas = ds.map(d => '<div class="di-fila' + (dominada(d) ? ' dom' : '') + '"><span class="di-a">' + esc(d.a) + '</span><span class="di-b">' + esc(d.b) + (d.regla ? ' <i class="di-marca" title="Tiene regla mnemotécnica">💡</i>' : '') + (d.imagen ? ' <i class="di-marca" title="Tiene imagen">🖼️</i>' : '') + '</span>' +
+    const ds = deAp(a.id), dom = ds.filter(dominada).length, f = formas(a);
+    // En un NIP, el código es un botón: al tocarlo se ve cifra a cifra
+    const celdaA = d => f.nip === 'a' && esKemler(d.a)
+      ? '<button type="button" class="di-a di-a-cod" data-di="desglose" data-id="' + d.id + '" aria-expanded="' + abiertos.has(d.id) + '" title="Ver qué significa cada cifra">' + chips(d.a) + '</button>'
+      : '<span class="di-a">' + f.celda('a', d.a) + '</span>';
+    const filas = ds.map(d => '<div class="di-fila' + (dominada(d) ? ' dom' : '') + '">' + celdaA(d) + '<span class="di-b">' + f.celda('b', d.b) + (d.regla ? ' <i class="di-marca" title="Tiene regla mnemotécnica">💡</i>' : '') + (d.imagen ? ' <i class="di-marca" title="Tiene imagen">🖼️</i>' : '') + '</span>' +
       '<button type="button" class="di-ico-btn" data-di="editar" data-id="' + d.id + '" aria-label="Editar">✎</button>' +
-      '<button type="button" class="di-ico-btn" data-di="quitar" data-id="' + d.id + '" aria-label="Borrar">' + ICO.borrar + '</button></div>').join('');
+      '<button type="button" class="di-ico-btn" data-di="quitar" data-id="' + d.id + '" aria-label="Borrar">' + ICO.borrar + '</button></div>' +
+      (abiertos.has(d.id) && f.dg(d) ? '<div class="di-fila-dg">' + f.dg(d) + '</div>' : '')).join('');
     const pocos = ds.length < 2;
     const modo = (k, nombre, sub) => '<button type="button" class="di-modo" data-di="modo" data-m="' + k + '"' + (pocos ? ' disabled' : '') + '><span class="di-modo-ico">' + ICO[k] + '</span><b>' + nombre + '</b><span>' + sub + '</span></button>';
     const como = c => escribe(a, c) ? 'escribiendo' : 'eligiendo entre 4';
@@ -147,8 +235,8 @@ const DI = (function(){
       '<div class="di-modos">' + modo('fichas', 'Fichas', 'Girar y repasar') + modo('aprender', 'Aprender', 'Hasta que salgan todas') + modo('probar', 'Probar', PRUEBA + ' preguntas con nota') + '</div>' +
       (pocos ? '<div class="di-vacio">Añade al menos 2 datos para estudiar.</div>' : '') +
       '<div class="di-como">Pregunta ' + ({ ab: esc(a.nombre_a) + ' → ' + esc(a.nombre_b), ba: esc(a.nombre_b) + ' → ' + esc(a.nombre_a), ambos: 'en los dos sentidos' }[a.sentido]) +
-        '; ' + esc(a.nombre_a) + ' se responde ' + como('a') + ' y ' + esc(a.nombre_b) + ', ' + como('b') + '. Con ✎ en cada dato puedes ponerle una regla mnemotécnica o una imagen.</div>' +
-      (ayudaDe(a) ? '<details class="di-ayuda"><summary>Chuleta</summary><div>' + ayudaDe(a) + '</div></details>' : '') +
+        '; ' + esc(a.nombre_a) + ' se responde ' + como('a') + ' y ' + esc(a.nombre_b) + ', ' + como('b') + '. Con ✎ en cada dato puedes ponerle una regla mnemotécnica o una imagen.' + (f.nip === 'a' ? ' <b>Toca un código para verlo cifra a cifra.</b>' : '') + '</div>' +
+      (ayudaDe(a) ? '<details class="di-ayuda"' + (f.nip ? ' open' : '') + '><summary>Chuleta</summary><div>' + ayudaDe(a) + '</div></details>' : '') +
       '<form class="di-add" data-di-form="add"><input name="a" placeholder="' + esc(a.nombre_a) + '" autocomplete="off" required maxlength="200"' + (a.plantilla !== 'libre' ? ' inputmode="' + (a.plantilla === 'onu' ? 'numeric' : 'text') + '"' : '') + '>' +
         '<input name="b" placeholder="' + esc(a.nombre_b) + '" autocomplete="off" required maxlength="1000"><button type="submit" class="di-btn">Añadir</button></form>' +
       '<button type="button" class="di-link di-pegar" data-di="pegar">Pegar una lista entera</button>' +
@@ -197,13 +285,13 @@ const DI = (function(){
     siguiente(); pintar();
   }
   function vistaEstudio(){
-    const a = st.a, titulo = { fichas: 'Fichas', aprender: 'Aprender', probar: 'Probar' }[st.modo];
+    const a = st.a, titulo = { fichas: 'Fichas', aprender: 'Aprender', probar: 'Probar' }[st.modo], f = formas(a);
     const cab = '<div class="di-est-cab"><button type="button" class="di-link" data-di="salir">✕ Salir</button><b>' + titulo + ' · ' + esc(a.titulo) + '</b></div>';
     if(st.modo === 'fichas'){
       const d = st.cartas[st.i], cara = st.girada ? (st.cara === 'a' ? 'b' : 'a') : st.cara;
       const nombre = cara === 'a' ? a.nombre_a : a.nombre_b;
       return cab + '<div class="di-paso">' + (st.i + 1) + ' de ' + st.cartas.length + '</div>' +
-        '<button type="button" class="di-ficha' + (st.girada ? ' girada' : '') + (cara === 'a' ? ' cara-a' : '') + '" data-di="girar"><small>' + esc(nombre) + '</small><span>' + esc(d[cara]) + '</span><em>Toca para girar</em></button>' + (st.girada ? ayudas(d) : '') +
+        '<button type="button" class="di-ficha' + (st.girada ? ' girada' : '') + (cara === 'a' ? ' cara-a' : '') + '" data-di="girar"><small>' + esc(nombre) + '</small><span>' + f.grande(cara, d[cara]) + '</span><em>Toca para girar</em></button>' + (st.girada ? f.dg(d) + ayudas(d) : '') +
         '<div class="di-ficha-nav"><button type="button" class="di-btn sec" data-di="ant"' + (st.i ? '' : ' disabled') + '>‹ Anterior</button>' +
           '<button type="button" class="di-btn sec" data-di="barajar">Barajar</button><button type="button" class="di-btn sec" data-di="cara">Empezar por ' + esc(st.cara === 'a' ? a.nombre_b : a.nombre_a) + '</button>' +
           '<button type="button" class="di-btn" data-di="sig"' + (st.i + 1 < st.cartas.length ? '' : ' disabled') + '>Siguiente ›</button></div>';
@@ -213,7 +301,7 @@ const DI = (function(){
       if(st.modo === 'aprender') return cab + '<div class="di-fin"><div class="di-fin-n">✓</div><b>¡Tanda hecha!</b><span>' + st.total + ' datos respondidos bien.</span>' +
         '<div class="di-fin-btns"><button type="button" class="di-btn" data-di="modo" data-m="aprender">Otra tanda</button><button type="button" class="di-btn sec" data-di="salir">Volver</button></div></div>';
       const bien = st.hechas.filter(h => h.bien).length, nota = st.total ? Math.round(bien * 100 / st.total) / 10 : 0;
-      const mal = st.hechas.filter(h => !h.bien).map(h => '<div class="di-fila"><span class="di-a">' + esc(h.q.d.a) + '</span><span class="di-b">' + esc(h.q.d.b) + '</span></div>').join('');
+      const mal = st.hechas.filter(h => !h.bien).map(h => '<div class="di-fila"><span class="di-a">' + f.celda('a', h.q.d.a) + '</span><span class="di-b">' + f.celda('b', h.q.d.b) + '</span></div>').join('');
       return cab + '<div class="di-fin"><div class="di-fin-n' + (nota >= 5 ? ' ok' : '') + '">' + String(nota).replace('.', ',') + '</div><b>' + bien + ' de ' + st.total + ' bien</b>' +
         (mal ? '<span>Para repasar:</span><div class="di-lista">' + mal + '</div>' : '<span>¡Todas bien!</span>') +
         '<div class="di-fin-btns"><button type="button" class="di-btn" data-di="modo" data-m="probar">Otra prueba</button><button type="button" class="di-btn sec" data-di="salir">Volver</button></div></div>';
@@ -233,9 +321,9 @@ const DI = (function(){
         (r ? '' : '<button type="button" class="di-link" data-di="nolose">No lo sé</button>');
     else cuerpo = r ? '' : '<div class="di-ops"><button type="button" class="di-op" data-di="saber" data-v="1">Lo sabía</button><button type="button" class="di-op" data-di="saber" data-v="0">No lo sabía</button></div>';
     const veredicto = r ? '<div class="di-ver ' + (r.bien ? 'bien' : 'mal') + '"><b>' + (r.bien ? '¡Bien!' : 'Era: ' + esc(buena)) + '</b>' +
-      (st.modo === 'aprender' && !r.bien ? '<span>Te la vuelvo a preguntar en un momento.</span>' : '') + '<button type="button" class="di-btn" data-di="seguir">Continuar</button></div>' + ayudas(q.d) : '';
+      (st.modo === 'aprender' && !r.bien ? '<span>Te la vuelvo a preguntar en un momento.</span>' : '') + '<button type="button" class="di-btn" data-di="seguir">Continuar</button></div>' + f.dg(q.d) + ayudas(q.d) : '';
     return cab + '<div class="di-paso">' + prog + '</div><div class="di-barra grande"><i style="width:' + pct + '%"></i></div>' +
-      '<div class="di-preg"><small>' + esc(preg) + '</small><div class="di-preg-txt">' + esc(q.d[q.ve]) + '</div><span class="di-preg-pide">¿' + esc(resp) + '?</span></div>' +
+      '<div class="di-preg"><small>' + esc(preg) + '</small><div class="di-preg-txt">' + f.grande(q.ve, q.d[q.ve]) + '</div><span class="di-preg-pide">¿' + esc(resp) + '?</span></div>' +
       cuerpo + veredicto;
   }
 
@@ -376,6 +464,7 @@ const DI = (function(){
       case 'pegar': pegar(); break;
       case 'editar': editar(el.dataset.id); break;
       case 'quitar': quitar(el.dataset.id); break;
+      case 'desglose': abiertos.has(el.dataset.id) ? abiertos.delete(el.dataset.id) : abiertos.add(el.dataset.id); pintar(); break;
       case 'modo': empezar(el.dataset.m); break;
       case 'salir': st = null; pintar(); arriba(); break;
       case 'op': responder(el.dataset.v); break;
