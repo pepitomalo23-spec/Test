@@ -27,16 +27,16 @@ const DI = (function(){
      icono que ayuda a recordarla, y cada código se puede «descifrar» cifra a cifra. Los códigos con
      significado propio (no salen de la regla) se marcan con ⚠️. */
   const CIFRAS = {
-    X: { ico: '🚱', nombre: 'No echar agua', luego: '¡No echar agua! Reacciona peligrosamente con ella' },
-    '2': { ico: '💨', nombre: 'Gas', luego: 'desprende gases', muy: '' },
-    '3': { ico: '⛽', nombre: 'Líquido inflamable', luego: 'inflamable', muy: 'muy inflamable' },
-    '4': { ico: '🪵', nombre: 'Sólido inflamable', luego: 'sólido inflamable', muy: '' },
-    '5': { ico: '🅾️', nombre: 'Comburente (aviva el fuego)', luego: 'comburente', muy: 'muy comburente' },
-    '6': { ico: '☠️', nombre: 'Tóxico', luego: 'tóxico', muy: 'muy tóxico' },
-    '7': { ico: '☢️', nombre: 'Radiactivo', luego: 'radiactivo', muy: 'muy radiactivo' },
-    '8': { ico: '🧪', nombre: 'Corrosivo', luego: 'corrosivo', muy: 'muy corrosivo' },
-    '9': { ico: '💥', nombre: 'Reacción violenta espontánea', luego: 'puede reaccionar violentamente', muy: '' },
-    '0': { ico: '·', nombre: 'Nada más', luego: 'sin más peligros (el 0 solo rellena)' }
+    X: { nombre: 'No echar agua', luego: '¡No echar agua! Reacciona peligrosamente con ella' },
+    '2': { nombre: 'Gas', luego: 'desprende gases', muy: '' },
+    '3': { nombre: 'Líquido inflamable', luego: 'inflamable', muy: 'muy inflamable' },
+    '4': { nombre: 'Sólido inflamable', luego: 'sólido inflamable', muy: '' },
+    '5': { nombre: 'Comburente (aviva el fuego)', luego: 'comburente', muy: 'muy comburente' },
+    '6': { nombre: 'Tóxico', luego: 'tóxico', muy: 'muy tóxico' },
+    '7': { nombre: 'Radiactivo', luego: 'radiactivo', muy: 'muy radiactivo' },
+    '8': { nombre: 'Corrosivo', luego: 'corrosivo', muy: 'muy corrosivo' },
+    '9': { nombre: 'Reacción violenta espontánea', luego: 'puede reaccionar violentamente', muy: '' },
+    '0': { nombre: 'Nada más', luego: 'sin más peligros (el 0 solo rellena)' }
   };
   const ESPECIALES = {
     '22': 'Gas licuado refrigerado, asfixiante.',
@@ -57,7 +57,9 @@ const DI = (function(){
   const codigo = v => String(v == null ? '' : v).trim().replace(/\s/g, '').toUpperCase();
   const esKemler = v => /^X?[2-9]\d{1,2}$/.test(codigo(v));
   const especial = v => ESPECIALES[codigo(v).replace(/^X/, '')] || null;
-  const chip = (c, grande) => '<span class="di-chip c' + c + (grande ? ' g' : '') + '" title="' + CIFRAS[c].nombre + '"><span class="di-chip-i">' + CIFRAS[c].ico + '</span><span class="di-chip-n">' + c + '</span></span>';
+  // Iconos de las cifras (hechos con Higgsfield): una sola imagen de 3×3 (2-9 y X); cada cifra se recorta con CSS
+  const ICONOS_NIP = 'datos/nip-iconos.webp?v=af95e83d43';
+  const chip = (c, grande) => '<span class="di-chip c' + c + (grande ? ' g' : '') + '" title="' + CIFRAS[c].nombre + '"><span class="di-chip-i"></span><span class="di-chip-n">' + c + '</span></span>';
   const chips = v => '<span class="di-chips">' + [...codigo(v)].map(c => chip(c)).join('') + (especial(v) ? '<span class="di-ojo" title="Código especial: tiene significado propio">⚠️</span>' : '') + '</span>';
   // El código cifra a cifra
   function desglose(v){
@@ -510,6 +512,7 @@ const DI = (function(){
     const r = root();
     if(r && !r.dataset.listo){
       r.dataset.listo = '1';
+      r.style.setProperty('--nip-iconos', 'url("' + new URL(ICONOS_NIP, location.href).href + '")');   // absoluta: si no, se leería desde css/
       r.addEventListener('click', onClick);
       r.addEventListener('submit', onSubmit);
       r.addEventListener('keydown', e => { if(e.key === 'Enter' && e.target.classList.contains('back-link')) onClick(e); });

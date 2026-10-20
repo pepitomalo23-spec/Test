@@ -134,24 +134,24 @@
 .di-ficha + .di-ayudas{ margin: -4px 0 16px; }
 
 /* NIP (código Kemler): cada cifra con el color de la etiqueta ADR de su clase y un icono */
-.di-chips{ display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; }
-.di-chip{ display: inline-flex; flex-direction: column; align-items: center; justify-content: center; width: 28px; height: 38px; border-radius: 7px; box-sizing: border-box; flex: none; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); line-height: 1; }
-.di-chip-i{ font-size: 12px; line-height: 1; }
-.di-chip-n{ font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
-.di-chip.g{ width: 40px; height: 52px; border-radius: 9px; }
-.di-chip.g .di-chip-i{ font-size: 17px; }
-.di-chip.g .di-chip-n{ font-size: 21px; }
-.di-chip.c2{ background: #2f9a55; color: #fff; }
-.di-chip.c3{ background: #d8392b; color: #fff; }
-.di-chip.c4{ background: linear-gradient(#d8392b, #d8392b) bottom / 100% 52% no-repeat, repeating-linear-gradient(90deg, #d8392b 0 4px, #fff 4px 8px); color: #fff; }
-.di-chip.c5{ background: #f4c21f; color: #1a1a1a; }
-.di-chip.c6{ background: #fff; color: #1a1a1a; box-shadow: inset 0 0 0 1.5px #1a1a1a; }
-.di-chip.c7{ background: linear-gradient(#f6d33a 50%, #fff 50%); color: #1a1a1a; }
-.di-chip.c8{ background: linear-gradient(#fff 48%, #1f1f1f 48%); color: #fff; box-shadow: inset 0 0 0 1.5px #1f1f1f; }
-.di-chip.c9{ background: linear-gradient(#fff, #fff) bottom / 100% 52% no-repeat, repeating-linear-gradient(90deg, #1f1f1f 0 3px, #fff 3px 6px); color: #1a1a1a; box-shadow: inset 0 0 0 1.5px #1f1f1f; }
-.di-chip.cX{ background: #2b74d6; color: #fff; }
-.di-chip.c0{ background: none; color: var(--muted); box-shadow: none; border: 1.5px dashed var(--muted-2); }
-.di-chip.c0 .di-chip-i{ opacity: 0; }
+.di-chips{ display: inline-flex; align-items: flex-start; gap: 4px; vertical-align: middle; }
+/* Cada cifra: su icono (datos/nip-iconos.webp, 3×3: 2 3 4 / 5 6 7 / 8 9 X) y el número debajo */
+.di-chip{ display: inline-flex; flex-direction: column; align-items: center; gap: 2px; flex: none; line-height: 1; }
+.di-chip-i{ width: 30px; height: 30px; border-radius: 7px; background: var(--nip-iconos) 0 0 / 300% 300% no-repeat; box-shadow: 0 1px 3px rgba(0,0,0,.28); }
+.di-chip-n{ font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
+.di-chip.g .di-chip-i{ width: 46px; height: 46px; border-radius: 11px; }
+.di-chip.g .di-chip-n{ font-size: 19px; }
+.di-chip.c2 .di-chip-i{ background-position: 0 0; }
+.di-chip.c3 .di-chip-i{ background-position: 50% 0; }
+.di-chip.c4 .di-chip-i{ background-position: 100% 0; }
+.di-chip.c5 .di-chip-i{ background-position: 0 50%; }
+.di-chip.c6 .di-chip-i{ background-position: 50% 50%; }
+.di-chip.c7 .di-chip-i{ background-position: 100% 50%; }
+.di-chip.c8 .di-chip-i{ background-position: 0 100%; }
+.di-chip.c9 .di-chip-i{ background-position: 50% 100%; }
+.di-chip.cX .di-chip-i{ background-position: 100% 100%; }
+.di-chip.c0 .di-chip-i{ background: none; box-shadow: none; border: 2px dashed var(--muted-2); box-sizing: border-box; }
+.di-chip.c0 .di-chip-n{ color: var(--muted); }
 .di-ojo{ font-size: 15px; margin-left: 4px; }
 .di-a-cod{ border: 0; background: none; color: var(--text); font: inherit; padding: 2px; margin: -2px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; }
 .di-a-cod:hover, .di-a-cod[aria-expanded="true"]{ background: var(--w06); }
@@ -175,6 +175,5 @@
 .di-panel > span + span{ border-top: .12em solid #111; }
 .di-panel > .vacio{ opacity: .35; }
 .di-lista .di-panel{ font-size: 14px; }
-.di-fila .di-chip:not(.g){ width: 24px; height: 34px; border-radius: 6px; }
-.di-fila .di-chip:not(.g) .di-chip-i{ font-size: 10.5px; }
-.di-fila .di-chip:not(.g) .di-chip-n{ font-size: 14.5px; }
+.di-fila .di-chip:not(.g) .di-chip-i{ width: 26px; height: 26px; border-radius: 6px; }
+.di-fila .di-chip:not(.g) .di-chip-n{ font-size: 14px; }
