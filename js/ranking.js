@@ -55,10 +55,13 @@ const RANK = (function(){
   /* ---------- tus exámenes ---------- */
   const fecha = f => { const d = new Date(f); return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) + ' · ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); };
   const PAPELERA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+  let abierta = false;
   async function misExamenes(){
+    if(abierta) return;   // un toque de más no abre otra
+    abierta = true;
     const bg = document.createElement('div');
     bg.className = 'ui-confirm-bg';
-    const cerrar = () => { bg.remove(); document.removeEventListener('keydown', tecla, true); };
+    const cerrar = () => { abierta = false; bg.remove(); document.removeEventListener('keydown', tecla, true); };
     const tecla = e => { if(e.key === 'Escape'){ e.preventDefault(); cerrar(); } };
     document.addEventListener('keydown', tecla, true);
     document.body.appendChild(bg);
