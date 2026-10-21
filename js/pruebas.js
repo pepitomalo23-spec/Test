@@ -777,7 +777,7 @@ const PRU = (function(){
     const caja = document.createElement('div');
     caja.innerHTML = est.items.map(pregunta).join('');
     const pregs = Array.from(caja.children);
-    // En el móvil: 2 preguntas por hoja, con letra normal, y se pasa de hoja deslizando.
+    // En el móvil: 5 preguntas por hoja, con letra más pequeña, y se pasa de hoja deslizando.
     const movil = window.matchMedia('(max-width: 600px)').matches;
     if(movil){
       cont.classList.add('movil');
@@ -819,7 +819,7 @@ const PRU = (function(){
     }
     if(!quieto) arriba();
   }
-  const POR_HOJA_MOVIL = 2;
+  const POR_HOJA_MOVIL = 5;
   let hojaVista = 0;
   // La barra de abajo («Anterior · Hoja 2 de 50 · Siguiente») va con lo que se desliza.
   function barraHojas(cont){
