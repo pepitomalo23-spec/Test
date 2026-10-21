@@ -708,3 +708,20 @@
 .rk-nota.ok{ color: var(--green, #2fa36b); }
 .rk-nota.mal{ color: var(--coral, #e8574b); }
 .rk-fila.yo{ background: rgba(140,125,245,.08); border-radius:10px; }
+.rk-fila[data-rk-yo]{ cursor:pointer; }
+.rk-flecha{ font-size:20px; color: var(--muted-2); margin-left:-2px; }
+/* «Tus exámenes» (al pulsar tu fila del ranking) */
+.rk-mis-caja{ max-width:460px; max-height:min(80vh, 640px); display:flex; flex-direction:column; }
+.rk-mis{ list-style:none; margin:4px -4px 0; padding:0; overflow-y:auto; }
+.rk-mis li{ display:flex; align-items:center; gap:6px; border-top:1px solid var(--line-soft); }
+.rk-mis li:first-child{ border-top:0; }
+.rk-mis-ver{ flex:1; min-width:0; display:flex; align-items:center; gap:12px; padding:10px 4px; background:none; border:0; text-align:left; font:inherit; color: var(--text); cursor:pointer; }
+.rk-mis-ver > b{ flex:none; width:52px; text-align:center; font-size:17px; font-variant-numeric: tabular-nums; }
+.rk-mis-ver > b.ok{ color: var(--green); }
+.rk-mis-ver > b.mal{ color: var(--coral); }
+.rk-mis-ver span{ display:flex; flex-direction:column; min-width:0; }
+.rk-mis-ver span b{ font-size:14px; }
+.rk-mis-ver small{ font-size:11.5px; color: var(--muted-2); }
+.rk-mis-borrar{ flex:none; width:36px; height:36px; border-radius:10px; border:1px solid var(--line); background:none; color: var(--coral); display:grid; place-items:center; cursor:pointer; }
+.rk-mis-borrar svg{ width:18px; height:18px; }
+.rk-mis-borrar:disabled{ opacity:.4; }

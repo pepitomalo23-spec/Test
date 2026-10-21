@@ -509,7 +509,10 @@ y sus funciones siguen en la base de datos, sin usarse, por si se quisiera recup
   en ese momento con lo respondido; uno que quedó a medias se corrige al volver a abrirlo.
 - Mini ranking (arriba en Estadísticas, `js/ranking.js`): nota media, última y mejor de esos exámenes. Quién sale y
   con qué nombre lo decide el administrador en Usuarios (tabla `ranking_participantes`; las notas, de la función
-  `ranking_examenes`, migración `20261109_ranking.sql`).
+  `ranking_examenes`, migración `20261109_ranking.sql`). Pulsando tu propia fila salen tus exámenes (tocar uno lo
+  abre corregido) y se puede eliminar uno: queda marcado (`historial_pruebas.borrado_at`, `borrar_examen`) y deja
+  de contar. El administrador los ve en Usuarios → «Exámenes eliminados» y los puede devolver (`restaurar_examen`;
+  migración `20261110_eliminar_examenes.sql`). Borrar un Examen o Simulacro oficial desde el historial hace lo mismo.
 
 ## Mnemotecnia
 

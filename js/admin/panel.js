@@ -48,6 +48,7 @@ function switchAdminTab(name){
   if(name === 'users'){
     adminLoadDefaultFlags();
     adminLoadUsers();
+    adminLoadBorrados();
     adminLoadVerifications();
     adminLoadLoginAttempts();
   }

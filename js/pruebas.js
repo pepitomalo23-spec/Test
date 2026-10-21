@@ -1207,7 +1207,7 @@ const PRU = (function(){
   addEventListener('online', () => { subirPendientes(); });
   async function cargarHistorial(){
     await subirPendientes();
-    const { data, error } = await sb.from('historial_pruebas').select('id,modo,nota,segundos,resumen,created_at').eq('user_id', currentUser.id).order('created_at', { ascending: false }).limit(60);
+    const { data, error } = await sb.from('historial_pruebas').select('id,modo,nota,segundos,resumen,created_at').eq('user_id', currentUser.id).is('borrado_at', null).order('created_at', { ascending: false }).limit(60);
     if(error) throw error;
     // Las que aún no se han podido subir, también.
     const pend = leerPend().map((f, i) => Object.assign({ id: 'local-' + i, pendiente: true }, f));
@@ -1255,6 +1255,15 @@ const PRU = (function(){
   // Borrar una prueba quita todo lo que metió: sus respuestas del Específico
   // (Estadísticas y Fallos) y la sesión de su parte de Legislación.
   async function borrarHistorial(id){
+    // Examen y Simulacro oficial: se marcan como eliminados (el administrador los puede devolver).
+    const h = (historial || []).find(x => x.id === id);
+    if(h && MODOS[h.modo] && MODOS[h.modo].oficial){
+      if(!(await uiConfirm('¿Eliminar este ' + (h.modo === 'examen' ? 'examen' : 'simulacro') + ' de tu historial?\n\nDeja de contar en el ranking. Si te equivocas, el administrador lo puede devolver.', { ok: 'Eliminar', danger: true }))) return;
+      const { data, error } = await sb.rpc('borrar_examen', { p_id: id });
+      if(error || !data){ uiToast('No se pudo eliminar' + (error ? ': ' + error.message : ''), 'error'); return; }
+      olvidarDelHistorial(id);
+      return;
+    }
     if(!(await uiConfirm('¿Borrar esta prueba de tu historial?\n\nTambién se quitarán sus respuestas de Estadísticas y de Fallos. No se puede deshacer.', { ok: 'Borrar', danger: true }))) return;
     const yo = currentUser.id;
     try{
@@ -1283,6 +1292,11 @@ const PRU = (function(){
     if(typeof EXA !== 'undefined') EXA.repintar();
   }
 
+  function olvidarDelHistorial(id){
+    historial = (historial || []).filter(h => h.id !== id);
+    if($('screen-pru-config') && $('screen-pru-config').classList.contains('active')) pintarConfig();
+    if(typeof EXA !== 'undefined') EXA.repintar();
+  }
   function pintarResultado(){
     showScreen('screen-pru');
     cabecera(true);
@@ -1435,7 +1449,7 @@ const PRU = (function(){
   function reiniciar(){ clearInterval(reloj); est = null; meta = null; cargandoMeta = null; panelMeta = null; historial = null; cfg.legis.clear(); cfg.esp.clear(); }
   return {
     bloqueado, conjuntoDisponible: () => permitido('conjunto'), oficialDisponible: () => permitido('oficial'), empezarOficial, textoPen, empezarExamen, planExamen, fijarExamen,
-    cargarHistorial: () => cargarHistorial(), revisarHistorial, borrarHistorial,
+    cargarHistorial: () => cargarHistorial(), revisarHistorial, borrarHistorial, olvidarDelHistorial,
     abrirConfig, cerrarConfig, empezar, quitarFallos, continuar, aMedias, reiniciar, precargar, repasar,
     // Lo ya corregido de la prueba que va a medias (de una en una): [{ k, id, ok }] y cuándo empezó.
     respuestasEnCurso: () => !est || est.terminado || MODOS[est.modo].vista !== 'tarjeta' ? null :
