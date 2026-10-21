@@ -705,7 +705,7 @@
 .hoja-cuerpo{ flex:1 1 0; min-height:0; overflow:hidden; }
 .hoja-cab, .hoja-datos, .hoja-titulo, .hoja-instr, .hoja-pie{ flex:none; }
 .hoja-pie{ text-align:center; font-size:11.5px; color:#777; padding-top:10px; border-top:1px solid #ddd; margin-top:4px; }
-/* Móvil: 2 preguntas por hoja, letra normal, una hoja al lado de otra y se pasa deslizando. */
+/* Móvil: 5 preguntas por hoja, letra pequeña, una hoja al lado de otra y se pasa deslizando. */
 .hojas.movil{ flex-direction:row; align-items:stretch; gap:12px; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; overscroll-behavior-x:contain; scrollbar-width:none; }
 .hojas.movil::-webkit-scrollbar{ display:none; }
 .hojas.movil .hoja{ flex:0 0 100%; scroll-snap-align:start; scroll-snap-stop:always; overflow:visible; padding:14px 14px 8px; }
@@ -731,9 +731,12 @@
   .hoja-datos dd{ font-size:11.5px; }
   .hoja-titulo{ font-size:15px; margin:2px 0; }
   .hoja-instr{ font-size:11px; margin-bottom:8px; }
-  .hoja-enun{ font-size:15px; }
+  .hoja-enun{ font-size:12px; line-height:1.28; margin-bottom:2px; }
   .hoja-ops{ padding-left:4px; }
-  .hoja-op{ font-size:14.5px; padding:6px 8px; }
+  .hoja-op{ font-size:11.5px; line-height:1.25; padding:2px 6px; gap:5px; }
+  .hoja-letra{ min-width:18px; }
+  .hoja-preg{ padding:5px 0 6px; }
+  .hoja-ops{ gap:0; }
   .hoja-pie{ font-size:10.5px; padding-top:6px; }
 }
 
