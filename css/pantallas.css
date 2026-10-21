@@ -684,3 +684,27 @@
   .este-temas .ranking-name, .este-temas .este-sub{ white-space:normal; overflow:visible; }
   .este-temas .ranking-row .ranking-pos{ background: var(--card-hi); color: var(--muted); }
   .este-sin{ margin-top:12px; font-size:12.5px; color: var(--muted); line-height:1.45; }
+
+/* ---------- Mini ranking de exámenes (js/ranking.js) ---------- */
+.rk-card{ background: var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 14px 8px; margin-bottom:22px; }
+.rk-cab{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.rk-cab div{ display:flex; flex-direction:column; }
+.rk-cab b{ font-size:15px; }
+.rk-cab span:not(.rk-ico){ font-size:12px; color: var(--muted-2); }
+.rk-ico{ width:34px; height:34px; border-radius:10px; display:grid; place-items:center; background: rgba(245,183,49,.16); color:#e0a412; flex:none; }
+.rk-ico svg{ width:20px; height:20px; }
+.rk-lista{ list-style:none; margin:0; padding:0; }
+.rk-fila{ display:flex; align-items:center; gap:10px; padding:9px 4px; border-top:1px solid var(--line-soft, var(--line)); }
+.rk-fila:first-child{ border-top:0; }
+.rk-pos{ width:26px; height:26px; border-radius:50%; display:grid; place-items:center; flex:none; font-size:13px; font-weight:700; background: var(--line-soft, rgba(127,127,127,.15)); color: var(--muted-2); }
+.rk-fila.p1 .rk-pos{ background:#f5c518; color:#4a3700; }
+.rk-fila.p2 .rk-pos{ background:#cfd4dc; color:#33373d; }
+.rk-fila.p3 .rk-pos{ background:#d9965b; color:#3d2309; }
+.rk-nombre{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.rk-nombre b{ font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rk-nombre i{ font-style:normal; font-size:11px; font-weight:600; color: var(--purple); margin-left:4px; }
+.rk-nombre small{ font-size:11.5px; color: var(--muted-2); }
+.rk-nota{ font-size:18px; font-weight:700; font-variant-numeric: tabular-nums; color: var(--muted-2); }
+.rk-nota.ok{ color: var(--green, #2fa36b); }
+.rk-nota.mal{ color: var(--coral, #e8574b); }
+.rk-fila.yo{ background: rgba(140,125,245,.08); border-radius:10px; }

@@ -60,6 +60,11 @@ function volverAtras(defecto){
   finally{ volviendo = false; }
 }
 function showScreen(id){
+  // Durante el Examen o el Simulacro oficial no se sale de su pantalla (js/pruebas.js).
+  if(id !== 'screen-pru' && typeof PRU !== 'undefined' && PRU.bloqueado && PRU.bloqueado()){
+    uiToast('Estás en el examen: para salir, pulsa «Finalizar».', 'info');
+    return;
+  }
   if(SCREEN_FEATURE[id] && !featureEnabled(SCREEN_FEATURE[id])) id = 'screen-home';
   if(id === 'screen-piscina' && !currentUserIsAdmin) id = 'screen-inicio';
   const antes = (document.querySelector('.screen.active') || {}).id;
@@ -75,6 +80,7 @@ function showScreen(id){
   if(id === 'screen-datos' && typeof DI !== 'undefined') DI.abrir();
   if(id === 'screen-piscina' && typeof PISCINA !== 'undefined') PISCINA.abrir();
   if(id === 'screen-especifico' && typeof ESP !== 'undefined') ESP.abrir();
+  if(id === 'screen-stats' && typeof RANK !== 'undefined') RANK.abrir();
   if(id === 'screen-stats' && typeof ESTE !== 'undefined') ESTE.abrir();
   const isTopLevel = TOP_LEVEL_SCREENS.includes(id);
   // Recordamos la última pantalla visitada, para poder volver a ella (o a

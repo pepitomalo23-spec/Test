@@ -665,6 +665,13 @@ const PRU = (function(){
       if(!keep.length){ borrarGuardado(); uiToast('Las preguntas de esa prueba ya no existen.', 'info'); return; }
       est = { modo: g.modo, items: keep.map(i => rehechos[i]), resp: keep.map(i => g.resp[i] == null ? null : g.resp[i]),
         vistas: keep.map(i => !!(g.vistas && g.vistas[i])), blancas: keep.map(i => !!(g.blancas && g.blancas[i])), i: Math.min(g.i || 0, keep.length - 1), inicio: g.inicio, fin: g.fin, terminado: false, pen: g.pen === undefined ? null : g.pen, tarea: g.tarea || null };
+      // Un examen que se quedó a medias (se cerró la web sin llegar a corregirse): se corrige ya con lo respondido.
+      if(MODOS[g.modo].oficial){
+        showScreen('screen-pru');
+        terminar(false);
+        uiToast('Saliste de la web durante el examen: se ha corregido con lo que habías respondido.', 'info', { duration: 6000 });
+        return;
+      }
       mostrar();
       if(est.fin && Date.now() >= est.fin) terminar(true);
     }catch(e){ uiToast('No se pudo recuperar: ' + (e.message || e), 'error'); }
@@ -702,6 +709,8 @@ const PRU = (function(){
     const c = $('pruCabecera');
     c.classList.remove('hidden');
     c.querySelector('.back-link').dataset.pru = resultado ? 'volver' : 'salir';
+    // En el Examen y el Simulacro oficial no se puede salir: solo «Finalizar».
+    c.querySelector('.back-link').classList.toggle('hidden', !resultado && !!(est && MODOS[est.modo].oficial));
     $('pruContador').classList.toggle('hidden', !!resultado);
     c.querySelector('[data-pru="terminar"]').classList.toggle('hidden', !!resultado);
     if(resultado) $('pruTiempo').classList.add('hidden');
@@ -733,9 +742,41 @@ const PRU = (function(){
     }
     contador();
     arrancarReloj();
+    protegerExamen();
     if(typeof observeActiveQuizHead === 'function') observeActiveQuizHead();   // hueco de la cabecera fija
   }
   function arriba(){ const a = $('app'); if(a) a.scrollTop = 0; }
+  /* ---------- Examen y Simulacro oficial: no se puede salir ----------
+     Mientras se hace, no se puede ir a otra pantalla (navegacion.js pregunta
+     a bloqueado()) ni volver atrás. Si se sale de la web (otra app, cerrar la
+     pestaña, bloquear el móvil), se corrige en ese momento y la nota se guarda. */
+  function bloqueado(){
+    return !!(est && !est.terminado && !est.revision && MODOS[est.modo].oficial && $('screen-pru') && $('screen-pru').classList.contains('active'));
+  }
+  function alSalirDeLaWeb(){
+    if(!bloqueado()) return;
+    est.salida = true;
+    terminar(false);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'hidden') alSalirDeLaWeb();
+    else if(est && est.salida && !est.avisado){
+      est.avisado = true;
+      uiToast('Saliste de la web durante el examen: se ha corregido y tu nota está guardada.', 'info', { duration: 6000 });
+    }
+  });
+  addEventListener('pagehide', alSalirDeLaWeb);
+  addEventListener('beforeunload', e => { if(bloqueado()){ e.preventDefault(); e.returnValue = ''; } });
+  // El botón «atrás» del móvil o del navegador tampoco saca del examen.
+  addEventListener('popstate', () => {
+    if(!bloqueado()) return;
+    try{ history.pushState({ pjExamen: 1 }, ''); }catch(e){}
+    uiToast('Estás en el examen: para salir, pulsa «Finalizar».', 'info');
+  });
+  function protegerExamen(){
+    if(!MODOS[est.modo].oficial) return;
+    try{ if(!(history.state && history.state.pjExamen)) history.pushState({ pjExamen: 1 }, ''); }catch(e){}
+  }
   /* ---------- Examen y Simulacro oficial: como la hoja de papel ----------
      Hojas de tamaño A4 (210 × 297), con la cabecera del logo, el ejercicio y la
      «Hoja nº»; las preguntas numeradas en negrita y las respuestas a), b), c), d).
@@ -1361,7 +1402,7 @@ const PRU = (function(){
       case 'blanco':
         if(!est.blancas) est.blancas = new Array(est.items.length).fill(false);
         est.blancas[est.i] = true; est.expAbierta = false; pintarTarjeta(); contador(); break;
-      case 'salir': volverAtras(M.volver); if(M.oficial && est.fin) uiToast('El reloj sigue corriendo: puedes seguir desde Inicio.', 'info'); break;   // queda guardada: se sigue después
+      case 'salir': if(bloqueado()) return; volverAtras(M.volver); if(M.oficial && est.fin) uiToast('El reloj sigue corriendo: puedes seguir desde Inicio.', 'info'); break;   // queda guardada: se sigue después
       case 'volver': { const v = M.volver; est = null; volverAtras(v); break; }
       case 'otro': { const modo = est.modo, v = M.volver; est = null; showScreen(v); if(M.oficial && typeof EXA !== 'undefined') EXA.simulacro(); else abrirConfig(modo); break; }
     }
@@ -1393,7 +1434,7 @@ const PRU = (function(){
   });
   function reiniciar(){ clearInterval(reloj); est = null; meta = null; cargandoMeta = null; panelMeta = null; historial = null; cfg.legis.clear(); cfg.esp.clear(); }
   return {
-    conjuntoDisponible: () => permitido('conjunto'), oficialDisponible: () => permitido('oficial'), empezarOficial, textoPen, empezarExamen, planExamen, fijarExamen,
+    bloqueado, conjuntoDisponible: () => permitido('conjunto'), oficialDisponible: () => permitido('oficial'), empezarOficial, textoPen, empezarExamen, planExamen, fijarExamen,
     cargarHistorial: () => cargarHistorial(), revisarHistorial, borrarHistorial,
     abrirConfig, cerrarConfig, empezar, quitarFallos, continuar, aMedias, reiniciar, precargar, repasar,
     // Lo ya corregido de la prueba que va a medias (de una en una): [{ k, id, ok }] y cuándo empezó.
