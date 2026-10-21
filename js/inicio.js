@@ -226,7 +226,14 @@ const INICIO = (function(){
   }
   // «Solo marcadas» (Específico): las cuentas de la semana solo con tus preguntas marcadas del tema. Se recuerda.
   const SOLO_MARC = () => 'pj_sem_solo_marcadas:' + (currentUser ? currentUser.id : '');
-  const soloMarcadas = () => { try{ return localStorage.getItem(SOLO_MARC()) === '1'; }catch(e){ return false; } };
+  // Cada tema del Específico por separado: los ids de los temas en «★ Solo marcadas».
+  const temasSoloMarc = () => { try{ const v = JSON.parse(localStorage.getItem(SOLO_MARC()) || '[]'); return new Set(Array.isArray(v) ? v.map(String) : []); }catch(e){ return new Set(); } };
+  const soloMarcadas = id => temasSoloMarc().has(String(id));
+  function ponerSoloMarcadas(id, si){
+    const l = temasSoloMarc();
+    if(si) l.add(String(id)); else l.delete(String(id));
+    try{ localStorage.setItem(SOLO_MARC(), JSON.stringify([...l])); }catch(e){}
+  }
   const marcadasListas = () => typeof ESPT !== 'undefined' && ESPT.numMarcadas && ESPT.numMarcadas() != null;
   // [{ nombre, tipo, total, bien: [], mal: [], sin: [] }] (bien/mal/sin: preguntas de Legislación u ids del Específico); null mientras carga.
   function semana(x){
@@ -258,10 +265,10 @@ const INICIO = (function(){
     if(x.esp.length){
       const e = typeof ESTE !== 'undefined' && ESTE.semana ? ESTE.semana(desdeExa(x).getTime()) : null;
       if(!e) return null;
-      const solo = soloMarcadas();
-      if(solo && !marcadasListas()){ ESPT.cargarMarcadas().then(pintar, () => {}); return null; }
+      if(x.esp.some(k => soloMarcadas(k.id)) && !marcadasListas()){ ESPT.cargarMarcadas().then(pintar, () => {}); return null; }
       x.esp.forEach(k => {
-        const t = { nombre: k.nombre, tipo: 'Específico', total: 0, bien: [], mal: [], sin: [], marcadas: solo };
+        const solo = soloMarcadas(k.id);
+        const t = { id: k.id, nombre: k.nombre, tipo: 'Específico', total: 0, bien: [], mal: [], sin: [], marcadas: solo };
         e.temaDe.forEach((tema, id) => { if(tema !== k.id || (solo && !ESPT.estaMarcada(id))) return; t.total++; const u = ultima('e', id, e.ultima); (u == null ? t.sin : u ? t.bien : t.mal).push(id); });
         temas.push(t);
       });
@@ -287,7 +294,7 @@ const INICIO = (function(){
     hoja(t.nombre, t.tipo + ' · examen ' + cuandoExa(x), cuerpo(), '<button type="button" class="cal-btn" data-h="cerrar">Cerrar</button>',
       async (b, cerrar, poner) => {
         if(b.dataset.h === 'todas' || b.dataset.h === 'marcadas'){
-          try{ localStorage.setItem(SOLO_MARC(), b.dataset.h === 'marcadas' ? '1' : '0'); }catch(e){}
+          ponerSoloMarcadas(t.id, b.dataset.h === 'marcadas');
           if(b.dataset.h === 'marcadas' && !marcadasListas()) await ESPT.cargarMarcadas().catch(() => {});
           t = (semana(x) || [])[i] || t;
           poner(cuerpo()); pintar();
