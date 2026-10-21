@@ -497,11 +497,15 @@ const NQ = (function(){
         '<div class="nq-lib-bar"><i style="width:' + (c.mastered / n * 100) + '%;background:var(--green)"></i><i style="width:' + (c.learning / n * 100) + '%;background:var(--orange)"></i></div></span>' +
         I.chev.replace('class="chev"', '') + '</button>';
     }).join('') + '</div>';
+    // Mnemotecnia va abajo, después de los temas, para no estorbar arriba.
     return '<div class="nq-lib-head"><h1>Normativas</h1><div class="nq-lib-acts">' +
-      '<button class="nq-btn ghost nq-btn-sm nq-mn-btn" data-act="mnemo" title="Calculadora de mnemotecnia" aria-label="Mnemotecnia">' + I.bulb + '<span>Mnemotecnia</span></button>' +
       (admin ? '<button class="nq-btn nq-btn-sm" data-act="new-set">' + I.plus + 'Nuevo tema</button>' : '') + '</div></div>' +
-      (loaded && (NQ_SETS.length || testSet()) ? srsPanel() : '') +
-      '<div class="nq-lib-sub">Temas</div>' + list;
+      '<div class="nq-lib-sub">Temas</div>' + list +
+      '<div class="nq-lib-sub nq-lib-sub-herr">Herramientas</div>' +
+      '<div class="nq-lib-list"><button class="nq-lib-item nq-mn-item" data-act="mnemo">' +
+        '<span class="nq-lib-ico">' + I.bulb + '</span>' +
+        '<span class="nq-lib-main"><div class="nq-lib-name">Mnemotecnia</div><div class="nq-lib-meta">Código fonético: de números a palabras, y al revés</div></span>' +
+        I.chev.replace('class="chev"', '') + '</button></div>';
   }
 
   function renderRootSheet(){
