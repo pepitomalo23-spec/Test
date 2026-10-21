@@ -241,19 +241,22 @@ async function handleStatic(event, cacheName){
 }
 
 // Datos de Supabase: red primero; si falla o tarda, lo último guardado.
+// Si tarda y no hay nada guardado, se sigue esperando a la red (no se corta).
 async function handleData(event){
   const cache = await caches.open(DATA);
+  const red = fetch(event.request).then(res => {
+    if(res && res.ok) cache.put(event.request, res.clone()).catch(() => {});
+    return res;
+  });
   try{
-    const res = await Promise.race([
-      fetch(event.request),
+    return await Promise.race([
+      red,
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), DATA_TIMEOUT_MS))
     ]);
-    if(res && res.ok) cache.put(event.request, res.clone());
-    return res;
   }catch(e){
     const cached = await cache.match(event.request);
-    if(cached) return cached;
-    throw e;
+    if(cached){ event.waitUntil(red.catch(() => {})); return cached; }
+    return red;
   }
 }
 
