@@ -777,17 +777,29 @@ const PRU = (function(){
     const caja = document.createElement('div');
     caja.innerHTML = est.items.map(pregunta).join('');
     const pregs = Array.from(caja.children);
-    let hoja = hojaVacia(true), cuerpo, primera = true, nueva = false;
-    cont.appendChild(hoja); cuerpo = hoja.querySelector('.hoja-cuerpo');
-    const otraHoja = () => { hoja = hojaVacia(false); cont.appendChild(hoja); cuerpo = hoja.querySelector('.hoja-cuerpo'); primera = false; };
-    const noCabe = () => cuerpo.scrollHeight > cuerpo.clientHeight + 1;
-    pregs.forEach(el => {
-      if(nueva){ otraHoja(); nueva = false; }
-      cuerpo.appendChild(el);
-      if(noCabe() && (cuerpo.children.length > 1 || primera)){ otraHoja(); cuerpo.appendChild(el); }
-      // Una pregunta que no cabe ni en una hoja entera (imágenes grandes): esa hoja crece y la siguiente va aparte.
-      if(noCabe()){ hoja.classList.add('larga'); nueva = true; }
-    });
+    // En el móvil: 2 preguntas por hoja, con letra normal, y se pasa de hoja deslizando.
+    const movil = window.matchMedia('(max-width: 600px)').matches;
+    if(movil){
+      cont.classList.add('movil');
+      for(let k = 0; k < pregs.length; k += POR_HOJA_MOVIL){
+        const h = hojaVacia(k === 0);
+        pregs.slice(k, k + POR_HOJA_MOVIL).forEach(el => h.querySelector('.hoja-cuerpo').appendChild(el));
+        cont.appendChild(h);
+      }
+    } else {
+      let hoja = hojaVacia(true), cuerpo, primera = true, nueva = false;
+      cont.appendChild(hoja); cuerpo = hoja.querySelector('.hoja-cuerpo');
+      const otraHoja = () => { hoja = hojaVacia(false); cont.appendChild(hoja); cuerpo = hoja.querySelector('.hoja-cuerpo'); primera = false; };
+      const noCabe = () => cuerpo.scrollHeight > cuerpo.clientHeight + 1;
+      pregs.forEach(el => {
+        if(nueva){ otraHoja(); nueva = false; }
+        cuerpo.appendChild(el);
+        if(noCabe() && (cuerpo.children.length > 1 || primera)){ otraHoja(); cuerpo.appendChild(el); }
+        // Una pregunta que no cabe ni en una hoja entera (imágenes grandes): esa hoja crece y la siguiente va aparte.
+        if(noCabe()){ hoja.classList.add('larga'); nueva = true; }
+      });
+    }
+    if(movil) cont.after(barraHojas(cont));
     const hojas = cont.children;
     Array.from(hojas).forEach((h, k) => {
       h.querySelector('[data-hoja-n]').textContent = k + 1;
@@ -799,7 +811,56 @@ const PRU = (function(){
       if(!img.complete) img.addEventListener('load', () => repartirHoja(), { once: true });
     });
     hojaAncho = cont.clientWidth;
+    if(movil){
+      // Al empezar (o al volver a la prueba), en la hoja de la primera pregunta sin responder.
+      const libre = est.resp.findIndex(r => r == null);
+      if(!quieto) hojaVista = libre < 0 ? 0 : Math.floor(libre / POR_HOJA_MOVIL);
+      pasarHoja(cont, Math.min(hojaVista, hojas.length - 1), false);
+    }
     if(!quieto) arriba();
+  }
+  const POR_HOJA_MOVIL = 2;
+  let hojaVista = 0;
+  // La barra de abajo («Anterior · Hoja 2 de 50 · Siguiente») va con lo que se desliza.
+  function barraHojas(cont){
+    const nav = document.createElement('div');
+    nav.className = 'hoja-nav';
+    nav.innerHTML = '<button type="button" data-hoja-ir="-1" aria-label="Hoja anterior">‹ Anterior</button><span data-hoja-pos></span><button type="button" data-hoja-ir="1" aria-label="Hoja siguiente">Siguiente ›</button>';
+    nav.addEventListener('click', e => {
+      const b = e.target.closest('[data-hoja-ir]');
+      if(b) pasarHoja(cont, hojaVista + Number(b.dataset.hojaIr), true);
+    });
+    let t;
+    cont.addEventListener('scroll', () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const k = Math.round(cont.scrollLeft / anchoHoja(cont));
+        if(k !== hojaVista){ hojaVista = k; alInicioHoja(cont); }
+        marcarBarra(cont);
+      }, 80);
+    }, { passive: true });
+    return nav;
+  }
+  const anchoHoja = cont => cont.children[0] ? cont.children[0].offsetWidth + (parseFloat(getComputedStyle(cont).columnGap) || 0) : cont.clientWidth;
+  function pasarHoja(cont, k, suave){
+    const n = cont.children.length;
+    hojaVista = Math.max(0, Math.min(n - 1, k));
+    cont.scrollTo({ left: hojaVista * anchoHoja(cont), behavior: suave ? 'smooth' : 'auto' });
+    if(suave) alInicioHoja(cont);
+    marcarBarra(cont);
+  }
+  // Si al pasar de hoja se estaba más abajo, se sube al principio de la nueva.
+  function alInicioHoja(cont){
+    const a = $('app'), top = cont.getBoundingClientRect().top, cab = $('pruCabecera') ? $('pruCabecera').getBoundingClientRect().bottom : 0;
+    if(a && top < cab) a.scrollBy({ top: top - cab - 8, behavior: 'smooth' });
+  }
+  function marcarBarra(cont){
+    const nav = cont.nextElementSibling;
+    if(!nav || !nav.classList.contains('hoja-nav')) return;
+    const n = cont.children.length;
+    nav.querySelector('[data-hoja-pos]').textContent = 'Hoja ' + (hojaVista + 1) + ' de ' + n;
+    nav.querySelector('[data-hoja-ir="-1"]').disabled = hojaVista <= 0;
+    nav.querySelector('[data-hoja-ir="1"]').disabled = hojaVista >= n - 1;
   }
   // Al cambiar el ancho (girar el móvil, la ventana), las hojas se reparten de nuevo sin perder el sitio.
   let hojaAncho = 0;
