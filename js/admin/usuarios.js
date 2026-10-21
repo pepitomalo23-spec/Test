@@ -121,6 +121,38 @@ function adminRenderUsers(){
     );
   }).join('');
 }
+/* ---------- exámenes eliminados (se pueden devolver) ---------- */
+async function adminLoadBorrados(){
+  const el = document.getElementById('adminList-borrados');
+  if(!el) return;
+  el.innerHTML = skelList(2);
+  const { data, error } = await sb.rpc('admin_examenes_borrados');
+  if(error){ el.innerHTML = '<div class="admin-empty">No se pudieron cargar los exámenes eliminados.</div>'; console.error(error); return; }
+  adminData.borrados = data || [];
+  adminRenderBorrados();
+}
+function adminRenderBorrados(){
+  const el = document.getElementById('adminList-borrados');
+  if(!el) return;
+  const l = adminData.borrados || [];
+  if(!l.length){ el.innerHTML = '<div class="admin-empty">No hay exámenes eliminados.</div>'; return; }
+  const nombre = id => (adminData.ranking && adminData.ranking.get(id)) || '';
+  el.innerHTML = l.map(b =>
+    '<div class="admin-card"><div class="admin-user-row" style="justify-content:space-between; gap:10px;">' +
+      '<div><div class="admin-card-title">' + esc(nombre(b.user_id) ? nombre(b.user_id) + ' · ' : '') + esc(b.email || '') + '</div>' +
+        '<div class="admin-card-meta">' + (b.modo === 'examen' ? 'Examen' : 'Simulacro oficial') + ' del ' + formatDateTime(b.created_at) + ' · nota <b>' + Number(b.nota).toFixed(2).replace('.', ',') + '</b></div>' +
+        '<div class="admin-card-meta">Eliminado: ' + formatDateTime(b.borrado_at) + '</div></div>' +
+      '<button class="btn btn-ghost" style="padding:8px 12px; font-size:12.5px;" onclick="adminRestaurarExamen(\'' + b.id + '\', this)">Devolver</button>' +
+    '</div></div>').join('');
+}
+async function adminRestaurarExamen(id, btn){
+  if(btn) btn.disabled = true;
+  const { data, error } = await sb.rpc('restaurar_examen', { p_id: id });
+  if(error || !data){ if(btn) btn.disabled = false; uiToast('No se pudo devolver' + (error ? ': ' + error.message : ''), 'error'); return; }
+  adminData.borrados = (adminData.borrados || []).filter(b => b.id !== id);
+  adminRenderBorrados();
+  uiToast('Examen devuelto: vuelve a contar en el ranking', 'success');
+}
 async function adminRanking(userId, sale){
   let error;
   if(sale){

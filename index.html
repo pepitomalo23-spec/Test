@@ -56,7 +56,7 @@
 <!-- Estilos de la app. El ?v= lo pone scripts/versionar.mjs (no editar a mano). -->
 <link rel="stylesheet" href="css/base.css?v=e5b02ca70c">
 <link rel="stylesheet" href="css/admin.css?v=2aa7b6d0f2">
-<link rel="stylesheet" href="css/pantallas.css?v=86dcd38405">
+<link rel="stylesheet" href="css/pantallas.css?v=369cc6849e">
 <link rel="stylesheet" href="css/test.css?v=6580f3417c">
 <link rel="stylesheet" href="css/normativas.css?v=55964752d6">
 <link rel="stylesheet" href="css/datos-importantes.css?v=d949abb016">
@@ -864,6 +864,10 @@
         <div class="admin-card-meta" style="margin-bottom:14px;">Consulta quién está registrado, en cuántos dispositivos ha entrado y ajusta el límite de dispositivos permitido por cuenta.</div>
         <div id="adminList-users"></div>
 
+        <div class="section-row" style="margin-top:30px;"><div class="section-title">Exámenes eliminados</div><div class="section-rule"></div></div>
+        <div class="admin-card-meta" style="margin-bottom:14px;">Los exámenes y simulacros oficiales que alguien ha eliminado (dejan de contar en el ranking). Si fue por equivocación, «Devolver» lo pone otra vez como estaba.</div>
+        <div id="adminList-borrados"></div>
+
         <div class="section-row" style="margin-top:30px;"><div class="section-title">Códigos de verificación pendientes</div><div class="section-rule"></div></div>
         <div class="admin-card-meta" style="margin-bottom:14px;">Cuando alguien inicia sesión aparece aquí su código. Pásaselo por fuera de la app (WhatsApp, teléfono…) para que pueda entrar; caduca a los 10 minutos.</div>
         <div id="adminList-verifications"></div>
@@ -1248,9 +1252,9 @@
 <script src="js/examen-revision.js?v=f9ea7caa44"></script>
 <script src="js/cuenta.js?v=ef55500596"></script>
 <script src="js/tema.js?v=e96fc2a4ed"></script>
-<script src="js/admin/panel.js?v=9e8ff5b7b8"></script>
+<script src="js/admin/panel.js?v=b5bb36a74a"></script>
 <script src="js/admin/actividad.js?v=7e043c23e6"></script>
-<script src="js/admin/usuarios.js?v=21da8a3550"></script>
+<script src="js/admin/usuarios.js?v=bd02137e56"></script>
 <script src="js/admin/copias.js?v=b2d3baa792"></script>
 <script src="js/admin/errores.js?v=8e7ee98d6c"></script>
 <script src="js/admin/boe.js?v=0a4ab61cfd"></script>
@@ -1271,9 +1275,9 @@
 <script src="js/importar-especifico.js?v=17333f37f3"></script>
 <script src="js/especifico-test.js?v=5c3f914355"></script>
 <script src="js/estadisticas-especifico.js?v=412b1fb504"></script>
-<script src="js/pruebas.js?v=e30f785141"></script>
+<script src="js/pruebas.js?v=2b15a41066"></script>
 <script src="js/examen.js?v=d8ce487f69"></script>
-<script src="js/ranking.js?v=3f0bb9fb55"></script>
+<script src="js/ranking.js?v=622dd8665f"></script>
 <script src="js/inicio.js?v=b76d33469d"></script>
 <script src="js/arranque.js?v=838162d6bd"></script>
 <div class="image-lightbox" id="imageLightbox" onclick="closeImageLightbox(event)">
