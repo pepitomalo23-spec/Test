@@ -398,3 +398,9 @@ button.ini-cifra:hover b{ color: var(--coral); }
   .ini-cvg-temas .ini-cv-aro{ width:76px; height:76px; }
   .ini-cvg-temas .ini-cv-aro b{ font-size:21px; }
 }
+
+/* Mnemotecnia: botón redondo pequeño en la esquina de la cabecera (js/inicio.js) */
+.ini-heropc-izq{ position:relative; }
+.ini-mnemo{ position:absolute; top:-6px; right:-6px; width:30px; height:30px; border-radius:50%; display:grid; place-items:center; padding:0; border:1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.12); color: rgba(255,255,255,.85); cursor:pointer; transition: background .15s, color .15s; }
+.ini-mnemo svg{ width:16px; height:16px; }
+.ini-mnemo:hover{ background: rgba(255,255,255,.22); color:#fff; }
