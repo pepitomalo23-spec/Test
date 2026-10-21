@@ -719,6 +719,9 @@ const CJ = (function(){
     ks.forEach(k => f.add(k));
     c.fuera = [...f];
     guardarCfgRepaso();
+    // Fuera también de lo que queda de la tanda de hoy.
+    const t = leerTanda();
+    if(t){ t.quedan = t.quedan.filter(k => !ks.includes(k)); t.total = Math.max(t.hechas + t.quedan.length, 0); guardarTanda(t.quedan.length ? t : null); }
     if(!ronda) return;
     const mismo = x => { const kx = clavesPregunta(x); return kx.length && kx.every(k => f.has(k)); };
     ronda.preguntas = ronda.preguntas.filter((x, j) => j <= ronda.i || !mismo(x));
@@ -2906,15 +2909,61 @@ const CJ = (function(){
     }
     return barajar(qs);
   }
-  async function empezarRepaso(){
+  /* ---------- Estudiar: la tanda de hoy, para seguir por donde se iba ----------
+     Al empezar se apunta qué entra en la tanda (sus claves) y, con cada respuesta, lo hecho. Si se sale a
+     medias, el mismo día «Seguir» pregunta solo lo que quedaba (y conserva lo hecho y lo acertado); al
+     acabar la tanda empieza otra. En el dispositivo y en la cuenta (js/sincro.js): sigue en otro. */
+  const TANDA_KEY = 'cj_estudiar_';
+  const claveTanda = () => currentUser ? TANDA_KEY + currentUser.id : null;
+  const hoyTxt = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  function leerTanda(){
+    try{ const t = JSON.parse(localStorage.getItem(claveTanda()) || 'null'); return t && t.dia === hoyTxt() && t.quedan && t.quedan.length ? t : null; }catch(e){ return null; }
+  }
+  function guardarTanda(t){
+    try{ t ? localStorage.setItem(claveTanda(), JSON.stringify(t)) : localStorage.removeItem(claveTanda()); }catch(e){}
+    SINC.cambiado('cj-estudiar');
+  }
+  SINC.registrar('cj-estudiar', claveTanda, () => { if(vistaActual === 'inicio' && subInicio === 'repasar') pintarInicio(); });
+  const claveDe = q => clavesPregunta(q)[0] || null;
+  // Una tanda nueva con estas preguntas.
+  function nuevaTanda(qs){
+    const quedan = [...new Set(qs.map(claveDe).filter(Boolean))];
+    guardarTanda(quedan.length ? { dia: hoyTxt(), total: quedan.length, hechas: 0, bien: 0, quedan } : null);
+    return qs;
+  }
+  // Al responder en Estudiar: fuera de lo que queda (al acabarlo todo, la tanda se borra).
+  function apuntarTanda(q, acierto){
+    const t = leerTanda(), k = claveDe(q);
+    if(!t || !k) return;
+    const i = t.quedan.indexOf(k);
+    if(i < 0) return;
+    t.quedan.splice(i, 1);
+    t.hechas++;
+    if(acierto) t.bien++;
+    guardarTanda(t.quedan.length ? t : null);
+  }
+  // Lo que quedaba de la tanda, de lo que hay ahora en Estudiar.
+  function poolDeTanda(p, t){
+    const q = new Set(t.quedan);
+    return Object.assign({}, p, { vias: p.vias.filter(v => q.has('v:' + v.nombre)), lugares: p.lugares.filter(l => q.has('l:' + l.id)),
+      barrios: p.barrios.filter(b => q.has('b:' + b)), distritos: p.distritos.filter(d => q.has('d:' + d)),
+      claves: p.claves.filter(k => q.has('t:' + String(k).split('/').pop())), temFallos: false });
+  }
+  // seguir: true (por donde se iba), false (de nuevo) o sin decir (si hay tanda de hoy, se sigue).
+  async function empezarRepaso(seguir){
     try{ await Promise.all([cargarLeaflet(), cargarDatos()]); }catch(e){ uiToast(e.message, 'error'); return; }
     if(typeof CJT !== 'undefined'){ try{ await CJT.cargar(); }catch(e){} }
     actualizarFiltro();
-    // Cada vuelta, con lo que haya entonces (sin lo que se quite por el camino).
-    const crear = () => { const ahora = fuentesMarcado(); return preguntasRepaso(ahora, poolRepaso(ahora)); };
-    const qs = crear();
+    // Cada vuelta, con lo que haya entonces (sin lo que se quite por el camino); cada una, una tanda nueva.
+    const crear = () => { const ahora = fuentesMarcado(); return nuevaTanda(preguntasRepaso(ahora, poolRepaso(ahora))); };
+    const t = seguir === false ? null : leerTanda();
+    let qs = [];
+    if(t){ const ahora = fuentesMarcado(); qs = preguntasRepaso(ahora, poolDeTanda(poolRepaso(ahora), t)); }
+    if(!qs.length) qs = crear();
     if(!qs.length){ uiToast('Todavía no tienes nada en Estudiar. Pulsa «+ Añadir cosas».', 'info'); return; }
     empezarMixta('Estudiar', qs, { tipo: 'repaso' }, crear);
+    // Siguiendo: lo hecho y lo acertado de antes.
+    if(t && ronda){ ronda.respondidas = t.hechas; ronda.aciertos = t.bien; pintarCabecera(); }
   }
   /* ---------- Repasar: solo lo marcado, ordenado ----------
      Lo que te has marcado tú (en Aprender, «+ A repasar», o tu lista); lo fallado no (eso va en
@@ -2999,7 +3048,10 @@ const CJ = (function(){
     const grupo = (titulo, color, filas) => filas ? '<div class="cj-seccion">' + titulo + '</div><div class="cj-card cj-aprender cj-cat-' + color + '">' + filas + '</div>' : '';
     const hay = k => cuenta[k].total > 0;
     const forma = (k, t) => '<button type="button" role="radio" aria-checked="' + (c.forma === k) + '"' + (c.forma === k ? ' class="on"' : '') + ' onclick="CJ.cambiarRepaso(\'forma\', \'' + k + '\')">' + t + '</button>';
-    return '<button type="button" class="cjr-empezar" onclick="CJ.empezarRepaso()"' + (total ? '' : ' disabled') + '>Empezar · ' + n(total) + '</button>' +
+    const t = leerTanda();
+    return (t ? '<button type="button" class="cjr-empezar" onclick="CJ.empezarRepaso(true)">Seguir por donde ibas<small>Te quedan ' + n(t.quedan.length) + ' de ' + n(t.total) + ' · llevas ' + n(t.bien) + ' bien</small></button>' +
+        '<button type="button" class="cjr-ajustes cjr-denuevo" onclick="CJ.empezarRepaso(false)">Empezar de nuevo</button>'
+      : '<button type="button" class="cjr-empezar" onclick="CJ.empezarRepaso()"' + (total ? '' : ' disabled') + '>Empezar · ' + n(total) + '</button>') +
       '<div class="cjr-como" role="radiogroup">' + forma('que', '¿Qué es?') + forma('donde', '¿Dónde está?') + forma('mezcla', 'Mezclado') + '</div>' +
       anadir +
       grupo('Córdoba', 'rojo', (hay('distritos') ? fila('distritos', 'Distritos', cuenta.distritos, 'barrios') : '') + (hay('barrios') ? fila('barrios', 'Barrios', cuenta.barrios, 'enbarrio') : '')) +
@@ -5485,6 +5537,7 @@ const CJ = (function(){
     // Repasar sin límite: lo fallado vuelve a salir unas preguntas más adelante.
     if(!acierto && ronda.sinFin) ronda.preguntas.splice(ronda.i + 4 + Math.floor(Math.random() * 4), 0, Object.assign({}, q));
     if(rondaGuiada && rondaGuiada.tipo === 'vuelta' && q.via) marcarVista(rondaGuiada.modo, [q.via.nombre]);
+    if(rondaGuiada && rondaGuiada.tipo === 'repaso' && !rondaGuiada.modo) apuntarTanda(q, acierto);
     anotarIntento(q.id, modoIntento || MODOS[modo].registra || modo, acierto, distancia);
     el('cjResultado').className = 'cj-resultado ' + (acierto ? 'ok' : 'ko');
     el('cjResultadoTexto').innerHTML = textoHtml;
@@ -5894,7 +5947,7 @@ const CJ = (function(){
               (m === 'temario' && q.resumen && q.respuesta === 'opciones' ? ' <span class="cj-dir">· ' + escapeHtml(q.resumen) + '</span>' : '') + '</li>').join('') + '</ul>'
           : '<div class="cj-fin-sub">¡Todas bien!</div>') +
         '<div class="cj-fin-actions">' +
-          '<button type="button" class="btn btn-primary btn-light" onclick="' + (sinFin ? 'CJ.empezarRepaso()' : mixta ? 'CJ.empezarFallos()' : m === 'temario' ? 'CJ.otraRonda()' : rondaGuiada ? 'CJ.seguirGuiada()' : 'CJ.empezar(\'' + m + '\'' + (m === 'lugares' ? ', \'' + grupoLugares + '\'' : '') + ')') + '">' +
+          '<button type="button" class="btn btn-primary btn-light" onclick="' + (sinFin ? (rondaGuiada ? 'CJ.seguirGuiada()' : 'CJ.empezarRepaso()') : mixta ? 'CJ.empezarFallos()' : m === 'temario' ? 'CJ.otraRonda()' : rondaGuiada ? 'CJ.seguirGuiada()' : 'CJ.empezar(\'' + m + '\'' + (m === 'lugares' ? ', \'' + grupoLugares + '\'' : '') + ')') + '">' +
             (rondaGuiada && rondaGuiada.tipo !== 'nivel' ? 'Seguir repasando' : rondaGuiada ? 'Seguir aprendiendo' : 'Otra ronda') + '</button>' +
           '<button type="button" class="btn btn-ghost" onclick="CJ.salir()">Volver</button>' +
         '</div>' +
