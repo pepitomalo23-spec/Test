@@ -719,6 +719,7 @@ const PRU = (function(){
     $('pruCabecera').querySelector('[data-pru="terminar"]').classList.remove('ready');
     if(est.diseno === 'tb') pintarTb();
     else if(MODOS[est.modo].vista === 'tarjeta') pintarTarjeta();
+    else if(MODOS[est.modo].oficial) pintarHoja();
     else {
       $('pruCuerpo').innerHTML = est.items.map((it, i) =>
         '<div class="quiz-list-item simc-item" data-i="' + i + '">' + (MODOS[est.modo].legis && !MODOS[est.modo].ciego ? etiqueta(it) : '') +
@@ -735,6 +736,40 @@ const PRU = (function(){
     if(typeof observeActiveQuizHead === 'function') observeActiveQuizHead();   // hueco de la cabecera fija
   }
   function arriba(){ const a = $('app'); if(a) a.scrollTop = 0; }
+  /* ---------- Examen y Simulacro oficial: como la hoja de papel ----------
+     Cabecera con el logo, el ejercicio y la «Hoja nº»; las preguntas
+     numeradas en negrita y las respuestas a), b), c), d). Hojas de 10. */
+  const POR_HOJA = 10;
+  function pintarHoja(){
+    const M = MODOS[est.modo], n = est.items.length, hojas = Math.max(1, Math.ceil(n / POR_HOJA));
+    const d = new Date(est.inicio), fecha = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+    const min = est.fin ? Math.round((est.fin - est.inicio) / 60000) : 0;
+    const datos = [['Ejercicio', est.modo === 'examen' ? 'Examen tipo test' : 'Simulacro del examen oficial'], ['Fecha', fecha],
+      ['Preguntas', String(n)], ['Tiempo', min ? min + ' minutos' : 'sin límite'], ['Corrección', 'acierto +1 · ' + textoPen(est.pen == null && est.items.every(it => it.opciones.length === 4) ? 1 / 3 : est.pen)]];
+    const cab = h => '<div class="hoja-cab">' +
+        '<img class="hoja-logo" src="assets/icons/icon-192.png" alt="pj.fire" width="56" height="56">' +
+        '<div class="hoja-ent"><b>pj.fire</b><span>Preparación de la oposición</span><span>Bombero/a · Córdoba</span></div>' +
+        '<div class="hoja-num"><span>Hoja nº</span><b>' + h + '</b><small>de ' + hojas + '</small></div>' +
+      '</div>';
+    const pregunta = (it, i) => '<div class="hoja-preg simc-item" data-i="' + i + '">' +
+        '<div class="hoja-enun"><span class="hoja-n">' + (i + 1) + '.</span> ' + enunciado(it) + '</div>' +
+        '<div class="hoja-ops">' + it.opciones.map((_, j) =>
+          '<div class="hoja-op' + (est.resp[i] === j ? ' selected' : '') + '" role="button" tabindex="0" data-pru-r="' + i + '" data-j="' + j + '">' +
+            '<span class="hoja-letra">' + String.fromCharCode(97 + j) + ')</span><span class="opt-text">' + opcion(it, j) + '</span></div>').join('') +
+        '</div></div>';
+    let html = '';
+    for(let h = 0; h < hojas; h++){
+      const desde = h * POR_HOJA, trozo = est.items.slice(desde, desde + POR_HOJA);
+      html += '<section class="hoja">' + cab(h + 1) +
+        (h === 0 ? '<dl class="hoja-datos">' + datos.map(([k, v]) => '<div><dt>' + k + '</dt><dd>' + escapeHtml(v) + '</dd></div>').join('') + '</dl>' +
+          '<h2 class="hoja-titulo">Cuestionario</h2><p class="hoja-instr">Marca una sola respuesta en cada pregunta. Toca otra vez la marcada para dejarla en blanco.</p>' : '') +
+        trozo.map((it, k) => pregunta(it, desde + k)).join('') +
+        '<div class="hoja-pie">Hoja ' + (h + 1) + ' de ' + hojas + '</div></section>';
+    }
+    $('pruCuerpo').innerHTML = '<div class="hojas">' + html + '</div>' +
+      '<div class="quiz-list-footer"><button class="btn btn-primary" data-pru="terminar">Finalizar</button></div>';
+    arriba();
+  }
   // Estudio y Fallos: una a una, igual que en Legislación (js/test.js,
   // renderQuestion): al responder se marca bien/mal; «En blanco» la da por no
   // sabida; la explicación queda plegada hasta «Mostrar explicación»; para
