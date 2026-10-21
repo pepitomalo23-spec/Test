@@ -737,39 +737,85 @@ const PRU = (function(){
   }
   function arriba(){ const a = $('app'); if(a) a.scrollTop = 0; }
   /* ---------- Examen y Simulacro oficial: como la hoja de papel ----------
-     Cabecera con el logo, el ejercicio y la «Hoja nº»; las preguntas
-     numeradas en negrita y las respuestas a), b), c), d). Hojas de 10. */
-  const POR_HOJA = 10;
-  function pintarHoja(){
-    const M = MODOS[est.modo], n = est.items.length, hojas = Math.max(1, Math.ceil(n / POR_HOJA));
+     Hojas de tamaño A4 (210 × 297), con la cabecera del logo, el ejercicio y la
+     «Hoja nº»; las preguntas numeradas en negrita y las respuestas a), b), c), d).
+     Se reparten midiendo: una pregunta que no cabe entera pasa a la hoja siguiente. */
+  function pintarHoja(quieto){
+    const n = est.items.length;
     const d = new Date(est.inicio), fecha = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
     const min = est.fin ? Math.round((est.fin - est.inicio) / 60000) : 0;
     const datos = [['Ejercicio', est.modo === 'examen' ? 'Examen tipo test' : 'Simulacro del examen oficial'], ['Fecha', fecha],
       ['Preguntas', String(n)], ['Tiempo', min ? min + ' minutos' : 'sin límite'], ['Corrección', 'acierto +1 · ' + textoPen(est.pen == null && est.items.every(it => it.opciones.length === 4) ? 1 / 3 : est.pen)]];
-    const cab = h => '<div class="hoja-cab">' +
-        '<img class="hoja-logo" src="assets/icons/icon-192.png" alt="pj.fire" width="56" height="56">' +
-        '<div class="hoja-ent"><b>pj.fire</b><span>Preparación de la oposición</span><span>Bombero/a · Córdoba</span></div>' +
-        '<div class="hoja-num"><span>Hoja nº</span><b>' + h + '</b><small>de ' + hojas + '</small></div>' +
-      '</div>';
     const pregunta = (it, i) => '<div class="hoja-preg simc-item" data-i="' + i + '">' +
         '<div class="hoja-enun"><span class="hoja-n">' + (i + 1) + '.</span> ' + enunciado(it) + '</div>' +
         '<div class="hoja-ops">' + it.opciones.map((_, j) =>
           '<div class="hoja-op' + (est.resp[i] === j ? ' selected' : '') + '" role="button" tabindex="0" data-pru-r="' + i + '" data-j="' + j + '">' +
             '<span class="hoja-letra">' + String.fromCharCode(97 + j) + ')</span><span class="opt-text">' + opcion(it, j) + '</span></div>').join('') +
         '</div></div>';
-    let html = '';
-    for(let h = 0; h < hojas; h++){
-      const desde = h * POR_HOJA, trozo = est.items.slice(desde, desde + POR_HOJA);
-      html += '<section class="hoja">' + cab(h + 1) +
-        (h === 0 ? '<dl class="hoja-datos">' + datos.map(([k, v]) => '<div><dt>' + k + '</dt><dd>' + escapeHtml(v) + '</dd></div>').join('') + '</dl>' +
+    const hojaVacia = primera => {
+      const s = document.createElement('section');
+      s.className = 'hoja';
+      s.innerHTML = '<div class="hoja-cab">' +
+          '<img class="hoja-logo" src="assets/icons/icon-192.png" alt="pj.fire" width="56" height="56">' +
+          '<div class="hoja-ent"><b>pj.fire</b><span>Preparación de la oposición</span><span>Bombero/a · Córdoba</span></div>' +
+          '<div class="hoja-num"><span>Hoja nº</span><b data-hoja-n></b><small data-hoja-de></small></div>' +
+        '</div>' +
+        (primera ? '<dl class="hoja-datos">' + datos.map(([k, v]) => '<div><dt>' + k + '</dt><dd>' + escapeHtml(v) + '</dd></div>').join('') + '</dl>' +
           '<h2 class="hoja-titulo">Cuestionario</h2><p class="hoja-instr">Marca una sola respuesta en cada pregunta. Toca otra vez la marcada para dejarla en blanco.</p>' : '') +
-        trozo.map((it, k) => pregunta(it, desde + k)).join('') +
-        '<div class="hoja-pie">Hoja ' + (h + 1) + ' de ' + hojas + '</div></section>';
-    }
-    $('pruCuerpo').innerHTML = '<div class="hojas">' + html + '</div>' +
-      '<div class="quiz-list-footer"><button class="btn btn-primary" data-pru="terminar">Finalizar</button></div>';
-    arriba();
+        '<div class="hoja-cuerpo"></div><div class="hoja-pie"></div>';
+      return s;
+    };
+    const cont = document.createElement('div');
+    cont.className = 'hojas';
+    $('pruCuerpo').innerHTML = '';
+    $('pruCuerpo').appendChild(cont);
+    const fin = document.createElement('div');
+    fin.className = 'quiz-list-footer';
+    fin.innerHTML = '<button class="btn btn-primary" data-pru="terminar">Finalizar</button>';
+    $('pruCuerpo').appendChild(fin);
+    // Todas las preguntas de una vez (fuera de las hojas) y luego se van colocando.
+    const caja = document.createElement('div');
+    caja.innerHTML = est.items.map(pregunta).join('');
+    const pregs = Array.from(caja.children);
+    let hoja = hojaVacia(true), cuerpo, primera = true, nueva = false;
+    cont.appendChild(hoja); cuerpo = hoja.querySelector('.hoja-cuerpo');
+    const otraHoja = () => { hoja = hojaVacia(false); cont.appendChild(hoja); cuerpo = hoja.querySelector('.hoja-cuerpo'); primera = false; };
+    const noCabe = () => cuerpo.scrollHeight > cuerpo.clientHeight + 1;
+    pregs.forEach(el => {
+      if(nueva){ otraHoja(); nueva = false; }
+      cuerpo.appendChild(el);
+      if(noCabe() && (cuerpo.children.length > 1 || primera)){ otraHoja(); cuerpo.appendChild(el); }
+      // Una pregunta que no cabe ni en una hoja entera (imágenes grandes): esa hoja crece y la siguiente va aparte.
+      if(noCabe()){ hoja.classList.add('larga'); nueva = true; }
+    });
+    const hojas = cont.children;
+    Array.from(hojas).forEach((h, k) => {
+      h.querySelector('[data-hoja-n]').textContent = k + 1;
+      h.querySelector('[data-hoja-de]').textContent = 'de ' + hojas.length;
+      h.querySelector('.hoja-pie').textContent = 'Hoja ' + (k + 1) + ' de ' + hojas.length;
+    });
+    // Si una imagen llega después, cambia lo que ocupa: se vuelve a repartir.
+    cont.querySelectorAll('.hoja-cuerpo img').forEach(img => {
+      if(!img.complete) img.addEventListener('load', () => repartirHoja(), { once: true });
+    });
+    hojaAncho = cont.clientWidth;
+    if(!quieto) arriba();
   }
+  // Al cambiar el ancho (girar el móvil, la ventana), las hojas se reparten de nuevo sin perder el sitio.
+  let hojaAncho = 0;
+  function repartirHoja(){
+    clearTimeout(repartirHoja.t);
+    repartirHoja.t = setTimeout(() => {
+      if(!est || est.terminado || est.revision || !MODOS[est.modo].oficial || !$('screen-pru').classList.contains('active')) return;
+      const a = $('app'), y = a ? a.scrollTop : 0;
+      pintarHoja(true);
+      if(a) a.scrollTop = y;
+    }, 150);
+  }
+  window.addEventListener('resize', () => {
+    const c = document.querySelector('#pruCuerpo .hojas');
+    if(c && c.clientWidth !== hojaAncho) repartirHoja();
+  });
   // Estudio y Fallos: una a una, igual que en Legislación (js/test.js,
   // renderQuestion): al responder se marca bien/mal; «En blanco» la da por no
   // sabida; la explicación queda plegada hasta «Mostrar explicación»; para
