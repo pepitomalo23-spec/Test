@@ -673,12 +673,57 @@ const CJ = (function(){
     b.classList.toggle('hidden', !k);
     b.onclick = () => editarNota(k);
     if(k) b.innerHTML = svgIcono('M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5Z|M14 2v6h6|M8 13h8|M8 17h5') + '<span>' + (notas.has(k) ? 'Tu nota' : 'Nota') + '</span>';
-    // En el temario, el admin y los profesores: «Editar» (cambiar o quitar la pregunta para todos).
+    // «Fiscal»: su página del Callejero Fiscal 2026 (calle o sitio con dirección).
+    const f = botonBarra('cjFiscalBtn'), fs = filasFiscal(q);
+    f.classList.toggle('hidden', !fs.length);
+    if(fs.length){ f.onclick = () => CJ26.ver(fs.map(x => x.i)); f.innerHTML = svgIcono('M12 7v14|M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z') + '<span>Fiscal</span>'; f.title = 'Callejero Fiscal 2026'; f.setAttribute('aria-label', 'Callejero Fiscal 2026'); }
+    else if(q && typeof CJ26 !== 'undefined' && !CJ26.listo()) CJ26.cargar().then(() => { if(ronda && ronda.preguntas[ronda.i] === q) ponerBotonNota(); }, () => {});
+    // «Editar»: quitar de lo que estudias la calle (o el barrio, el sitio…) de esta pregunta.
+    const ks = q && currentUser ? clavesPregunta(q) : [];
+    const x = botonBarra('cjQuitarBtn');
+    x.classList.toggle('hidden', !ks.length);
+    x.onclick = () => quitarDePregunta(q);
+    if(ks.length){ x.innerHTML = svgIcono('M12 20h9|M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z') + '<span>Editar</span>'; x.title = 'Quitar de lo que estudias'; x.setAttribute('aria-label', 'Editar: quitar de lo que estudias'); }
+    // En el temario, el administrador: cambiar o quitar la pregunta para todos.
     const editar = !!q && modo === 'temario' && typeof CJT !== 'undefined' && CJT.puedeEditar();
     const e = botonBarra('cjEditarBtn');
     e.classList.toggle('hidden', !editar);
     e.onclick = () => CJT.editarPregunta(q);
-    if(editar) e.innerHTML = svgIcono('M12 20h9|M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z') + '<span>Editar</span>';
+    if(editar) e.innerHTML = svgIcono('M9 12h6|M12 9v6|circle:12,12,9') + '<span>Pregunta</span>';
+  }
+  // Las filas del Callejero Fiscal 2026 de lo que pregunta: su calle o la dirección de su sitio.
+  function filasFiscal(q){
+    if(!q || typeof CJ26 === 'undefined' || !CJ26.listo()) return [];
+    const v = q.via || (q.vias && q.vias[0]);
+    if(v){ const fs = [v.nombre].concat(v.alias || []).map(n => CJ26.filasDe(n, v.tipo)).find(x => x.length); if(fs) return fs; }
+    if(q.lugar && q.lugar.direccion) return CJ26.filasDeDireccion(q.lugar.direccion);
+    return [];
+  }
+  // De qué es una pregunta, en las claves de Estudiar: lo del temario, un distrito, un barrio, un sitio o una calle.
+  function clavesPregunta(q){
+    if(Number(q.id) >= ID_TEMARIO) return ['t:' + q.id];
+    if(q.distrito && !q.barrio) return ['d:' + q.distrito];
+    if(q.barrio && q.barrio.nombre) return ['b:' + q.barrio.nombre];
+    if(q.lugar && q.lugar.id > 0) return ['l:' + q.lugar.id];
+    const v = q.via || (q.vias && q.vias[0]);
+    return v ? ['v:' + v.nombre] : [];
+  }
+  // «Editar» en una pregunta: se quita de Estudiar (como «Quitar · se me ha colado»), salen de la
+  // ronda sus preguntas y se pasa a la siguiente.
+  async function quitarDePregunta(q){
+    const ks = clavesPregunta(q);
+    if(!ks.length) return;
+    const nombre = q.nombre || q.texto || 'esto';
+    if(!await uiConfirm('No te volverá a salir al estudiar. Puedes volver a ponerlo desde Estudiar.', { title: '¿Quitar «' + nombre + '» de lo que estudias?', ok: 'Quitar', danger: true })) return;
+    const c = cfgRepaso(), f = new Set(c.fuera || []);
+    ks.forEach(k => f.add(k));
+    c.fuera = [...f];
+    guardarCfgRepaso();
+    if(!ronda) return;
+    const mismo = x => { const kx = clavesPregunta(x); return kx.length && kx.every(k => f.has(k)); };
+    ronda.preguntas = ronda.preguntas.filter((x, j) => j <= ronda.i || !mismo(x));
+    uiToast('Quitado de Estudiar', 'success');
+    if(!ronda.respondida) siguientePregunta(false);
   }
   function tarjetaNota(mostrar){
     let c = el('cjNota');
@@ -2865,9 +2910,8 @@ const CJ = (function(){
     try{ await Promise.all([cargarLeaflet(), cargarDatos()]); }catch(e){ uiToast(e.message, 'error'); return; }
     if(typeof CJT !== 'undefined'){ try{ await CJT.cargar(); }catch(e){} }
     actualizarFiltro();
-    const c = fuentesMarcado();
-    const pool = poolRepaso(c);
-    const crear = () => preguntasRepaso(c, pool);
+    // Cada vuelta, con lo que haya entonces (sin lo que se quite por el camino).
+    const crear = () => { const ahora = fuentesMarcado(); return preguntasRepaso(ahora, poolRepaso(ahora)); };
     const qs = crear();
     if(!qs.length){ uiToast('Todavía no tienes nada en Estudiar. Pulsa «+ Añadir cosas».', 'info'); return; }
     empezarMixta('Estudiar', qs, { tipo: 'repaso' }, crear);

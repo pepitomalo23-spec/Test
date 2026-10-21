@@ -1097,3 +1097,9 @@
 /* Mapa: debajo de los dos botones, lo de por apartados y las notas, en pequeño */
 .cjm-links{ display:flex; justify-content:center; flex-wrap:wrap; gap:4px 18px; margin-top:6px; }
 .cjm-links .cjr-ajustes{ margin:6px 0 0; }
+/* En el móvil, en la barra de la pregunta (Nota, Fiscal, Editar) solo los iconos, para que quepa todo */
+@media (max-width: 480px){
+  .cj-cabeza .cj-nota-btn{ padding:0 9px; }
+  .cj-cabeza .cj-nota-btn span{ display:none; }
+  .cj-aciertos, .cj-contador{ white-space:nowrap; }
+}
