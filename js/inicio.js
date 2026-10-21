@@ -510,6 +510,7 @@ const INICIO = (function(){
       (b, cerrar) => { if(b.dataset.h === 'seguir'){ cerrar(); seguirTest(b.dataset.t, b.dataset.id); } });
   }
 
+  const ICO_MNEMO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.5.4.8 1 .9 1.6l.1.6h5.2l.1-.6c.1-.6.4-1.2.9-1.6A6 6 0 0 0 12 3z"/></svg>';
   function cabeceraGrande(r){
     const n = r ? r.lista.length : 0, hechas = r ? r.hechas : 0;
     let lista;
@@ -530,7 +531,10 @@ const INICIO = (function(){
       }).join('') + (n > MAX_TAREAS ? '<button type="button" class="ini-ht-mas" data-ini="calendario">y ' + (n - MAX_TAREAS) + ' más en el calendario ›</button>' : '');
     }
     const d = new Date(), dia = DIAS[d.getDay()];
-    return '<div class="ini-heropc"><div class="ini-heropc-izq"><div class="ini-fecha">' + dia.charAt(0).toUpperCase() + dia.slice(1) + '</div>' +
+    // Mnemotecnia: un botón redondo pequeño en la esquina (abre la calculadora de js/mnemotecnia.js).
+    const mnemo = typeof MN !== 'undefined' && featureEnabled('normativas')
+      ? '<button type="button" class="ini-mnemo" data-ini="mnemo" title="Mnemotecnia" aria-label="Mnemotecnia">' + ICO_MNEMO + '</button>' : '';
+    return '<div class="ini-heropc"><div class="ini-heropc-izq">' + mnemo + '<div class="ini-fecha">' + dia.charAt(0).toUpperCase() + dia.slice(1) + '</div>' +
         '<h1 class="ini-h ini-heropc-dia">' + d.getDate() + '</h1><div class="ini-heropc-mes">' + MESES[d.getMonth()] + '</div>' +
         (n ? '<div class="ini-heropc-n"><b>' + hechas + ' de ' + n + '</b><span>' + (n === 1 ? 'tarea hecha' : 'tareas hechas') + '</span></div>' : '') + examen() +
         '<div class="ini-heropc-bts"><button type="button" class="ini-heropc-add" data-ini="nueva">+ Añadir tarea</button>' +
@@ -643,6 +647,7 @@ const INICIO = (function(){
       case 'tests': abrirTests(); break;
       case 'esp': ESPT.continuarCurso(el.dataset.id); break;
       case 'marcadas': ESPT.abrirHoy(); break;
+      case 'mnemo': MN.ventana(); break;
       case 'prueba': PRU.continuar(); break;
       case 'examen': EXA.abrir(); break;
       case 'stats': showScreen('screen-stats'); break;
