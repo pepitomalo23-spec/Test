@@ -29,9 +29,10 @@ async function adminToggleDefaultFlag(key){
 async function adminLoadUsers(){
   const el = document.getElementById('adminList-users');
   el.innerHTML = skelList(4);
-  const { data, error } = await sb.rpc('admin_list_users');
+  const [{ data, error }, rk] = await Promise.all([sb.rpc('admin_list_users'), sb.from('ranking_participantes').select('user_id,nombre')]);
   if(error){ el.innerHTML = '<div class="admin-empty">No se pudo cargar la lista de usuarios.</div>'; console.error(error); return; }
   adminData.users = data || [];
+  adminData.ranking = new Map(((rk && rk.data) || []).map(r => [r.user_id, r.nombre]));
   adminRenderUsers();
 }
 function adminRenderUsers(){
@@ -82,6 +83,16 @@ function adminRenderUsers(){
           '<button class="btn btn-ghost" style="padding:8px 12px; font-size:12.5px;" onclick="adminResetDevices(\''+u.id+'\')">Restablecer dispositivos</button>' +
           '<button class="btn btn-ghost" style="padding:8px 12px; font-size:12.5px; color: var(--coral); border-color: var(--coral);" onclick="adminDeleteUser(\''+u.id+'\', \''+esc(u.email || '')+'\')">Eliminar cuenta</button>' +
         '</div>');
+    // Mini ranking de exámenes (Estadística): si sale y con qué nombre.
+    const enRanking = adminData.ranking && adminData.ranking.has(u.id);
+    const sugerido = enRanking ? adminData.ranking.get(u.id) : String(u.email || '').split('@')[0].slice(0, 40);
+    const rankingRow = pending ? '' : (
+      '<div class="admin-user-row" style="margin-top:10px; gap:8px; flex-wrap:wrap;">' +
+        '<span style="font-size:13px; flex:1 1 100%;">Ranking de exámenes: ' + (enRanking ? '<b>sale</b>' : 'no sale') + '</span>' +
+        '<input type="text" maxlength="40" id="rankNombre-'+esc(u.id)+'" value="'+esc(sugerido)+'" placeholder="Nombre en el ranking" style="flex:1; min-width:140px;">' +
+        '<button class="btn btn-ghost" style="padding:8px 12px; font-size:12.5px;" onclick="adminRanking(\''+u.id+'\', true)">'+(enRanking ? 'Guardar nombre' : 'Sacar en el ranking')+'</button>' +
+        (enRanking ? '<button class="btn btn-ghost" style="padding:8px 12px; font-size:12.5px; color: var(--coral); border-color: var(--coral);" onclick="adminRanking(\''+u.id+'\', false)">Quitar</button>' : '') +
+      '</div>');
     return (
       '<div class="admin-card">' +
         '<div class="admin-user-row">' +
@@ -99,6 +110,7 @@ function adminRenderUsers(){
         '</div>' +
         pendingRow +
         manageRow +
+        rankingRow +
         featureTogglesRow +
         '<div class="admin-status" id="adminStatus-deviceLimit-'+esc(u.id)+'"></div>' +
         '<div class="admin-status" id="adminStatus-manage-'+esc(u.id)+'"></div>' +
@@ -108,6 +120,21 @@ function adminRenderUsers(){
       '</div>'
     );
   }).join('');
+}
+async function adminRanking(userId, sale){
+  let error;
+  if(sale){
+    const nombre = (document.getElementById('rankNombre-' + userId).value || '').trim();
+    if(!nombre){ uiToast('Pon el nombre con el que sale en el ranking', 'info'); return; }
+    ({ error } = await sb.from('ranking_participantes').upsert({ user_id: userId, nombre }, { onConflict: 'user_id' }));
+    if(!error) adminData.ranking.set(userId, nombre);
+  } else {
+    ({ error } = await sb.from('ranking_participantes').delete().eq('user_id', userId));
+    if(!error) adminData.ranking.delete(userId);
+  }
+  if(error){ uiToast('No se pudo guardar: ' + error.message, 'error'); return; }
+  uiToast(sale ? 'Sale en el ranking' : 'Quitado del ranking', 'success');
+  adminRenderUsers();
 }
 async function adminToggleBlocked(userId, currentlyBlocked){
   const nextBlocked = !currentlyBlocked;

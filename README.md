@@ -63,6 +63,7 @@ js/                  código, en orden de carga (ver el final de index.html)
   colocar-tb.js      dónde va (título o artículo) cada pregunta de tutorbomberos, y su revisión en Administración
   importar-especifico.js  recibe las preguntas que envía el marcador de tutorbomberos.es (Específico y Legislación)
   examen.js          Tu examen: cuenta atrás de Inicio y formato del Simulacro oficial
+  ranking.js         Mini ranking de exámenes de Estadísticas (quién sale lo decide el administrador)
   inicio.js          Inicio: lo de hoy, test a medias, accesos rápidos y progreso
   arranque.js        escucha la sesión y arranca la app (siempre el último)
 datos/               datos que la app descarga cuando hacen falta (callejero-temario.json,
@@ -500,8 +501,15 @@ y sus funciones siguen en la base de datos, sin usarse, por si se quisiera recup
   verde de Legislación y del Específico, entre los días que quedan. Tocándola se abre la hoja de ajustes.
 - Formato del examen: preguntas, minutos, cuánto resta cada fallo (nada, ¼, ⅓ o 1/(opciones−1)) y el % de
   Legislación. El **Simulacro oficial** (modo `oficial` de `js/pruebas.js`) lo usa con todas las leyes y todo el
-  Específico; el reloj no se para aunque se salga, y la corrección da la nota, aprobado o suspenso y los puntos
-  netos. Va al historial de pruebas, que se ve en la misma hoja.
+  Específico, y la corrección da la nota, aprobado o suspenso y los puntos netos. Va al historial de pruebas, que
+  se ve en la misma hoja.
+- Examen y Simulacro oficial se ven como la hoja de papel (`pintarHoja`): hojas A4 en pantallas grandes, 5 por
+  hoja deslizando en el móvil. No se puede salir de ellos (sin «Volver»; `showScreen` y el «atrás» preguntan a
+  `PRU.bloqueado()`): solo «Finalizar». Si se sale de la web (otra app, cerrar, bloquear el móvil) se corrigen
+  en ese momento con lo respondido; uno que quedó a medias se corrige al volver a abrirlo.
+- Mini ranking (arriba en Estadísticas, `js/ranking.js`): nota media, última y mejor de esos exámenes. Quién sale y
+  con qué nombre lo decide el administrador en Usuarios (tabla `ranking_participantes`; las notas, de la función
+  `ranking_examenes`, migración `20261109_ranking.sql`).
 
 ## Mnemotecnia
 
