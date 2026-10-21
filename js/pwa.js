@@ -36,21 +36,15 @@ if('serviceWorker' in navigator && (location.protocol === 'https:' || location.h
   document.addEventListener('visibilitychange', () => { if(!document.hidden) comprobarActualizacion(); });
 }
 
-// Enlaces que abren las notificaciones: ?repaso=1 → Repaso diario,
+// Enlaces que abren las notificaciones: ?repaso=1 → Normativas,
 // ?admin=errores → Administración › Errores.
 function handleDeepLink(href){
   let url;
   try{ url = new URL(href, location.href); }catch(e){ return; }
   if(!currentUser) return;
   if(url.searchParams.get('repaso') && featureEnabled('normativas')){
+    // El Repaso diario ya no está: se abre Normativas.
     showScreen('screen-normativas');
-    // Las tarjetas pueden estar aún cargando: se reintenta unos segundos.
-    let tries = 0;
-    const tryStart = () => {
-      if(typeof NQ !== 'undefined' && NQ.startReview && NQ.startReview()) return;
-      if(++tries < 12) setTimeout(tryStart, 500);
-    };
-    setTimeout(tryStart, 300);
   } else if(url.searchParams.get('admin') === 'errores' && currentUserIsAdmin){
     openAdminPanel().then(() => switchAdminTab('errors'));
   } else if(url.searchParams.get('callejero') && featureEnabled('callejero')){
