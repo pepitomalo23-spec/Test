@@ -795,6 +795,9 @@
   .cj-ini-num{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:30px; font-weight:800; margin-top:2px; line-height:1.15; }
   .cj-ini-num small{ font-size:13px; font-weight:600; color: var(--muted); }
   .cj-ini-sub{ font-size:13.5px; color: var(--muted); margin-top:4px; line-height:1.4; }
+  .cj-ini-bts{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .cj-ini-bts .cj-ini-btn{ margin-top:0; }
+  .cj-ini-reset{ padding:8px 10px; border:0; background:none; color: var(--muted); font: inherit; font-size:13px; font-weight:600; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
   .cj-ini-btn{ margin-top:10px; padding:8px 16px; border-radius:99px; border:0; background: var(--coral); color:#fff; font: inherit; font-size:14px; font-weight:700; cursor:pointer; }
   .cj-ini-dist{ display:grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap:6px 16px; margin-top:10px; }
   .cj-ini-d{ display:flex; align-items:center; gap:8px; font-size:13px; min-width:0; }

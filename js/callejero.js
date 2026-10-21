@@ -2628,7 +2628,8 @@ const CJ = (function(){
     const fallas = '<div class="cj-card cj-ini-fallas"><div class="cj-ini-etq">Lo que fallas</div>' +
       (f.total
         ? '<div class="cj-ini-num">' + f.total + '<small>' + (f.total === 1 ? 'cosa' : 'cosas') + '</small></div><div class="cj-ini-sub">' + escapeHtml(f.partes) + '</div>' +
-          '<button type="button" class="cj-ini-btn" onclick="CJ.empezarFallos()">Repasarlas</button>'
+          '<div class="cj-ini-bts"><button type="button" class="cj-ini-btn" onclick="CJ.empezarFallos()">Repasarlas</button>' +
+          '<button type="button" class="cj-ini-reset" onclick="CJ.restablecerFallos()">Restablecer</button></div>'
         : '<div class="cj-ini-sub">Nada. Aquí sale lo que falles; en cuanto lo aciertes, se quita solo.</div>') + '</div>';
     return '<div class="cj-ini-tarjetas">' + fallas + sabesHtml() + '</div>' +
       '<div class="cj-grandes">' +
@@ -3785,13 +3786,13 @@ const CJ = (function(){
     try{ localStorage.setItem(FALLOS_KEY + currentUser.id, String(fallosDesde)); }catch(e){}
   }
   async function restablecerFallos(){
-    if(!await uiConfirm('Se vacía «Lo fallado». A partir de ahora solo se guarda lo que vuelvas a fallar.', { title: '¿Restablecer lo fallado?', ok: 'Restablecer', danger: true })) return;
+    if(!await uiConfirm('Se vacía «Lo que fallas» (calles, barrios, distritos y temario). A partir de ahora solo sale lo que vuelvas a fallar.', { title: '¿Restablecer lo que fallas?', ok: 'Restablecer', danger: true })) return;
     const ahora = new Date();
     fallosDesde = Math.floor(ahora.getTime() / 1000);
     try{ localStorage.setItem(FALLOS_KEY + currentUser.id, String(fallosDesde)); }catch(e){}
     pintarInicio();
     const { error } = await sb.from('callejero_fallos_reinicio').upsert({ user_id: currentUser.id, desde: ahora.toISOString() });
-    uiToast(error ? 'No se ha podido guardar en tu cuenta: ' + error.message : 'Lo fallado, vacío', error ? 'error' : 'success');
+    uiToast(error ? 'No se ha podido guardar en tu cuenta: ' + error.message : 'Lo que fallas, vacío', error ? 'error' : 'success');
   }
   function fallados(){
     const calles = {}, barrios = new Set(), distritos = new Set();
