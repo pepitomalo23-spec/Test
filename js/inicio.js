@@ -234,6 +234,19 @@ const INICIO = (function(){
     if(si) l.add(String(id)); else l.delete(String(id));
     try{ localStorage.setItem(SOLO_MARC(), JSON.stringify([...l])); }catch(e){}
   }
+  // «Restablecer lo hecho» de un tema: desde cuándo vuelve a contar ({ 'examen|tema': ms }). Va con la cuenta.
+  const REINICIO = () => currentUser ? 'pj_sem_reinicio:' + currentUser.id : null;
+  function reinicios(){ try{ const k = REINICIO(); return (k && JSON.parse(localStorage.getItem(k) || '{}')) || {}; }catch(e){ return {}; } }
+  const claveTema = (x, t) => x.id + '|' + t.clave;
+  const reinicioDe = (x, clave) => Number(reinicios()[x.id + '|' + clave]) || 0;
+  function restablecerTema(x, t){
+    const r = reinicios();
+    // Solo hace falta lo de exámenes que aún vienen (o de esta semana).
+    r[claveTema(x, t)] = Date.now();
+    try{ localStorage.setItem(REINICIO(), JSON.stringify(r)); }catch(e){}
+    SINC.cambiado('sem-reinicio');
+  }
+  SINC.registrar('sem-reinicio', REINICIO, () => pintar());
   const marcadasListas = () => typeof ESPT !== 'undefined' && ESPT.numMarcadas && ESPT.numMarcadas() != null;
   // [{ nombre, tipo, total, bien: [], mal: [], sin: [] }] (bien/mal/sin: preguntas de Legislación u ids del Específico); null mientras carga.
   function semana(x){
@@ -250,15 +263,17 @@ const INICIO = (function(){
     const pr = typeof PRU !== 'undefined' && PRU.respuestasEnCurso ? PRU.respuestasEnCurso() : null;
     if(pr) pr.lista.forEach(r => aMedias(r.k, r.id, r.ok, pr.inicio || Date.now()));
     // La última respuesta de cada pregunta: lo de la cuenta o lo de este dispositivo (lo que sea más nuevo).
-    const ultima = (k, id, cuenta) => { const a = cuenta && cuenta.get(id), b = local[k + ':' + id];
-      const bb = b && b[1] >= desde ? [!!b[0], b[1]] : null; const g = !a ? bb : !bb ? a : bb[1] >= a[1] ? bb : a; return g ? g[0] : null; };
+    // corte: si el tema se restableció, solo cuenta lo respondido después.
+    const ultima = (k, id, cuenta, corte) => { const c = Math.max(desde, corte || 0), a0 = cuenta && cuenta.get(id), a = a0 && a0[1] >= c ? a0 : null, b = local[k + ':' + id];
+      const bb = b && b[1] >= c ? [!!b[0], b[1]] : null; const g = !a ? bb : !bb ? a : bb[1] >= a[1] ? bb : a; return g ? g[0] : null; };
     if(x.legis.length){
       const pool = datosListos() ? QUESTIONS_POOL : null, m = pool && legisSemana(x);
       if(!m) return null;
       const entra = (q, l) => q.topic_id === l.id && (!l.grupo || (!!q.nodo_id && nodeIsInSelectedGroups(q.nodo_id, new Set([l.grupo]))));
       x.legis.forEach(l => {
-        const qs = pool.filter(q => entra(q, l)), t = { nombre: l.nombre, tipo: 'Legislación', total: qs.length, bien: [], mal: [], sin: [] };
-        qs.forEach(q => { const u = ultima('l', q.id, m); (u == null ? t.sin : u ? t.bien : t.mal).push(q); });
+        const qs = pool.filter(q => entra(q, l)), t = { clave: 'l:' + l.id + ':' + (l.grupo || ''), nombre: l.nombre, tipo: 'Legislación', total: qs.length, bien: [], mal: [], sin: [] };
+        const corte = reinicioDe(x, t.clave);
+        qs.forEach(q => { const u = ultima('l', q.id, m, corte); (u == null ? t.sin : u ? t.bien : t.mal).push(q); });
         temas.push(t);
       });
     }
@@ -268,8 +283,9 @@ const INICIO = (function(){
       if(x.esp.some(k => soloMarcadas(k.id)) && !marcadasListas()){ ESPT.cargarMarcadas().then(pintar, () => {}); return null; }
       x.esp.forEach(k => {
         const solo = soloMarcadas(k.id);
-        const t = { id: k.id, nombre: k.nombre, tipo: 'Específico', total: 0, bien: [], mal: [], sin: [], marcadas: solo };
-        e.temaDe.forEach((tema, id) => { if(tema !== k.id || (solo && !ESPT.estaMarcada(id))) return; t.total++; const u = ultima('e', id, e.ultima); (u == null ? t.sin : u ? t.bien : t.mal).push(id); });
+        const t = { id: k.id, clave: 'e:' + k.id, nombre: k.nombre, tipo: 'Específico', total: 0, bien: [], mal: [], sin: [], marcadas: solo };
+        const corte = reinicioDe(x, t.clave);
+        e.temaDe.forEach((tema, id) => { if(tema !== k.id || (solo && !ESPT.estaMarcada(id))) return; t.total++; const u = ultima('e', id, e.ultima, corte); (u == null ? t.sin : u ? t.bien : t.mal).push(id); });
         temas.push(t);
       });
     }
@@ -290,7 +306,8 @@ const INICIO = (function(){
       fila('mal', '✗', n(t.mal.length) + ' mal', t.mal, 'Repetir ' + (t.mal.length === 1 ? 'la fallada' : 'las ' + n(t.mal.length)), 'mal') +
       fila('sin', '○', n(t.sin.length) + ' sin hacer', t.sin, 'Hacer ' + (t.sin.length === 1 ? 'la que falta' : 'las ' + n(t.sin.length)), 'sin') +
       fila('bien', '✓', n(t.bien.length) + ' bien', t.bien, 'Repasarlas', 'bien')) +
-      '<p class="ini-sem-nota">Cuenta lo que has respondido desde el ' + corto(desdeExa(x)) + '. En Legislación, los tests cuentan al terminarlos.</p>'; };
+      '<p class="ini-sem-nota">Cuenta lo que has respondido desde el ' + corto(desdeExa(x)) + (reinicioDe(x, t.clave) > desdeExa(x).getTime() ? ' (restablecido el ' + corto(new Date(reinicioDe(x, t.clave))) + ')' : '') + '. En Legislación, los tests cuentan al terminarlos.</p>' +
+      (t.bien.length || t.mal.length ? '<button type="button" class="ini-sem-reset" data-h="restablecer">Restablecer lo hecho</button>' : ''); };
     hoja(t.nombre, t.tipo + ' · examen ' + cuandoExa(x), cuerpo(), '<button type="button" class="cal-btn" data-h="cerrar">Cerrar</button>',
       async (b, cerrar, poner) => {
         if(b.dataset.h === 'todas' || b.dataset.h === 'marcadas'){
@@ -298,6 +315,16 @@ const INICIO = (function(){
           if(b.dataset.h === 'marcadas' && !marcadasListas()) await ESPT.cargarMarcadas().catch(() => {});
           t = (semana(x) || [])[i] || t;
           poner(cuerpo()); pintar();
+          return;
+        }
+        if(b.dataset.h === 'restablecer'){
+          // Se pregunta dos veces: no se puede deshacer.
+          if(!(await uiConfirm('Las ' + n(t.bien.length + t.mal.length) + ' preguntas que llevas hechas de «' + t.nombre + '» esta semana volverán a contar como sin hacer.', { title: '¿Restablecer lo hecho?', ok: 'Sí, restablecer', danger: true }))) return;
+          if(!(await uiConfirm('No se puede deshacer. ¿Seguro que quieres empezar «' + t.nombre + '» de cero esta semana?', { title: '¿Seguro?', ok: 'Restablecer', danger: true }))) return;
+          restablecerTema(x, t);
+          t = (semana(x) || [])[i] || t;
+          poner(cuerpo()); pintar();
+          uiToast('Tema restablecido', 'success');
           return;
         }
         const lista = t[b.dataset.h];
