@@ -64,6 +64,20 @@
 .tg-contenido .tg-clave::before, .tg-contenido .tg-ojo::before, .tg-contenido .tg-truco::before, .tg-contenido .tg-ejemplo::before{
   display:block; font-size:12px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; margin-bottom:6px; opacity:.85; }
 .tg-contenido .tg-clave > :last-child, .tg-contenido .tg-ojo > :last-child, .tg-contenido .tg-truco > :last-child, .tg-contenido .tg-ejemplo > :last-child{ margin-bottom:0; }
+/* El artículo tal cual (texto oficial del BOE) */
+.tg-contenido .tg-articulo{ margin:4px 0 20px; padding:16px 18px; border:1px solid var(--line); border-left:4px solid var(--blue); border-radius:12px;
+  background: var(--card); font-family: var(--serif); font-size:15.5px; line-height:1.6; }
+.tg-contenido .tg-articulo::before{ content:"El artículo, tal cual (BOE)"; display:block; font-family: var(--sans); font-size:12px; font-weight:700; letter-spacing:.5px;
+  text-transform:uppercase; color: var(--blue); margin-bottom:8px; }
+.tg-contenido .tg-articulo p{ margin:0 0 9px; }
+.tg-contenido .tg-articulo p:last-child{ margin-bottom:0; }
+.tg-contenido .tg-articulo p.articulo{ font-family: var(--sans); font-weight:700; font-size:16px; margin-bottom:12px; }
+.tg-contenido .tg-articulo p.parrafo_2, .tg-contenido .tg-articulo p.parrafo_3{ padding-left:14px; }
+.tg-contenido .tg-explica{ display:flex; align-items:center; gap:8px; margin:22px 0 10px; font-size:13px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color: var(--green); }
+.tg-contenido .tg-explica::after{ content:""; flex:1; height:1px; background: var(--line); }
+.tg-contenido .tg-foto{ margin:16px 0; }
+.tg-contenido .tg-foto img{ display:block; width:100%; height:auto; border-radius:12px; border:1px solid var(--line); background:#fff; }
+.tg-contenido .tg-foto figcaption{ font-size:13px; color: var(--muted); margin-top:6px; line-height:1.4; text-align:center; }
 .tg-contenido .tg-figura{ margin:18px 0; padding:14px; border:1px solid var(--line); border-radius:12px; background: var(--card); text-align:center; }
 .tg-contenido .tg-figura figcaption{ font-size:13px; color: var(--muted); margin-top:8px; line-height:1.4; }
 .tg-contenido .tg-video{ position:relative; margin:18px 0; aspect-ratio:16 / 9; border-radius:12px; overflow:hidden; background:#000; }
