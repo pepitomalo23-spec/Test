@@ -51,6 +51,7 @@ const TABLES = [
   "callejero_publicado", "callejero_cambios", "callejero_fallos_reinicio", "callejero_intentos", "callejero_mensajes",
   "callejero_notas", "callejero_tareas", "callejero_tareas_hechas", "callejero_temario_preguntas", "callejero_vueltas",
   "plan_ajustes", "plan_eventos", "plan_preguntas", "plan_resultados", "plan_tareas", "plan_temas", "plan_tests",
+  "temario_temas", "temario_progreso", "temario_intentos",
 ];
 const ESP_DIR = "especifico";
 const ESP_POR_VEZ = 8;

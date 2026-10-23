@@ -19,6 +19,7 @@ css/                 estilos, en orden de carga
   especifico.css     Específico (temario de bombero)
   inicio.css         Inicio (resumen del día)
   piscina.css        Piscina (reservas de IMDECO programadas)
+  temario-guiado.css Temario (temas paso a paso y sus preguntas)
 js/                  código, en orden de carga (ver el final de index.html)
   nucleo.js          avisos, esqueletos de carga, cliente de Supabase, resultados pendientes
   pwa.js             service worker, aviso de versión nueva, notificaciones, enlaces
@@ -59,6 +60,9 @@ js/                  código, en orden de carga (ver el final de index.html)
   especifico.js      Específico: temas del temario de bombero
   especifico-test.js hacer un test del Específico y ver las Preguntas marcadas (diseño de tutorbomberos)
   estadisticas-especifico.js  Estadísticas › pestaña Específico
+  temario-guiado.js  Temario (Estudio, de momento solo administradores): temas explicados paso a paso,
+                     en Específico y Legislación, con preguntas al final; el contenido lo escribe Claude
+                     en la tabla temario_temas (formato en la cabecera del archivo)
   pruebas.js         Simulacro conjunto (Inicio) y modos del Específico (panel pj.fire), con su historial
   colocar-tb.js      dónde va (título o artículo) cada pregunta de tutorbomberos, y su revisión en Administración
   importar-especifico.js  recibe las preguntas que envía el marcador de tutorbomberos.es (Específico y Legislación)

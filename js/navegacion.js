@@ -4,8 +4,8 @@
 // Barra superior: Inicio, Estudio y Estadísticas. El calendario se abre
 // desde Inicio (con Inicio marcado); Legislación, Normativas y Callejero,
 // desde los recuadros de Estudio (con Estudio marcado).
-const TOP_LEVEL_SCREENS = ['screen-inicio', 'screen-calendario', 'screen-piscina', 'screen-estudio', 'screen-especifico', 'screen-esp-test', 'screen-normativas', 'screen-datos', 'screen-home', 'screen-callejero', 'screen-stats'];
-const ESTUDIO_SCREENS = ['screen-estudio', 'screen-especifico', 'screen-esp-test', 'screen-normativas', 'screen-datos', 'screen-home', 'screen-callejero'];
+const TOP_LEVEL_SCREENS = ['screen-inicio', 'screen-calendario', 'screen-piscina', 'screen-estudio', 'screen-especifico', 'screen-esp-test', 'screen-temario', 'screen-temario-tema', 'screen-normativas', 'screen-datos', 'screen-home', 'screen-callejero', 'screen-stats'];
+const ESTUDIO_SCREENS = ['screen-estudio', 'screen-especifico', 'screen-esp-test', 'screen-temario', 'screen-temario-tema', 'screen-normativas', 'screen-datos', 'screen-home', 'screen-callejero'];
 const LAST_SCREEN_KEY = 'legis_last_screen';
 // Pantallas de "detalle" o de proceso (un artículo concreto, el
 // configurador de un test, la revisión de un test ya hecho...) no se
@@ -18,6 +18,8 @@ const SCREEN_RESTORE_TARGET = {
   'screen-estudio': 'screen-estudio',
   'screen-especifico': 'screen-especifico',
   'screen-esp-test': 'screen-especifico',
+  'screen-temario': 'screen-temario',
+  'screen-temario-tema': 'screen-temario',   // el tema que se leía solo está en memoria: a la lista
   'screen-normativas': 'screen-normativas',
   'screen-datos': 'screen-datos',
   'screen-home': 'screen-home',
@@ -67,6 +69,7 @@ function showScreen(id){
   }
   if(SCREEN_FEATURE[id] && !featureEnabled(SCREEN_FEATURE[id])) id = 'screen-home';
   if(id === 'screen-piscina' && !currentUserIsAdmin) id = 'screen-inicio';
+  if((id === 'screen-temario' || id === 'screen-temario-tema') && !currentUserIsAdmin) id = 'screen-estudio';   // de momento, solo el administrador
   const antes = (document.querySelector('.screen.active') || {}).id;
   if(antes && antes !== id && !volviendo) VIENE_DE[id] = antes;
   if(id !== 'screen-quiz'){ clearInterval(timerInterval); }
@@ -80,6 +83,8 @@ function showScreen(id){
   if(id === 'screen-datos' && typeof DI !== 'undefined') DI.abrir();
   if(id === 'screen-piscina' && typeof PISCINA !== 'undefined') PISCINA.abrir();
   if(id === 'screen-especifico' && typeof ESP !== 'undefined') ESP.abrir();
+  if(id === 'screen-temario' && typeof TG !== 'undefined') TG.abrir();
+  if(id === 'screen-temario-tema' && typeof TG !== 'undefined') TG.abrirPantallaTema();
   if(id === 'screen-stats' && typeof RANK !== 'undefined') RANK.abrir();
   if(id === 'screen-stats' && typeof ESTE !== 'undefined') ESTE.abrir();
   const isTopLevel = TOP_LEVEL_SCREENS.includes(id);

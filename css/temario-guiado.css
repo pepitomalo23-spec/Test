@@ -1,0 +1,121 @@
+/* Estudio › Temario (js/temario-guiado.js): temas explicados paso a paso y sus preguntas. */
+.estudio-card.temario .estudio-card-icono{ color: var(--green); }
+
+.tg-intro{ color: var(--muted); font-size:14.5px; line-height:1.5; margin:-6px 0 18px; }
+.tg-areas{ display:flex; gap:6px; padding:4px; border:1px solid var(--line); border-radius:12px; background: var(--card); margin-bottom:20px; }
+.tg-area{ flex:1; padding:10px 8px; border:none; border-radius:9px; background:none; color: var(--muted); font:inherit; font-size:14.5px; font-weight:600; cursor:pointer; }
+.tg-area.activa{ background: var(--bg); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
+.tg-vacio{ padding:22px 18px; border:1px dashed var(--line); border-radius:14px; color: var(--muted); font-size:14.5px; line-height:1.55; text-align:center; }
+.tg-vacio b{ color: var(--text); }
+
+.tg-lista{ display:flex; flex-direction:column; gap:12px; }
+.tg-tema-card{ display:flex; align-items:center; gap:14px; padding:16px 18px; border:1px solid var(--line); border-radius:14px; background: var(--card); cursor:pointer; transition: background .15s, border-color .15s; }
+.tg-tema-card:hover{ background: var(--card-hi); border-color: var(--muted-2); }
+.tg-tema-txt{ flex:1; min-width:0; }
+.tg-tema-titulo{ font-size:16.5px; font-weight:650; line-height:1.35; }
+.tg-tema-resumen{ font-size:13.5px; color: var(--muted); line-height:1.45; margin-top:4px; }
+.tg-tema-meta{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin-top:8px; font-size:12.5px; color: var(--muted-2); }
+.tg-estado{ padding:2px 8px; border-radius:999px; font-weight:600; background: var(--w06); color: var(--muted); }
+.tg-estado.nuevo{ color: var(--blue); background: color-mix(in srgb, var(--blue) 14%, transparent); }
+.tg-estado.curso{ color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, transparent); }
+.tg-estado.medio{ color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent); }
+.tg-estado.bien{ color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+
+/* Un tema */
+.tg-h1{ margin-top:10px; }
+.tg-progreso{ margin:4px 0 12px; }
+.tg-progreso-txt{ font-size:12.5px; color: var(--muted); margin-bottom:6px; }
+.tg-barra{ height:6px; border-radius:99px; background: var(--w08); overflow:hidden; }
+.tg-barra span{ display:block; height:100%; background: var(--green); border-radius:99px; transition: width .25s; }
+.tg-barra.preguntas span{ background: var(--purple); }
+.tg-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px; }
+.tg-chip{ width:32px; height:32px; border-radius:50%; border:1px solid var(--line); background: var(--card); color: var(--muted); font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+.tg-chip.hecho{ color: var(--green); border-color: color-mix(in srgb, var(--green) 45%, var(--line)); }
+.tg-chip.activo{ background: var(--green); border-color: var(--green); color:#04130d; }
+
+.tg-nav{ display:flex; gap:10px; justify-content:space-between; margin:20px 0 10px; }
+.tg-nav .btn{ flex:1; }
+.tg-link{ display:inline-block; margin-top:10px; padding:0; border:none; background:none; color: var(--blue); font:inherit; font-size:14px; font-weight:600; cursor:pointer; text-align:left; }
+
+.tg-dudas{ margin:18px 0 10px; padding:14px 16px; border:1px solid var(--line); border-radius:14px; background: var(--card); }
+.tg-dudas summary{ cursor:pointer; font-weight:600; font-size:14.5px; }
+.tg-dudas p{ font-size:13.5px; color: var(--muted); margin:10px 0 8px; line-height:1.45; }
+.tg-dudas textarea{ width:100%; box-sizing:border-box; resize:vertical; font:inherit; font-size:14.5px; }
+.tg-dudas .btn{ margin-top:10px; }
+
+/* El contenido que escribe Claude */
+.tg-contenido{ font-size:16px; line-height:1.65; overflow-wrap:anywhere; }
+.tg-contenido h2{ font-family: var(--title); font-weight:400; font-size:24px; letter-spacing:.2px; margin:6px 0 14px; line-height:1.25; }
+.tg-contenido h3{ font-size:17px; margin:22px 0 8px; }
+.tg-contenido p{ margin:0 0 14px; }
+.tg-contenido ul, .tg-contenido ol{ margin:0 0 14px; padding-left:22px; }
+.tg-contenido li{ margin:4px 0; }
+.tg-contenido img, .tg-contenido svg{ max-width:100%; height:auto; }
+.tg-contenido .tg-clave, .tg-contenido .tg-ojo, .tg-contenido .tg-truco, .tg-contenido .tg-ejemplo{
+  margin:16px 0; padding:14px 16px; border-radius:12px; border-left:4px solid; font-size:15px; }
+.tg-contenido .tg-clave{ border-color: var(--purple); background: color-mix(in srgb, var(--purple) 12%, transparent); }
+.tg-contenido .tg-ojo{ border-color: var(--coral); background: color-mix(in srgb, var(--coral) 12%, transparent); }
+.tg-contenido .tg-truco{ border-color: var(--amber); background: color-mix(in srgb, var(--amber) 12%, transparent); }
+.tg-contenido .tg-ejemplo{ border-color: var(--teal); background: color-mix(in srgb, var(--teal) 12%, transparent); }
+.tg-contenido .tg-clave::before{ content:"Idea clave"; }
+.tg-contenido .tg-ojo::before{ content:"Ojo en el examen"; }
+.tg-contenido .tg-truco::before{ content:"Truco para recordarlo"; }
+.tg-contenido .tg-ejemplo::before{ content:"Ejemplo"; }
+.tg-contenido .tg-clave::before, .tg-contenido .tg-ojo::before, .tg-contenido .tg-truco::before, .tg-contenido .tg-ejemplo::before{
+  display:block; font-size:12px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; margin-bottom:6px; opacity:.85; }
+.tg-contenido .tg-clave > :last-child, .tg-contenido .tg-ojo > :last-child, .tg-contenido .tg-truco > :last-child, .tg-contenido .tg-ejemplo > :last-child{ margin-bottom:0; }
+.tg-contenido .tg-figura{ margin:18px 0; padding:14px; border:1px solid var(--line); border-radius:12px; background: var(--card); text-align:center; }
+.tg-contenido .tg-figura figcaption{ font-size:13px; color: var(--muted); margin-top:8px; line-height:1.4; }
+.tg-contenido .tg-video{ position:relative; margin:18px 0; aspect-ratio:16 / 9; border-radius:12px; overflow:hidden; background:#000; }
+.tg-contenido .tg-video iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
+.tg-contenido .tg-tabla{ margin:16px 0; overflow-x:auto; border:1px solid var(--line); border-radius:12px; }
+.tg-contenido table{ width:100%; border-collapse:collapse; font-size:14.5px; }
+.tg-contenido th, .tg-contenido td{ padding:9px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+.tg-contenido th{ background: var(--card); font-weight:650; }
+.tg-contenido tr:last-child td{ border-bottom:none; }
+.tg-contenido ol.tg-secuencia{ list-style:none; padding-left:0; counter-reset: tgs; }
+.tg-contenido ol.tg-secuencia > li{ position:relative; padding:2px 0 10px 42px; counter-increment: tgs; }
+.tg-contenido ol.tg-secuencia > li::before{ content: counter(tgs); position:absolute; left:0; top:0; width:28px; height:28px; border-radius:50%;
+  background: var(--green); color:#04130d; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center; }
+.tg-contenido .tg-mas{ margin:16px 0; padding:12px 16px; border:1px solid var(--line); border-radius:12px; }
+.tg-contenido .tg-mas summary{ cursor:pointer; font-weight:600; }
+
+/* Preguntas */
+.tg-pregunta{ margin-top:6px; }
+.tg-enunciado{ font-size:16.5px; line-height:1.55; font-weight:600; margin-bottom:14px; }
+.tg-opciones{ display:flex; flex-direction:column; gap:10px; }
+.tg-opcion{ display:flex; align-items:flex-start; gap:12px; width:100%; padding:13px 14px; border:1px solid var(--line); border-radius:12px; background: var(--card);
+  color: var(--text); font:inherit; font-size:15px; line-height:1.45; text-align:left; cursor:pointer; transition: border-color .15s, background .15s; }
+.tg-opcion:not([disabled]):hover{ border-color: var(--muted-2); background: var(--card-hi); }
+.tg-opcion[disabled]{ cursor:default; }
+.tg-letra{ flex-shrink:0; width:26px; height:26px; border-radius:50%; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color: var(--muted); }
+.tg-opcion.correcta{ border-color: var(--green); background: color-mix(in srgb, var(--green) 13%, transparent); }
+.tg-opcion.correcta .tg-letra{ background: var(--green); border-color: var(--green); color:#04130d; }
+.tg-opcion.fallada{ border-color: var(--coral); background: color-mix(in srgb, var(--coral) 13%, transparent); }
+.tg-opcion.fallada .tg-letra{ background: var(--coral); border-color: var(--coral); color:#fff; }
+.tg-feedback{ margin-top:14px; padding:14px 16px; border-radius:12px; font-size:15px; line-height:1.55; border-left:4px solid; }
+.tg-feedback.bien{ border-color: var(--green); background: color-mix(in srgb, var(--green) 10%, transparent); }
+.tg-feedback.mal{ border-color: var(--coral); background: color-mix(in srgb, var(--coral) 10%, transparent); }
+.tg-feedback > b{ display:block; margin-bottom:4px; }
+
+.tg-resultado{ text-align:center; padding:18px 10px 6px; }
+.tg-nota{ font-family: var(--title); font-size:64px; line-height:1; }
+.tg-nota small{ font-size:28px; color: var(--muted); }
+.tg-nota.bien{ color: var(--green); }
+.tg-nota.medio{ color: var(--amber); }
+.tg-nota.mal{ color: var(--coral); }
+.tg-resultado p{ color: var(--muted); font-size:15px; line-height:1.5; max-width:440px; margin:12px auto 0; }
+.tg-h3{ font-size:17px; margin:24px 0 10px; }
+.tg-fallos{ display:flex; flex-direction:column; gap:12px; }
+.tg-fallo{ padding:14px 16px; border:1px solid var(--line); border-radius:12px; background: var(--card); }
+.tg-fallo .tg-enunciado{ font-size:15px; margin-bottom:8px; }
+.tg-fallo-ok{ font-size:14.5px; color: var(--green); }
+:root[data-theme="light"] .tg-fallo-ok, :root[data-theme="light"] .tg-chip.hecho{ color:#0f7a55; }
+.tg-fallo-exp{ font-size:14px; color: var(--muted); margin-top:6px; line-height:1.5; }
+
+@media (max-width:640px){
+  .tg-contenido{ font-size:15.5px; }
+  .tg-contenido h2{ font-size:21px; }
+  .tg-tema-card{ padding:14px; }
+  .tg-nota{ font-size:54px; }
+}
