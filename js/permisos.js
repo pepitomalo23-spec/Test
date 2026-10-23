@@ -87,6 +87,7 @@ function applyFeatureVisibility(){
   // Si está en una pantalla que ya no tiene permitida, a Inicio.
   const active = document.querySelector('.screen.active');
   if(active && SCREEN_FEATURE[active.id] && !featureEnabled(SCREEN_FEATURE[active.id])) showScreen('screen-home');
+  if(typeof TG !== 'undefined') TG.visibilidad();   // Estudio › Temario: solo el administrador
   if(typeof INICIO !== 'undefined') INICIO.pintar();
   if(typeof ESTE !== 'undefined') ESTE.aplicarPestana();   // la pestaña Específico de Estadísticas
   // Las preguntas de Tutorbombero dependen de su permiso: se rehace la lista de Legislación.
