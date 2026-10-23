@@ -31,7 +31,7 @@ const TG = (function(){
   const progreso = new Map();   // tema_id → { paso, leido, dudas }
   const ultimo = new Map();     // tema_id → { aciertos, total }
   let tema = null, paso = 0;
-  let quiz = null;              // { orden: [índices], i, respuestas: [], elegida }
+  let quiz = null;              // { orden: [índices de pregunta], opciones: [[índices de opción]], i, respuestas: [] }
   let guardarPasoT = null;
 
   const esc = t => escapeHtml(t == null ? '' : String(t));
@@ -176,9 +176,10 @@ const TG = (function(){
   function empezarPreguntas(){
     const qs = tema.preguntas || [];
     if(!qs.length) return;
-    const orden = qs.map((_, i) => i);
-    for(let i = orden.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [orden[i], orden[j]] = [orden[j], orden[i]]; }
-    quiz = { orden, i: 0, respuestas: qs.map(() => null), elegida: null };
+    // Preguntas y opciones en otro orden cada vez (para no aprenderse la letra). Las
+    // respuestas se guardan con el índice original de la opción.
+    const barajar = a => { for(let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    quiz = { orden: barajar(qs.map((_, i) => i)), opciones: qs.map(q => barajar((q.opciones || []).map((_, i) => i))), i: 0, respuestas: qs.map(() => null) };
     clearTimeout(guardarPasoT);
     guardarProgreso({ paso: Math.max(0, (tema.pasos || []).length - 1), leido: true }).catch(() => {});
     pintarPregunta();
@@ -193,10 +194,10 @@ const TG = (function(){
       '<div class="tg-progreso"><div class="tg-progreso-txt">Pregunta ' + (quiz.i + 1) + ' de ' + total + '</div>' +
         '<div class="tg-barra preguntas"><span style="width:' + Math.round((quiz.i + (respondida ? 1 : 0)) / total * 100) + '%"></span></div></div>' +
       '<div class="tg-pregunta"><div class="tg-enunciado">' + (q.enunciado || '') + '</div>' +
-      '<div class="tg-opciones">' + (q.opciones || []).map((o, i) => {
+      '<div class="tg-opciones">' + quiz.opciones[k].map((i, pos) => {
         let c = '';
         if(respondida){ if(i === q.correcta) c = ' correcta'; else if(i === r) c = ' fallada'; }
-        return '<button type="button" class="tg-opcion' + c + '" data-tg-op="' + i + '"' + (respondida ? ' disabled' : '') + '><span class="tg-letra">' + String.fromCharCode(97 + i) + '</span><span>' + o + '</span></button>';
+        return '<button type="button" class="tg-opcion' + c + '" data-tg-op="' + i + '"' + (respondida ? ' disabled' : '') + '><span class="tg-letra">' + String.fromCharCode(97 + pos) + '</span><span>' + q.opciones[i] + '</span></button>';
       }).join('') + '</div>' +
       (respondida ? '<div class="tg-feedback ' + (r === q.correcta ? 'bien' : 'mal') + '"><b>' + (r === q.correcta ? '¡Bien!' : 'No es esa.') + '</b>' +
         (q.explicacion ? '<div>' + q.explicacion + '</div>' : '') +
